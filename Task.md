@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v4.9.0 研发任务规划（进行中）
+
+> v4.9.0 规划入口为 [`docs/development-task-plan-v4.9.0.md`](docs/development-task-plan-v4.9.0.md)，覆盖 Phase 1（W3C TraceContext 与 OpenTelemetry 注入透传引擎）、Phase 2（用例步骤与微服务分布式调用链精准对齐）、Phase 3（链路追踪诊断控制台与火焰图下钻大盘）、Phase 4（追踪数据防篡改签名、容量治理与发布）。
+
+- [x] 2026-10-17 T1.1 W3C TraceContext 标准协议注入与提取服务：落地 `w3c_trace_context_injector` 服务与 `/observability/trace/inject` API；实现 `traceparent` (version-trace_id-parent_id-flags) 与 `tracestate` 格式生成、解析与上下文注入；单测独立通过，见 [`docs/evidence/w3c-trace-context-injector-t1-1-2026-10-17.md`](docs/evidence/w3c-trace-context-injector-t1-1-2026-10-17.md)。
+- [ ] 2026-10-17 T1.2 异步任务与执行器链路上下文传播拦截器：落地 `test_execution_trace_propagator` 服务与 `/observability/trace/propagate` API；确保 Celery Worker 与多步测试执行会话（REST/gRPC/WebSocket）跨线程/进程透明透传 TraceContext；单测独立通过。
+- [ ] 2026-10-17 T1.3 OTLP / Jaeger 追踪数据协议导出适配器：落地 `otlp_trace_exporter` 服务与 `/observability/trace/export` API；实现标准 OTLP JSON / Protobuf 格式 Span 数据打包与异步导出通道；单测独立通过。
+- [ ] 2026-10-17 T2.1 测试步骤与服务端调用链跨网络时钟对齐器：落地 `trace_timestamp_clock_skew_aligner` 服务与 `/observability/trace/skew-compensate` API；实现前后端跨网络时钟偏移补偿算法，精确定位步骤对应后端 Span；单测独立通过。
+- [ ] 2026-10-17 T2.2 异常步骤调用链深潜下钻与首因归因器：落地 `step_trace_deep_dive_analyzer` 服务与 `/observability/trace/deep-dive` API；当测试步骤失败时自动捕获关联调用链首因 Span、慢 SQL 与异常堆栈；单测独立通过。
+- [ ] 2026-10-17 T2.3 跨协议多跳调用链拓扑血缘重构器：落地 `cross_protocol_trace_lineage_builder` 服务与 `/observability/trace/lineage` API；解析多跳 Span 树构建跨协议拓扑与血缘依赖；单测独立通过。
+- [ ] 2026-10-17 UI3.1 步骤级分布式调用链时序甘特图抽屉：落地 `StepTraceTimelineDrawer.vue` 组件与 API 客户端；用例详情页一键展开微服务调用链甘特图与 Span 属性树；单测独立通过。
+- [ ] 2026-10-17 UI3.2 慢跨度与服务依赖下钻火焰图卡片：落地 `SpanFlamegraphInspectorCard.vue` 组件与 API 客户端；展示微服务调用火焰图卡片与慢跨度红斑告警；单测独立通过。
+- [ ] 2026-10-17 UI3.3 全局测试执行分布式追踪贯通全景大盘页面：落地 `DistributedTraceAlignmentDashboardView.vue` 视图与路由；汇总全站用例 Trace 对齐率、平均跳数与拓扑列表；单测独立通过。
+- [ ] 2026-10-17 T4.1 Trace 采样率动态调谐与敏感数据脱敏过滤器：落地 `trace_sampler_and_sanitizer` 服务与 `/observability/trace/sampling` API；支持自适应采样与 Token/密码敏感参数脱敏；单测独立通过。
+- [ ] 2026-10-17 T4.2 追踪审计凭据 64 位 SHA-256 防篡改存证器：落地 `trace_evidence_fingerprint_signer` 服务与 `/observability/trace/sign` API；生成不可篡改 SHA-256 签名存证；单测独立通过。
+- [ ] 2026-10-17 T4.3 v4.9.0 全链路分布式追踪中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v4.9.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-17 v4.8.0 研发任务规划（已全量闭环）
 
 > v4.8.0 规划入口为 [`docs/development-task-plan-v4.8.0.md`](docs/development-task-plan-v4.8.0.md)，覆盖 Phase 1（工具栏渐进式披露与操作认知降噪）、Phase 2（非标原生标签肃清与组件库基座归一化）、Phase 3（Bento 2.0 空间排版与交互加载质感升级）、Phase 4（数据大盘图表可解释性与穿透下钻）。

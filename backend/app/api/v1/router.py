@@ -144,6 +144,7 @@ from app.api.v1 import (
     throughput_knee_api,
     stress_blast_radius_api,
     full_link_drill_report_api,
+    observability_trace_api,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -293,3 +294,4 @@ router.include_router(adaptive_circuit_breaker_api.router)
 router.include_router(throughput_knee_api.router)
 router.include_router(stress_blast_radius_api.router)
 router.include_router(full_link_drill_report_api.router)
+router.include_router(observability_trace_api.router)
