@@ -21,6 +21,15 @@ from app.services.workflow_context_variable_bus import (
     WorkflowVariableBus,
     resolve_node_inputs,
 )
+from app.services.workflow_execution_sandbox_guard import (
+    list_guard_violations,
+)
+from app.services.workflow_evidence_fingerprint_signer import (
+    get_workflow_certificate,
+    list_workflow_certificates,
+    sign_workflow_evidence,
+    verify_workflow_evidence,
+)
 
 router = APIRouter(prefix="/workflow", tags=["Hybrid Workflow Orchestrator"])
 
@@ -62,6 +71,16 @@ class ExecuteWorkflowRequest(BaseModel):
 class ResolveVariablesRequest(BaseModel):
     raw_config: Dict[str, Any] = Field(..., description="待解析的原始配置字典")
     context_variables: Dict[str, Any] = Field(default_factory=dict, description="当前总线上下文变量字典")
+
+
+class SignWorkflowEvidenceRequest(BaseModel):
+    run_id: str = Field(..., description="工作流运行任务 RunID")
+    signer: str = Field("atp-workflow-auditor-v5.1", description="签名主体标识")
+
+
+class VerifyWorkflowEvidenceRequest(BaseModel):
+    certificate: Dict[str, Any] = Field(..., description="存证证书字典")
+    report: Dict[str, Any] = Field(..., description="待校验的工作流执行报告字典")
 
 
 # 全局轻量级工作流草稿存储
@@ -192,4 +211,75 @@ def resolve_variables_endpoint(
     return {
         "resolved_config": resolved,
         "variables_in_bus": bus.to_dict(),
+    }
+
+
+@router.post("/evidence/sign")
+def sign_workflow_evidence_endpoint(
+    payload: SignWorkflowEvidenceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """为指定工作流运行报告生成 64 位 SHA-256 存证证书"""
+    report = get_workflow_run(payload.run_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="未找到目标工作流运行记录")
+
+    cert = sign_workflow_evidence(report, signer=payload.signer)
+    return {
+        "message": "工作流执行证据链 64 位 SHA-256 签名成功",
+        "certificate": cert.to_dict(),
+    }
+
+
+@router.post("/evidence/verify")
+def verify_workflow_evidence_endpoint(
+    payload: VerifyWorkflowEvidenceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """核验工作流报告是否被篡改"""
+    is_valid, msg = verify_workflow_evidence(
+        certificate=payload.certificate,
+        report=payload.report,
+    )
+    return {
+        "is_valid": is_valid,
+        "message": msg,
+    }
+
+
+@router.get("/evidence/{run_id}")
+def get_evidence_endpoint(
+    run_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询指定运行任务的存证证书"""
+    cert = get_workflow_certificate(run_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="未找到该运行任务的存证证书")
+    return {"certificate": cert.to_dict()}
+
+
+@router.get("/evidences")
+def list_evidences_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询全量已签名的存证证书列表"""
+    certs = list_workflow_certificates(limit=limit)
+    return {
+        "total": len(certs),
+        "certificates": certs,
+    }
+
+
+@router.get("/guard/violations")
+def list_guard_violations_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询近期看门狗沙箱熔断告警记录"""
+    violations = list_guard_violations(limit=limit)
+    return {
+        "total": len(violations),
+        "violations": violations,
     }

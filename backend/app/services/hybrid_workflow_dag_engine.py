@@ -14,6 +14,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from app.services.workflow_context_variable_bus import WorkflowVariableBus, resolve_node_inputs
+from app.services.workflow_execution_sandbox_guard import (
+    SandboxGuardPolicy,
+    WorkflowSandboxException,
+    WorkflowSandboxWatchdog,
+)
 
 
 class WorkflowNodeType(str, Enum):
@@ -264,6 +269,7 @@ def execute_hybrid_workflow(
     nodes: List[WorkflowNode],
     edges: List[WorkflowEdge],
     initial_variables: Dict[str, Any] | None = None,
+    guard_policy: SandboxGuardPolicy | None = None,
 ) -> WorkflowExecutionReport:
     """执行多协议多端混合工作流拓扑 DAG 完整链路"""
     start_time = datetime.now(timezone.utc)
@@ -276,6 +282,11 @@ def execute_hybrid_workflow(
     for e in edges:
         out_edges_map[e.source_node_id].append(e)
 
+    watchdog = WorkflowSandboxWatchdog(
+        workflow_id=workflow_id,
+        run_id=run_id,
+        policy=guard_policy,
+    )
     var_bus = WorkflowVariableBus(initial_variables)
     context_outputs: Dict[str, Any] = dict(initial_variables or {})
     records: List[NodeExecutionRecord] = []
@@ -296,6 +307,23 @@ def execute_hybrid_workflow(
                 )
             )
             continue
+        try:
+            watchdog.check_before_node_execution(node.node_id)
+        except WorkflowSandboxException as wbe:
+            records.append(
+                NodeExecutionRecord(
+                    node_id=node.node_id,
+                    node_name=node.node_name,
+                    node_type=node.node_type.value,
+                    status=NodeExecutionStatus.FAILED,
+                    duration_ms=0.0,
+                    input_data=node.config,
+                    output_data={},
+                    error_message=str(wbe),
+                )
+            )
+            overall_status = "FAILED"
+            break
 
         node_start = datetime.now(timezone.utc)
         resolved_inputs = resolve_node_inputs(node.config, var_bus)
@@ -324,6 +352,11 @@ def execute_hybrid_workflow(
         context_outputs[f"node_{node.node_id}"] = output_data
         var_bus.set_value(f"node_{node.node_id}", output_data)
         var_bus.set_value(node.node_id, output_data)
+        watchdog.record_after_node_execution(
+            node_id=node.node_id,
+            success=(exec_status == NodeExecutionStatus.SUCCESS),
+            duration_ms=node_duration,
+        )
 
         # 分支流转判断
         if node.node_type == WorkflowNodeType.CONDITION_BRANCH:

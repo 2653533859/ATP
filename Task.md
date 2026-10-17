@@ -17,8 +17,8 @@
 - [x] 2026-10-17 UI3.1 可视化拖拽工作流编排画布组件：落地 `HybridWorkflowDragCanvas.vue`；实现节点拖拽布局、端口连线、属性抽屉配置与执行状态流光动画；单测独立通过，见 [`docs/evidence/hybrid-workflow-drag-canvas-ui3-1-2026-10-17.md`](docs/evidence/hybrid-workflow-drag-canvas-ui3-1-2026-10-17.md)。
 - [x] 2026-10-17 UI3.2 漏测血缘图谱与覆盖间隙下钻抽屉：落地 `VisualCoverageGapInspectorDrawer.vue`；呈现业务与接口血缘拓扑树、红斑漏测节点高亮与一键补测；单测独立通过，见 [`docs/evidence/visual-coverage-gap-inspector-drawer-ui3-2-2026-10-17.md`](docs/evidence/visual-coverage-gap-inspector-drawer-ui3-2-2026-10-17.md)。
 - [x] 2026-10-17 UI3.3 混合工作流与漏测血缘中枢工作台页面：落地 `HybridWorkflowWorkbenchView.vue` 视图与 `/workbench/hybrid-orchestrator` 路由；全景管理混合编排与漏测大盘；单测独立通过，见 [`docs/evidence/hybrid-workflow-workbench-view-ui3-3-2026-10-17.md`](docs/evidence/hybrid-workflow-workbench-view-ui3-3-2026-10-17.md)。至此 v5.1.0 Phase 3 全量大闭环！
-- [ ] 2026-10-17 T4.1 工作流执行死循环与超时熔断看门狗：落地 `workflow_execution_sandbox_guard` 服务；监控循环节点迭代次数与超时熔断保护；单测独立通过。
-- [ ] 2026-10-17 T4.2 工作流执行证据链 64 位 SHA-256 签名存证器：落地 `workflow_evidence_fingerprint_signer` 服务；为多端执行结果生成不可篡改 SHA-256 存证证书；单测独立通过。
+- [x] 2026-10-17 T4.1 工作流执行死循环与超时熔断看门狗：落地 `workflow_execution_sandbox_guard` 服务与 `/workflow/guard/violations` API；监控循环节点迭代次数与超时熔断保护；单测独立通过，见 [`docs/evidence/workflow-sandbox-and-signer-t4-1-t4-2-2026-10-17.md`](docs/evidence/workflow-sandbox-and-signer-t4-1-t4-2-2026-10-17.md)。
+- [x] 2026-10-17 T4.2 工作流执行证据链 64 位 SHA-256 签名存证器：落地 `workflow_evidence_fingerprint_signer` 服务与 `/workflow/evidence/sign` API；为多端执行结果生成不可篡改 SHA-256 存证证书；单测独立通过，见 [`docs/evidence/workflow-sandbox-and-signer-t4-1-t4-2-2026-10-17.md`](docs/evidence/workflow-sandbox-and-signer-t4-1-t4-2-2026-10-17.md)。
 - [ ] 2026-10-17 T4.3 v5.1.0 混合编排与漏测血缘中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.1.0-release-notes.md` 与专项交付证据。
 
 ## 2026-10-17 v5.0.0 研发任务规划（已全量闭环）

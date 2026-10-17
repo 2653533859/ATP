@@ -49,8 +49,8 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T4.1 `[ ]` | **工作流执行死循环与超时熔断看门狗** | `backend/app/services/workflow_execution_sandbox_guard.py` | 监控循环节点迭代次数与链路总超时，防范死锁并安全熔断终止；单测独立通过。 |
-| T4.2 `[ ]` | **工作流执行证据链 64 位 SHA-256 签名存证器** | `backend/app/services/workflow_evidence_fingerprint_signer.py` | 为多端执行结果生成不可篡改 SHA-256 存证证书并支持在线验签；单测独立通过。 |
+| T4.1 `[x]` | **工作流执行死循环与超时熔断看门狗** | `backend/app/services/workflow_execution_sandbox_guard.py` | 监控循环节点迭代次数与链路总超时，防范死锁并安全熔断终止；单测独立通过；见 docs/evidence/workflow-sandbox-and-signer-t4-1-t4-2-2026-10-17.md |
+| T4.2 `[x]` | **工作流执行证据链 64 位 SHA-256 签名存证器** | `backend/app/services/workflow_evidence_fingerprint_signer.py` | 为多端执行结果生成不可篡改 SHA-256 存证证书并支持在线验签；单测独立通过；见 docs/evidence/workflow-sandbox-and-signer-t4-1-t4-2-2026-10-17.md |
 | T4.3 `[ ]` | **v5.1.0 混合编排与漏测血缘中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.1.0-release-notes.md` 与专项交付证据。 |
 
 ---
