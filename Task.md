@@ -9,7 +9,7 @@
 > v5.4.0 规划入口为 [`docs/development-task-plan-v5.4.0.md`](docs/development-task-plan-v5.4.0.md)，覆盖 Phase 1（真机健康多维感知与动态权重路由）、Phase 2（任务节点热漂移与无感自愈重平衡）、Phase 3（集群热力透视与调度工作台中枢）、Phase 4（调度风暴防范、合规存证与全量发布）。
 
 - [x] 2026-10-17 T1.1 设备健康遥测与多维指标感知器：落地 `fleet_health_telemetry` 服务；实时感知真机温度、电量、水位与隧道时延；单测独立通过，见 [`docs/evidence/fleet-health-telemetry-t1-1-2026-10-17.md`](docs/evidence/fleet-health-telemetry-t1-1-2026-10-17.md)。
-- [ ] 2026-10-17 T1.2 动态多目标加权并发路由引擎：落地 `fleet_concurrency_router` 服务；基于平台亲和度与负载挑选最优设备；单测独立通过。
+- [x] 2026-10-17 T1.2 动态多目标加权并发路由引擎：落地 `fleet_concurrency_router` 服务；基于平台亲和度与负载挑选最优设备；单测独立通过，见 [`docs/evidence/fleet-concurrency-router-t1-2-2026-10-17.md`](docs/evidence/fleet-concurrency-router-t1-2-2026-10-17.md)。
 - [ ] 2026-10-17 T1.3 集群调度与容量预测 REST API：落地 `fleet_scheduler_api` 路由；提供设备健康状态与路由决策端点；单测独立通过。
 - [ ] 2026-10-17 T2.1 真机故障热转移与断点续跑引擎：落地 `device_hot_failover_engine` 服务；500ms 内热迁移至同构设备断点续跑；单测独立通过。
 - [ ] 2026-10-17 T2.2 设备过热保护与温备降载协调器：落地 `thermal_throttling_coordinator` 服务；超温静默降温与削减并发；单测独立通过。
