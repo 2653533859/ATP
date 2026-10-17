@@ -67,7 +67,7 @@ flowchart TD
 |---|---|---|---|
 | T2.1 `[x]` | **接口响应结构变迁与漂移检测器** | `backend/app/services/response_schema_drift_detector.py` | 识别字段重命名（如 `user_id` ➔ `userId`）、包装层级展开（Envelope Unwrap）与类型兼容变迁；单测独立通过；见 docs/evidence/response-schema-drift-detector-t2-1-2026-10-17.md |
 | T2.2 `[x]` | **语义断言智能演进与语法重写器** | `backend/app/services/assertion_drift_evolution_synthesizer.py` | 基于 Schema 变迁自动将旧断言语法重写为适应新结构的现代断言，输出代码 Diff；单测独立通过；见 docs/evidence/assertion-drift-evolution-synthesizer-t2-2-2026-10-17.md |
-| T2.3 `[ ]` | **断言演进置信度评分与安全回滚控制器** | `backend/app/services/assertion_evolution_controller.py` | 为断言演进输出置信度健康评分，提供一键试跑验证与历史回滚版本控制；单测独立通过。 |
+| T2.3 `[x]` | **断言演进置信度评分与安全回滚控制器** | `backend/app/services/assertion_evolution_controller.py` | 为断言演进输出置信度健康评分，提供一键试跑验证与历史回滚版本控制；单测独立通过；见 docs/evidence/assertion-evolution-controller-t2-3-2026-10-17.md |
 
 ---
 
