@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-18 v6.0.0 研发任务规划（进行中）
+
+> v6.0.0 规划入口为 [`docs/development-task-plan-v6.0.0.md`](docs/development-task-plan-v6.0.0.md)，覆盖 Phase 1（失败堆栈指纹提取与智能聚类去重引擎）、Phase 2（责任归属智能推导与双向状态同步网关）、Phase 3（智能缺陷聚类看板与全生命周期工作台）、Phase 4（生产防误提安全沙箱、合规存证与全量发布）。
+
+- [x] 2026-10-18 T1.1 失败堆栈与异常语义指纹提取器：落地 `defect_failure_fingerprint_extractor` 服务；生成稳定归一化的 64 位异常指纹；单测独立通过，见 [`docs/evidence/defect-failure-fingerprint-extractor-t1-1-2026-10-18.md`](docs/evidence/defect-failure-fingerprint-extractor-t1-1-2026-10-18.md)。
+- [ ] 2026-10-18 T1.2 缺陷相似度计算与海量失败聚类去重器：落地 `defect_similarity_deduplicator` 服务；自动聚合归类同源缺陷并去重防泛滥；单测独立通过。
+- [ ] 2026-10-18 T1.3 缺陷智能去重与聚合管理 REST API：落地 `defect_intelligence_api` 路由；提供指纹提取、相似度去重与批次合并端点；单测独立通过。
+- [ ] 2026-10-18 T2.1 故障责任微服务与团队智能归因路由器：落地 `defect_root_cause_router` 服务；基于调用链定位故障微服务并路由负责人；单测独立通过。
+- [ ] 2026-10-18 T2.2 跨平台缺陷工单双向状态同步器：落地 `defect_bidirectional_sync_gateway` 服务；对接 Jira/GitHub 双向联动流转；单测独立通过。
+- [ ] 2026-10-18 T2.3 缺陷 SLA 超时预警与升级看门狗：落地 `defect_sla_escalation_watchdog` 服务；监控处理时效与超时升级阻断；单测独立通过。
+- [ ] 2026-10-18 UI3.1 堆栈指纹拓扑与同源缺陷聚类抽屉：落地 `DefectClusterInspectionDrawer.vue`；堆栈差异对比与一键合并操作；单测独立通过。
+- [ ] 2026-10-18 UI3.2 跨平台同步与 SLA 升级策略配置弹窗：落地 `DefectSyncConfigModal.vue`；Jira/GitHub 凭据与时限交互配置；单测独立通过。
+- [ ] 2026-10-18 UI3.3 智能缺陷治理与全生命周期工作台中枢页面：落地 `DefectIntelligenceWorkbenchView.vue` 与 `/workbench/defect-intelligence` 路由；单测独立通过。
+- [ ] 2026-10-18 T4.1 偶发抖动缺陷提单防击穿安全沙箱看门狗：落地 `flaky_defect_suppression_guard` 服务；识别 Flaky 假失败与防误建垃圾工单；单测独立通过。
+- [ ] 2026-10-18 T4.2 缺陷归因结论与 SLA 履约 64 位 SHA-256 存证证书器：落地 `defect_evidence_signer` 服务；为缺陷聚类与归因签发存证证书；单测独立通过。
+- [ ] 2026-10-18 T4.3 v6.0.0 智能缺陷治理中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.0.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-18 v5.9.0 研发任务规划（已全量闭环）
 
 > v5.9.0 规划入口为 [`docs/development-task-plan-v5.9.0.md`](docs/development-task-plan-v5.9.0.md)，覆盖 Phase 1（多源覆盖率数据摄取与增量 Diff 行级染色引擎）、Phase 2（未覆盖高危分支分析与自动化测试补齐推荐器）、Phase 3（覆盖率全景染色看板与源码级透视工作台）、Phase 4（生产发布阻断安全沙箱、合规存证与全量发布）。
