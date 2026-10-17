@@ -19,6 +19,10 @@
             <template #icon><ReloadOutlined /></template>
             刷新工作台
           </a-button>
+          <a-button @click="intentModalOpen = true">
+            <template #icon><ThunderboltOutlined /></template>
+            AI 意图驱动生成
+          </a-button>
           <a-button type="primary" @click="coverageDrawerOpen = true">
             <template #icon><EyeOutlined /></template>
             漏测血缘深度透视
@@ -85,6 +89,7 @@
     <!-- 核心编排交互画布 (UI3.1 深度复用嵌入) -->
     <div class="workflow-canvas-container">
       <HybridWorkflowDragCanvas
+        ref="canvasRef"
         workflow-id="wf_e2e_hybrid_master"
         workflow-name="多协议跨端端到端综合业务链路"
         @executed="handleWorkflowExecuted"
@@ -150,6 +155,13 @@
       @close="coverageDrawerOpen = false"
     />
 
+    <!-- 弹窗 1.5: 自然语言意图驱动工作流生成弹窗 (UI3.1) -->
+    <IntentWorkflowGenerateModal
+      v-model:open="intentModalOpen"
+      workflow-id="wf_e2e_hybrid_master"
+      @applied="handleWorkflowApplied"
+    />
+
     <!-- 对话框 2: 工作流单次执行详细报告查看弹窗 -->
     <a-modal
       v-model:open="reportModalVisible"
@@ -200,6 +212,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import {
   ApartmentOutlined,
@@ -215,6 +228,7 @@ import {
 } from '@/api/hybridWorkflow'
 import HybridWorkflowDragCanvas from './components/HybridWorkflowDragCanvas.vue'
 import VisualCoverageGapInspectorDrawer from './components/VisualCoverageGapInspectorDrawer.vue'
+import IntentWorkflowGenerateModal from './components/IntentWorkflowGenerateModal.vue'
 
 const { t } = useI18n()
 
@@ -222,6 +236,8 @@ const loading = ref(false)
 const searchKeyword = ref('')
 const coverageDrawerOpen = ref(false)
 const reportModalVisible = ref(false)
+const intentModalOpen = ref(false)
+const canvasRef = ref<any>(null)
 const currentReport = ref<WorkflowExecutionReportItem | null>(null)
 const executionRuns = ref<WorkflowExecutionReportItem[]>([])
 
@@ -336,6 +352,13 @@ function generateMockRuns(): WorkflowExecutionReportItem[] {
       total_duration_ms: 250.0,
     },
   ]
+}
+
+function handleWorkflowApplied(payload: { nodes: any[]; edges: any[]; name?: string }) {
+  if (canvasRef.value?.loadSynthesizedWorkflow) {
+    canvasRef.value.loadSynthesizedWorkflow(payload.nodes, payload.edges)
+  }
+  message.success(`已成功应用 AI 生成的工作流 [${payload.name || '混合工作流'}] (${payload.nodes.length} 个节点)`)
 }
 
 onMounted(() => {

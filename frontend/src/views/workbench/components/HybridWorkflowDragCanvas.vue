@@ -520,6 +520,17 @@ async function handleExecuteWorkflow() {
     executing.value = false
   }
 }
+
+function loadSynthesizedWorkflow(newNodes: WorkflowNodeItem[], newEdges: WorkflowEdgeItem[]) {
+  nodes.value = [...newNodes]
+  edges.value = [...newEdges]
+}
+
+defineExpose({
+  loadSynthesizedWorkflow,
+  nodes,
+  edges,
+})
 </script>
 
 <style scoped>

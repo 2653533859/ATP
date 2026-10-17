@@ -87,6 +87,10 @@ describe('HybridWorkflowWorkbenchView.vue', () => {
             template: '<div v-if="open" class="visual-coverage-gap-inspector-drawer-stub" />',
             props: ['open'],
           },
+          IntentWorkflowGenerateModal: {
+            template: '<div v-if="open" class="intent-workflow-generate-modal-stub" />',
+            props: ['open', 'workflowId'],
+          },
         },
       },
     })
@@ -118,10 +122,23 @@ describe('HybridWorkflowWorkbenchView.vue', () => {
     await flushPromises()
 
     // 触发漏测血缘深度透视
-    const buttons = wrapper.findAll('header button')
-    await buttons[1].trigger('click')
+    const coverageBtn = wrapper.findAll('header button').find((b) => b.text().includes('漏测血缘深度透视'))
+    expect(coverageBtn).toBeDefined()
+    await coverageBtn!.trigger('click')
     await flushPromises()
 
     expect(wrapper.find('.visual-coverage-gap-inspector-drawer-stub').exists()).toBe(true)
+  })
+
+  it('opens intent workflow generate modal when button is clicked', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const intentBtn = wrapper.findAll('header button').find((b) => b.text().includes('AI 意图驱动生成'))
+    expect(intentBtn).toBeDefined()
+    await intentBtn!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.intent-workflow-generate-modal-stub').exists()).toBe(true)
   })
 })

@@ -39,7 +39,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI3.1 `[ ]` | **自然语言对话式工作流生成弹窗组件** | `frontend/src/views/workbench/components/IntentWorkflowGenerateModal.vue` | 提供意图输入、AI 思考流展示、生成 DAG 预览与一键应用到画布；单测独立通过。 |
+| UI3.1 `[x]` | **自然语言对话式工作流生成弹窗组件** | `frontend/src/views/workbench/components/IntentWorkflowGenerateModal.vue` | 提供意图输入、AI 思考流展示、生成 DAG 预览与一键应用到画布；单测独立通过；见 docs/evidence/intent-workflow-generate-modal-ui3-1-2026-10-17.md |
 | UI3.2 `[ ]` | **VLM 自主探索控制与状态图谱抽屉组件** | `frontend/src/views/workbench/components/AutonomousExplorationDashboardDrawer.vue` | 展示状态迁移图、屏幕快照回放序列、检出异常与一键转为用例；单测独立通过。 |
 | UI3.3 `[ ]` | **AI 自主探索与意图生成工作台中枢页面** | `frontend/src/views/workbench/AiAutonomousExplorationView.vue` | 落地路由 `/workbench/ai-exploration`，集成 4 大 Bento KPI、大盘列表与操作；单测独立通过。 |
 
