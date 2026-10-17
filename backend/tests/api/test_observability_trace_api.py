@@ -314,3 +314,72 @@ def test_deep_dive_analysis_api():
     assert del_resp.status_code == 200
     empty_resp = client.get("/api/v1/observability/trace/diagnoses", headers=HEADERS)
     assert empty_resp.json()["total"] == 0
+
+
+def test_trace_lineage_api():
+    """测试跨协议多跳调用链拓扑重构、单链查询、列表与清空 API。"""
+    client = TestClient(app)
+
+    trace_id = "f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5"
+
+    # 1. 提交跨协议 Span 重构请求
+    req_payload = {
+        "trace_id": trace_id,
+        "spans": [
+            {
+                "span_id": "span_root_gw",
+                "name": "GET /api/v1/items",
+                "service_name": "api-gateway",
+                "duration_ms": 110.0,
+            },
+            {
+                "span_id": "span_child_cache",
+                "parent_span_id": "span_root_gw",
+                "name": "GET user_cache",
+                "service_name": "redis-cluster",
+                "duration_ms": 12.0,
+                "attributes": {"db.system": "redis"},
+            },
+            {
+                "span_id": "span_child_db",
+                "parent_span_id": "span_root_gw",
+                "name": "SELECT items",
+                "service_name": "item-db",
+                "duration_ms": 55.0,
+                "attributes": {"db.system": "mysql"},
+            },
+        ],
+    }
+
+    resp = client.post(
+        "/api/v1/observability/trace/lineage",
+        json=req_payload,
+        headers=HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "lineage" in data
+    lineage = data["lineage"]
+    assert lineage["trace_id"] == trace_id
+    assert lineage["total_spans"] == 3
+    assert lineage["services_count"] == 3
+    assert "redis" in lineage["protocols_covered"]
+    assert "mysql" in lineage["protocols_covered"]
+    assert len(lineage["nodes"]) == 3
+    assert len(lineage["edges"]) == 2
+
+    # 2. 查询指定 TraceID 血缘
+    detail_resp = client.get(f"/api/v1/observability/trace/lineage/{trace_id}", headers=HEADERS)
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["lineage"]["trace_id"] == trace_id
+
+    # 3. 查询全量血缘列表
+    list_resp = client.get("/api/v1/observability/trace/lineages", headers=HEADERS)
+    assert list_resp.status_code == 200
+    assert list_resp.json()["total"] >= 1
+
+    # 4. 清空血缘记录
+    del_resp = client.delete("/api/v1/observability/trace/lineages", headers=HEADERS)
+    assert del_resp.status_code == 200
+    empty_resp = client.get("/api/v1/observability/trace/lineages", headers=HEADERS)
+    assert empty_resp.json()["total"] == 0

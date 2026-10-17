@@ -43,6 +43,12 @@ from app.services.step_trace_deep_dive_analyzer import (
     deep_dive_analyze_trace,
     list_diagnosis_history,
 )
+from app.services.cross_protocol_trace_lineage_builder import (
+    build_cross_protocol_lineage,
+    clear_topology_lineage_store,
+    get_topology_lineage,
+    list_topology_lineages,
+)
 
 router = APIRouter(prefix="/observability/trace", tags=["Observability Trace"])
 
@@ -101,6 +107,11 @@ class DeepDiveAnalysisRequest(BaseModel):
     step_context: Dict[str, Any] = Field(..., description="测试步骤上下文 (trace_id, name, status, error_message)")
     spans: List[Dict[str, Any]] = Field(default_factory=list, description="该步骤绑定的全链路 Span 列表")
     slow_query_threshold_ms: float = Field(150.0, description="慢 SQL 判定阈值 (毫秒)")
+
+
+class BuildTraceLineageRequest(BaseModel):
+    trace_id: str = Field(..., description="调用链全局唯一 32 字符 TraceID")
+    spans: List[Dict[str, Any]] = Field(default_factory=list, description="多协议跨度 Span 列表")
 
 
 @router.post("/inject")
@@ -406,3 +417,53 @@ def clear_diagnoses_endpoint(
     """清空调用链深潜诊断历史"""
     clear_diagnosis_history()
     return {"message": "已清空调用链深潜诊断历史"}
+
+
+@router.post("/lineage")
+def build_lineage_endpoint(
+    payload: BuildTraceLineageRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """重构跨协议调用链层级树与拓扑血缘 DAG"""
+    lineage = build_cross_protocol_lineage(
+        trace_id=payload.trace_id,
+        spans=payload.spans,
+    )
+    return {
+        "message": "跨协议拓扑血缘重构完成",
+        "lineage": lineage.to_dict(),
+    }
+
+
+@router.get("/lineage/{trace_id}")
+def get_lineage_endpoint(
+    trace_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """获取指定 TraceID 的调用链拓扑血缘"""
+    lineage = get_topology_lineage(trace_id=trace_id)
+    if not lineage:
+        raise HTTPException(status_code=404, detail="未找到该 TraceID 的拓扑血缘记录")
+    return {"lineage": lineage}
+
+
+@router.get("/lineages")
+def list_lineages_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """列出当前已重构的拓扑血缘图谱"""
+    items = list_topology_lineages(limit=limit)
+    return {
+        "total": len(items),
+        "lineages": items,
+    }
+
+
+@router.delete("/lineages")
+def clear_lineages_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """清空拓扑血缘图谱"""
+    clear_topology_lineage_store()
+    return {"message": "已清空跨协议拓扑血缘图谱"}

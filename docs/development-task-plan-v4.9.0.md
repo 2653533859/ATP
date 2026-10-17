@@ -32,7 +32,7 @@ ATP v4.9.0 彻底打通这一壁垒：
 |---|---|---|---|
 | T2.1 `[x]` | **测试步骤与服务端调用链跨网络时钟对齐器** | `backend/app/services/trace_timestamp_clock_skew_aligner.py` | 实现前后端与跨机房网络时钟偏移补偿算法，将毫秒级测试步骤与服务端 Span 时间戳精确校准；单测独立通过；见 docs/evidence/trace-timestamp-clock-skew-aligner-t2-1-2026-10-17.md |
 | T2.2 `[x]` | **异常步骤调用链深潜下钻与首因归因器** | `backend/app/services/step_trace_deep_dive_analyzer.py` | 当测试步骤失败（4xx/5xx/断言未通过）时，根据 TraceID 自动检索关联调用链，定位首个报错 Span、慢 SQL 查询及堆栈；单测独立通过；见 docs/evidence/step-trace-deep-dive-analyzer-t2-2-2026-10-17.md |
-| T2.3 `[ ]` | **跨协议多跳调用链拓扑血缘重构器** | `backend/app/services/cross_protocol_trace_lineage_builder.py` | 解析包含 HTTP、gRPC、Kafka/RocketMQ 及 DB 访问的多跳 Span 树，构建可视化调用图谱与依赖关系；单测独立通过。 |
+| T2.3 `[x]` | **跨协议多跳调用链拓扑血缘重构器** | `backend/app/services/cross_protocol_trace_lineage_builder.py` | 解析包含 HTTP、gRPC、Kafka/RocketMQ 及 DB 访问的多跳 Span 树，构建可视化调用图谱与依赖关系；单测独立通过；见 docs/evidence/cross-protocol-trace-lineage-builder-t2-3-2026-10-17.md |
 
 ---
 
