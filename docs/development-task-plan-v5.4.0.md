@@ -55,7 +55,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T1.1 `[ ]` | **设备健康遥测与多维指标感知器** | `backend/app/services/fleet_health_telemetry.py` | 实时汇聚真机电池温度、电量、CPU/内存水位、当前任务并发及 USB/WDA 隧道 RTT 时延；单测独立通过。 |
+| T1.1 `[x]` | **设备健康遥测与多维指标感知器** | `backend/app/services/fleet_health_telemetry.py` | 实时汇聚真机电池温度、电量、CPU/内存水位、当前任务并发及 USB/WDA 隧道 RTT 时延；单测独立通过；见 docs/evidence/fleet-health-telemetry-t1-1-2026-10-17.md |
 | T1.2 `[ ]` | **动态多目标加权并发路由引擎** | `backend/app/services/fleet_concurrency_router.py` | 基于平台亲和度、健康得分与当前负载动态挑选全局最优执行设备（Best-Fit Device Router）；单测独立通过。 |
 | T1.3 `[ ]` | **集群调度与容量预测 REST API** | `backend/app/api/v1/fleet_scheduler_api.py` | 挂载 `/api/v1/scheduler/*`，暴露设备健康状态、最优路由决策计算与集群容量概览端点；单测独立通过。 |
 
