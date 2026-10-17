@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-18 v5.9.0 研发任务规划（进行中）
+
+> v5.9.0 规划入口为 [`docs/development-task-plan-v5.9.0.md`](docs/development-task-plan-v5.9.0.md)，覆盖 Phase 1（多源覆盖率数据摄取与增量 Diff 行级染色引擎）、Phase 2（未覆盖高危分支分析与自动化测试补齐推荐器）、Phase 3（覆盖率全景染色看板与源码级透视工作台）、Phase 4（生产发布阻断安全沙箱、合规存证与全量发布）。
+
+- [x] 2026-10-18 T1.1 多源覆盖率报告解析与合并器：落地 `coverage_report_ingestor` 服务；支持 JaCoCo/Coverage.py/LCOV 解析与多环境覆盖率并集融合；单测独立通过，见 [`docs/evidence/coverage-report-ingestor-t1-1-2026-10-18.md`](docs/evidence/coverage-report-ingestor-t1-1-2026-10-18.md)。
+- [ ] 2026-10-18 T1.2 Git Diff 增量代码行覆盖率染色计算器：落地 `diff_coverage_staining_engine` 服务；精准计算增量行/分支覆盖率并生成红黄绿逐行染色元数据；单测独立通过。
+- [ ] 2026-10-18 T1.3 代码覆盖率与增量染色 REST API：落地 `code_coverage_api` 路由；提供覆盖率报告上报、增量 Diff 比对与文件染色查询端点；单测独立通过。
+- [ ] 2026-10-18 T2.1 未覆盖高危分支路径漏洞挖掘器：落地 `uncovered_branch_risk_analyzer` 服务；识别未覆盖支付/鉴权/重试分支并评估风险；单测独立通过。
+- [ ] 2026-10-18 T2.2 缺失用例场景反向合成与测试输入推导器：落地 `coverage_gap_test_synthesizer` 服务；推导边界输入并生成用例建议草稿；单测独立通过。
+- [ ] 2026-10-18 T2.3 增量覆盖率发布准入卡点与红线裁决器：落地 `incremental_coverage_gate_evaluator` 服务；发布准入门槛评估与阻断整改清单；单测独立通过。
+- [ ] 2026-10-18 UI3.1 源码文件逐行覆盖率动态高亮染色抽屉：落地 `CoverageSourceStainingDrawer.vue`；源码在线红黄绿行级染色与未覆盖提示；单测独立通过。
+- [ ] 2026-10-18 UI3.2 增量覆盖率发布门禁配置与高危分支补测弹窗：落地 `CoverageGateConfigModal.vue`；门禁阈值交互配置与缺失用例导出；单测独立通过。
+- [ ] 2026-10-18 UI3.3 全链路代码覆盖率与质量门禁工作台中枢页面：落地 `CodeCoverageWorkbenchView.vue` 与 `/workbench/code-coverage` 路由；单测独立通过。
+- [ ] 2026-10-18 T4.1 质量门禁发布强阻断与非合规豁免审批看门狗：落地 `coverage_release_blocker_guard` 服务；CI/CD 发布阻断与合规审批单豁免；单测独立通过。
+- [ ] 2026-10-18 T4.2 覆盖率评估报告与染色结果 64 位 SHA-256 存证证书器：落地 `coverage_evidence_signer` 服务；为覆盖率报告与染色数据签发存证证书；单测独立通过。
+- [ ] 2026-10-18 T4.3 v5.9.0 全链路代码覆盖率中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.9.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-17 v5.8.0 研发任务规划（已全量闭环）
 
 > v5.8.0 规划入口为 [`docs/development-task-plan-v5.8.0.md`](docs/development-task-plan-v5.8.0.md)，覆盖 Phase 1（故障注入算子与分布式混沌实验执行引擎）、Phase 2（弹性韧性自愈评估与爆炸半径动态收敛器）、Phase 3（混沌攻防演练中枢与韧性透视工作台）、Phase 4（生产防击穿安全沙箱、合规存证与全量发布）。
