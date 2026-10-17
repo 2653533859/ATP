@@ -15,7 +15,7 @@
 - [x] 2026-10-17 T2.2 WDA 会话代理与生命周期初始化预热器：落地 `ios_wda_session_manager` 服务；实现 WDA 会话预热、前置环境清理与截屏分发；单测独立通过，见 [`docs/evidence/ios-wda-session-manager-t2-2-2026-10-17.md`](docs/evidence/ios-wda-session-manager-t2-2-2026-10-17.md)。
 - [x] 2026-10-17 T2.3 跨端移动设备统一分配器：落地 `cross_platform_device_pool_allocator` 服务；统一抽象 Android 与 iOS 设备池并实现自动匹配调度；单测独立通过，见 [`docs/evidence/cross-platform-device-pool-allocator-t2-3-2026-10-17.md`](docs/evidence/cross-platform-device-pool-allocator-t2-3-2026-10-17.md)。至此 v5.0.0 Phase 2 全量大闭环！
 - [x] 2026-10-17 UI3.1 iOS 交互式投屏与远程控制抽屉组件：落地 `IosScreenMirrorModal.vue`；实现 iOS 画面低延迟镜像、触控点击坐标换算下发与 Home 键控制；单测独立通过，见 [`docs/evidence/ios-screen-mirror-modal-ui3-1-2026-10-17.md`](docs/evidence/ios-screen-mirror-modal-ui3-1-2026-10-17.md)。
-- [ ] 2026-10-17 UI3.2 iOS 真机资产池卡片与状态监控组件：落地 `IosDevicePoolCard.vue`；呈现真机卡片、状态角标、租约持有人与一键调试；单测独立通过。
+- [x] 2026-10-17 UI3.2 iOS 真机资产池卡片与状态监控组件：落地 `IosDevicePoolCard.vue`；呈现真机卡片、状态角标、租约持有人与一键调试；单测独立通过，见 [`docs/evidence/ios-device-pool-card-ui3-2-2026-10-17.md`](docs/evidence/ios-device-pool-card-ui3-2-2026-10-17.md)。
 - [ ] 2026-10-17 UI3.3 iOS 真机池化调度与远程管理中心页面：落地 `IosDeviceCenterView.vue` 视图与 `/devices/ios-center` 路由；全景管理真机池与租约；单测独立通过。
 - [ ] 2026-10-17 T4.1 iOS 崩溃堆栈捕获与 Syslog 实时归档器：落地 `ios_crash_and_syslog_collector` 服务；实现异常中断与闪退符号化堆栈捕获；单测独立通过。
 - [ ] 2026-10-17 T4.2 IPA 签名合规与 Provisioning 描述文件验真器：落地 `ios_ipa_signing_validator` 服务；自动解析并校验证书有效期与 TeamID 匹配；单测独立通过。
