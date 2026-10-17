@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-18 v6.1.0 研发任务规划（进行中）
+## 2026-10-18 v6.1.0 研发任务规划（已全量闭环）
 
 > v6.1.0 规划入口为 [`docs/development-task-plan-v6.1.0.md`](docs/development-task-plan-v6.1.0.md)，覆盖 Phase 1（流量染色标透传与金丝雀路由分流引擎）、Phase 2（自适应灰度步进调度与自动熔断回滚看门狗）、Phase 3（金丝雀双轨流向透视与灰度控制工作台）、Phase 4（生产防误割安全沙箱、合规存证与全量发布）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-18 UI3.3 全链路金丝雀灰度校验工作台中枢页面：落地 `CanaryVerificationWorkbenchView.vue` 与 `/workbench/canary-verification` 路由；单测独立通过，见 [`docs/evidence/canary-verification-workbench-view-ui3-3-2026-10-18.md`](docs/evidence/canary-verification-workbench-view-ui3-3-2026-10-18.md)。至此 v6.1.0 Phase 3 全量大闭环！
 - [x] 2026-10-18 T4.1 生产环境灰度强准入与金丝雀发布审批看门狗：落地 `canary_safety_boundary_guard` 服务；生产灰度三要素审批与权限阻断；单测独立通过，见 [`docs/evidence/canary-safety-boundary-guard-t4-1-2026-10-18.md`](docs/evidence/canary-safety-boundary-guard-t4-1-2026-10-18.md)。
 - [x] 2026-10-18 T4.2 金丝雀健康度结论与放行准入 64 位 SHA-256 存证证书器：落地 `canary_evidence_signer` 服务；为灰度评估数据签发存证证书；单测独立通过，见 [`docs/evidence/canary-evidence-signer-t4-2-2026-10-18.md`](docs/evidence/canary-evidence-signer-t4-2-2026-10-18.md)。
-- [ ] 2026-10-18 T4.3 v6.1.0 全链路金丝雀中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.1.0-release-notes.md` 与专项交付证据。
+- [x] 2026-10-18 T4.3 v6.1.0 全链路金丝雀中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 [`docs/v6.1.0-release-notes.md`](docs/v6.1.0-release-notes.md) 与专项交付证据。
 
 ## 2026-10-18 v6.0.0 研发任务规划（已全量闭环）
 
