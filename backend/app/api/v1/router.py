@@ -54,6 +54,7 @@ from app.api.v1 import (
     chaos_engineering_api,
     code_coverage_api,
     defect_intelligence_api,
+    canary_verification_api,
     users,
     health,
     workbench,
@@ -216,6 +217,7 @@ router.include_router(precision_regression_api.router)
 router.include_router(chaos_engineering_api.router)
 router.include_router(code_coverage_api.router)
 router.include_router(defect_intelligence_api.router)
+router.include_router(canary_verification_api.router)
 router.include_router(users.router)
 router.include_router(health.router)
 router.include_router(local_files.router)

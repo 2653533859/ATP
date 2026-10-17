@@ -10,7 +10,7 @@
 
 - [x] 2026-10-18 T1.1 全链路流量染色标规则配置与上下文透传器：落地 `canary_traffic_coloration_engine` 服务；支持 Header/Cookie/租户/权重染色与跨服务透传；单测独立通过，见 [`docs/evidence/canary-traffic-coloration-engine-t1-1-2026-10-18.md`](docs/evidence/canary-traffic-coloration-engine-t1-1-2026-10-18.md)。
 - [x] 2026-10-18 T1.2 金丝雀与基线双轨指标实时对比推演器：落地 `canary_baseline_metric_comparator` 服务；实时计算错误率/P99延迟双轨差异；单测独立通过，见 [`docs/evidence/canary-baseline-metric-comparator-t1-2-2026-10-18.md`](docs/evidence/canary-baseline-metric-comparator-t1-2-2026-10-18.md)。
-- [ ] 2026-10-18 T1.3 金丝雀演进与染色管理 REST API：落地 `canary_verification_api` 路由；提供染色规则配置、双轨指标查询与回滚端点；单测独立通过。
+- [x] 2026-10-18 T1.3 金丝雀演进与染色管理 REST API：落地 `canary_verification_api` 路由；提供染色规则配置、双轨指标查询与回滚端点；单测独立通过，见 [`docs/evidence/canary-verification-api-t1-3-2026-10-18.md`](docs/evidence/canary-verification-api-t1-3-2026-10-18.md)。至此 v6.1.0 Phase 1 全量大闭环！
 - [ ] 2026-10-18 T2.1 智能金丝雀健康度评分与多阶步进调度器：落地 `canary_health_scoring_stepper` 服务；多维健康度评分驱动阶梯步进割接；单测独立通过。
 - [ ] 2026-10-18 T2.2 灰度击穿自动熔断与秒级一键回滚看门狗：落地 `canary_auto_rollback_guard` 服务；异常击穿毫秒级自动重置切流与版本回滚；单测独立通过。
 - [ ] 2026-10-18 T2.3 灰度流量数据隔离与影子存储防污染校验器：落地 `canary_data_isolation_inspector` 服务；校验染色流量写操作影子隔离状态；单测独立通过。
