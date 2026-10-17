@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v5.0.0 研发任务规划（进行中）
+
+> v5.0.0 规划入口为 [`docs/development-task-plan-v5.0.0.md`](docs/development-task-plan-v5.0.0.md)，覆盖 Phase 1（iOS 设备反向隧道与 WDA 端口自动穿透桥接器）、Phase 2（iOS 真机租约调度与并发排他抢占控制）、Phase 3（iOS 真机交互式投屏与远程控制中枢）、Phase 4（iOS 自动化执行容灾、合规凭证与全量发布）。
+
+- [x] 2026-10-17 T1.1 WDA 反向 WebSocket 隧道与端口分配器：落地 `ios_tunnel_bridge` 服务与 `/ios/tunnel/register` API；实现远端物理机 WDA 8100 端口通过反向隧道穿透至 ATP 服务端动态端口映射；单测独立通过，见 [`docs/evidence/ios-tunnel-bridge-t1-1-2026-10-17.md`](docs/evidence/ios-tunnel-bridge-t1-1-2026-10-17.md)。
+- [ ] 2026-10-17 T1.2 iOS 设备心跳保活与状态巡检探针：落地 `ios_device_heartbeat_keeper` 服务与 `/ios/tunnel/heartbeat` API；实现秒级探针健康巡检与异常离线自愈；单测独立通过。
+- [ ] 2026-10-17 T1.3 iOS 设备隧道连接与状态管理 REST API：落地 `ios_tunnel_api` 路由；提供设备反向隧道列表、连通性检查与连接会话维护；单测独立通过。
+- [ ] 2026-10-17 T2.1 iOS 真机排他性租约调度与自动续期管理器：落地 `ios_lease_scheduler` 服务；实现高并发防死锁排他性租约申请、释放与超时回收；单测独立通过。
+- [ ] 2026-10-17 T2.2 WDA 会话代理与生命周期初始化预热器：落地 `ios_wda_session_manager` 服务；实现 WDA 会话预热、前置环境清理与截屏分发；单测独立通过。
+- [ ] 2026-10-17 T2.3 跨端移动设备统一分配器：落地 `cross_platform_device_pool_allocator` 服务；统一抽象 Android 与 iOS 设备池并实现自动匹配调度；单测独立通过。
+- [ ] 2026-10-17 UI3.1 iOS 交互式投屏与远程控制抽屉组件：落地 `IosScreenMirrorModal.vue`；实现 iOS 画面低延迟镜像、触控点击坐标换算下发与 Home 键控制；单测独立通过。
+- [ ] 2026-10-17 UI3.2 iOS 真机资产池卡片与状态监控组件：落地 `IosDevicePoolCard.vue`；呈现真机卡片、状态角标、租约持有人与一键调试；单测独立通过。
+- [ ] 2026-10-17 UI3.3 iOS 真机池化调度与远程管理中心页面：落地 `IosDeviceCenterView.vue` 视图与 `/devices/ios-center` 路由；全景管理真机池与租约；单测独立通过。
+- [ ] 2026-10-17 T4.1 iOS 崩溃堆栈捕获与 Syslog 实时归档器：落地 `ios_crash_and_syslog_collector` 服务；实现异常中断与闪退符号化堆栈捕获；单测独立通过。
+- [ ] 2026-10-17 T4.2 IPA 签名合规与 Provisioning 描述文件验真器：落地 `ios_ipa_signing_validator` 服务；自动解析并校验证书有效期与 TeamID 匹配；单测独立通过。
+- [ ] 2026-10-17 T4.3 v5.0.0 iOS 移动真机中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.0.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-17 v4.9.0 研发任务规划（已全量闭环）
 
 > v4.9.0 规划入口为 [`docs/development-task-plan-v4.9.0.md`](docs/development-task-plan-v4.9.0.md)，覆盖 Phase 1（W3C TraceContext 与 OpenTelemetry 注入透传引擎）、Phase 2（用例步骤与微服务分布式调用链精准对齐）、Phase 3（链路追踪诊断控制台与火焰图下钻大盘）、Phase 4（追踪数据防篡改签名、容量治理与发布）。
