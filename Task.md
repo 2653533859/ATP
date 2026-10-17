@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-18 v6.1.0 研发任务规划（进行中）
+
+> v6.1.0 规划入口为 [`docs/development-task-plan-v6.1.0.md`](docs/development-task-plan-v6.1.0.md)，覆盖 Phase 1（流量染色标透传与金丝雀路由分流引擎）、Phase 2（自适应灰度步进调度与自动熔断回滚看门狗）、Phase 3（金丝雀双轨流向透视与灰度控制工作台）、Phase 4（生产防误割安全沙箱、合规存证与全量发布）。
+
+- [x] 2026-10-18 T1.1 全链路流量染色标规则配置与上下文透传器：落地 `canary_traffic_coloration_engine` 服务；支持 Header/Cookie/租户/权重染色与跨服务透传；单测独立通过，见 [`docs/evidence/canary-traffic-coloration-engine-t1-1-2026-10-18.md`](docs/evidence/canary-traffic-coloration-engine-t1-1-2026-10-18.md)。
+- [ ] 2026-10-18 T1.2 金丝雀与基线双轨指标实时对比推演器：落地 `canary_baseline_metric_comparator` 服务；实时计算错误率/P99延迟双轨差异；单测独立通过。
+- [ ] 2026-10-18 T1.3 金丝雀演进与染色管理 REST API：落地 `canary_verification_api` 路由；提供染色规则配置、双轨指标查询与回滚端点；单测独立通过。
+- [ ] 2026-10-18 T2.1 智能金丝雀健康度评分与多阶步进调度器：落地 `canary_health_scoring_stepper` 服务；多维健康度评分驱动阶梯步进割接；单测独立通过。
+- [ ] 2026-10-18 T2.2 灰度击穿自动熔断与秒级一键回滚看门狗：落地 `canary_auto_rollback_guard` 服务；异常击穿毫秒级自动重置切流与版本回滚；单测独立通过。
+- [ ] 2026-10-18 T2.3 灰度流量数据隔离与影子存储防污染校验器：落地 `canary_data_isolation_inspector` 服务；校验染色流量写操作影子隔离状态；单测独立通过。
+- [ ] 2026-10-18 UI3.1 金丝雀全链路染色拓扑与流量分流透视抽屉：落地 `CanaryTopologyInspectionDrawer.vue`；多微服务分流拓扑与双轨曲线；单测独立通过。
+- [ ] 2026-10-18 UI3.2 灰度步进策略配置与自动回滚围栏弹窗：落地 `CanarySteppingConfigModal.vue`；阶梯步进计划与错误率红线交互配置；单测独立通过。
+- [ ] 2026-10-18 UI3.3 全链路金丝雀灰度校验工作台中枢页面：落地 `CanaryVerificationWorkbenchView.vue` 与 `/workbench/canary-verification` 路由；单测独立通过。
+- [ ] 2026-10-18 T4.1 生产环境灰度强准入与金丝雀发布审批看门狗：落地 `canary_safety_boundary_guard` 服务；生产灰度三要素审批与权限阻断；单测独立通过。
+- [ ] 2026-10-18 T4.2 金丝雀健康度结论与放行准入 64 位 SHA-256 存证证书器：落地 `canary_evidence_signer` 服务；为灰度评估数据签发存证证书；单测独立通过。
+- [ ] 2026-10-18 T4.3 v6.1.0 全链路金丝雀中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.1.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-18 v6.0.0 研发任务规划（已全量闭环）
 
 > v6.0.0 规划入口为 [`docs/development-task-plan-v6.0.0.md`](docs/development-task-plan-v6.0.0.md)，覆盖 Phase 1（失败堆栈指纹提取与智能聚类去重引擎）、Phase 2（责任归属智能推导与双向状态同步网关）、Phase 3（智能缺陷聚类看板与全生命周期工作台）、Phase 4（生产防误提安全沙箱、合规存证与全量发布）。
