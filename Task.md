@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-18 v6.0.0 研发任务规划（进行中）
+## 2026-10-18 v6.0.0 研发任务规划（已全量闭环）
 
 > v6.0.0 规划入口为 [`docs/development-task-plan-v6.0.0.md`](docs/development-task-plan-v6.0.0.md)，覆盖 Phase 1（失败堆栈指纹提取与智能聚类去重引擎）、Phase 2（责任归属智能推导与双向状态同步网关）、Phase 3（智能缺陷聚类看板与全生命周期工作台）、Phase 4（生产防误提安全沙箱、合规存证与全量发布）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-18 UI3.3 智能缺陷治理与全生命周期工作台中枢页面：落地 `DefectIntelligenceWorkbenchView.vue` 与 `/workbench/defect-intelligence` 路由；单测独立通过，见 [`docs/evidence/defect-intelligence-workbench-view-ui3-3-2026-10-18.md`](docs/evidence/defect-intelligence-workbench-view-ui3-3-2026-10-18.md)。至此 v6.0.0 Phase 3 全量大闭环！
 - [x] 2026-10-18 T4.1 偶发抖动缺陷提单防击穿安全沙箱看门狗：落地 `flaky_defect_suppression_guard` 服务；识别 Flaky 假失败与防误建垃圾工单；单测独立通过，见 [`docs/evidence/flaky-defect-suppression-guard-t4-1-2026-10-18.md`](docs/evidence/flaky-defect-suppression-guard-t4-1-2026-10-18.md)。
 - [x] 2026-10-18 T4.2 缺陷归因结论与 SLA 履约 64 位 SHA-256 存证证书器：落地 `defect_evidence_signer` 服务；为缺陷聚类与归因签发存证证书；单测独立通过，见 [`docs/evidence/defect-evidence-signer-t4-2-2026-10-18.md`](docs/evidence/defect-evidence-signer-t4-2-2026-10-18.md)。
-- [ ] 2026-10-18 T4.3 v6.0.0 智能缺陷治理中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.0.0-release-notes.md` 与专项交付证据。
+- [x] 2026-10-18 T4.3 v6.0.0 智能缺陷治理中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.0.0-release-notes.md` 与专项交付证据，见 [`docs/evidence/v6-0-0-defect-intelligence-platform-acceptance-2026-10-18.md`](docs/evidence/v6-0-0-defect-intelligence-platform-acceptance-2026-10-18.md)。至此 v6.0.0 全量大闭环！
 
 ## 2026-10-18 v5.9.0 研发任务规划（已全量闭环）
 
