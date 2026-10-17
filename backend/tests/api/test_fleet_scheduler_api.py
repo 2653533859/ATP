@@ -171,3 +171,31 @@ def test_routing_not_found():
     client = TestClient(app)
     resp = client.get("/api/v1/scheduler/routing/non_existent_id", headers=HEADERS)
     assert resp.status_code == 404
+
+
+def test_backpressure_endpoints():
+    client = TestClient(app)
+
+    # 1. 触发自适应并发窗口计算
+    adj_resp = client.post(
+        "/api/v1/scheduler/backpressure/adjust",
+        json={
+            "queue_depth": 10,
+            "average_wait_latency_ms": 120.0,
+        },
+        headers=HEADERS,
+    )
+    assert adj_resp.status_code == 200
+    snap = adj_resp.json()["snapshot"]
+    assert "current_window_size" in snap
+    assert snap["level"] in ("NORMAL", "LIGHT_THROTTLING", "HEAVY_BACKPRESSURE", "OVERFLOW_REJECTION")
+
+    # 2. 查询当前流控状态
+    status_resp = client.get("/api/v1/scheduler/backpressure/status", headers=HEADERS)
+    assert status_resp.status_code == 200
+    assert "current_window_size" in status_resp.json()["status"]
+
+    # 3. 查询快照历史
+    snap_list_resp = client.get("/api/v1/scheduler/backpressure/snapshots", headers=HEADERS)
+    assert snap_list_resp.status_code == 200
+    assert snap_list_resp.json()["total"] >= 1

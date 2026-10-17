@@ -31,6 +31,11 @@ from app.services.fleet_health_telemetry import (
     list_fleet_telemetry,
     record_device_telemetry,
 )
+from app.services.dynamic_backpressure_balancer import (
+    adjust_backpressure_window,
+    get_current_backpressure_status,
+    list_backpressure_snapshots,
+)
 
 router = APIRouter(prefix="/scheduler", tags=["Fleet Concurrency Scheduler"])
 
@@ -62,6 +67,11 @@ class DispatchTaskRequest(BaseModel):
 class ReleaseLeaseRequest(BaseModel):
     device_id: str = Field(..., description="物理真机唯一标识")
     task_id: str = Field(..., description="已完成或释放的任务 ID")
+
+
+class AdjustBackpressureRequest(BaseModel):
+    queue_depth: int = Field(0, description="当前排队任务深度")
+    average_wait_latency_ms: float = Field(100.0, description="平均排队等待时延毫秒数")
 
 
 @router.post("/telemetry/report")
@@ -214,3 +224,41 @@ def get_routing_decision_endpoint(
     if not record:
         raise HTTPException(status_code=404, detail="未找到目标调度决策记录")
     return {"decision": record.to_dict()}
+
+
+@router.post("/backpressure/adjust")
+def adjust_backpressure_endpoint(
+    payload: AdjustBackpressureRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """根据当前排队与集群负载执行 AIMD 自适应并发窗口调节"""
+    snapshot = adjust_backpressure_window(
+        queue_depth=payload.queue_depth,
+        average_wait_latency_ms=payload.average_wait_latency_ms,
+    )
+    return {
+        "message": f"自适应并发窗口计算完成: {snapshot.action_description}",
+        "snapshot": snapshot.to_dict(),
+    }
+
+
+@router.get("/backpressure/status")
+def get_backpressure_status_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询当前动态反压流控窗口状态快照"""
+    snapshot = get_current_backpressure_status()
+    return {"status": snapshot.to_dict()}
+
+
+@router.get("/backpressure/snapshots")
+def list_backpressure_snapshots_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询近期动态反压调节流水历史"""
+    items = list_backpressure_snapshots(limit=limit)
+    return {
+        "total": len(items),
+        "snapshots": items,
+    }
