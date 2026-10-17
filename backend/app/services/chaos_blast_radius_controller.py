@@ -56,13 +56,13 @@ class BlastRadiusObservation:
 
 @dataclass
 class BlastControllerVerdict:
-    verdict_id: str
     experiment_id: str
     is_tripped: bool
     action: BlastTripAction
-    tripped_rules: List[str]
-    teardown_actions_executed: List[str]
-    verdict_message: str
+    verdict_id: str = field(default_factory=lambda: f"v_{uuid.uuid4().hex[:8]}")
+    tripped_rules: List[str] = field(default_factory=list)
+    teardown_actions_executed: List[str] = field(default_factory=list)
+    verdict_message: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
     def to_dict(self) -> Dict[str, Any]:

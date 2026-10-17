@@ -40,7 +40,7 @@ class ResilienceRTOEvaluation:
     recovery_point_objective_seconds: float  # 数据丢失点 RPO (秒)
     resilience_grade: ResilienceGrade
     is_slo_compliant: bool
-    observations: List[str]
+    observations: List[str] = field(default_factory=list)
     evaluated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
     def to_dict(self) -> Dict[str, Any]:
