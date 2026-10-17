@@ -47,6 +47,7 @@ from app.api.v1 import (
     coverage_lineage_api,
     intent_workflow_api,
     cross_platform_migration_api,
+    fleet_scheduler_api,
     users,
     health,
     workbench,
@@ -202,6 +203,7 @@ router.include_router(hybrid_workflow_api.router)
 router.include_router(coverage_lineage_api.router)
 router.include_router(intent_workflow_api.router)
 router.include_router(cross_platform_migration_api.router)
+router.include_router(fleet_scheduler_api.router)
 router.include_router(users.router)
 router.include_router(health.router)
 router.include_router(local_files.router)
