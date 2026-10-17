@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v4.9.0 研发任务规划（进行中）
+## 2026-10-17 v4.9.0 研发任务规划（已全量闭环）
 
 > v4.9.0 规划入口为 [`docs/development-task-plan-v4.9.0.md`](docs/development-task-plan-v4.9.0.md)，覆盖 Phase 1（W3C TraceContext 与 OpenTelemetry 注入透传引擎）、Phase 2（用例步骤与微服务分布式调用链精准对齐）、Phase 3（链路追踪诊断控制台与火焰图下钻大盘）、Phase 4（追踪数据防篡改签名、容量治理与发布）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-17 UI3.3 全局测试执行分布式追踪贯通全景大盘页面：落地 `DistributedTraceAlignmentDashboardView.vue` 视图与路由；汇总全站用例 Trace 对齐率、平均跳数与拓扑列表；单测独立通过，见 [`docs/evidence/distributed-trace-alignment-dashboard-ui3-3-2026-10-17.md`](docs/evidence/distributed-trace-alignment-dashboard-ui3-3-2026-10-17.md)。至此 v4.9.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 T4.1 Trace 采样率动态调谐与敏感数据脱敏过滤器：落地 `trace_sampler_and_sanitizer` 服务与 `/observability/trace/sampling` API；支持自适应采样与 Token/密码敏感参数脱敏；单测独立通过，见 [`docs/evidence/trace-sampler-and-sanitizer-t4-1-2026-10-17.md`](docs/evidence/trace-sampler-and-sanitizer-t4-1-2026-10-17.md)。
 - [x] 2026-10-17 T4.2 追踪审计凭据 64 位 SHA-256 防篡改存证器：落地 `trace_evidence_fingerprint_signer` 服务与 `/observability/trace/sign` API；生成不可篡改 SHA-256 签名存证；单测独立通过，见 [`docs/evidence/trace-evidence-fingerprint-signer-t4-2-2026-10-17.md`](docs/evidence/trace-evidence-fingerprint-signer-t4-2-2026-10-17.md)。
-- [ ] 2026-10-17 T4.3 v4.9.0 全链路分布式追踪中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v4.9.0-release-notes.md` 与专项交付证据。
+- [x] 2026-10-17 T4.3 v4.9.0 全链路分布式追踪中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v4.9.0-release-notes.md` 与专项交付证据，见 [`docs/evidence/v4-9-0-distributed-trace-alignment-summary-acceptance-2026-10-17.md`](docs/evidence/v4-9-0-distributed-trace-alignment-summary-acceptance-2026-10-17.md)。至此 v4.9.0 全量大闭环！
 
 ## 2026-10-17 v4.8.0 研发任务规划（已全量闭环）
 
