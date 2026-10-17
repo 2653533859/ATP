@@ -17,7 +17,7 @@
 - [x] 2026-10-18 UI3.1 金丝雀全链路染色拓扑与流量分流透视抽屉：落地 `CanaryTopologyInspectionDrawer.vue`；多微服务分流拓扑与双轨曲线；单测独立通过，见 [`docs/evidence/canary-topology-inspection-drawer-ui3-1-2026-10-18.md`](docs/evidence/canary-topology-inspection-drawer-ui3-1-2026-10-18.md)。
 - [x] 2026-10-18 UI3.2 灰度步进策略配置与自动回滚围栏弹窗：落地 `CanarySteppingConfigModal.vue`；阶梯步进计划与错误率红线交互配置；单测独立通过，见 [`docs/evidence/canary-stepping-config-modal-ui3-2-2026-10-18.md`](docs/evidence/canary-stepping-config-modal-ui3-2-2026-10-18.md)。
 - [x] 2026-10-18 UI3.3 全链路金丝雀灰度校验工作台中枢页面：落地 `CanaryVerificationWorkbenchView.vue` 与 `/workbench/canary-verification` 路由；单测独立通过，见 [`docs/evidence/canary-verification-workbench-view-ui3-3-2026-10-18.md`](docs/evidence/canary-verification-workbench-view-ui3-3-2026-10-18.md)。至此 v6.1.0 Phase 3 全量大闭环！
-- [ ] 2026-10-18 T4.1 生产环境灰度强准入与金丝雀发布审批看门狗：落地 `canary_safety_boundary_guard` 服务；生产灰度三要素审批与权限阻断；单测独立通过。
+- [x] 2026-10-18 T4.1 生产环境灰度强准入与金丝雀发布审批看门狗：落地 `canary_safety_boundary_guard` 服务；生产灰度三要素审批与权限阻断；单测独立通过，见 [`docs/evidence/canary-safety-boundary-guard-t4-1-2026-10-18.md`](docs/evidence/canary-safety-boundary-guard-t4-1-2026-10-18.md)。
 - [ ] 2026-10-18 T4.2 金丝雀健康度结论与放行准入 64 位 SHA-256 存证证书器：落地 `canary_evidence_signer` 服务；为灰度评估数据签发存证证书；单测独立通过。
 - [ ] 2026-10-18 T4.3 v6.1.0 全链路金丝雀中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.1.0-release-notes.md` 与专项交付证据。
 
