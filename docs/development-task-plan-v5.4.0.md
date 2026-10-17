@@ -85,7 +85,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T4.1 `[ ]` | **任务调度风暴熔断防雪崩看门狗** | `backend/app/services/fleet_storm_guard.py` | 防范瞬时超大规模批量触发导致的真机群雷崩与重试雪崩；单测独立通过。 |
+| T4.1 `[x]` | **任务调度风暴熔断防雪崩看门狗** | `backend/app/services/fleet_storm_guard.py` | 防范瞬时超大规模批量触发导致的真机群雷崩与重试雪崩；单测独立通过；见 docs/evidence/fleet-storm-guard-t4-1-2026-10-17.md |
 | T4.2 `[ ]` | **调度决策 64 位 SHA-256 存证证书器** | `backend/app/services/scheduler_evidence_signer.py` | 为路由决策记录与集群容量分配快照签发不可篡改 SHA-256 + HMAC 存证证书；单测独立通过。 |
 | T4.3 `[ ]` | **v5.4.0 真机集群调度中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.4.0-release-notes.md` 与专项交付证据。 |
 

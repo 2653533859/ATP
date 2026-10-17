@@ -17,7 +17,7 @@
 - [x] 2026-10-17 UI3.1 设备集群实时健康与热力透视抽屉：落地 `DeviceFleetHealthDrawer.vue`；呈现设备温度热力图与电量梯度；单测独立通过，见 [`docs/evidence/device-fleet-health-drawer-ui3-1-2026-10-17.md`](docs/evidence/device-fleet-health-drawer-ui3-1-2026-10-17.md)。
 - [x] 2026-10-17 UI3.2 动态调度路由拓扑与队列模拟弹窗：落地 `SchedulerTopologyModal.vue`；提供模拟任务路由演算与匹配预览；单测独立通过，见 [`docs/evidence/scheduler-topology-modal-ui3-2-2026-10-17.md`](docs/evidence/scheduler-topology-modal-ui3-2-2026-10-17.md)。
 - [x] 2026-10-17 UI3.3 真机集群并发调度中枢工作台页面：落地 `FleetSchedulerWorkbenchView.vue` 与 `/workbench/fleet-scheduler` 路由；单测独立通过，见 [`docs/evidence/fleet-scheduler-workbench-view-ui3-3-2026-10-17.md`](docs/evidence/fleet-scheduler-workbench-view-ui3-3-2026-10-17.md)。至此 v5.4.0 Phase 3 全量大闭环！
-- [ ] 2026-10-17 T4.1 任务调度风暴熔断防雪崩看门狗：落地 `fleet_storm_guard` 服务；防范真机集群瞬间雪崩与重试风暴；单测独立通过。
+- [x] 2026-10-17 T4.1 任务调度风暴熔断防雪崩看门狗：落地 `fleet_storm_guard` 服务；防范真机集群瞬间雪崩与重试风暴；单测独立通过，见 [`docs/evidence/fleet-storm-guard-t4-1-2026-10-17.md`](docs/evidence/fleet-storm-guard-t4-1-2026-10-17.md)。
 - [ ] 2026-10-17 T4.2 调度决策 64 位 SHA-256 存证证书器：落地 `scheduler_evidence_signer` 服务；为路由决策签发不可篡改存证证书；单测独立通过。
 - [ ] 2026-10-17 T4.3 v5.4.0 真机集群调度中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.4.0-release-notes.md` 与专项交付证据。
 

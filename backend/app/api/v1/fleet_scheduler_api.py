@@ -36,6 +36,11 @@ from app.services.dynamic_backpressure_balancer import (
     get_current_backpressure_status,
     list_backpressure_snapshots,
 )
+from app.services.fleet_storm_guard import (
+    evaluate_dispatch_storm_protection,
+    get_storm_guard_status,
+    reset_circuit_breaker,
+)
 
 router = APIRouter(prefix="/scheduler", tags=["Fleet Concurrency Scheduler"])
 
@@ -72,6 +77,10 @@ class ReleaseLeaseRequest(BaseModel):
 class AdjustBackpressureRequest(BaseModel):
     queue_depth: int = Field(0, description="当前排队任务深度")
     average_wait_latency_ms: float = Field(100.0, description="平均排队等待时延毫秒数")
+
+
+class EvaluateStormRequest(BaseModel):
+    task_id: str = Field(..., description="待派发任务 ID")
 
 
 @router.post("/telemetry/report")
@@ -262,3 +271,36 @@ def list_backpressure_snapshots_endpoint(
         "total": len(items),
         "snapshots": items,
     }
+
+
+@router.post("/storm/evaluate")
+def evaluate_storm_endpoint(
+    payload: EvaluateStormRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """在任务派发前执行调度风暴与断路器熔断检查"""
+    verdict, reason = evaluate_dispatch_storm_protection(payload.task_id)
+    return {
+        "task_id": payload.task_id,
+        "verdict": verdict.value,
+        "is_allowed": verdict.value == "ALLOW",
+        "reason": reason,
+    }
+
+
+@router.get("/storm/status")
+def get_storm_status_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询当前调度风暴看门狗与熔断断路器运行状态"""
+    status = get_storm_guard_status()
+    return {"status": status.to_dict()}
+
+
+@router.post("/storm/reset")
+def reset_storm_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """手动复位风暴断路器至正常 CLOSED 状态"""
+    reset_circuit_breaker()
+    return {"message": "风暴熔断断路器已成功复位至正常 CLOSED 状态"}

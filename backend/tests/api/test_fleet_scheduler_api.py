@@ -199,3 +199,27 @@ def test_backpressure_endpoints():
     snap_list_resp = client.get("/api/v1/scheduler/backpressure/snapshots", headers=HEADERS)
     assert snap_list_resp.status_code == 200
     assert snap_list_resp.json()["total"] >= 1
+
+
+def test_storm_guard_endpoints():
+    client = TestClient(app)
+
+    # 1. 正常评估通过
+    eval_resp = client.post(
+        "/api/v1/scheduler/storm/evaluate",
+        json={"task_id": "task_eval_101"},
+        headers=HEADERS,
+    )
+    assert eval_resp.status_code == 200
+    assert eval_resp.json()["is_allowed"] is True
+    assert eval_resp.json()["verdict"] == "ALLOW"
+
+    # 2. 查询断路器状态
+    status_resp = client.get("/api/v1/scheduler/storm/status", headers=HEADERS)
+    assert status_resp.status_code == 200
+    assert status_resp.json()["status"]["state"] == "CLOSED"
+
+    # 3. 手动复位断路器
+    reset_resp = client.post("/api/v1/scheduler/storm/reset", headers=HEADERS)
+    assert reset_resp.status_code == 200
+    assert "复位至正常" in reset_resp.json()["message"]
