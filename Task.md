@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v5.6.0 研发任务规划（进行中）
+
+> v5.6.0 规划入口为 [`docs/development-task-plan-v5.6.0.md`](docs/development-task-plan-v5.6.0.md)，覆盖 Phase 1（生产流量脱敏镜像与分布式录制过滤器）、Phase 2（智能响应差异比对与自适应噪声消除器）、Phase 3（流量回放中枢与变异演练工作台）、Phase 4（外部调用防击穿安全沙箱、合规存证与全量发布）。
+
+- [ ] 2026-10-17 T1.1 敏感数据实时脱敏与隐私字段掩码器：落地 `traffic_sanitization_masker` 服务；支持手机号/身份证/银行卡/JWT自动脱敏与加盐置换；单测独立通过。
+- [ ] 2026-10-17 T1.2 分布式流量镜像采集与流量抽样过滤器：落地 `traffic_mirror_sampler` 服务；多维条件过滤与探针过滤；单测独立通过。
+- [ ] 2026-10-17 T1.3 流量录制集管理与回放检索 REST API：落地 `traffic_replay_api` 路由；提供流量录制集管理与批量调度端点；单测独立通过。
+- [ ] 2026-10-17 T2.1 双端响应体深度结构 Diff 对比器：落地 `traffic_response_diff_comparator` 服务；键值丢失与状态码偏离深度比对；单测独立通过。
+- [ ] 2026-10-17 T2.2 动态字段动态噪声自适应抑制器：落地 `dynamic_noise_suppressor` 服务；时间戳/UUID/TraceID 动态噪声自动平滑；单测独立通过。
+- [ ] 2026-10-17 T2.3 回放偏离评分与 Breaking Change 裁决控制器：落地 `replay_drift_evaluator` 服务；回放偏离评分与 Breaking 破坏性评级；单测独立通过。
+- [ ] 2026-10-17 UI3.1 双端响应结构差异透视对比抽屉：落地 `TrafficDiffInspectionDrawer.vue`；左右分栏高亮展示基线与回放响应及噪声标注；单测独立通过。
+- [ ] 2026-10-17 UI3.2 动态噪声过滤规则配置与模拟弹窗：落地 `NoiseFilterRuleModal.vue`；交互式规则配置与实时测试；单测独立通过。
+- [ ] 2026-10-17 UI3.3 生产流量回放与变异演练工作台中枢页面：落地 `TrafficReplayWorkbenchView.vue` 与 `/workbench/traffic-replay` 路由；单测独立通过。
+- [ ] 2026-10-17 T4.1 第三方服务防击穿与写操作拦截看门狗：落地 `traffic_write_blast_guard` 服务；防范回放写请求击穿外部系统；单测独立通过。
+- [ ] 2026-10-17 T4.2 流量回放与 Diff 报告 64 位 SHA-256 存证证书器：落地 `replay_evidence_signer` 服务；为回放记录签发不可篡改存证证书；单测独立通过。
+- [ ] 2026-10-17 T4.3 v5.6.0 生产流量回放中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.6.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-17 v5.5.0 研发任务规划（已全量闭环）
 
 > v5.5.0 规划入口为 [`docs/development-task-plan-v5.5.0.md`](docs/development-task-plan-v5.5.0.md)，覆盖 Phase 1（多模态定位器动态自愈与弹性重定位器引擎）、Phase 2（响应结构漂移与语义断言自适应演进器）、Phase 3（用例自愈中枢与断言演进工作台）、Phase 4（自愈安全沙箱、合规存证与全量发布）。
