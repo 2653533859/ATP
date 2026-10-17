@@ -81,7 +81,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T4.1 `[x]` | **生产环境灰度强准入与金丝雀发布审批看门狗** | `backend/app/services/canary_safety_boundary_guard.py` | 生产灰度发布三要素校验（特批发布工单号、维护时段窗口与安全令牌）；单测独立通过；见 docs/evidence/canary-safety-boundary-guard-t4-1-2026-10-18.md |
-| T4.2 `[ ]` | **金丝雀健康度结论与放行准入 64 位 SHA-256 存证证书器** | `backend/app/services/canary_evidence_signer.py` | 规范化确定性 JSON，签发不可篡改的 64 位 SHA-256 指纹与 HMAC-SHA256 签名存证证书；单测独立通过。 |
+| T4.2 `[x]` | **金丝雀健康度结论与放行准入 64 位 SHA-256 存证证书器** | `backend/app/services/canary_evidence_signer.py` | 规范化确定性 JSON，签发不可篡改的 64 位 SHA-256 指纹与 HMAC-SHA256 签名存证证书；单测独立通过；见 docs/evidence/canary-evidence-signer-t4-2-2026-10-18.md |
 | T4.3 `[ ]` | **v6.1.0 全链路金丝雀中台全域综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v6.1.0-release-notes.md` 与专项交付证据。 |
 
 ---
