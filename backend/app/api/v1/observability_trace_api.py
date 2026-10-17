@@ -38,6 +38,11 @@ from app.services.trace_timestamp_clock_skew_aligner import (
     clear_clock_skew_history,
     list_clock_skew_history,
 )
+from app.services.step_trace_deep_dive_analyzer import (
+    clear_diagnosis_history,
+    deep_dive_analyze_trace,
+    list_diagnosis_history,
+)
 
 router = APIRouter(prefix="/observability/trace", tags=["Observability Trace"])
 
@@ -90,6 +95,12 @@ class ClockSkewCompensationRequest(BaseModel):
     client_step_span: Dict[str, Any] = Field(..., description="客户端测试步骤 Span 数据字典")
     server_spans: List[Dict[str, Any]] = Field(default_factory=list, description="服务端微服务 Span 列表")
     service_name: str = Field("backend-gateway", description="首因服务端服务名")
+
+
+class DeepDiveAnalysisRequest(BaseModel):
+    step_context: Dict[str, Any] = Field(..., description="测试步骤上下文 (trace_id, name, status, error_message)")
+    spans: List[Dict[str, Any]] = Field(default_factory=list, description="该步骤绑定的全链路 Span 列表")
+    slow_query_threshold_ms: float = Field(150.0, description="慢 SQL 判定阈值 (毫秒)")
 
 
 @router.post("/inject")
@@ -356,3 +367,42 @@ def clear_skew_calibrations_endpoint(
     """清空时钟偏移补偿历史"""
     clear_clock_skew_history()
     return {"message": "已清空时钟偏移校准历史"}
+
+
+@router.post("/deep-dive")
+def deep_dive_analysis_endpoint(
+    payload: DeepDiveAnalysisRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """异常步骤调用链深潜下钻与首因定位归因"""
+    diagnosis = deep_dive_analyze_trace(
+        step_context=payload.step_context,
+        spans=payload.spans,
+        slow_query_threshold_ms=payload.slow_query_threshold_ms,
+    )
+    return {
+        "message": "调用链深潜下钻分析完成",
+        "diagnosis": diagnosis.to_dict(),
+    }
+
+
+@router.get("/diagnoses")
+def list_diagnoses_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询调用链异常深潜诊断历史"""
+    items = list_diagnosis_history(limit=limit)
+    return {
+        "total": len(items),
+        "diagnoses": items,
+    }
+
+
+@router.delete("/diagnoses")
+def clear_diagnoses_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """清空调用链深潜诊断历史"""
+    clear_diagnosis_history()
+    return {"message": "已清空调用链深潜诊断历史"}

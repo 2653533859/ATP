@@ -259,3 +259,58 @@ def test_clock_skew_compensation_api():
     assert del_resp.status_code == 200
     empty_resp = client.get("/api/v1/observability/trace/skew-calibrations", headers=HEADERS)
     assert empty_resp.json()["total"] == 0
+
+
+def test_deep_dive_analysis_api():
+    """测试异常步骤调用链深潜下钻、首因定位、诊断历史查询与清空 API。"""
+    client = TestClient(app)
+
+    # 1. 提交异常步骤深潜分析请求
+    req_payload = {
+        "step_context": {
+            "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+            "name": "步骤 2: 扣减用户积分",
+            "status": "FAILED",
+            "error_message": "下游积分服务返回 500 异常",
+        },
+        "spans": [
+            {
+                "span_id": "span_pts_svc",
+                "service_name": "points-service",
+                "name": "DeductPoints",
+                "duration_ms": 85.0,
+                "status": {"code": "ERROR", "message": "账户已冻结，无法扣减积分"},
+                "attributes": {
+                    "http.status_code": 500,
+                    "exception.message": "账户已冻结，无法扣减积分",
+                    "exception.stacktrace": "Traceback: AccountFrozenException at points.py:102",
+                },
+            }
+        ],
+        "slow_query_threshold_ms": 150.0,
+    }
+
+    resp = client.post(
+        "/api/v1/observability/trace/deep-dive",
+        json=req_payload,
+        headers=HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "diagnosis" in data
+    diag = data["diagnosis"]
+    assert diag["attribution_type"] == "DOWNSTREAM_SERVICE_ERROR"
+    assert diag["root_cause_service"] == "points-service"
+    assert "账户已冻结" in diag["error_message"]
+    assert "AccountFrozenException" in diag["stack_trace"]
+
+    # 2. 查询诊断历史
+    list_resp = client.get("/api/v1/observability/trace/diagnoses", headers=HEADERS)
+    assert list_resp.status_code == 200
+    assert list_resp.json()["total"] >= 1
+
+    # 3. 清空诊断历史
+    del_resp = client.delete("/api/v1/observability/trace/diagnoses", headers=HEADERS)
+    assert del_resp.status_code == 200
+    empty_resp = client.get("/api/v1/observability/trace/diagnoses", headers=HEADERS)
+    assert empty_resp.json()["total"] == 0
