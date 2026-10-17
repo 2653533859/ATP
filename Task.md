@@ -10,7 +10,7 @@
 
 - [x] 2026-10-17 UI1.1 API 工作台工具栏分组收纳与渐进式披露重构：将 35+ 平铺按钮重构为 5 大业务域分组下拉（流量契约、混沌韧性、变异自愈、体验a11y、门禁集群），彻底消除断行，1440px 视口无溢出；单测通过，见 [`docs/evidence/api-workbench-toolbar-progressive-disclosure-ui1-1-2026-10-17.md`](docs/evidence/api-workbench-toolbar-progressive-disclosure-ui1-1-2026-10-17.md)。
 - [x] 2026-10-17 UI1.2 性能测试工作台工具栏动作分级与高维诊断折叠：将新增的 5 大高维容量与熔断抽屉收纳为 3 大分组下拉菜单（单元调度容灾、容量熔断大脑、拐点爆炸半径），保持顶栏清爽极简；单测通过，见 [`docs/evidence/performance-workbench-toolbar-progressive-disclosure-ui1-2-2026-10-17.md`](docs/evidence/performance-workbench-toolbar-progressive-disclosure-ui1-2-2026-10-17.md)。
-- [ ] 2026-10-17 UI1.3 报表中心与 Hermes 助手工具栏响应式与动作规范化：统一工具栏高度、按钮间距节奏与主次视觉权重，优化小屏分辨率弹性换行；单测通过。
+- [x] 2026-10-17 UI1.3 报表中心与 Hermes 助手工具栏响应式与动作规范化：统一工具栏高度、按钮间距节奏与主次视觉权重，优化小屏分辨率弹性换行；单测通过，见 [`docs/evidence/report-and-hermes-toolbar-standardization-ui1-3-2026-10-17.md`](docs/evidence/report-and-hermes-toolbar-standardization-ui1-3-2026-10-17.md)。至此 v4.8.0 Phase 1 全量大闭环！
 - [ ] 2026-10-17 UI2.1 配置中心原生 HTML 标签肃清与 AntD 样式对齐：移除原生 `<select class="project-select-native">` 与原生 `<button class="button-light">`，全量对齐 `<a-select>` 与 `<a-button>`；单测通过。
 - [ ] 2026-10-17 UI2.2 Hermes 计划草稿面板非标输入与复选框规范化：移除原生 `<input>` 与 `<input type="checkbox">`，替换为 `<a-input>` 与 `<a-checkbox>`，对齐 Bento 聚焦微光环；单测通过。
 - [ ] 2026-10-17 UI2.3 全站 WCAG 2.1 AA 级对比度校准与主题变量升级：调整浅色模式 `--c-text-tertiary` 从 `#6e6b7b` 升级为 `#475569`（Slate 600），确保浅色背景对比度 ≥ 4.5:1，微调暗色边框与卡片层级；单测通过。

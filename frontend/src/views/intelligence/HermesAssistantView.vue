@@ -1084,13 +1084,15 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  height: 48px;
-  padding: 0 16px;
+  gap: 12px;
+  min-height: 48px;
+  height: auto;
+  padding: 6px 16px;
   background: var(--c-bg-elevated);
   border: 1px solid var(--c-border);
   border-radius: 10px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  flex-wrap: wrap;
 }
 
 .toolbar-left {
@@ -1099,6 +1101,7 @@ onMounted(async () => {
   gap: 10px;
   min-width: 0;
   flex: 1;
+  flex-wrap: wrap;
 }
 
 .toolbar-identity {

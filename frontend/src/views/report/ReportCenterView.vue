@@ -19,13 +19,43 @@
         />
         <a-select v-model:value="days" size="small" :options="dayOptions" class="days-select" />
         <a-button size="small" :loading="loading" @click="loadReport">{{ t('report_center.refresh') }}</a-button>
-        <a-button size="small" :loading="exporting" @click="exportTrend">{{ t('report_center.export_trend') }}</a-button>
-        <a-button type="primary" size="small" @click="showReportBundler = true">
-          <CloudDownloadOutlined /> 多模态聚合导出
-        </a-button>
-        <a-button size="small" @click="openAsset('/cases')">{{ t('menu.cases') }}</a-button>
-        <a-button v-if="!localMode" size="small" @click="openAsset('/suites')">{{ t('menu.suites') }}</a-button>
-        <a-button v-if="!localMode" size="small" @click="openAsset('/plans')">{{ t('menu.plans') }}</a-button>
+
+        <!-- 导出动作下拉 -->
+        <a-dropdown>
+          <a-button type="primary" size="small">
+            <CloudDownloadOutlined /> 导出报表 <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item @click="showReportBundler = true">
+                <CloudDownloadOutlined /> 多模态聚合导出
+              </a-menu-item>
+              <a-menu-item :disabled="exporting" @click="exportTrend">
+                <DownloadOutlined /> {{ t('report_center.export_trend') }}
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
+        <!-- 测试资产直达下拉 -->
+        <a-dropdown>
+          <a-button size="small" class="toolbar-btn">
+            <FolderOpenOutlined /> 测试资产直达 <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item @click="openAsset('/cases')">
+                <FileTextOutlined /> {{ t('menu.cases') }}
+              </a-menu-item>
+              <a-menu-item v-if="!localMode" @click="openAsset('/suites')">
+                <AppstoreOutlined /> {{ t('menu.suites') }}
+              </a-menu-item>
+              <a-menu-item v-if="!localMode" @click="openAsset('/plans')">
+                <ScheduleOutlined /> {{ t('menu.plans') }}
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
       </div>
     </header>
 
@@ -238,7 +268,16 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { BarChartOutlined, CloudDownloadOutlined } from '@ant-design/icons-vue'
+import {
+  BarChartOutlined,
+  CloudDownloadOutlined,
+  DownOutlined,
+  DownloadOutlined,
+  FolderOpenOutlined,
+  FileTextOutlined,
+  AppstoreOutlined,
+  ScheduleOutlined,
+} from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import VChart from 'vue-echarts'

@@ -52,6 +52,20 @@ const buttonStub = defineComponent({
     slots.default?.(),
   ),
 })
+const commonStubs = {
+  AAlert: passthrough('AAlert'),
+  AButton: buttonStub,
+  ACard: passthrough('ACard'),
+  AEmpty: passthrough('AEmpty'),
+  ASelect: passthrough('ASelect'),
+  ASpin: passthrough('ASpin'),
+  ATable: passthrough('ATable'),
+  ATag: passthrough('ATag'),
+  VChart: passthrough('VChart'),
+  ADropdown: defineComponent({ name: 'ADropdown', setup: (_props, { slots }) => () => h('div', [slots.default?.(), slots.overlay?.()]) }),
+  AMenu: passthrough('AMenu'),
+  AMenuItem: defineComponent({ name: 'AMenuItem', emits: ['click'], setup: (_props, { slots, emit }) => () => h('div', { onClick: () => emit('click') }, slots.default?.()) }),
+}
 
 const OVERVIEW = {
   project_id: 1,
@@ -96,17 +110,7 @@ describe('ReportCenterView', () => {
     routeQuery.value = { project_id: '3', days: '90' }
     const wrapper = mount(ReportCenterView, {
       global: {
-        stubs: {
-          AAlert: passthrough('AAlert'),
-          AButton: buttonStub,
-          ACard: passthrough('ACard'),
-          AEmpty: passthrough('AEmpty'),
-          ASelect: passthrough('ASelect'),
-          ASpin: passthrough('ASpin'),
-          ATable: passthrough('ATable'),
-          ATag: passthrough('ATag'),
-          VChart: passthrough('VChart'),
-        },
+        stubs: commonStubs,
       },
     })
     await flushPromises()
@@ -120,17 +124,7 @@ describe('ReportCenterView', () => {
   it('loads the project-scoped report and prepares two recent runs for comparison', async () => {
     const wrapper = mount(ReportCenterView, {
       global: {
-        stubs: {
-          AAlert: passthrough('AAlert'),
-          AButton: buttonStub,
-          ACard: passthrough('ACard'),
-          AEmpty: passthrough('AEmpty'),
-          ASelect: passthrough('ASelect'),
-          ASpin: passthrough('ASpin'),
-          ATable: passthrough('ATable'),
-          ATag: passthrough('ATag'),
-          VChart: passthrough('VChart'),
-        },
+        stubs: commonStubs,
       },
     })
     await flushPromises()
@@ -152,17 +146,7 @@ describe('ReportCenterView', () => {
   it('compares selected runs and reports export failures', async () => {
     const wrapper = mount(ReportCenterView, {
       global: {
-        stubs: {
-          AAlert: passthrough('AAlert'),
-          AButton: buttonStub,
-          ACard: passthrough('ACard'),
-          AEmpty: passthrough('AEmpty'),
-          ASelect: passthrough('ASelect'),
-          ASpin: passthrough('ASpin'),
-          ATable: passthrough('ATable'),
-          ATag: passthrough('ATag'),
-          VChart: passthrough('VChart'),
-        },
+        stubs: commonStubs,
       },
     })
     await flushPromises()
@@ -193,17 +177,7 @@ describe('ReportCenterView', () => {
     })
     const wrapper = mount(ReportCenterView, {
       global: {
-        stubs: {
-          AAlert: passthrough('AAlert'),
-          AButton: buttonStub,
-          ACard: passthrough('ACard'),
-          AEmpty: passthrough('AEmpty'),
-          ASelect: passthrough('ASelect'),
-          ASpin: passthrough('ASpin'),
-          ATable: passthrough('ATable'),
-          ATag: passthrough('ATag'),
-          VChart: passthrough('VChart'),
-        },
+        stubs: commonStubs,
       },
     })
     await flushPromises()
