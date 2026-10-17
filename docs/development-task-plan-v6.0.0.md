@@ -52,7 +52,7 @@ flowchart TD
 |---|---|---|---|
 | T1.1 `[x]` | **失败堆栈与异常语义指纹提取器** | `backend/app/services/defect_failure_fingerprint_extractor.py` | 规范化清理堆栈行号与动态地址，生成唯一稳定的 64 位异常指纹；单测独立通过；见 docs/evidence/defect-failure-fingerprint-extractor-t1-1-2026-10-18.md |
 | T1.2 `[x]` | **缺陷相似度计算与海量失败聚类去重器** | `backend/app/services/defect_similarity_deduplicator.py` | 基于指纹与文本相似度自动聚合归类同源缺陷，去重避免垃圾重复提单；单测独立通过；见 docs/evidence/defect-similarity-deduplicator-t1-2-2026-10-18.md |
-| T1.3 `[ ]` | **缺陷智能去重与聚合管理 REST API** | `backend/app/api/v1/defect_intelligence_api.py` | 挂载 `/api/v1/defect-intelligence/*` 路由，提供指纹提取、相似度匹配与批次聚合端点；单测独立通过。 |
+| T1.3 `[x]` | **缺陷智能去重与聚合管理 REST API** | `backend/app/api/v1/defect_intelligence_api.py` | 挂载 `/api/v1/defect-intelligence/*` 路由，提供指纹提取、相似度匹配与批次聚合端点；单测独立通过；见 docs/evidence/defect-intelligence-api-t1-3-2026-10-18.md |
 
 ---
 
