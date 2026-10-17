@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v5.8.0 研发任务规划（进行中）
+
+> v5.8.0 规划入口为 [`docs/development-task-plan-v5.8.0.md`](docs/development-task-plan-v5.8.0.md)，覆盖 Phase 1（故障注入算子与分布式混沌实验执行引擎）、Phase 2（弹性韧性自愈评估与爆炸半径动态收敛器）、Phase 3（混沌攻防演练中枢与韧性透视工作台）、Phase 4（生产防击穿安全沙箱、合规存证与全量发布）。
+
+- [ ] 2026-10-17 T1.1 网络损伤与故障注入算子库：落地 `chaos_fault_injector_library` 服务；支持网络延迟抖动/丢包/HTTP状态码变异与超时模拟；单测独立通过。
+- [ ] 2026-10-17 T1.2 分布式混沌实验编排与稳态探测引擎：落地 `chaos_steady_state_evaluator` 服务；基线稳态定义与指标偏离动态监控；单测独立通过。
+- [ ] 2026-10-17 T1.3 混沌演练实验管理与触发 REST API：落地 `chaos_engineering_api` 路由；提供实验创建、实时注入/停止与稳态监控端点；单测独立通过。
+- [ ] 2026-10-17 T2.1 服务降级与熔断恢复时间 RTO/RPO 评估器：落地 `resilience_rto_evaluator` 服务；量化熔断响应与系统自愈恢复耗时；单测独立通过。
+- [ ] 2026-10-17 T2.2 演练爆炸半径实时监控与紧急熔断回滚看门狗：落地 `chaos_blast_radius_controller` 服务；错误率红线与自动熔断剥离；单测独立通过。
+- [ ] 2026-10-17 T2.3 架构韧性弱点雷达分析与加固建议生成器：落地 `architecture_weakness_radar` 服务；输出多维韧性雷达分与加固调优建议；单测独立通过。
+- [ ] 2026-10-17 UI3.1 混沌故障注入拓扑与稳态指标透视抽屉：落地 `ChaosExperimentInspectionDrawer.vue`；实时拓扑图、稳态偏离曲线与注入控制；单测独立通过。
+- [ ] 2026-10-17 UI3.2 爆炸半径围栏配置与紧急熔断监控弹窗：落地 `BlastRadiusConfigModal.vue`；爆炸半径红线交互配置与安全回滚；单测独立通过。
+- [ ] 2026-10-17 UI3.3 分布式混沌工程与弹性韧性演练工作台中枢页面：落地 `ChaosEngineeringWorkbenchView.vue` 与 `/workbench/chaos-engineering` 路由；单测独立通过。
+- [ ] 2026-10-17 T4.1 混沌演练非生产隔离与绝对安全围栏看门狗：落地 `chaos_safety_boundary_guard` 服务；防范生产关键库被误注入与权限阻断；单测独立通过。
+- [ ] 2026-10-17 T4.2 混沌实验结论与韧性得分 64 位 SHA-256 存证证书器：落地 `chaos_evidence_signer` 服务；为演练记录与稳态报告签发存证证书；单测独立通过。
+- [ ] 2026-10-17 T4.3 v5.8.0 混沌工程与弹性韧性中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.8.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-17 v5.7.0 研发任务规划（已全量闭环）
 
 > v5.7.0 规划入口为 [`docs/development-task-plan-v5.7.0.md`](docs/development-task-plan-v5.7.0.md)，覆盖 Phase 1（代码变更 AST 影响面追踪与符号依赖映射器）、Phase 2（用例 DAG 依赖拓扑编排与执行波次调度器）、Phase 3（增量回归拓扑中枢与精准演练工作台）、Phase 4（漏测风险防护围栏看门狗、存证证书与全量发布）。
