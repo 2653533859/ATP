@@ -31,7 +31,7 @@
 |---|---|---|---|
 | T2.1 `[x]` | **iOS 真机排他性租约调度与自动续期管理器** | `backend/app/services/ios_lease_scheduler.py` | 实现严格防死锁排他性租约抢占（Acquire/Heartbeat/Release），支持租约超时自动回收；单测独立通过；见 docs/evidence/ios-lease-scheduler-t2-1-2026-10-17.md |
 | T2.2 `[x]` | **WDA 会话代理与生命周期初始化预热器** | `backend/app/services/ios_wda_session_manager.py` | 实现 WDA `/status` 连通性预热、前置 App 清理、实时屏幕截图获取与 Session 生命周期守护；单测独立通过；见 docs/evidence/ios-wda-session-manager-t2-2-2026-10-17.md |
-| T2.3 `[ ]` | **跨端移动设备统一分配器** | `backend/app/services/cross_platform_device_pool_allocator.py` | 统一抽象 Android (ADB) 与 iOS (WDA) 设备池，按 OS/版本/空闲状态自动匹配调度；单测独立通过。 |
+| T2.3 `[x]` | **跨端移动设备统一分配器** | `backend/app/services/cross_platform_device_pool_allocator.py` | 统一抽象 Android (ADB) 与 iOS (WDA) 设备池，按 OS/版本/空闲状态自动匹配调度；单测独立通过；见 docs/evidence/cross-platform-device-pool-allocator-t2-3-2026-10-17.md |
 
 ---
 

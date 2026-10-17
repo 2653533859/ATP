@@ -119,3 +119,93 @@ def test_ios_tunnel_full_lifecycle_api():
     assert del_resp.status_code == 200
     empty_list = client.get("/api/v1/ios/tunnel/devices", headers=HEADERS)
     assert empty_list.json()["total"] == 0
+
+
+def test_ios_tunnel_phase2_endpoints():
+    client = TestClient(app)
+
+    udid = "00008101-PHASE2-TEST-UDID"
+
+    # 1. 前置注册设备
+    client.post(
+        "/api/v1/ios/tunnel/register",
+        json={
+            "udid": udid,
+            "device_name": "iPhone 15 Pro",
+            "model": "iPhone16,1",
+            "ios_version": "17.4",
+            "agent_id": "mac_agent_phase2",
+            "agent_name": "Mac-Studio",
+        },
+        headers=HEADERS,
+    )
+
+    # 2. 申请独占租约
+    acq_resp = client.post(
+        "/api/v1/ios/tunnel/lease/acquire",
+        json={
+            "udid": udid,
+            "purpose": "automated_integration_test",
+            "ttl_seconds": 180,
+        },
+        headers=HEADERS,
+    )
+    assert acq_resp.status_code == 200
+    token = acq_resp.json()["lease"]["lease_token"]
+    assert token.startswith("ios_lease_")
+
+    # 3. 租约保活续期
+    hb_resp = client.post(
+        "/api/v1/ios/tunnel/lease/heartbeat",
+        json={"udid": udid, "lease_token": token, "additional_ttl_seconds": 300},
+        headers=HEADERS,
+    )
+    assert hb_resp.status_code == 200
+
+    # 4. 预热创建 WDA Session
+    wda_sess_resp = client.post(
+        "/api/v1/ios/tunnel/wda/session/warmup",
+        json={
+            "udid": udid,
+            "lease_token": token,
+            "bundle_id": "com.apple.Preferences",
+        },
+        headers=HEADERS,
+    )
+    assert wda_sess_resp.status_code == 200
+    session_id = wda_sess_resp.json()["session"]["session_id"]
+
+    # 5. 获取屏幕截图
+    shot_resp = client.get(
+        f"/api/v1/ios/tunnel/wda/screenshot/{udid}?session_id={session_id}",
+        headers=HEADERS,
+    )
+    assert shot_resp.status_code == 200
+    assert "screenshot_base64" in shot_resp.json()
+
+    # 6. 下发手势动作
+    tap_resp = client.post(
+        "/api/v1/ios/tunnel/wda/gesture",
+        json={
+            "udid": udid,
+            "session_id": session_id,
+            "action": "tap",
+            "x": 100.0,
+            "y": 200.0,
+        },
+        headers=HEADERS,
+    )
+    assert tap_resp.status_code == 200
+
+    # 7. 跨端池容量与自动调度
+    cap_resp = client.get("/api/v1/ios/tunnel/pool/capacity", headers=HEADERS)
+    assert cap_resp.status_code == 200
+    assert cap_resp.json()["capacity"]["total_devices"] >= 1
+
+    # 8. 释放租约
+    rel_resp = client.post(
+        "/api/v1/ios/tunnel/lease/release",
+        json={"udid": udid, "lease_token": token},
+        headers=HEADERS,
+    )
+    assert rel_resp.status_code == 200

@@ -22,6 +22,27 @@ from app.services.ios_tunnel_bridge import (
     release_ios_tunnel,
     simulate_forward_wda_command,
 )
+from app.services.ios_lease_scheduler import (
+    IosDeviceUnavailableError,
+    IosLeaseConflictError,
+    IosLeaseError,
+    acquire_ios_lease,
+    heartbeat_ios_lease,
+    list_active_leases,
+    release_ios_lease,
+)
+from app.services.ios_wda_session_manager import (
+    capture_wda_screenshot,
+    create_or_warmup_wda_session,
+    dispatch_touch_gesture,
+    list_wda_sessions,
+    teardown_wda_session,
+)
+from app.services.cross_platform_device_pool_allocator import (
+    allocate_matching_device,
+    get_device_pool_capacity_summary,
+    list_all_unified_devices,
+)
 
 router = APIRouter(prefix="/ios/tunnel", tags=["iOS Tunnel"])
 
@@ -59,6 +80,50 @@ class HealWdaRequest(BaseModel):
 
 class SweepHeartbeatsRequest(BaseModel):
     timeout_seconds: float = Field(15.0, description="心跳超时判定阈值 (秒)")
+
+
+class AcquireLeaseRequest(BaseModel):
+    udid: str = Field(..., description="目标物理 iPhone UDID")
+    purpose: str = Field("automated_test", description="租用用途说明")
+    ttl_seconds: int = Field(300, ge=30, le=1800, description="租约有效时长 (秒)")
+    force_takeover: bool = Field(False, description="是否强制接管既有租约 (管理员权限)")
+
+
+class HeartbeatLeaseRequest(BaseModel):
+    udid: str = Field(..., description="目标设备 UDID")
+    lease_token: str = Field(..., description="持有的有效租约凭据 Token")
+    additional_ttl_seconds: Optional[int] = Field(None, ge=30, le=1800, description="延长的租期秒数")
+
+
+class ReleaseLeaseRequest(BaseModel):
+    udid: str = Field(..., description="目标设备 UDID")
+    lease_token: Optional[str] = Field(None, description="持有的有效租约凭据 Token")
+    admin_force: bool = Field(False, description="是否管理员特权强制释放")
+
+
+class WarmupWdaSessionRequest(BaseModel):
+    udid: str = Field(..., description="目标设备 UDID")
+    lease_token: str = Field(..., description="有效租约凭据 Token")
+    bundle_id: str = Field("com.apple.Preferences", description="前台预热 App Bundle ID")
+    capabilities: Dict[str, Any] = Field(default_factory=dict, description="Session 启动参数配置")
+
+
+class DispatchGestureRequest(BaseModel):
+    udid: str = Field(..., description="目标设备 UDID")
+    session_id: str = Field(..., description="活跃 WDA Session ID")
+    action: str = Field("tap", description="手势动作类型 (tap | swipe | home)")
+    x: float = Field(0.0, description="起始 X 坐标")
+    y: float = Field(0.0, description="起始 Y 坐标")
+    end_x: float = Field(0.0, description="结束 X 坐标 (swipe 动作)")
+    end_y: float = Field(0.0, description="结束 Y 坐标 (swipe 动作)")
+    duration_ms: float = Field(300.0, description="滑动耗时毫秒数")
+
+
+class AllocateDeviceRequest(BaseModel):
+    platform: str = Field("any", description="目标平台 (ios | android | any)")
+    brand: Optional[str] = Field(None, description="机型品牌过滤")
+    min_os_version: Optional[str] = Field(None, description="最低系统版本要求")
+    auto_lease: bool = Field(False, description="匹配成功是否自动申请排他租约")
 
 
 @router.post("/register")
@@ -206,3 +271,214 @@ def release_tunnel_endpoint(
     if not released:
         raise HTTPException(status_code=404, detail="该设备隧道不存在或已被释放")
     return {"message": f"设备 [{udid}] 反向隧道已成功断开释放"}
+
+
+@router.post("/lease/acquire")
+def acquire_lease_endpoint(
+    payload: AcquireLeaseRequest,
+    user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """申请排他性独占租用一台 iPhone 设备"""
+    try:
+        lease = acquire_ios_lease(
+            udid=payload.udid,
+            owner_id=user.id,
+            owner_label=user.username,
+            purpose=payload.purpose,
+            ttl_seconds=payload.ttl_seconds,
+            force_takeover=payload.force_takeover,
+        )
+        return {
+            "message": f"成功获得设备 [{payload.udid}] 的排他性租约",
+            "lease": lease.to_dict(),
+        }
+    except IosLeaseConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except IosDeviceUnavailableError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/lease/heartbeat")
+def lease_heartbeat_endpoint(
+    payload: HeartbeatLeaseRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """为活动租约发送保活续期心跳"""
+    try:
+        lease = heartbeat_ios_lease(
+            udid=payload.udid,
+            lease_token=payload.lease_token,
+            additional_ttl_seconds=payload.additional_ttl_seconds,
+        )
+        return {
+            "message": "租约已成功续期",
+            "lease": lease.to_dict(),
+        }
+    except IosLeaseError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/lease/release")
+def release_lease_endpoint(
+    payload: ReleaseLeaseRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """主动释放归还 iPhone 设备租约"""
+    try:
+        res = release_ios_lease(
+            udid=payload.udid,
+            lease_token=payload.lease_token,
+            admin_force=payload.admin_force,
+        )
+        if not res:
+            raise HTTPException(status_code=404, detail="未找到该设备的活动租约记录")
+        return {"message": f"设备 [{payload.udid}] 租约已成功释放归还"}
+    except IosLeaseError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/leases")
+def list_leases_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """列出当前全部处于活动占用状态的 iOS 租约"""
+    leases = list_active_leases()
+    return {
+        "total": len(leases),
+        "leases": leases,
+    }
+
+
+@router.post("/wda/session/warmup")
+def warmup_wda_session_endpoint(
+    payload: WarmupWdaSessionRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """基于租约预热并创建 WDA 执行会话"""
+    try:
+        sess = create_or_warmup_wda_session(
+            udid=payload.udid,
+            lease_token=payload.lease_token,
+            bundle_id=payload.bundle_id,
+            capabilities=payload.capabilities,
+        )
+        return {
+            "message": "WDA 会话初始化预热成功",
+            "session": sess.to_dict(),
+        }
+    except (PermissionError, ConnectionError, RuntimeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/wda/sessions")
+def list_wda_sessions_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """列出当前活跃的 WDA 会话"""
+    sessions = list_wda_sessions()
+    return {
+        "total": len(sessions),
+        "sessions": sessions,
+    }
+
+
+@router.delete("/wda/session/{udid}")
+def teardown_wda_session_endpoint(
+    udid: str,
+    session_id: Optional[str] = None,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """优雅关闭 WDA 会话并清理前台环境"""
+    try:
+        res = teardown_wda_session(udid=udid, session_id=session_id)
+        if not res:
+            raise HTTPException(status_code=404, detail="未找到该设备的活跃 WDA 会话")
+        return {"message": f"设备 [{udid}] 的 WDA 会话已优雅注销"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/wda/screenshot/{udid}")
+def get_screenshot_endpoint(
+    udid: str,
+    session_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """获取真机当前实时屏幕快照截图"""
+    try:
+        img_b64 = capture_wda_screenshot(udid=udid, session_id=session_id)
+        return {
+            "udid": udid,
+            "session_id": session_id,
+            "screenshot_base64": img_b64,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/wda/gesture")
+def dispatch_gesture_endpoint(
+    payload: DispatchGestureRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """向目标设备下发点击、滑动或 Home 触控手势动作"""
+    try:
+        res = dispatch_touch_gesture(
+            udid=payload.udid,
+            session_id=payload.session_id,
+            action=payload.action,
+            x=payload.x,
+            y=payload.y,
+            end_x=payload.end_x,
+            end_y=payload.end_y,
+            duration_ms=payload.duration_ms,
+        )
+        return {
+            "message": "手势执行成功",
+            "result": res,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/pool/allocate")
+def allocate_device_endpoint(
+    payload: AllocateDeviceRequest,
+    user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """跨端匹配最佳真机，并可选自动申请排他租约"""
+    matched = allocate_matching_device(
+        platform=payload.platform,
+        brand=payload.brand,
+        min_os_version=payload.min_os_version,
+        auto_lease=payload.auto_lease,
+        owner_id=user.id,
+        owner_label=user.username,
+    )
+    if not matched:
+        raise HTTPException(status_code=404, detail="未在跨端设备池中找到满足条件的可用真机")
+    return {
+        "message": f"成功匹配调度移动真机 [{matched['name']}]",
+        "device": matched,
+    }
+
+
+@router.get("/pool/capacity")
+def get_capacity_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """获取跨端移动真机池容量与负载负载统计"""
+    summary = get_device_pool_capacity_summary()
+    return {"capacity": summary}
+
+
+@router.get("/pool/devices")
+def get_all_pool_devices_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """列出跨端设备池所有统一设备"""
+    devices = list_all_unified_devices()
+    return {
+        "total": len(devices),
+        "devices": [d.to_dict() for d in devices],
+    }

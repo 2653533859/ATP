@@ -13,7 +13,7 @@
 - [x] 2026-10-17 T1.3 iOS 设备隧道连接与状态管理 REST API：落地 `ios_tunnel_api` 路由；提供设备反向隧道列表、连通性检查与连接会话维护；单测独立通过，见 [`docs/evidence/ios-tunnel-api-t1-3-2026-10-17.md`](docs/evidence/ios-tunnel-api-t1-3-2026-10-17.md)。至此 v5.0.0 Phase 1 全量大闭环！
 - [x] 2026-10-17 T2.1 iOS 真机排他性租约调度与自动续期管理器：落地 `ios_lease_scheduler` 服务；实现高并发防死锁排他性租约申请、释放与超时回收；单测独立通过，见 [`docs/evidence/ios-lease-scheduler-t2-1-2026-10-17.md`](docs/evidence/ios-lease-scheduler-t2-1-2026-10-17.md)。
 - [x] 2026-10-17 T2.2 WDA 会话代理与生命周期初始化预热器：落地 `ios_wda_session_manager` 服务；实现 WDA 会话预热、前置环境清理与截屏分发；单测独立通过，见 [`docs/evidence/ios-wda-session-manager-t2-2-2026-10-17.md`](docs/evidence/ios-wda-session-manager-t2-2-2026-10-17.md)。
-- [ ] 2026-10-17 T2.3 跨端移动设备统一分配器：落地 `cross_platform_device_pool_allocator` 服务；统一抽象 Android 与 iOS 设备池并实现自动匹配调度；单测独立通过。
+- [x] 2026-10-17 T2.3 跨端移动设备统一分配器：落地 `cross_platform_device_pool_allocator` 服务；统一抽象 Android 与 iOS 设备池并实现自动匹配调度；单测独立通过，见 [`docs/evidence/cross-platform-device-pool-allocator-t2-3-2026-10-17.md`](docs/evidence/cross-platform-device-pool-allocator-t2-3-2026-10-17.md)。至此 v5.0.0 Phase 2 全量大闭环！
 - [ ] 2026-10-17 UI3.1 iOS 交互式投屏与远程控制抽屉组件：落地 `IosScreenMirrorModal.vue`；实现 iOS 画面低延迟镜像、触控点击坐标换算下发与 Home 键控制；单测独立通过。
 - [ ] 2026-10-17 UI3.2 iOS 真机资产池卡片与状态监控组件：落地 `IosDevicePoolCard.vue`；呈现真机卡片、状态角标、租约持有人与一键调试；单测独立通过。
 - [ ] 2026-10-17 UI3.3 iOS 真机池化调度与远程管理中心页面：落地 `IosDeviceCenterView.vue` 视图与 `/devices/ios-center` 路由；全景管理真机池与租约；单测独立通过。
