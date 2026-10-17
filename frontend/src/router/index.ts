@@ -162,6 +162,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/defect-intelligence',
+          name: 'defect-intelligence-workbench',
+          component: () => import('@/views/workbench/DefectIntelligenceWorkbenchView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),
