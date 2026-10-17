@@ -40,7 +40,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI3.1 `[x]` | **可视化拖拽工作流编排画布组件** | `frontend/src/views/workbench/components/HybridWorkflowDragCanvas.vue` | 实现节点拖拽摆放、端口连线、属性抽屉配置与执行状态流光动画；单测独立通过；见 docs/evidence/hybrid-workflow-drag-canvas-ui3-1-2026-10-17.md |
-| UI3.2 `[ ]` | **漏测血缘图谱与覆盖间隙下钻抽屉** | `frontend/src/views/workbench/components/VisualCoverageGapInspectorDrawer.vue` | 呈现业务与接口血缘拓扑树、红斑漏测节点高亮与一键智能补测；单测独立通过。 |
+| UI3.2 `[x]` | **漏测血缘图谱与覆盖间隙下钻抽屉** | `frontend/src/views/workbench/components/VisualCoverageGapInspectorDrawer.vue` | 呈现业务与接口血缘拓扑树、红斑漏测节点高亮与一键智能补测；单测独立通过；见 docs/evidence/visual-coverage-gap-inspector-drawer-ui3-2-2026-10-17.md |
 | UI3.3 `[ ]` | **混合工作流与漏测血缘中枢工作台页面** | `frontend/src/views/workbench/HybridWorkflowWorkbenchView.vue` | 落地路由 `/workbench/hybrid-orchestrator`，集成 4 大 Bento KPI、画布与大盘总表；单测独立通过。 |
 
 ---
