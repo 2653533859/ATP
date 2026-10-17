@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v4.7.0 研发任务规划（进行中）
+## 2026-10-17 v4.7.0 研发任务规划（已全量闭环）
 
 > v4.7.0 规划入口为 [`docs/development-task-plan-v4.7.0.md`](docs/development-task-plan-v4.7.0.md)，覆盖 Phase 1（全链路影子流量染色、库表防污染与 MQ 隔离控制台）、Phase 2（单元化架构测试隔离 Cell-based Testing 与容灾切流看板）、Phase 3（压测容量水位实时监控与防雪崩自适应熔断控制台）、Phase 4（全链路压测拐点分析、爆炸半径审计与复盘决策大盘）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-17 UI3.3 防击穿自适应分级限流与防雪崩熔断大脑控制台：落地 `AdaptiveAvalancheBreakerConsoleDrawer.vue` 组件与 API 客户端；展示 4 阶段熔断状态机（正常、一级缓速25%、二级急刹60%、硬核毫秒阻断 ABORT）、实时熔断触发广播与一键紧急重置；单测独立通过，见 [`docs/evidence/adaptive-avalanche-breaker-console-drawer-ui3-3-2026-10-17.md`](docs/evidence/adaptive-avalanche-breaker-console-drawer-ui3-3-2026-10-17.md)。至此 v4.7.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 UI4.1 TPS 阶梯加压性能曲线与最大吞吐拐点分析抽屉：落地 `StepLoadThroughputKneeDrawer.vue` 组件与 API 客户端；展示并发 vs TPS 拟合曲线、Knee Point 最佳拐点、Cliff Point 崩溃点与日常生产最佳并发推荐；单测独立通过，见 [`docs/evidence/step-load-throughput-knee-drawer-ui4-1-2026-10-17.md`](docs/evidence/step-load-throughput-knee-drawer-ui4-1-2026-10-17.md)。
 - [x] 2026-10-17 UI4.2 生产全链路压测安全审计与爆炸半径评估卡片：落地 `StressBlastRadiusEvaluatorCard.vue` 组件与 API 客户端；展示 4 级爆炸半径（局域可控到全局失控）、4 大安全护栏准入状态、64 位 SHA-256 审计指纹；单测独立通过，见 [`docs/evidence/stress-blast-radius-evaluator-card-ui4-2-2026-10-17.md`](docs/evidence/stress-blast-radius-evaluator-card-ui4-2-2026-10-17.md)。
-- [ ] 2026-10-17 UI4.3 全链路压力演练综合审计与数字孪生复盘大盘页面：落地 `FullLinkStressDrillSummaryDashboardView.vue` 视图与路由；汇聚吞吐指标、容量水位、熔断事件与准入评级，提供全景演练报告 Markdown 一键实时预览与复制导出；单测独立通过。
+- [x] 2026-10-17 UI4.3 全链路压力演练综合审计与数字孪生复盘大盘页面：落地 `FullLinkStressDrillSummaryDashboardView.vue` 视图与路由；汇聚吞吐指标、容量水位、熔断事件与准入评级，提供全景演练报告 Markdown 一键实时预览与复制导出；单测独立通过，见 [`docs/evidence/full-link-stress-drill-summary-dashboard-ui4-3-2026-10-17.md`](docs/evidence/full-link-stress-drill-summary-dashboard-ui4-3-2026-10-17.md)。至此 v4.7.0 Phase 4 乃至全版本 12 项重磅能力全量大闭环！
 
 ## 2026-10-17 v4.6.0 研发任务规划（已全量闭环）
 

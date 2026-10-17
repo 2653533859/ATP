@@ -477,6 +477,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/full-link-drill',
+          name: 'full-link-stress-drill-summary-dashboard',
+          component: () => import('@/views/quality/FullLinkStressDrillSummaryDashboardView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),

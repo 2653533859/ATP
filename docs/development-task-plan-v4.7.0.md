@@ -56,7 +56,7 @@
 |---|---|---|---|
 | UI4.1 `[x]` | **TPS 阶梯加压性能曲线与最大吞吐拐点分析抽屉** | `step_load_throughput_knee_detector` | 落地 `StepLoadThroughputKneeDrawer.vue` 组件与 API 客户端；展示并发 vs TPS 拟合曲线、Knee Point 最佳拐点、Cliff Point 崩溃点与日常生产最佳并发推荐；单测独立通过；见 docs/evidence/step-load-throughput-knee-drawer-ui4-1-2026-10-17.md |
 | UI4.2 `[x]` | **生产全链路压测安全审计与爆炸半径评估卡片** | `stress_blast_radius_safety_evaluator` | 落地 `StressBlastRadiusEvaluatorCard.vue` 组件与 API 客户端；展示 4 级爆炸半径（局域可控到全局失控）、4 大安全护栏准入状态、64 位 SHA-256 审计指纹；单测独立通过；见 docs/evidence/stress-blast-radius-evaluator-card-ui4-2-2026-10-17.md |
-| UI4.3 `[ ]` | **全链路压力演练综合审计与数字孪生复盘大盘页面** | `full_link_stress_drill_reporter` | 落地 `FullLinkStressDrillSummaryDashboardView.vue` 视图与路由；汇聚吞吐指标、容量水位、熔断事件与准入评级，提供全景演练报告 Markdown 一键实时预览与复制导出；单测独立通过。 |
+| UI4.3 `[x]` | **全链路压力演练综合审计与数字孪生复盘大盘页面** | `full_link_stress_drill_reporter` | 落地 `FullLinkStressDrillSummaryDashboardView.vue` 视图与路由；汇聚吞吐指标、容量水位、熔断事件与准入评级，提供全景演练报告 Markdown 一键实时预览与复制导出；单测独立通过；见 docs/evidence/full-link-stress-drill-summary-dashboard-ui4-3-2026-10-17.md |
 
 ---
 
