@@ -10,7 +10,7 @@
 
 - [x] 2026-10-17 T1.1 敏感数据实时脱敏与隐私字段掩码器：落地 `traffic_sanitization_masker` 服务；支持手机号/身份证/银行卡/JWT自动脱敏与加盐置换；单测独立通过，见 [`docs/evidence/traffic-sanitization-masker-t1-1-2026-10-17.md`](docs/evidence/traffic-sanitization-masker-t1-1-2026-10-17.md)。
 - [x] 2026-10-17 T1.2 分布式流量镜像采集与流量抽样过滤器：落地 `traffic_mirror_sampler` 服务；多维条件过滤与探针过滤；单测独立通过，见 [`docs/evidence/traffic-mirror-sampler-t1-2-2026-10-17.md`](docs/evidence/traffic-mirror-sampler-t1-2-2026-10-17.md)。
-- [ ] 2026-10-17 T1.3 流量录制集管理与回放检索 REST API：落地 `traffic_replay_api` 路由；提供流量录制集管理与批量调度端点；单测独立通过。
+- [x] 2026-10-17 T1.3 流量录制集管理与回放检索 REST API：落地 `traffic_replay_api` 路由；提供流量录制集管理与批量调度端点；单测独立通过，见 [`docs/evidence/traffic-replay-api-t1-3-2026-10-17.md`](docs/evidence/traffic-replay-api-t1-3-2026-10-17.md)。至此 v5.6.0 Phase 1 全量大闭环！
 - [ ] 2026-10-17 T2.1 双端响应体深度结构 Diff 对比器：落地 `traffic_response_diff_comparator` 服务；键值丢失与状态码偏离深度比对；单测独立通过。
 - [ ] 2026-10-17 T2.2 动态字段动态噪声自适应抑制器：落地 `dynamic_noise_suppressor` 服务；时间戳/UUID/TraceID 动态噪声自动平滑；单测独立通过。
 - [ ] 2026-10-17 T2.3 回放偏离评分与 Breaking Change 裁决控制器：落地 `replay_drift_evaluator` 服务；回放偏离评分与 Breaking 破坏性评级；单测独立通过。

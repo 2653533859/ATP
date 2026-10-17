@@ -49,6 +49,7 @@ from app.api.v1 import (
     cross_platform_migration_api,
     fleet_scheduler_api,
     test_self_healing_api,
+    traffic_replay_api,
     users,
     health,
     workbench,
@@ -206,6 +207,7 @@ router.include_router(intent_workflow_api.router)
 router.include_router(cross_platform_migration_api.router)
 router.include_router(fleet_scheduler_api.router)
 router.include_router(test_self_healing_api.router)
+router.include_router(traffic_replay_api.router)
 router.include_router(users.router)
 router.include_router(health.router)
 router.include_router(local_files.router)

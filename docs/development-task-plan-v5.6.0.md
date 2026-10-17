@@ -51,7 +51,7 @@ flowchart TD
 |---|---|---|---|
 | T1.1 `[x]` | **敏感数据实时脱敏与隐私字段掩码器** | `backend/app/services/traffic_sanitization_masker.py` | 自动识别手机号、身份证、银行卡、密码、JWT Token与敏感 Header/Query，支持哈希/掩码/加盐置换；单测独立通过；见 docs/evidence/traffic-sanitization-masker-t1-1-2026-10-17.md |
 | T1.2 `[x]` | **分布式流量镜像采集与流量抽样过滤器** | `backend/app/services/traffic_mirror_sampler.py` | 支持按 URL 模式、HTTP 方法、状态码与指定采样率（1%~100%）过滤流量，并自动剔除健康检查探针；单测独立通过；见 docs/evidence/traffic-mirror-sampler-t1-2-2026-10-17.md |
-| T1.3 `[ ]` | **流量录制集管理与回放检索 REST API** | `backend/app/api/v1/traffic_replay_api.py` | 挂载 `/api/v1/traffic-replay/*`，提供流量脱敏校验、录制集持久化、按条件检索与批量调度回放端点；单测独立通过。 |
+| T1.3 `[x]` | **流量录制集管理与回放检索 REST API** | `backend/app/api/v1/traffic_replay_api.py` | 挂载 `/api/v1/traffic-replay/*`，提供流量脱敏校验、录制集持久化、按条件检索与批量调度回放端点；单测独立通过；见 docs/evidence/traffic-replay-api-t1-3-2026-10-17.md |
 
 ---
 
