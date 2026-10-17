@@ -55,7 +55,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T1.1 `[ ]` | **跨端统一语义动作模型与映射器** | `backend/app/services/cross_platform_action_mapper.py` | 统一抽象 TAP, FILL, SCROLL, ASSERT, WAIT 动作，实现 Web/iOS/Android 跨端双向转译；单测独立通过。 |
+| T1.1 `[x]` | **跨端统一语义动作模型与映射器** | `backend/app/services/cross_platform_action_mapper.py` | 统一抽象 TAP, FILL, SCROLL, ASSERT, WAIT 动作，实现 Web/iOS/Android 跨端双向转译；单测独立通过；见 docs/evidence/cross-platform-action-mapper-t1-1-2026-10-17.md |
 | T1.2 `[ ]` | **跨端控件模糊语义匹配与转换器** | `backend/app/services/cross_platform_element_translator.py` | 基于元素文本、语义标签、上下文位置模糊推导目标平台对应控件（如 iOS accessibility-id ➔ Android resource-id/text）；单测独立通过。 |
 | T1.3 `[ ]` | **用例跨端迁移与执行 REST API** | `backend/app/api/v1/cross_platform_migration_api.py` | 挂载 `/api/v1/migration/*`，提供用例迁移转换、批量迁移与状态查询端点；单测独立通过。 |
 

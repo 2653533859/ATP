@@ -8,7 +8,7 @@
 
 > v5.3.0 规划入口为 [`docs/development-task-plan-v5.3.0.md`](docs/development-task-plan-v5.3.0.md)，覆盖 Phase 1（跨端测试动作语义映射与智能迁移引擎）、Phase 2（双端功能一致性对齐与差异侦测分析器）、Phase 3（双端差异透视抽屉与跨端迁移工作台中枢）、Phase 4（跨端回放安全沙箱、合规存证与全量发布）。
 
-- [ ] 2026-10-17 T1.1 跨端统一语义动作模型与映射器：落地 `cross_platform_action_mapper` 服务；统一抽象动作并实现 Web/iOS/Android 双向转译；单测独立通过。
+- [x] 2026-10-17 T1.1 跨端统一语义动作模型与映射器：落地 `cross_platform_action_mapper` 服务；统一抽象动作并实现 Web/iOS/Android 双向转译；单测独立通过，见 [`docs/evidence/cross-platform-action-mapper-t1-1-2026-10-17.md`](docs/evidence/cross-platform-action-mapper-t1-1-2026-10-17.md)。
 - [ ] 2026-10-17 T1.2 跨端控件模糊语义匹配与转换器：落地 `cross_platform_element_translator` 服务；基于文本与上下文标签模糊推导目标平台控件；单测独立通过。
 - [ ] 2026-10-17 T1.3 用例跨端迁移与执行 REST API：落地 `cross_platform_migration_api` 路由；提供用例迁移转换与批量迁移端点；单测独立通过。
 - [ ] 2026-10-17 T2.1 双端 UI 与状态树对齐分析器：落地 `parity_alignment_analyzer` 服务；对比双端界面状态树并计算节点匹配矩阵；单测独立通过。
