@@ -11,7 +11,7 @@
 - [x] 2026-10-17 T1.1 多模态弹性定位链与相似度推导器：落地 `dynamic_locator_self_healer` 服务；建立定位回退链并推导最优候选；单测独立通过，见 [`docs/evidence/dynamic-locator-self-healer-t1-1-2026-10-17.md`](docs/evidence/dynamic-locator-self-healer-t1-1-2026-10-17.md)。
 - [x] 2026-10-17 T1.2 运行时失败拦截与自愈补丁应用器：落地 `runtime_healing_patcher` 服务；毫秒级拦截定位异常并生成补丁；单测独立通过，见 [`docs/evidence/runtime-healing-patcher-t1-2-2026-10-17.md`](docs/evidence/runtime-healing-patcher-t1-2-2026-10-17.md)。
 - [x] 2026-10-17 T1.3 用例自愈决策与补丁持久化 REST API：落地 `test_self_healing_api` 路由；提供定位器自愈与用例回写端点；单测独立通过，见 [`docs/evidence/test-self-healing-api-t1-3-2026-10-17.md`](docs/evidence/test-self-healing-api-t1-3-2026-10-17.md)。至此 v5.5.0 Phase 1 全量大闭环！
-- [ ] 2026-10-17 T2.1 接口响应结构变迁与漂移检测器：落地 `response_schema_drift_detector` 服务；识别字段重命名与层级展开；单测独立通过。
+- [x] 2026-10-17 T2.1 接口响应结构变迁与漂移检测器：落地 `response_schema_drift_detector` 服务；识别字段重命名与层级展开；单测独立通过，见 [`docs/evidence/response-schema-drift-detector-t2-1-2026-10-17.md`](docs/evidence/response-schema-drift-detector-t2-1-2026-10-17.md)。
 - [ ] 2026-10-17 T2.2 语义断言智能演进与语法重写器：落地 `assertion_drift_evolution_synthesizer` 服务；重写现代断言并输出代码 Diff；单测独立通过。
 - [ ] 2026-10-17 T2.3 断言演进置信度评分与安全回滚控制器：落地 `assertion_evolution_controller` 服务；演进置信度评分与版本回滚；单测独立通过。
 - [ ] 2026-10-17 UI3.1 定位器自愈对比与 DOM 变化透视抽屉：落地 `SelfHealingDiffInspectionDrawer.vue`；分栏对比新旧定位器与 DOM 树；单测独立通过。
