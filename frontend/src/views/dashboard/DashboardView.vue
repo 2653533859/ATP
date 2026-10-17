@@ -595,6 +595,23 @@ function buildPassRateOption(data: PassRateTrendItem[] = []) {
         data: data.map(item => item.rate),
         itemStyle: { color: '#1890ff' },
         areaStyle: { color: 'rgba(24,144,255,0.15)' },
+        markLine: {
+          symbol: 'none',
+          data: [
+            {
+              yAxis: 90,
+              name: '合格基线 90%',
+              lineStyle: { color: '#52c41a', type: 'dashed' as const, width: 2 },
+              label: { show: true, position: 'end' as const, formatter: '合格 90%', color: '#52c41a', fontSize: 11 },
+            },
+            {
+              yAxis: 75,
+              name: '警戒红线 75%',
+              lineStyle: { color: '#f5222d', type: 'dashed' as const, width: 2 },
+              label: { show: true, position: 'end' as const, formatter: '警戒 75%', color: '#f5222d', fontSize: 11 },
+            },
+          ],
+        },
       },
       {
         name: t('dashboard.charts.run_count'),

@@ -370,7 +370,31 @@ const trendOption = computed(() => ({
   ],
   series: [
     { name: t('report_center.trend.runs'), type: 'bar', yAxisIndex: 0, barMaxWidth: 18, data: overview.trend.map((item) => item.total) },
-    { name: t('report_center.trend.pass_rate'), type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 7, data: overview.trend.map((item) => item.pass_rate) },
+    {
+      name: t('report_center.trend.pass_rate'),
+      type: 'line',
+      yAxisIndex: 1,
+      smooth: true,
+      symbolSize: 7,
+      data: overview.trend.map((item) => item.pass_rate),
+      markLine: {
+        symbol: 'none',
+        data: [
+          {
+            yAxis: 90,
+            name: '合格基线 90%',
+            lineStyle: { color: '#52c41a', type: 'dashed', width: 2 },
+            label: { show: true, position: 'end', formatter: '合格 90%', color: '#52c41a', fontSize: 11 },
+          },
+          {
+            yAxis: 75,
+            name: '警戒红线 75%',
+            lineStyle: { color: '#f5222d', type: 'dashed', width: 2 },
+            label: { show: true, position: 'end', formatter: '警戒 75%', color: '#f5222d', fontSize: 11 },
+          },
+        ],
+      },
+    },
   ],
 }))
 

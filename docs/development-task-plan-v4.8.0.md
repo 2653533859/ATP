@@ -48,7 +48,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI4.1 `[ ]` | **质量大盘与报表折线图通过率/安全阈值基线接入** | `frontend/src/views/dashboard/DashboardView.vue`, `ReportCenterView.vue` | 在趋势折线图中增加 90% 合格基线（绿色 MarkLine）与 75% 警戒带，提供直观的指标安全区间；单测通过。 |
+| UI4.1 `[x]` | **质量大盘与报表折线图通过率/安全阈值基线接入** | `frontend/src/views/dashboard/DashboardView.vue`, `ReportCenterView.vue` | 在趋势折线图中增加 90% 合格基线（绿色 MarkLine）与 75% 警戒红线，提供直观的指标安全区间；单测通过；见 docs/evidence/dashboard-and-report-threshold-baselines-ui4-1-2026-10-17.md |
 | UI4.2 `[ ]` | **图表点击穿透联动表格筛选 (Cross-filtering) 闭环** | `frontend/src/views/dashboard/DashboardView.vue` | 点击失败原因分布饼图扇区，自动联动跳转或过滤关联失败用例/执行明细；单测通过。 |
 | UI4.3 `[ ]` | **v4.8.0 UI/UX 体验重构综合验收与发布说明** | 全局体验回归 | 执行全量前端测试与生产构建验证，归档发布说明与工程交付证据。 |
 
