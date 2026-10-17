@@ -18,7 +18,7 @@
 - [x] 2026-10-17 UI3.2 用例列表 Bento 统计卡与下方表格交互联动闭环：实现点击顶部 4 个 Bento Tile（全部用例、业务模块、待评审、Flaky抖动）自动作为过滤器联动过滤下方表格；单测通过，见 [`docs/evidence/caselist-bento-card-cross-filtering-ui3-2-2026-10-17.md`](docs/evidence/caselist-bento-card-cross-filtering-ui3-2-2026-10-17.md)。
 - [x] 2026-10-17 UI3.3 核心页面与卡片骨架屏 (Skeleton) 预占位接入：替换局部纯 Spinner 转圈为平滑骨架屏（`<a-skeleton>`），显著压降首屏异步渲染累积布局位移 (CLS)；单测通过，见 [`docs/evidence/dashboard-skeleton-loading-state-ui3-3-2026-10-17.md`](docs/evidence/dashboard-skeleton-loading-state-ui3-3-2026-10-17.md)。至此 v4.8.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 UI4.1 质量大盘与报表折线图通过率/安全阈值基线接入：在趋势折线图中增加 90% 合格基线（绿色 MarkLine）与 75% 警戒红线，提供直观的指标安全区间；单测通过，见 [`docs/evidence/dashboard-and-report-threshold-baselines-ui4-1-2026-10-17.md`](docs/evidence/dashboard-and-report-threshold-baselines-ui4-1-2026-10-17.md)。
-- [ ] 2026-10-17 UI4.2 图表点击穿透联动表格筛选 (Cross-filtering) 闭环：点击失败原因分布饼图扇区，自动联动跳转或过滤关联失败用例/执行明细；单测通过。
+- [x] 2026-10-17 UI4.2 图表点击穿透联动表格筛选 (Cross-filtering) 闭环：点击失败原因、趋势、用例类型分布等扇区与数据点，自动联动跳转至运行/用例明细；单测通过，见 [`docs/evidence/dashboard-chart-cross-filtering-drilldown-ui4-2-2026-10-17.md`](docs/evidence/dashboard-chart-cross-filtering-drilldown-ui4-2-2026-10-17.md)。
 - [ ] 2026-10-17 UI4.3 v4.8.0 UI/UX 体验重构综合验收与发布说明：执行全量前端测试与生产构建验证，归档发布说明与工程交付证据。
 
 ## 2026-10-17 v4.7.0 研发任务规划（已全量闭环）

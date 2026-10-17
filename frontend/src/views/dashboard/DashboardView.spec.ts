@@ -257,3 +257,29 @@ describe('DashboardView service status', () => {
     expect(wrapper.text()).not.toContain('dashboard.workbench.services_title')
   })
 })
+
+describe('DashboardView chart cross-filtering', () => {
+  it('triggers router push when clicking chart elements', async () => {
+    const wrapper = mountDashboard()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.handleChartClick('failure_top', { componentType: 'series', data: {} })
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'runs',
+      query: { project_id: undefined, status: 'failed' },
+    })
+
+    vm.handleChartClick('pass_rate_trend', {})
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'runs',
+      query: { project_id: undefined },
+    })
+
+    vm.handleChartClick('case_type_distribution', { name: 'api' })
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'cases',
+      query: { project_id: undefined, type: 'api' },
+    })
+  })
+})

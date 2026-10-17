@@ -860,6 +860,14 @@ function handleFailureClick(params: unknown) {
   const event = params as FailureChartClickParams
   if (event.componentType === 'series' && event.data?._caseId) {
     goToCaseManagement(event.data._projectId, event.data._moduleId)
+  } else {
+    router.push({
+      name: 'runs',
+      query: {
+        project_id: effectiveProjectId.value ? String(effectiveProjectId.value) : undefined,
+        status: 'failed',
+      },
+    })
   }
 }
 
@@ -881,8 +889,42 @@ function setChartRef(chart: ExportChartKey, el: Element | ComponentPublicInstanc
 }
 
 function handleChartClick(chart: LayoutChartKey, params: unknown) {
+  const event = params as any
   if (chart === 'failure_top') {
     handleFailureClick(params)
+    message.info('已联动下钻：查看关联失败执行记录')
+  } else if (chart === 'pass_rate_trend') {
+    router.push({
+      name: 'runs',
+      query: {
+        project_id: effectiveProjectId.value ? String(effectiveProjectId.value) : undefined,
+      },
+    })
+    message.info('已联动下钻：前往运行中心查看对应趋势执行记录')
+  } else if (chart === 'case_type_distribution') {
+    const rawName = event?.name
+    router.push({
+      name: 'cases',
+      query: {
+        project_id: effectiveProjectId.value ? String(effectiveProjectId.value) : undefined,
+        type: rawName || undefined,
+      },
+    })
+    message.info(`已联动下钻：查看 ${rawName || '对应类型'} 测试用例`)
+  } else if (chart === 'plan_trend') {
+    router.push({
+      name: 'plans',
+      query: {
+        project_id: effectiveProjectId.value ? String(effectiveProjectId.value) : undefined,
+      },
+    })
+  } else if (chart === 'suite_trend') {
+    router.push({
+      name: 'suites',
+      query: {
+        project_id: effectiveProjectId.value ? String(effectiveProjectId.value) : undefined,
+      },
+    })
   }
 }
 
@@ -1793,6 +1835,7 @@ function formatAlertTime(value?: string | null) {
   width: 100%;
   height: clamp(280px, 32vh, 420px);
   min-height: 260px;
+  cursor: pointer;
 }
 .dashboard-empty-card {
   text-align: center;
