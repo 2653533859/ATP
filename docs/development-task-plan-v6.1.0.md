@@ -72,7 +72,7 @@ flowchart TD
 |---|---|---|---|
 | UI3.1 `[x]` | **金丝雀全链路染色拓扑与流量分流透视抽屉** | `frontend/src/views/workbench/components/CanaryTopologyInspectionDrawer.vue` | 呈现多微服务节点分流拓扑、实时权重百分比与双轨指标对比曲线；单测独立通过；见 docs/evidence/canary-topology-inspection-drawer-ui3-1-2026-10-18.md |
 | UI3.2 `[x]` | **灰度步进策略配置与自动回滚围栏弹窗** | `frontend/src/views/workbench/components/CanarySteppingConfigModal.vue` | 可视化交互配置多阶段步进计划、错误率容忍阈值与看门狗自动回滚；单测独立通过；见 docs/evidence/canary-stepping-config-modal-ui3-2-2026-10-18.md |
-| UI3.3 `[ ]` | **全链路金丝雀灰度校验工作台中枢页面** | `frontend/src/views/workbench/CanaryVerificationWorkbenchView.vue` | 落地路由 `/workbench/canary-verification`，集成 4 大 Bento KPI、灰度版本流水大盘与组件联动；单测独立通过。 |
+| UI3.3 `[x]` | **全链路金丝雀灰度校验工作台中枢页面** | `frontend/src/views/workbench/CanaryVerificationWorkbenchView.vue` | 落地路由 `/workbench/canary-verification`，集成 4 大 Bento KPI、灰度版本流水大盘与组件联动；单测独立通过；见 docs/evidence/canary-verification-workbench-view-ui3-3-2026-10-18.md |
 
 ---
 

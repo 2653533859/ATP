@@ -170,6 +170,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/canary-verification',
+          name: 'canary-verification-workbench',
+          component: () => import('@/views/workbench/CanaryVerificationWorkbenchView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),
