@@ -29,9 +29,9 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T2.1 `[ ]` | **多模态 VLM 屏幕语义理解与自主动作决策器** | `backend/app/services/vlm_autonomous_explorer.py` | 接收界面屏幕快照，结合视觉大模型推导下一步操作手势（点击、滑动、输入、返回）并构建状态迁移图；单测独立通过。 |
-| T2.2 `[ ]` | **探索过程白屏、死锁与崩溃异常侦测器** | `backend/app/services/exploration_anomaly_detector.py` | 自动识别界面全白/纯黑、长时间无响应卡死、错误弹窗及应用闪退异常；单测独立通过。 |
-| T2.3 `[ ]` | **探索成功轨迹逆向自动化工作流转换器** | `backend/app/services/exploration_to_workflow_converter.py` | 将探索执行通过的连贯手势与请求动作自动固化为低代码混合工作流草稿；单测独立通过。 |
+| T2.1 `[x]` | **多模态 VLM 屏幕语义理解与自主动作决策器** | `backend/app/services/vlm_autonomous_explorer.py` | 接收界面屏幕快照，结合视觉大模型推导下一步操作手势（点击、滑动、输入、返回）并构建状态迁移图；单测独立通过；见 docs/evidence/vlm-autonomous-explorer-t2-1-t2-3-2026-10-17.md |
+| T2.2 `[x]` | **探索过程白屏、死锁与崩溃异常侦测器** | `backend/app/services/exploration_anomaly_detector.py` | 自动识别界面全白/纯黑、长时间无响应卡死、错误弹窗及应用闪退异常；单测独立通过；见 docs/evidence/vlm-autonomous-explorer-t2-1-t2-3-2026-10-17.md |
+| T2.3 `[x]` | **探索成功轨迹逆向自动化工作流转换器** | `backend/app/services/exploration_to_workflow_converter.py` | 将探索执行通过的连贯手势与请求动作自动固化为低代码混合工作流草稿；单测独立通过；见 docs/evidence/vlm-autonomous-explorer-t2-1-t2-3-2026-10-17.md |
 
 ---
 

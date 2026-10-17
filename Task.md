@@ -11,9 +11,9 @@
 - [x] 2026-10-17 T1.1 自然语言意图驱动工作流 DAG 拓扑合成器：落地 `intent_workflow_synthesizer` 服务；解析自然语言业务意图，逆向推导多端多协议 DAG 拓扑、节点配置与变量总线绑定；单测独立通过，见 [`docs/evidence/intent-workflow-synthesizer-t1-1-t1-3-2026-10-17.md`](docs/evidence/intent-workflow-synthesizer-t1-1-t1-3-2026-10-17.md)。
 - [x] 2026-10-17 T1.2 测试领域意图语义规划与提示词编排器：落地 `intent_semantic_prompt_planner` 服务；实现业务动作槽位提取与 Prompt 结构化上下文组装；单测独立通过，见 [`docs/evidence/intent-workflow-synthesizer-t1-1-t1-3-2026-10-17.md`](docs/evidence/intent-workflow-synthesizer-t1-1-t1-3-2026-10-17.md)。
 - [x] 2026-10-17 T1.3 意图驱动工作流生成与优化 REST API：落地 `intent_workflow_api` 路由；提供意图生成工作流与自然语言微调端点；单测独立通过，见 [`docs/evidence/intent-workflow-synthesizer-t1-1-t1-3-2026-10-17.md`](docs/evidence/intent-workflow-synthesizer-t1-1-t1-3-2026-10-17.md)。至此 v5.2.0 Phase 1 全量大闭环！
-- [ ] 2026-10-17 T2.1 多模态 VLM 屏幕语义理解与自主动作决策器：落地 `vlm_autonomous_explorer` 服务；接收屏幕快照推导下一步点击/滑动动作并构建状态迁移图；单测独立通过。
-- [ ] 2026-10-17 T2.2 探索过程白屏、死锁与崩溃异常侦测器：落地 `exploration_anomaly_detector` 服务；自动识别白屏卡死、弹窗阻塞与闪退异常；单测独立通过。
-- [ ] 2026-10-17 T2.3 探索成功轨迹逆向自动化工作流转换器：落地 `exploration_to_workflow_converter` 服务；将探索通过的轨迹自动转换为标准低代码工作流；单测独立通过。
+- [x] 2026-10-17 T2.1 多模态 VLM 屏幕语义理解与自主动作决策器：落地 `vlm_autonomous_explorer` 服务；接收屏幕快照推导下一步点击/滑动动作并构建状态迁移图；单测独立通过，见 [`docs/evidence/vlm-autonomous-explorer-t2-1-t2-3-2026-10-17.md`](docs/evidence/vlm-autonomous-explorer-t2-1-t2-3-2026-10-17.md)。
+- [x] 2026-10-17 T2.2 探索过程白屏、死锁与崩溃异常侦测器：落地 `exploration_anomaly_detector` 服务；自动识别白屏卡死、弹窗阻塞与闪退异常；单测独立通过，见 [`docs/evidence/vlm-autonomous-explorer-t2-1-t2-3-2026-10-17.md`](docs/evidence/vlm-autonomous-explorer-t2-1-t2-3-2026-10-17.md)。
+- [x] 2026-10-17 T2.3 探索成功轨迹逆向自动化工作流转换器：落地 `exploration_to_workflow_converter` 服务；将探索通过的轨迹自动转换为标准低代码工作流；单测独立通过，见 [`docs/evidence/vlm-autonomous-explorer-t2-1-t2-3-2026-10-17.md`](docs/evidence/vlm-autonomous-explorer-t2-1-t2-3-2026-10-17.md)。至此 v5.2.0 Phase 2 全量大闭环！
 - [ ] 2026-10-17 UI3.1 自然语言对话式工作流生成弹窗组件：落地 `IntentWorkflowGenerateModal.vue`；提供意图交互、生成 DAG 预览与一键应用到画布；单测独立通过。
 - [ ] 2026-10-17 UI3.2 VLM 自主探索控制与状态图谱抽屉组件：落地 `AutonomousExplorationDashboardDrawer.vue`；呈现状态迁移图、屏幕回放与一键转为用例；单测独立通过。
 - [ ] 2026-10-17 UI3.3 AI 自主探索与意图生成工作台中枢页面：落地 `AiAutonomousExplorationView.vue` 视图与 `/workbench/ai-exploration` 路由；全景管理意图生成与探索大盘；单测独立通过。
