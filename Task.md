@@ -11,7 +11,7 @@
 - [x] 2026-10-18 T1.1 多源覆盖率报告解析与合并器：落地 `coverage_report_ingestor` 服务；支持 JaCoCo/Coverage.py/LCOV 解析与多环境覆盖率并集融合；单测独立通过，见 [`docs/evidence/coverage-report-ingestor-t1-1-2026-10-18.md`](docs/evidence/coverage-report-ingestor-t1-1-2026-10-18.md)。
 - [x] 2026-10-18 T1.2 Git Diff 增量代码行覆盖率染色计算器：落地 `diff_coverage_staining_engine` 服务；精准计算增量行/分支覆盖率并生成红黄绿逐行染色元数据；单测独立通过，见 [`docs/evidence/diff-coverage-staining-engine-t1-2-2026-10-18.md`](docs/evidence/diff-coverage-staining-engine-t1-2-2026-10-18.md)。
 - [x] 2026-10-18 T1.3 代码覆盖率与增量染色 REST API：落地 `code_coverage_api` 路由；提供覆盖率报告上报、增量 Diff 比对与文件染色查询端点；单测独立通过，见 [`docs/evidence/code-coverage-api-t1-3-2026-10-18.md`](docs/evidence/code-coverage-api-t1-3-2026-10-18.md)。至此 v5.9.0 Phase 1 全量大闭环！
-- [ ] 2026-10-18 T2.1 未覆盖高危分支路径漏洞挖掘器：落地 `uncovered_branch_risk_analyzer` 服务；识别未覆盖支付/鉴权/重试分支并评估风险；单测独立通过。
+- [x] 2026-10-18 T2.1 未覆盖高危分支路径漏洞挖掘器：落地 `uncovered_branch_risk_analyzer` 服务；识别未覆盖支付/鉴权/重试分支并评估风险；单测独立通过，见 [`docs/evidence/uncovered-branch-risk-analyzer-t2-1-2026-10-18.md`](docs/evidence/uncovered-branch-risk-analyzer-t2-1-2026-10-18.md)。
 - [ ] 2026-10-18 T2.2 缺失用例场景反向合成与测试输入推导器：落地 `coverage_gap_test_synthesizer` 服务；推导边界输入并生成用例建议草稿；单测独立通过。
 - [ ] 2026-10-18 T2.3 增量覆盖率发布准入卡点与红线裁决器：落地 `incremental_coverage_gate_evaluator` 服务；发布准入门槛评估与阻断整改清单；单测独立通过。
 - [ ] 2026-10-18 UI3.1 源码文件逐行覆盖率动态高亮染色抽屉：落地 `CoverageSourceStainingDrawer.vue`；源码在线红黄绿行级染色与未覆盖提示；单测独立通过。
