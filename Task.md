@@ -16,7 +16,7 @@
 - [x] 2026-10-17 T2.3 拓扑中断级联跳过与孤立节点容错控制器：落地 `dag_cascade_fault_controller` 服务；前置失败级联跳过与孤立节点安全并发；单测独立通过，见 [`docs/evidence/dag-cascade-fault-controller-t2-3-2026-10-17.md`](docs/evidence/dag-cascade-fault-controller-t2-3-2026-10-17.md)。至此 v5.7.0 Phase 2 全量大闭环！
 - [x] 2026-10-17 UI3.1 用例依赖 DAG 拓扑可视化与影响面透视抽屉：落地 `CaseDagTopologyDrawer.vue`；呈现交互式 DAG 拓扑图与波次分级卡片；单测独立通过，见 [`docs/evidence/case-dag-topology-drawer-ui3-1-2026-10-17.md`](docs/evidence/case-dag-topology-drawer-ui3-1-2026-10-17.md)。
 - [x] 2026-10-17 UI3.2 增量用例推荐与影响分析对比模拟弹窗：落地 `PrecisionSelectionDiffModal.vue`；全量 vs 增量推荐对比与 AST 符号树展示；单测独立通过，见 [`docs/evidence/precision-selection-diff-modal-ui3-2-2026-10-17.md`](docs/evidence/precision-selection-diff-modal-ui3-2-2026-10-17.md)。
-- [ ] 2026-10-17 UI3.3 智能增量回归编排工作台中枢页面：落地 `PrecisionRegressionWorkbenchView.vue` 与 `/workbench/precision-regression` 路由；单测独立通过。
+- [x] 2026-10-17 UI3.3 智能增量回归编排工作台中枢页面：落地 `PrecisionRegressionWorkbenchView.vue` 与 `/workbench/precision-regression` 路由；单测独立通过，见 [`docs/evidence/precision-regression-workbench-view-ui3-3-2026-10-17.md`](docs/evidence/precision-regression-workbench-view-ui3-3-2026-10-17.md)。至此 v5.7.0 Phase 3 全量大闭环！
 - [ ] 2026-10-17 T4.1 增量筛选漏测风险动态防线看门狗：落地 `regression_leak_safety_guard` 服务；防范核心模块被过度裁剪与漏测阻断；单测独立通过。
 - [ ] 2026-10-17 T4.2 增量用例推荐与拓扑调度 64 位 SHA-256 存证证书器：落地 `precision_evidence_signer` 服务；为增量决策与 DAG 调度签发存证证书；单测独立通过。
 - [ ] 2026-10-17 T4.3 v5.7.0 智能增量回归中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.7.0-release-notes.md` 与专项交付证据。

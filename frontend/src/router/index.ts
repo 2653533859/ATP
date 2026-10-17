@@ -138,6 +138,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/precision-regression',
+          name: 'precision-regression-workbench',
+          component: () => import('@/views/workbench/PrecisionRegressionWorkbenchView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),
