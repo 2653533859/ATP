@@ -129,9 +129,10 @@ def release_ios_tunnel(udid: str) -> bool:
 def simulate_forward_wda_command(
     udid: str,
     command_path: str,
-    _method: str = "GET",
+    method: str = "GET",
     params: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
+    _ = method
     """模拟向已建立隧道的 iPhone WDA 下发指令并接收回传数据"""
     session = get_ios_tunnel(udid)
     if not session:

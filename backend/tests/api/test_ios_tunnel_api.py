@@ -1,0 +1,121 @@
+"""iOS 设备反向 WebSocket 隧道与状态管理 API 单测 (T1.3)"""
+
+from __future__ import annotations
+
+import pytest
+from starlette.testclient import TestClient
+
+from app.api.deps import get_current_user, require_engineer
+from app.main import app
+from app.models.user import User
+from app.services.ios_device_heartbeat_keeper import clear_heartbeat_records
+from app.services.ios_tunnel_bridge import clear_ios_tunnels
+
+HEADERS = {"X-Requested-With": "XMLHttpRequest"}
+
+
+@pytest.fixture(autouse=True)
+def setup_app_and_state():
+    clear_ios_tunnels()
+    clear_heartbeat_records()
+
+    mock_user = User(id=1, email="ios_engineer@example.com", username="ios_eng", role="engineer")
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[require_engineer] = lambda: mock_user
+    yield
+    app.dependency_overrides.clear()
+    clear_ios_tunnels()
+    clear_heartbeat_records()
+
+
+def test_ios_tunnel_full_lifecycle_api():
+    client = TestClient(app)
+
+    udid = "00008101-002233445566778E"
+
+    # 1. 注册设备反向隧道
+    reg_resp = client.post(
+        "/api/v1/ios/tunnel/register",
+        json={
+            "udid": udid,
+            "device_name": "iPhone 15 Pro Max",
+            "model": "iPhone16,2",
+            "ios_version": "17.4",
+            "agent_id": "mac_agent_01",
+            "agent_name": "Mac-Studio-Rack-A",
+            "remote_wda_port": 8100,
+        },
+        headers=HEADERS,
+    )
+    assert reg_resp.status_code == 200
+    reg_data = reg_resp.json()
+    assert reg_data["tunnel"]["udid"] == udid
+    assert 8200 <= reg_data["tunnel"]["local_tunnel_port"] <= 8299
+    assert reg_data["tunnel"]["status"] == "CONNECTED"
+
+    # 2. 上报心跳数据
+    hb_resp = client.post(
+        "/api/v1/ios/tunnel/heartbeat",
+        json={
+            "udid": udid,
+            "agent_id": "mac_agent_01",
+            "battery_level": 88,
+            "battery_charging": True,
+            "temperature_celsius": 30.5,
+            "wda_alive": True,
+        },
+        headers=HEADERS,
+    )
+    assert hb_resp.status_code == 200
+    assert hb_resp.json()["heartbeat"]["battery_level"] == 88
+
+    # 3. 查询真机列表
+    list_resp = client.get("/api/v1/ios/tunnel/devices", headers=HEADERS)
+    assert list_resp.status_code == 200
+    assert list_resp.json()["total"] == 1
+    dev = list_resp.json()["devices"][0]
+    assert dev["udid"] == udid
+    assert dev["battery_level"] == 88
+    assert dev["health_status"] == "ONLINE"
+
+    # 4. 查询单台设备详情
+    get_resp = client.get(f"/api/v1/ios/tunnel/device/{udid}", headers=HEADERS)
+    assert get_resp.status_code == 200
+    assert get_resp.json()["device"]["udid"] == udid
+
+    # 5. 代理下发 WDA 指令 (/status)
+    wda_resp = client.post(
+        "/api/v1/ios/tunnel/wda/forward",
+        json={
+            "udid": udid,
+            "command_path": "/status",
+            "method": "GET",
+        },
+        headers=HEADERS,
+    )
+    assert wda_resp.status_code == 200
+    assert wda_resp.json()["response"]["value"]["ready"] is True
+
+    # 6. 自愈拉起 WDA
+    heal_resp = client.post(
+        "/api/v1/ios/tunnel/wda/heal",
+        json={"udid": udid},
+        headers=HEADERS,
+    )
+    assert heal_resp.status_code == 200
+    assert heal_resp.json()["result"] == "SUCCESS"
+
+    # 7. 巡检
+    sweep_resp = client.post(
+        "/api/v1/ios/tunnel/sweep",
+        json={"timeout_seconds": 60.0},
+        headers=HEADERS,
+    )
+    assert sweep_resp.status_code == 200
+    assert isinstance(sweep_resp.json()["offline_udids"], list)
+
+    # 8. 注销并释放设备隧道
+    del_resp = client.delete(f"/api/v1/ios/tunnel/{udid}", headers=HEADERS)
+    assert del_resp.status_code == 200
+    empty_list = client.get("/api/v1/ios/tunnel/devices", headers=HEADERS)
+    assert empty_list.json()["total"] == 0

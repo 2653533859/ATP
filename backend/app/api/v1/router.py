@@ -42,6 +42,7 @@ from app.api.v1 import (
     api_schema_assets,
     api_contract_assets,
     ios,
+    ios_tunnel_api,
     users,
     health,
     workbench,
@@ -192,6 +193,7 @@ router.include_router(web_visuals.router)
 router.include_router(api_schema_assets.router)
 router.include_router(api_contract_assets.router)
 router.include_router(ios.router)
+router.include_router(ios_tunnel_api.router)
 router.include_router(users.router)
 router.include_router(health.router)
 router.include_router(local_files.router)

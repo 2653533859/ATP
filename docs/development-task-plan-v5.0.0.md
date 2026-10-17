@@ -21,7 +21,7 @@
 |---|---|---|---|
 | T1.1 `[x]` | **WDA 反向 WebSocket 隧道与端口分配器** | `backend/app/services/ios_tunnel_bridge.py` | 实现远端 iOS 物理节点反向 WebSocket 注册、WDA 8100 端口双向数据中继与本地隧道端口动态分配；单测独立通过；见 docs/evidence/ios-tunnel-bridge-t1-1-2026-10-17.md |
 | T1.2 `[x]` | **iOS 设备心跳保活与状态巡检探针** | `backend/app/services/ios_device_heartbeat_keeper.py` | 实现秒级探针健康巡检，自动识别心跳失联、WDA 崩溃并执行自动标记 OFFLINE 与自愈；单测独立通过；见 docs/evidence/ios-device-heartbeat-keeper-t1-2-2026-10-17.md |
-| T1.3 `[ ]` | **iOS 设备隧道连接与状态管理 REST API** | `backend/app/api/v1/ios_tunnel_api.py` | 暴露 `/ios/tunnel/register`、`/ios/tunnel/status`、`/ios/tunnel/devices` 等接口；单测独立通过。 |
+| T1.3 `[x]` | **iOS 设备隧道连接与状态管理 REST API** | `backend/app/api/v1/ios_tunnel_api.py` | 暴露 `/ios/tunnel/register`、`/ios/tunnel/status`、`/ios/tunnel/devices` 等接口；单测独立通过；见 docs/evidence/ios-tunnel-api-t1-3-2026-10-17.md |
 
 ---
 
