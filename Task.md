@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v5.3.0 研发任务规划（进行中）
+## 2026-10-17 v5.3.0 研发任务规划（已全量闭环）
 
 > v5.3.0 规划入口为 [`docs/development-task-plan-v5.3.0.md`](docs/development-task-plan-v5.3.0.md)，覆盖 Phase 1（跨端测试动作语义映射与智能迁移引擎）、Phase 2（双端功能一致性对齐与差异侦测分析器）、Phase 3（双端差异透视抽屉与跨端迁移工作台中枢）、Phase 4（跨端回放安全沙箱、合规存证与全量发布）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-17 UI3.3 跨端迁移与一致性对齐工作台页面：落地 `CrossPlatformParityWorkbenchView.vue` 与 `/workbench/cross-platform-parity` 路由；单测独立通过，见 [`docs/evidence/cross-platform-parity-workbench-view-ui3-3-2026-10-17.md`](docs/evidence/cross-platform-parity-workbench-view-ui3-3-2026-10-17.md)。至此 v5.3.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 T4.1 跨端迁移回放安全防护看门狗：落地 `cross_platform_replay_guard` 服务；拦截目标平台执行时的敏感高危操作与坐标越界；单测独立通过，见 [`docs/evidence/cross-platform-replay-guard-t4-1-2026-10-17.md`](docs/evidence/cross-platform-replay-guard-t4-1-2026-10-17.md)。
 - [x] 2026-10-17 T4.2 双端一致性 64 位 SHA-256 存证证书器：落地 `parity_evidence_signer` 服务；为迁移产物与一致性报告签发不可篡改存证证书；单测独立通过，见 [`docs/evidence/parity-evidence-signer-t4-2-2026-10-17.md`](docs/evidence/parity-evidence-signer-t4-2-2026-10-17.md)。
-- [ ] 2026-10-17 T4.3 v5.3.0 跨端迁移与一致性对齐中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.3.0-release-notes.md` 与专项交付证据。
+- [x] 2026-10-17 T4.3 v5.3.0 跨端迁移与一致性对齐中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.3.0-release-notes.md` 与专项交付证据，见 [`docs/evidence/v5-3-0-cross-platform-parity-platform-acceptance-2026-10-17.md`](docs/evidence/v5-3-0-cross-platform-parity-platform-acceptance-2026-10-17.md)。至此 v5.3.0 全量大闭环！
 
 ## 2026-10-17 v5.2.0 研发任务规划（已全量闭环）
 

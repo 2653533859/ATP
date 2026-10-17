@@ -87,7 +87,7 @@ flowchart TD
 |---|---|---|---|
 | T4.1 `[x]` | **跨端迁移回放安全防护看门狗** | `backend/app/services/cross_platform_replay_guard.py` | 拦截迁移后目标平台执行时的敏感高危操作与坐标漂移越界；单测独立通过；见 docs/evidence/cross-platform-replay-guard-t4-1-2026-10-17.md |
 | T4.2 `[x]` | **双端一致性 64 位 SHA-256 存证证书器** | `backend/app/services/parity_evidence_signer.py` | 为跨端迁移产物与一致性对齐报告签发防篡改 SHA-256 + HMAC 存证证书；单测独立通过；见 docs/evidence/parity-evidence-signer-t4-2-2026-10-17.md |
-| T4.3 `[ ]` | **v5.3.0 跨端迁移与一致性对齐中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.3.0-release-notes.md` 与专项交付证据。 |
+| T4.3 `[x]` | **v5.3.0 跨端迁移与一致性对齐中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.3.0-release-notes.md` 与专项交付证据；见 docs/evidence/v5-3-0-cross-platform-parity-platform-acceptance-2026-10-17.md |
 
 ---
 
