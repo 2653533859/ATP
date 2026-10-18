@@ -67,7 +67,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T2.1 `[x]` | **Prompt 注入与越狱对抗攻击渗透变异器** | `backend/app/services/llm_red_teaming_attacker.py` | 支持 DAN、多语言编码、指令覆盖与角色伪装等红蓝攻防变异算子；单测独立通过；见 docs/evidence/llm-red-teaming-attacker-t2-1-2026-10-18.md |
-| T2.2 `[ ]` | **大模型有害内容与毒性安全护栏看门狗** | `backend/app/services/llm_safety_guardrails.py` | 实时审查敏感词、隐私 PII 与越权攻击，毫秒级触发安全阻断（Blocked）；单测独立通过。 |
+| T2.2 `[x]` | **大模型有害内容与毒性安全护栏看门狗** | `backend/app/services/llm_safety_guardrails.py` | 实时审查敏感词、隐私 PII 与越权攻击，毫秒级触发安全阻断（Blocked）；单测独立通过；见 docs/evidence/llm-safety-guardrails-t2-2-2026-10-18.md |
 | T2.3 `[ ]` | **大模型推理延迟、Token 吞吐与成本效益推演器** | `backend/app/services/llm_economics_benchmarker.py` | 采集并推导 TTFT、生成速率 TPS 与 Token 消耗计费性价比；单测独立通过。 |
 
 ---
