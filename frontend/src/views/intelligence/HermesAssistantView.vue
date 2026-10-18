@@ -1155,12 +1155,12 @@ onMounted(async () => {
 }
 
 .toolbar-chip.chip-fail {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--c-error-soft);
+  color: var(--c-error);
 }
 
 .toolbar-chip.chip-fail b {
-  color: #b91c1c;
+  color: var(--c-error);
 }
 
 .toolbar-right {
