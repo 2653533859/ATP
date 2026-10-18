@@ -58,7 +58,7 @@ flowchart TD
 |---|---|---|---|
 | T1.1 `[x]` | **全链路影子压测标注入与上下文透传器** | `backend/app/services/stress_traffic_isolation_engine.py` | 支持 Header、gRPC 与 MQ 压测标透传，强制识别影子库表隔离；单测独立通过；见 docs/evidence/stress-traffic-isolation-engine-t1-1-2026-10-18.md |
 | T1.2 `[x]` | **分布式海量虚拟用户发压调度与阶梯加压器** | `backend/app/services/stress_load_profile_stepper.py` | 支持阶梯爬坡、瞬时峰值、稳态压测等负载模型，推演并发与发压节点；单测独立通过；见 docs/evidence/stress-load-profile-stepper-t1-2-2026-10-18.md |
-| T1.3 `[ ]` | **全链路影子压测管控与发压作业 REST API** | `backend/app/api/v1/stress_testing_api.py` | 挂载 `/api/v1/stress-testing/`，提供压测任务启停、实时监控与报告查询；单测独立通过。 |
+| T1.3 `[x]` | **全链路影子压测管控与发压作业 REST API** | `backend/app/api/v1/stress_testing_api.py` | 挂载 `/api/v1/stress-testing/`，提供压测任务启停、实时监控与报告查询；单测独立通过；见 docs/evidence/stress-testing-api-t1-3-2026-10-18.md |
 
 ---
 
