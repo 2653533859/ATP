@@ -13,7 +13,7 @@
 - [x] 2026-10-18 T1.3 大模型评测与 RAG 质量基准 REST API：落地 `llm_eval_api` 路由；提供 RAG 三元组打分、幻觉检测与基准作业端点；单测独立通过，见 [`docs/evidence/llm-eval-api-t1-3-2026-10-18.md`](docs/evidence/llm-eval-api-t1-3-2026-10-18.md)。至此 v6.3.0 Phase 1 全量大闭环！
 - [x] 2026-10-18 T2.1 Prompt 注入与越狱对抗攻击渗透变异器：落地 `llm_red_teaming_attacker` 服务；支持 DAN、混淆编码与指令覆盖变异算子；单测独立通过，见 [`docs/evidence/llm-red-teaming-attacker-t2-1-2026-10-18.md`](docs/evidence/llm-red-teaming-attacker-t2-1-2026-10-18.md)。
 - [x] 2026-10-18 T2.2 大模型有害内容与毒性安全护栏看门狗：落地 `llm_safety_guardrails` 服务；敏感词、隐私 PII 与越权攻击毫秒级阻断；单测独立通过，见 [`docs/evidence/llm-safety-guardrails-t2-2-2026-10-18.md`](docs/evidence/llm-safety-guardrails-t2-2-2026-10-18.md)。
-- [ ] 2026-10-18 T2.3 大模型推理延迟、Token 吞吐与成本效益推演器：落地 `llm_economics_benchmarker` 服务；推导 TTFT、TPS 与 Token 计费性价比；单测独立通过。
+- [x] 2026-10-18 T2.3 大模型推理延迟、Token 吞吐与成本效益推演器：落地 `llm_economics_benchmarker` 服务；推导 TTFT、TPS 与 Token 计费性价比；单测独立通过，见 [`docs/evidence/llm-economics-benchmarker-t2-3-2026-10-18.md`](docs/evidence/llm-economics-benchmarker-t2-3-2026-10-18.md)。至此 v6.3.0 Phase 2 全量大闭环！
 - [ ] 2026-10-18 UI3.1 RAG 检索召回与上下文溯源透视抽屉：落地 `LlmRagInspectionDrawer.vue`；检索 Chunk 相关度热力图与回答引用溯源；单测独立通过。
 - [ ] 2026-10-18 UI3.2 Prompt 红蓝攻防渗透策略与护栏配置弹窗：落地 `LlmRedTeamConfigModal.vue`；攻防套件、护栏敏感度与模型调用参数配置；单测独立通过。
 - [ ] 2026-10-18 UI3.3 企业级大模型与智能体综合评测工作台中枢页面：落地 `LlmEvalWorkbenchView.vue` 与 `/workbench/llm-eval` 路由；单测独立通过。
