@@ -9,7 +9,7 @@
 > v6.2.0 规划入口为 [`docs/development-task-plan-v6.2.0.md`](docs/development-task-plan-v6.2.0.md)，覆盖 Phase 1（压测流量标隔离与分布式影子发压引擎）、Phase 2（架构容量基线拐点推演与自适应限流熔断看门狗）、Phase 3（全链路压测拓扑透视与容量大盘工作台）、Phase 4（生产防击穿安全沙箱、合规存证与全量发布）。
 
 - [x] 2026-10-18 T1.1 全链路影子压测标注入与上下文透传器：落地 `stress_traffic_isolation_engine` 服务；支持 Header/gRPC/MQ 压测标透传与影子库表隔离；单测独立通过，见 [`docs/evidence/stress-traffic-isolation-engine-t1-1-2026-10-18.md`](docs/evidence/stress-traffic-isolation-engine-t1-1-2026-10-18.md)。
-- [ ] 2026-10-18 T1.2 分布式海量虚拟用户发压调度与阶梯加压器：落地 `stress_load_profile_stepper` 服务；支持并发爬坡与发压节点调度；单测独立通过。
+- [x] 2026-10-18 T1.2 分布式海量虚拟用户发压调度与阶梯加压器：落地 `stress_load_profile_stepper` 服务；支持并发爬坡与发压节点调度；单测独立通过，见 [`docs/evidence/stress-load-profile-stepper-t1-2-2026-10-18.md`](docs/evidence/stress-load-profile-stepper-t1-2-2026-10-18.md)。
 - [ ] 2026-10-18 T1.3 全链路影子压测管控与发压作业 REST API：落地 `stress_testing_api` 路由；提供压测任务启停、监控与报告端点；单测独立通过。
 - [ ] 2026-10-18 T2.1 系统容量拐点智能推演与吞吐天花板挖掘器：落地 `capacity_knee_point_deductor` 服务；基于 USL 定律计算性能拐点与极限容量；单测独立通过。
 - [ ] 2026-10-18 T2.2 生产击穿毫秒级熔断与过载紧急泄压看门狗：落地 `stress_safety_overload_guard` 服务；异常指标超标毫秒级自动切断压测流；单测独立通过。
