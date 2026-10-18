@@ -10,7 +10,7 @@
 
 - [x] 2026-10-18 T1.1 RAG 知识检索召回与上下文相关度精算器：落地 `llm_rag_triad_evaluator` 服务；评估上下文相关度、知识忠实度与答案准确度；单测独立通过，见 [`docs/evidence/llm-rag-triad-evaluator-t1-1-2026-10-18.md`](docs/evidence/llm-rag-triad-evaluator-t1-1-2026-10-18.md)。
 - [x] 2026-10-18 T1.2 大模型幻觉率统计与事实一致性校验器：落地 `llm_hallucination_detector` 服务；蕴含事实比对检出无根实体与矛盾断言；单测独立通过，见 [`docs/evidence/llm-hallucination-detector-t1-2-2026-10-18.md`](docs/evidence/llm-hallucination-detector-t1-2-2026-10-18.md)。
-- [ ] 2026-10-18 T1.3 大模型评测与 RAG 质量基准 REST API：落地 `llm_eval_api` 路由；提供 RAG 三元组打分、幻觉检测与基准作业端点；单测独立通过。
+- [x] 2026-10-18 T1.3 大模型评测与 RAG 质量基准 REST API：落地 `llm_eval_api` 路由；提供 RAG 三元组打分、幻觉检测与基准作业端点；单测独立通过，见 [`docs/evidence/llm-eval-api-t1-3-2026-10-18.md`](docs/evidence/llm-eval-api-t1-3-2026-10-18.md)。至此 v6.3.0 Phase 1 全量大闭环！
 - [ ] 2026-10-18 T2.1 Prompt 注入与越狱对抗攻击渗透变异器：落地 `llm_red_teaming_attacker` 服务；支持 DAN、混淆编码与指令覆盖变异算子；单测独立通过。
 - [ ] 2026-10-18 T2.2 大模型有害内容与毒性安全护栏看门狗：落地 `llm_safety_guardrails` 服务；敏感词、隐私 PII 与越权攻击毫秒级阻断；单测独立通过。
 - [ ] 2026-10-18 T2.3 大模型推理延迟、Token 吞吐与成本效益推演器：落地 `llm_economics_benchmarker` 服务；推导 TTFT、TPS 与 Token 计费性价比；单测独立通过。

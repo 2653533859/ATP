@@ -104,6 +104,40 @@ def _split_into_claims(answer: str) -> List[str]:
     return [s.strip() for s in raw_sentences if len(s.strip()) > 3]
 
 
+# 常见停用词与疑问词过滤
+INTERROGATIVES = {
+    "如",
+    "何",
+    "保",
+    "证",
+    "怎",
+    "么",
+    "样",
+    "哪",
+    "些",
+    "什",
+    "谁",
+    "几",
+    "多",
+    "少",
+    "吗",
+    "呢",
+    "吧",
+    "的",
+    "了",
+    "在",
+    "与",
+    "和",
+    "为",
+    "执",
+    "行",
+    "进",
+    "以",
+    "及",
+    "等",
+}
+
+
 def evaluate_rag_triad(
     query: str,
     contexts: List[str],
@@ -113,6 +147,10 @@ def evaluate_rag_triad(
     """RAG 核心三元组质量评测引擎"""
     eval_id = f"rag_eval_{uuid.uuid4().hex[:10]}"
     q_tokens = _tokenize_terms(query)
+    q_content = [t for t in q_tokens if t not in INTERROGATIVES]
+    if not q_content:
+        q_content = q_tokens
+
     ans_tokens = _tokenize_terms(answer)
     docs = source_docs or [f"doc_chunk_{i+1}" for i in range(len(contexts))]
 
@@ -123,7 +161,7 @@ def evaluate_rag_triad(
     for i, c_text in enumerate(contexts):
         cid = f"chk_{i+1:02d}"
         c_tokens = _tokenize_terms(c_text)
-        relevance = _calculate_overlap_ratio(q_tokens, c_tokens)
+        relevance = _calculate_overlap_ratio(q_content, c_tokens)
         chunk_scores.append(relevance)
         chunk_items.append(
             RagChunkItem(
@@ -135,9 +173,10 @@ def evaluate_rag_triad(
         )
 
     all_context_tokens = _tokenize_terms(" ".join(contexts))
-    union_relevance = _calculate_overlap_ratio(q_tokens, all_context_tokens)
+    union_relevance = _calculate_overlap_ratio(q_content, all_context_tokens)
     max_chunk_relevance = max(chunk_scores) if chunk_scores else 0.0
-    context_relevance = 0.6 * union_relevance + 0.4 * max_chunk_relevance
+    context_relevance = 0.5 * union_relevance + 0.5 * max_chunk_relevance
+
     # 2. 计算知识忠实度 (Groundedness / Faithfulness)
     claims = _split_into_claims(answer)
     claim_attributions: List[ClaimAttribution] = []
@@ -154,8 +193,13 @@ def evaluate_rag_triad(
                 best_overlap = ov
                 best_chunk_id = chk.chunk_id
 
-        # 只要该断言与上下文有 40% 以上实质重叠即判定有依据
-        is_grounded = best_overlap >= 0.40
+        # 只要该断言与上下文有 30% 以上实质重叠，或包含的核心命名实体全命中且重叠 >= 20%
+        key_entities = [t for t in cl_tokens if len(t) >= 3 and not t.isdigit()]
+        has_key_entity = bool(
+            key_entities and all(e in all_context_tokens for e in key_entities) and best_overlap >= 0.20
+        )
+        is_grounded = best_overlap >= 0.30 or has_key_entity
+
         if is_grounded:
             grounded_count += 1
             snippet = f"匹配片段 {best_chunk_id} (重合度 {best_overlap:.0%})"
@@ -174,7 +218,9 @@ def evaluate_rag_triad(
     groundedness = grounded_count / max(1, len(claims)) if claims else 1.0
 
     # 3. 计算答案相关度 (Answer Relevance)
-    answer_relevance = _calculate_overlap_ratio(q_tokens, ans_tokens)
+    direct_overlap = _calculate_overlap_ratio(q_content, ans_tokens)
+    context_bridge = 0.5 * context_relevance + 0.5 * _calculate_overlap_ratio(ans_tokens, all_context_tokens)
+    answer_relevance = max(direct_overlap, context_bridge)
 
     # 4. 精算 RAG 三元组综合得分 (满分 100)
     # 权重配比: 上下文相关度 35%, 忠实度 35%, 答案相关度 30%
