@@ -17,7 +17,7 @@
 - [x] 2026-10-18 UI3.1 微服务全链路发压拓扑与瓶颈链路透视抽屉：落地 `StressTopologyInspectionDrawer.vue`；发压拓扑、慢服务高亮与性能曲线；单测独立通过，见 [`docs/evidence/stress-topology-inspection-drawer-ui3-1-2026-10-18.md`](docs/evidence/stress-topology-inspection-drawer-ui3-1-2026-10-18.md)。
 - [x] 2026-10-18 UI3.2 分布式压测策略配置与过载熔断围栏弹窗：落地 `StressConfigModal.vue`；发压梯度、熔断红线与影子表映射配置；单测独立通过，见 [`docs/evidence/stress-config-modal-ui3-2-2026-10-18.md`](docs/evidence/stress-config-modal-ui3-2-2026-10-18.md)。
 - [x] 2026-10-18 UI3.3 全链路生产压测与容量基线中枢工作台页面：落地 `StressTestingWorkbenchView.vue` 与 `/workbench/stress-testing` 路由；单测独立通过，见 [`docs/evidence/stress-testing-workbench-view-ui3-3-2026-10-18.md`](docs/evidence/stress-testing-workbench-view-ui3-3-2026-10-18.md)。至此 v6.2.0 Phase 3 全量大闭环！
-- [ ] 2026-10-18 T4.1 生产全链路压测特批审批与窗口期强准入看门狗：落地 `stress_safety_boundary_guard` 服务；生产压测三要素审批与权限阻断；单测独立通过。
+- [x] 2026-10-18 T4.1 生产全链路压测特批审批与窗口期强准入看门狗：落地 `stress_safety_boundary_guard` 服务；生产压测三要素审批与权限阻断；单测独立通过，见 [`docs/evidence/stress-safety-boundary-guard-t4-1-2026-10-18.md`](docs/evidence/stress-safety-boundary-guard-t4-1-2026-10-18.md)。
 - [ ] 2026-10-18 T4.2 容量基线推演结论与压测验收 64 位 SHA-256 存证证书器：落地 `stress_evidence_signer` 服务；为压测报告与容量结论签发存证证书；单测独立通过。
 - [ ] 2026-10-18 T4.3 v6.2.0 全链路生产影子压测与容量中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.2.0-release-notes.md` 与专项交付证据。
 
