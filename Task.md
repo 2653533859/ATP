@@ -12,7 +12,7 @@
 - [x] 2026-10-18 T1.2 分布式海量虚拟用户发压调度与阶梯加压器：落地 `stress_load_profile_stepper` 服务；支持并发爬坡与发压节点调度；单测独立通过，见 [`docs/evidence/stress-load-profile-stepper-t1-2-2026-10-18.md`](docs/evidence/stress-load-profile-stepper-t1-2-2026-10-18.md)。
 - [x] 2026-10-18 T1.3 全链路影子压测管控与发压作业 REST API：落地 `stress_testing_api` 路由；提供压测任务启停、监控与报告端点；单测独立通过，见 [`docs/evidence/stress-testing-api-t1-3-2026-10-18.md`](docs/evidence/stress-testing-api-t1-3-2026-10-18.md)。至此 v6.2.0 Phase 1 全量大闭环！
 - [x] 2026-10-18 T2.1 系统容量拐点智能推演与吞吐天花板挖掘器：落地 `capacity_knee_point_deductor` 服务；基于 USL 定律计算性能拐点与极限容量；单测独立通过，见 [`docs/evidence/capacity-knee-point-deductor-t2-1-2026-10-18.md`](docs/evidence/capacity-knee-point-deductor-t2-1-2026-10-18.md)。
-- [ ] 2026-10-18 T2.2 生产击穿毫秒级熔断与过载紧急泄压看门狗：落地 `stress_safety_overload_guard` 服务；异常指标超标毫秒级自动切断压测流；单测独立通过。
+- [x] 2026-10-18 T2.2 生产击穿毫秒级熔断与过载紧急泄压看门狗：落地 `stress_safety_overload_guard` 服务；异常指标超标毫秒级自动切断压测流；单测独立通过，见 [`docs/evidence/stress-safety-overload-guard-t2-2-2026-10-18.md`](docs/evidence/stress-safety-overload-guard-t2-2-2026-10-18.md)。
 - [ ] 2026-10-18 T2.3 影子数据隔离防污染巡检与影子库表清理器：落地 `shadow_data_pollution_cleaner` 服务；巡检数据隔离与影子库表一键归档清理；单测独立通过。
 - [ ] 2026-10-18 UI3.1 微服务全链路发压拓扑与瓶颈链路透视抽屉：落地 `StressTopologyInspectionDrawer.vue`；发压拓扑、慢服务高亮与性能曲线；单测独立通过。
 - [ ] 2026-10-18 UI3.2 分布式压测策略配置与过载熔断围栏弹窗：落地 `StressConfigModal.vue`；发压梯度、熔断红线与影子表映射配置；单测独立通过。
