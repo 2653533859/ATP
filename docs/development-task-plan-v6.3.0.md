@@ -57,7 +57,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T1.1 `[x]` | **RAG 知识检索召回与上下文相关度精算器** | `backend/app/services/llm_rag_triad_evaluator.py` | 实现 RAG 三元组评估：上下文相关度、知识忠实度、回答准确度；单测独立通过；见 docs/evidence/llm-rag-triad-evaluator-t1-1-2026-10-18.md |
-| T1.2 `[ ]` | **大模型幻觉率统计与事实一致性校验器** | `backend/app/services/llm_hallucination_detector.py` | 自然语言蕴含事实比对，检出无根实体与矛盾断言，计算幻觉率；单测独立通过。 |
+| T1.2 `[x]` | **大模型幻觉率统计与事实一致性校验器** | `backend/app/services/llm_hallucination_detector.py` | 自然语言蕴含事实比对，检出无根实体与矛盾断言，计算幻觉率；单测独立通过；见 docs/evidence/llm-hallucination-detector-t1-2-2026-10-18.md |
 | T1.3 `[ ]` | **大模型评测与 RAG 质量基准 REST API** | `backend/app/api/v1/llm_eval_api.py` | 挂载 `/api/v1/llm-eval/`，提供 RAG 评测打分、幻觉检测与基准作业端点；单测独立通过。 |
 
 ---

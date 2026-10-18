@@ -9,7 +9,7 @@
 > v6.3.0 规划入口为 [`docs/development-task-plan-v6.3.0.md`](docs/development-task-plan-v6.3.0.md)，覆盖 Phase 1（RAG 检索三元组质量评测与幻觉消除引擎）、Phase 2（Prompt 越狱注入攻防与有害内容安全护栏看门狗）、Phase 3（大模型智能体评测全景大盘与红蓝攻防工作台）、Phase 4（生产防穿透安全沙箱、合规存证与全量发布）。
 
 - [x] 2026-10-18 T1.1 RAG 知识检索召回与上下文相关度精算器：落地 `llm_rag_triad_evaluator` 服务；评估上下文相关度、知识忠实度与答案准确度；单测独立通过，见 [`docs/evidence/llm-rag-triad-evaluator-t1-1-2026-10-18.md`](docs/evidence/llm-rag-triad-evaluator-t1-1-2026-10-18.md)。
-- [ ] 2026-10-18 T1.2 大模型幻觉率统计与事实一致性校验器：落地 `llm_hallucination_detector` 服务；蕴含事实比对检出无根实体与矛盾断言；单测独立通过。
+- [x] 2026-10-18 T1.2 大模型幻觉率统计与事实一致性校验器：落地 `llm_hallucination_detector` 服务；蕴含事实比对检出无根实体与矛盾断言；单测独立通过，见 [`docs/evidence/llm-hallucination-detector-t1-2-2026-10-18.md`](docs/evidence/llm-hallucination-detector-t1-2-2026-10-18.md)。
 - [ ] 2026-10-18 T1.3 大模型评测与 RAG 质量基准 REST API：落地 `llm_eval_api` 路由；提供 RAG 三元组打分、幻觉检测与基准作业端点；单测独立通过。
 - [ ] 2026-10-18 T2.1 Prompt 注入与越狱对抗攻击渗透变异器：落地 `llm_red_teaming_attacker` 服务；支持 DAN、混淆编码与指令覆盖变异算子；单测独立通过。
 - [ ] 2026-10-18 T2.2 大模型有害内容与毒性安全护栏看门狗：落地 `llm_safety_guardrails` 服务；敏感词、隐私 PII 与越权攻击毫秒级阻断；单测独立通过。
