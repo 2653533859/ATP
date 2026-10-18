@@ -68,7 +68,7 @@ flowchart TD
 |---|---|---|---|
 | T2.1 `[x]` | **系统容量拐点智能推演与吞吐天花板挖掘器** | `backend/app/services/capacity_knee_point_deductor.py` | 基于通用可伸缩性定律 (USL)，自动拟合并计算系统 TPS/RT 拐点与饱和极限；单测独立通过；见 docs/evidence/capacity-knee-point-deductor-t2-1-2026-10-18.md |
 | T2.2 `[x]` | **生产击穿毫秒级熔断与过载紧急泄压看门狗** | `backend/app/services/stress_safety_overload_guard.py` | 实时监测生产错误率、CPU 与延迟红线，触碰红线毫秒级自动熔断切断压测流；单测独立通过；见 docs/evidence/stress-safety-overload-guard-t2-2-2026-10-18.md |
-| T2.3 `[ ]` | **影子数据隔离防污染巡检与影子库表清理器** | `backend/app/services/shadow_data_pollution_cleaner.py` | 全量巡检压测期间脏数据隔离状态，并提供影子数据安全归档与清理能力；单测独立通过。 |
+| T2.3 `[x]` | **影子数据隔离防污染巡检与影子库表清理器** | `backend/app/services/shadow_data_pollution_cleaner.py` | 全量巡检压测期间脏数据隔离状态，并提供影子数据安全归档与清理能力；单测独立通过；见 docs/evidence/shadow-data-pollution-cleaner-t2-3-2026-10-18.md |
 
 ---
 
