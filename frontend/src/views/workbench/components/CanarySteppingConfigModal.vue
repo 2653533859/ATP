@@ -338,9 +338,10 @@ function handleSave() {
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   padding: 14px 16px;
-  background: var(--c-surface, #f8fafc);
-  border: 1px solid var(--c-border, #e2e8f0);
-  border-radius: 8px;
+  background: var(--c-surface, var(--c-bg-elevated));
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-xs);
   margin-bottom: 18px;
 }
 
@@ -350,12 +351,15 @@ function handleSave() {
 
 .stat-num {
   font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
   margin-bottom: 2px;
 }
 
 .stat-label {
   font-size: 12px;
-  color: var(--c-text-secondary, #64748b);
+  color: var(--c-text-secondary);
 }
 
 .config-tabs {
@@ -367,7 +371,7 @@ function handleSave() {
 }
 
 .form-tip {
-  color: var(--c-text-secondary, #64748b);
+  color: var(--c-text-secondary);
 }
 
 .modal-footer-actions {
@@ -378,22 +382,23 @@ function handleSave() {
 }
 
 .text-primary {
-  color: #1677ff;
+  color: var(--c-primary);
 }
 
 .text-secondary {
-  color: #64748b;
+  color: var(--c-text-secondary);
 }
 
 .text-success {
-  color: #52c41a;
+  color: var(--c-success);
 }
 
 .text-danger {
-  color: #f5222d;
+  color: var(--c-error);
 }
 
 .font-mono {
-  font-family: monospace;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
 }
 </style>
