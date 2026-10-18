@@ -76,7 +76,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI3.1 `[ ]` | **微服务全链路发压拓扑与瓶颈链路透视抽屉** | `frontend/src/views/workbench/components/StressTopologyInspectionDrawer.vue` | 呈现多微服务节点压测链路、慢服务瓶颈高亮与实时性能曲线；单测独立通过。 |
+| UI3.1 `[x]` | **微服务全链路发压拓扑与瓶颈链路透视抽屉** | `frontend/src/views/workbench/components/StressTopologyInspectionDrawer.vue` | 呈现多微服务节点压测链路、慢服务瓶颈高亮与实时性能曲线；单测独立通过；见 docs/evidence/stress-topology-inspection-drawer-ui3-1-2026-10-18.md |
 | UI3.2 `[ ]` | **分布式压测策略配置与过载熔断围栏弹窗** | `frontend/src/views/workbench/components/StressConfigModal.vue` | 可视化交互配置发压梯度、目标并发、熔断红线与影子表映射规则；单测独立通过。 |
 | UI3.3 `[ ]` | **全链路生产压测与容量基线中枢工作台页面** | `frontend/src/views/workbench/StressTestingWorkbenchView.vue` | 落地路由 `/workbench/stress-testing`，集成 4 大 Bento KPI 与压测作业大盘；单测独立通过。 |
 
