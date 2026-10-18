@@ -1664,10 +1664,11 @@ onMounted(() => {
 .request-list-item { display: flex; align-items: center; width: 100%; gap: 9px; padding: 10px 13px; border: 0; border-bottom: 1px solid var(--c-border-subtle); background: transparent; text-align: left; cursor: pointer; color: var(--c-text); }
 .request-list-item:hover, .request-list-item:focus-visible { background: var(--c-bg-muted); outline: none; }
 .request-list-item.is-selected { background: var(--c-primary-soft); box-shadow: inset 3px 0 var(--c-primary); color: var(--c-primary); }
-.request-list-method { width: 36px; flex-shrink: 0; color: var(--c-primary); font: 700 10px 'JetBrains Mono', Consolas, monospace; }
-.request-list-method.method-graphql { color: #a87913; }.request-list-method.method-websocket { color: #208372; }.request-list-method.method-grpc { color: #7662bb; }
+.request-list-method { width: 36px; flex-shrink: 0; color: var(--c-primary); font: 700 10px var(--font-mono, 'JetBrains Mono', Consolas, monospace); }
+.request-list-method.method-graphql { color: var(--c-warning); }
+.request-list-method.method-websocket { color: var(--c-info); }
+.request-list-method.method-grpc { color: var(--c-ai); }
 .request-list-text { min-width: 0; flex: 1; }
-.request-list-text strong, .request-list-text small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .request-list-text strong { color: var(--c-text); font-size: 12px; font-weight: 600; }
 .request-list-text small { margin-top: 3px; color: var(--c-text-tertiary); font: 10px 'JetBrains Mono', Consolas, monospace; }
 .request-list-state { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--c-border-strong); }
@@ -1701,7 +1702,7 @@ onMounted(() => {
 @media (max-width: 700px) {
   .api-toolbar { height: auto; min-height: 48px; flex-wrap: wrap; padding: 10px 12px; }
   .workspace-frame { display: block; }
-  .collections-pane { border-right: 0; border-bottom: 1px solid #e4eaf0; }
+  .collections-pane { border-right: 0; border-bottom: 1px solid var(--c-border); }
   .request-list { max-height: 220px; }
 }
 
@@ -1730,8 +1731,8 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   padding: 3px;
-  background: var(--c-bg-muted, #f1f5f9);
-  border: 1px solid var(--c-border, #e2e8f0);
+  background: var(--c-bg-muted);
+  border: 1px solid var(--c-border);
   border-radius: 8px;
   gap: 4px;
 }
@@ -1746,7 +1747,7 @@ onMounted(() => {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--c-text-secondary, #64748b);
+  color: var(--c-text-secondary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1755,38 +1756,37 @@ onMounted(() => {
 }
 
 .mode-pill-item:hover {
-  color: var(--c-text, #1e293b);
+  color: var(--c-text);
 }
 
 .mode-pill-item.is-active {
-  background: var(--c-bg-elevated, #fff);
-  color: var(--c-text, #1e293b);
+  background: var(--c-bg-elevated);
+  color: var(--c-text);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .mode-pill-item.mode-pill-automation.is-active {
-  background: var(--c-primary-soft, #e6f4ff);
-  color: var(--c-primary, #1677ff);
-  border: 1px solid var(--c-primary-soft, #bae0ff);
-  box-shadow: 0 1px 3px rgba(22, 119, 255, 0.12);
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  border: 1px solid var(--c-primary-soft);
+  box-shadow: var(--shadow-subtle);
 }
-
 .mode-pill-icon {
   font-size: 13px;
 }
 
 .mode-pill-item.is-active .mode-pill-icon {
-  color: var(--c-primary, #1677ff);
+  color: var(--c-primary);
 }
 
 .automation-badge-indicator {
   font-size: 10px;
   font-weight: 700;
-  color: var(--c-primary, #1677ff);
-  background: var(--c-primary-soft, #e6f4ff);
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
   padding: 2px 6px;
   border-radius: 4px;
-  border: 1px solid var(--c-primary-soft, #bae0ff);
+  border: 1px solid var(--c-primary-soft);
 }
 
 .batch-checkbox {
@@ -1802,7 +1802,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
-  background: var(--c-bg-subtle, #f8fafc);
+  background: var(--c-bg-subtle);
   border-top: 1px solid var(--c-border);
 }
 
@@ -1836,8 +1836,8 @@ onMounted(() => {
   border: 1px solid var(--c-border);
 }
 .request-list-method.method-scenario {
-  color: #722ed1;
-  background: rgba(114, 46, 209, 0.1);
+  color: var(--c-ai);
+  background: var(--c-ai-soft);
   font-weight: 600;
 }
 
