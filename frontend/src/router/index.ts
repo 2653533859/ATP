@@ -178,6 +178,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/stress-testing',
+          name: 'stress-testing-workbench',
+          component: () => import('@/views/workbench/StressTestingWorkbenchView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),
