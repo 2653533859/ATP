@@ -1535,9 +1535,9 @@ function formatAlertTime(value?: string | null) {
 .scope-tag {
   color: var(--c-primary);
   background: var(--c-primary-soft);
-  border: 1px solid #dbeafe;
+  border: 1px solid var(--c-border);
   padding: 1px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs, 4px);
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
