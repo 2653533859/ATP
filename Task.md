@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-18 v6.3.0 研发任务规划（进行中）
+
+> v6.3.0 规划入口为 [`docs/development-task-plan-v6.3.0.md`](docs/development-task-plan-v6.3.0.md)，覆盖 Phase 1（RAG 检索三元组质量评测与幻觉消除引擎）、Phase 2（Prompt 越狱注入攻防与有害内容安全护栏看门狗）、Phase 3（大模型智能体评测全景大盘与红蓝攻防工作台）、Phase 4（生产防穿透安全沙箱、合规存证与全量发布）。
+
+- [x] 2026-10-18 T1.1 RAG 知识检索召回与上下文相关度精算器：落地 `llm_rag_triad_evaluator` 服务；评估上下文相关度、知识忠实度与答案准确度；单测独立通过，见 [`docs/evidence/llm-rag-triad-evaluator-t1-1-2026-10-18.md`](docs/evidence/llm-rag-triad-evaluator-t1-1-2026-10-18.md)。
+- [ ] 2026-10-18 T1.2 大模型幻觉率统计与事实一致性校验器：落地 `llm_hallucination_detector` 服务；蕴含事实比对检出无根实体与矛盾断言；单测独立通过。
+- [ ] 2026-10-18 T1.3 大模型评测与 RAG 质量基准 REST API：落地 `llm_eval_api` 路由；提供 RAG 三元组打分、幻觉检测与基准作业端点；单测独立通过。
+- [ ] 2026-10-18 T2.1 Prompt 注入与越狱对抗攻击渗透变异器：落地 `llm_red_teaming_attacker` 服务；支持 DAN、混淆编码与指令覆盖变异算子；单测独立通过。
+- [ ] 2026-10-18 T2.2 大模型有害内容与毒性安全护栏看门狗：落地 `llm_safety_guardrails` 服务；敏感词、隐私 PII 与越权攻击毫秒级阻断；单测独立通过。
+- [ ] 2026-10-18 T2.3 大模型推理延迟、Token 吞吐与成本效益推演器：落地 `llm_economics_benchmarker` 服务；推导 TTFT、TPS 与 Token 计费性价比；单测独立通过。
+- [ ] 2026-10-18 UI3.1 RAG 检索召回与上下文溯源透视抽屉：落地 `LlmRagInspectionDrawer.vue`；检索 Chunk 相关度热力图与回答引用溯源；单测独立通过。
+- [ ] 2026-10-18 UI3.2 Prompt 红蓝攻防渗透策略与护栏配置弹窗：落地 `LlmRedTeamConfigModal.vue`；攻防套件、护栏敏感度与模型调用参数配置；单测独立通过。
+- [ ] 2026-10-18 UI3.3 企业级大模型与智能体综合评测工作台中枢页面：落地 `LlmEvalWorkbenchView.vue` 与 `/workbench/llm-eval` 路由；单测独立通过。
+- [ ] 2026-10-18 T4.1 大模型线上接入合规审批与安全强准入看门狗：落地 `llm_eval_safety_boundary_guard` 服务；生产接入三要素审批与模型白名单校验；单测独立通过。
+- [ ] 2026-10-18 T4.2 大模型评测结论与红蓝攻防验收 64 位 SHA-256 存证证书器：落地 `llm_evidence_signer` 服务；为评测报告与攻防结论签发存证证书；单测独立通过。
+- [ ] 2026-10-18 T4.3 v6.3.0 大模型与 RAG 智能体评测中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.3.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-18 v6.2.0 研发任务规划（已全量闭环）
 
 > v6.2.0 规划入口为 [`docs/development-task-plan-v6.2.0.md`](docs/development-task-plan-v6.2.0.md)，覆盖 Phase 1（压测流量标隔离与分布式影子发压引擎）、Phase 2（架构容量基线拐点推演与自适应限流熔断看门狗）、Phase 3（全链路压测拓扑透视与容量大盘工作台）、Phase 4（生产防击穿安全沙箱、合规存证与全量发布）。
