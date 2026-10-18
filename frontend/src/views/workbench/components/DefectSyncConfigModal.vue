@@ -297,17 +297,18 @@ function handleTestConnection() {
 .modal-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4, 16px);
 }
 
 .sync-metrics-banner {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
-  padding: 12px 16px;
-  background: var(--c-bg-subtle, #fafafa);
-  border: 1px solid var(--c-border, #f0f0f0);
-  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--c-surface, var(--c-bg-elevated));
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-xs);
   text-align: center;
 }
 
@@ -320,11 +321,14 @@ function handleTestConnection() {
 
 .stat-num {
   font-size: 18px;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-label {
   font-size: 11px;
-  color: var(--c-text-secondary, #666);
+  color: var(--c-text-secondary);
   margin-top: 2px;
 }
 
@@ -336,12 +340,12 @@ function handleTestConnection() {
 
 .switch-desc {
   font-size: 12px;
-  color: var(--c-text-secondary, #666);
+  color: var(--c-text-secondary);
 }
 
 .form-help-text {
   font-size: 11px;
-  color: var(--c-text-secondary, #888);
+  color: var(--c-text-tertiary);
   margin-top: 4px;
 }
 
@@ -360,26 +364,31 @@ function handleTestConnection() {
 }
 
 .text-danger {
-  color: #ff4d4f;
+  color: var(--c-error);
 }
 
 .text-warning {
-  color: #faad14;
+  color: var(--c-warning);
 }
 
 .text-primary {
-  color: #1677ff;
+  color: var(--c-primary);
 }
 
 .text-success {
-  color: #52c41a;
+  color: var(--c-success);
 }
 
 .text-secondary {
-  color: var(--c-text-secondary, #666);
+  color: var(--c-text-secondary);
 }
 
 .ml-2 {
   margin-left: 8px;
+}
+
+.font-mono {
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
 }
 </style>

@@ -272,7 +272,7 @@ function handleConfirmMerge() {
 .drawer-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4, 16px);
 }
 
 .defect-hero-bar {
@@ -282,9 +282,10 @@ function handleConfirmMerge() {
   flex-wrap: wrap;
   gap: 16px;
   padding: 16px 20px;
-  background: var(--c-bg-subtle, #fafafa);
-  border: 1px solid var(--c-border, #f0f0f0);
-  border-radius: 8px;
+  background: var(--c-surface, var(--c-bg-elevated));
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-xs);
 }
 
 .hero-left {
@@ -304,6 +305,10 @@ function handleConfirmMerge() {
   font-size: 18px;
 }
 
+.cluster-title {
+  color: var(--c-text);
+}
+
 .fingerprint-row {
   display: flex;
   align-items: center;
@@ -311,44 +316,50 @@ function handleConfirmMerge() {
 }
 
 .fp-code {
-  background: #f0f5ff;
-  border: 1px solid #adc6ff;
+  background: var(--c-primary-soft);
+  border: 1px solid var(--c-primary);
+  color: var(--c-primary);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs, 4px);
+  font-variant-numeric: tabular-nums;
 }
 
 .hero-summary-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 12px;
   font-size: 12px;
 }
 
 .metric-pill {
-  padding: 4px 8px;
-  background: var(--c-bg-surface, #ffffff);
-  border: 1px solid var(--c-border-subtle, #e8e8e8);
-  border-radius: 4px;
+  padding: 4px 10px;
+  background: var(--c-surface, var(--c-bg-elevated));
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-xs, 4px);
+  color: var(--c-text-secondary);
 }
 
 .root-frame-box {
-  padding: 10px 12px;
-  background: #fff2f0;
-  border: 1px solid #ffccc7;
-  border-radius: 6px;
+  padding: 10px 14px;
+  background: var(--c-error-soft);
+  border: 1px solid var(--c-error);
+  border-radius: var(--radius-sm, 6px);
 }
 
 .stack-view-container {
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
-  border-radius: 6px;
-  padding: 10px 12px;
+  background: var(--c-bg-body);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm, 6px);
+  padding: 12px 14px;
 }
 
 .sanitized-stack-pre {
   margin: 0;
   white-space: pre-wrap;
-  color: #333;
+  color: var(--c-text);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .evidence-timeline {
@@ -371,15 +382,15 @@ function handleConfirmMerge() {
 }
 
 .bg-success {
-  background: #52c41a;
+  background: var(--c-success);
 }
 
 .bg-primary {
-  background: #1677ff;
+  background: var(--c-primary);
 }
 
 .bg-warning {
-  background: #faad14;
+  background: var(--c-warning);
 }
 
 .mt-3 {
@@ -391,22 +402,27 @@ function handleConfirmMerge() {
 }
 
 .text-danger {
-  color: #ff4d4f;
+  color: var(--c-error);
 }
 
 .text-success {
-  color: #52c41a;
+  color: var(--c-success);
 }
 
 .text-warning {
-  color: #faad14;
+  color: var(--c-warning);
 }
 
 .text-primary {
-  color: #1677ff;
+  color: var(--c-primary);
 }
 
 .text-secondary {
-  color: var(--c-text-secondary, #666);
+  color: var(--c-text-secondary);
+}
+
+.font-mono {
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
 }
 </style>
