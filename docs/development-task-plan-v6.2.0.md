@@ -87,7 +87,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T4.1 `[x]` | **生产全链路压测特批审批与窗口期强准入看门狗** | `backend/app/services/stress_safety_boundary_guard.py` | 生产压测三要素校验（特批演练工单号、夜间低峰运维窗口与安全令牌）；单测独立通过；见 docs/evidence/stress-safety-boundary-guard-t4-1-2026-10-18.md |
-| T4.2 `[ ]` | **容量基线推演结论与压测验收 64 位 SHA-256 存证证书器** | `backend/app/services/stress_evidence_signer.py` | 规范化确定性 JSON，签发不可篡改的 64 位 SHA-256 指纹与 HMAC-SHA256 签名存证证书；单测独立通过。 |
+| T4.2 `[x]` | **容量基线推演结论与压测验收 64 位 SHA-256 存证证书器** | `backend/app/services/stress_evidence_signer.py` | 规范化确定性 JSON，签发不可篡改的 64 位 SHA-256 指纹与 HMAC-SHA256 签名存证证书；单测独立通过；见 docs/evidence/stress-evidence-signer-t4-2-2026-10-18.md |
 | T4.3 `[ ]` | **v6.2.0 全链路生产影子压测与容量中台全域综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v6.2.0-release-notes.md` 与专项交付证据。 |
 
 ---
