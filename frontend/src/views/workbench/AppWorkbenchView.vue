@@ -1046,8 +1046,8 @@ onUnmounted(() => {
   --app-ink: var(--c-text);
   --app-muted: var(--c-text-secondary);
   --app-line: var(--c-border);
-  --app-cyan: #37c4c6;
-  --app-copper: #ee7557;
+  --app-cyan: var(--c-info);
+  --app-copper: var(--c-error);
   color: var(--app-ink);
 }
 
@@ -1137,8 +1137,8 @@ onUnmounted(() => {
   border: 0;
 }
 
-.live-dot, .device-status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--app-cyan); box-shadow: 0 0 0 4px rgba(55, 196, 198, .14); }
-.live-dot.muted { background: #ef9a62; box-shadow: 0 0 0 4px rgba(239, 154, 98, .12); }
+.live-dot, .device-status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--app-cyan); box-shadow: 0 0 0 4px var(--c-info-soft); }
+.live-dot.muted { background: var(--c-warning); box-shadow: 0 0 0 4px var(--c-warning-soft); }
 .readonly-alert { margin-top: 16px; }
 .project-empty { min-height: 320px; padding: 100px 0; }
 
@@ -1212,13 +1212,13 @@ onUnmounted(() => {
   box-shadow: none;
 }
 .status-online {
-  background: #35b890;
+  background: var(--c-success);
 }
 .status-busy {
   background: var(--app-copper);
 }
 .status-offline {
-  background: #adb9c0;
+  background: var(--c-border-strong);
 }
 .device-row-main {
   display: flex;
