@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-18 v6.2.0 研发任务规划（进行中）
+
+> v6.2.0 规划入口为 [`docs/development-task-plan-v6.2.0.md`](docs/development-task-plan-v6.2.0.md)，覆盖 Phase 1（压测流量标隔离与分布式影子发压引擎）、Phase 2（架构容量基线拐点推演与自适应限流熔断看门狗）、Phase 3（全链路压测拓扑透视与容量大盘工作台）、Phase 4（生产防击穿安全沙箱、合规存证与全量发布）。
+
+- [x] 2026-10-18 T1.1 全链路影子压测标注入与上下文透传器：落地 `stress_traffic_isolation_engine` 服务；支持 Header/gRPC/MQ 压测标透传与影子库表隔离；单测独立通过，见 [`docs/evidence/stress-traffic-isolation-engine-t1-1-2026-10-18.md`](docs/evidence/stress-traffic-isolation-engine-t1-1-2026-10-18.md)。
+- [ ] 2026-10-18 T1.2 分布式海量虚拟用户发压调度与阶梯加压器：落地 `stress_load_profile_stepper` 服务；支持并发爬坡与发压节点调度；单测独立通过。
+- [ ] 2026-10-18 T1.3 全链路影子压测管控与发压作业 REST API：落地 `stress_testing_api` 路由；提供压测任务启停、监控与报告端点；单测独立通过。
+- [ ] 2026-10-18 T2.1 系统容量拐点智能推演与吞吐天花板挖掘器：落地 `capacity_knee_point_deductor` 服务；基于 USL 定律计算性能拐点与极限容量；单测独立通过。
+- [ ] 2026-10-18 T2.2 生产击穿毫秒级熔断与过载紧急泄压看门狗：落地 `stress_safety_overload_guard` 服务；异常指标超标毫秒级自动切断压测流；单测独立通过。
+- [ ] 2026-10-18 T2.3 影子数据隔离防污染巡检与影子库表清理器：落地 `shadow_data_pollution_cleaner` 服务；巡检数据隔离与影子库表一键归档清理；单测独立通过。
+- [ ] 2026-10-18 UI3.1 微服务全链路发压拓扑与瓶颈链路透视抽屉：落地 `StressTopologyInspectionDrawer.vue`；发压拓扑、慢服务高亮与性能曲线；单测独立通过。
+- [ ] 2026-10-18 UI3.2 分布式压测策略配置与过载熔断围栏弹窗：落地 `StressConfigModal.vue`；发压梯度、熔断红线与影子表映射配置；单测独立通过。
+- [ ] 2026-10-18 UI3.3 全链路生产压测与容量基线中枢工作台页面：落地 `StressTestingWorkbenchView.vue` 与 `/workbench/stress-testing` 路由；单测独立通过。
+- [ ] 2026-10-18 T4.1 生产全链路压测特批审批与窗口期强准入看门狗：落地 `stress_safety_boundary_guard` 服务；生产压测三要素审批与权限阻断；单测独立通过。
+- [ ] 2026-10-18 T4.2 容量基线推演结论与压测验收 64 位 SHA-256 存证证书器：落地 `stress_evidence_signer` 服务；为压测报告与容量结论签发存证证书；单测独立通过。
+- [ ] 2026-10-18 T4.3 v6.2.0 全链路生产影子压测与容量中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.2.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-18 v6.1.0 研发任务规划（已全量闭环）
 
 > v6.1.0 规划入口为 [`docs/development-task-plan-v6.1.0.md`](docs/development-task-plan-v6.1.0.md)，覆盖 Phase 1（流量染色标透传与金丝雀路由分流引擎）、Phase 2（自适应灰度步进调度与自动熔断回滚看门狗）、Phase 3（金丝雀双轨流向透视与灰度控制工作台）、Phase 4（生产防误割安全沙箱、合规存证与全量发布）。
