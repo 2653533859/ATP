@@ -86,7 +86,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T4.1 `[ ]` | **大模型线上接入合规审批与安全强准入看门狗** | `backend/app/services/llm_eval_safety_boundary_guard.py` | 生产模型上线三要素校验（安全评测审批单、模型白名单与访问鉴权令牌）；单测独立通过。 |
+| T4.1 `[x]` | **大模型线上接入合规审批与安全强准入看门狗** | `backend/app/services/llm_eval_safety_boundary_guard.py` | 生产模型上线三要素校验（安全评测审批单、模型白名单与访问鉴权令牌）；单测独立通过；见 docs/evidence/llm-eval-safety-boundary-guard-t4-1-2026-10-19.md |
 | T4.2 `[ ]` | **大模型评测结论与红蓝攻防验收 64 位 SHA-256 存证证书器** | `backend/app/services/llm_evidence_signer.py` | 规范化确定性 JSON，签发不可篡改的 64 位 SHA-256 指纹与 HMAC-SHA256 签名存证证书；单测独立通过。 |
 | T4.3 `[ ]` | **v6.3.0 大模型与 RAG 智能体评测中台全域综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v6.3.0-release-notes.md` 与专项交付证据。 |
 

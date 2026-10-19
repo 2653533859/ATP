@@ -17,7 +17,7 @@
 - [x] 2026-10-18 UI3.1 RAG 检索召回与上下文溯源透视抽屉：落地 `LlmRagInspectionDrawer.vue`；检索 Chunk 相关度热力图与回答引用溯源；单测独立通过，见 [`docs/evidence/llm-rag-inspection-drawer-ui3-1-2026-10-18.md`](docs/evidence/llm-rag-inspection-drawer-ui3-1-2026-10-18.md)。
 - [x] 2026-10-19 UI3.2 Prompt 红蓝攻防渗透策略与护栏配置弹窗：落地 `LlmRedTeamConfigModal.vue`；攻防套件、护栏敏感度与模型调用参数配置；单测独立通过，见 [`docs/evidence/llm-red-team-config-modal-ui3-2-2026-10-19.md`](docs/evidence/llm-red-team-config-modal-ui3-2-2026-10-19.md)。
 - [x] 2026-10-19 UI3.3 企业级大模型与智能体综合评测工作台中枢页面：落地 `LlmEvalWorkbenchView.vue` 与 `/workbench/llm-eval` 路由；单测独立通过，见 [`docs/evidence/llm-eval-workbench-view-ui3-3-2026-10-19.md`](docs/evidence/llm-eval-workbench-view-ui3-3-2026-10-19.md)。至此 v6.3.0 Phase 3 全量大闭环！
-- [ ] 2026-10-18 T4.1 大模型线上接入合规审批与安全强准入看门狗：落地 `llm_eval_safety_boundary_guard` 服务；生产接入三要素审批与模型白名单校验；单测独立通过。
+- [x] 2026-10-19 T4.1 大模型线上接入合规审批与安全强准入看门狗：落地 `llm_eval_safety_boundary_guard` 服务；生产接入三要素审批与模型白名单校验；单测独立通过，见 [`docs/evidence/llm-eval-safety-boundary-guard-t4-1-2026-10-19.md`](docs/evidence/llm-eval-safety-boundary-guard-t4-1-2026-10-19.md)。
 - [ ] 2026-10-18 T4.2 大模型评测结论与红蓝攻防验收 64 位 SHA-256 存证证书器：落地 `llm_evidence_signer` 服务；为评测报告与攻防结论签发存证证书；单测独立通过。
 - [ ] 2026-10-18 T4.3 v6.3.0 大模型与 RAG 智能体评测中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.3.0-release-notes.md` 与专项交付证据。
 
