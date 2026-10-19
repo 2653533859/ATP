@@ -21,6 +21,7 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/ai-chat': 'intelligence-center',
   '/requirements': 'intelligence-center',
   '/knowledge': 'intelligence-center',
+  '/workbench/llm-eval': 'intelligence-center',
   '/system/datasets': 'test-capabilities',
   '/system/web-assets': 'test-capabilities',
   '/system/api-contract-assets': 'test-capabilities',
@@ -79,7 +80,11 @@ const mobileRouteTitles: Record<string, string> = {
 }
 
 export function findRouteEntry<T>(entries: Record<string, T>, path: string): T | undefined {
-  return Object.entries(entries).find(([prefix]) => path.startsWith(prefix))?.[1]
+  if (entries[path] !== undefined) {
+    return entries[path]
+  }
+  const sortedEntries = Object.entries(entries).sort(([a], [b]) => b.length - a.length)
+  return sortedEntries.find(([prefix]) => path.startsWith(prefix))?.[1]
 }
 
 export function getMenuOpenKeys(path: string, localMode = false): string[] {

@@ -151,6 +151,7 @@ export default {
       ai_chat: 'AI 自由对话',
       requirements: '需求与用例追踪',
       knowledge: '知识中枢',
+      llm_eval: '大模型质效评测',
     },
     system_center: {
       toolbox: '远程工具箱',

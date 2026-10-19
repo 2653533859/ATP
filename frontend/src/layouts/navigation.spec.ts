@@ -59,6 +59,8 @@ describe('layout navigation state', () => {
     expect(getMenuOpenKeys('/hermes')).toEqual(['intelligence-center'])
     expect(getMenuOpenKeys('/ai-chat')).toEqual(['intelligence-center'])
     expect(getMenuOpenKeys('/requirements')).toEqual(['intelligence-center'])
+    expect(getMenuOpenKeys('/workbench/llm-eval')).toEqual(['intelligence-center'])
+    expect(getSelectedMenuKey('/workbench/llm-eval')).toBe('/workbench/llm-eval')
     expect(getSelectedMenuKey('/knowledge')).toBe('/knowledge')
     expect(getSelectedMenuKey('/ai-chat')).toBe('/ai-chat')
     expect(getRouteTitleKey('/knowledge')).toBe('menu.intelligence.knowledge')

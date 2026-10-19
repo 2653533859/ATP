@@ -49,10 +49,8 @@
               <template #icon><PlayCircleOutlined /></template>
               <template #title>{{ t('menu.groups.test_capabilities') }}</template>
               <a-menu-item key="/api-workbench">{{ t('menu.capabilities.api') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/mobile-special/workbench">{{ t('menu.capabilities.app') }}</a-menu-item>
               <a-menu-item key="/ui-workbench">{{ t('menu.capabilities.ui') }}</a-menu-item>
-              <a-menu-item v-if="supportsFeature('performance')" key="/performance-workbench">{{ t('menu.capabilities.performance') }}</a-menu-item>
-              <a-menu-item v-if="supportsFeature('ai_generation')" key="/ai-workbench">{{ t('menu.capabilities.ai') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/mobile-special/workbench">{{ t('menu.capabilities.app') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu key="test-assets">
@@ -61,31 +59,27 @@
               <a-menu-item key="/cases">{{ t('menu.assets.cases') }}</a-menu-item>
               <a-menu-item v-if="supportsFeature('suites')" key="/suites">{{ t('menu.assets.suites') }}</a-menu-item>
               <a-menu-item v-if="supportsFeature('plans')" key="/plans">{{ t('menu.assets.plans') }}</a-menu-item>
-              <a-menu-item v-if="supportsFeature('defects')" key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
               <a-menu-item key="/reports">{{ t('menu.assets.reports') }}</a-menu-item>
-              <a-menu-item key="/case-reviews">{{ t('menu.assets.reviews') }}</a-menu-item>
+              <a-menu-item v-if="supportsFeature('defects')" key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu key="intelligence-center">
               <template #icon><ApiOutlined /></template>
               <template #title>{{ t('menu.groups.intelligence_center') }}</template>
               <a-menu-item key="/hermes">{{ t('menu.intelligence.hermes') }}</a-menu-item>
-              <a-menu-item key="/ai-chat">{{ t('menu.intelligence.ai_chat') }}</a-menu-item>
-              <a-menu-item key="/requirements">{{ t('menu.intelligence.requirements') }}</a-menu-item>
               <a-menu-item key="/knowledge">{{ t('menu.intelligence.knowledge') }}</a-menu-item>
+              <a-menu-item key="/workbench/llm-eval">{{ t('menu.intelligence.llm_eval') }}</a-menu-item>
+              <a-menu-item key="/ai-chat">{{ t('menu.intelligence.ai_chat') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu v-if="canAccess(['admin', 'engineer'])" key="system-center">
               <template #icon><SettingOutlined /></template>
               <template #title>{{ t('menu.groups.system_center') }}</template>
-              <a-menu-item v-if="!localMode && canAccess(['admin', 'engineer'])" key="/system/toolbox">{{ t('menu.system_center.toolbox') }}</a-menu-item>
               <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/config">{{ t('menu.system_center.config') }}</a-menu-item>
               <template v-if="localMode">
                 <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
                 <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
                 <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
-                <a-menu-item key="/system/web-assets">{{ t('menu.system.web_assets') }}</a-menu-item>
-                <a-menu-item key="/system/api-contract-assets">{{ t('menu.system.api_contract_assets') }}</a-menu-item>
                 <a-menu-item key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
               </template>
             </a-sub-menu>

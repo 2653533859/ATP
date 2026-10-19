@@ -151,6 +151,7 @@ export default {
       ai_chat: 'AI Free Chat',
       requirements: 'Requirements & Case Traceability',
       knowledge: 'Knowledge Hub',
+      llm_eval: 'LLM Quality Eval',
     },
     system_center: {
       toolbox: 'Remote Toolbox',
