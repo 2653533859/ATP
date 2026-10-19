@@ -186,6 +186,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/llm-eval',
+          name: 'llm-eval-workbench',
+          component: () => import('@/views/workbench/LlmEvalWorkbenchView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),

@@ -78,7 +78,7 @@ flowchart TD
 |---|---|---|---|
 | UI3.1 `[x]` | **RAG 检索召回与上下文溯源透视抽屉** | `frontend/src/views/workbench/components/LlmRagInspectionDrawer.vue` | 呈现 Query、知识库检索 Chunk 相关度热力图与模型回答引用溯源；单测独立通过；见 docs/evidence/llm-rag-inspection-drawer-ui3-1-2026-10-18.md |
 | UI3.2 `[x]` | **Prompt 红蓝攻防渗透策略与护栏配置弹窗** | `frontend/src/views/workbench/components/LlmRedTeamConfigModal.vue` | 可视化交互配置攻防测试套件、护栏敏感度与模型调用参数；单测独立通过；见 docs/evidence/llm-red-team-config-modal-ui3-2-2026-10-19.md |
-| UI3.3 `[ ]` | **企业级大模型与智能体综合评测工作台中枢页面** | `frontend/src/views/workbench/LlmEvalWorkbenchView.vue` | 落地路由 `/workbench/llm-eval`，集成 4 大 Bento KPI 与模型评测大盘；单测独立通过。 |
+| UI3.3 `[x]` | **企业级大模型与智能体综合评测工作台中枢页面** | `frontend/src/views/workbench/LlmEvalWorkbenchView.vue` | 落地路由 `/workbench/llm-eval`，集成 4 大 Bento KPI 与模型评测大盘；单测独立通过；见 docs/evidence/llm-eval-workbench-view-ui3-3-2026-10-19.md |
 
 ---
 
