@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.services.llm_rag_triad_evaluator import (
+    _calculate_overlap_ratio,
     _split_into_claims,
     _tokenize_terms,
     evaluate_rag_triad,
@@ -82,3 +83,20 @@ def test_evaluate_rag_triad_serialization():
     assert "grade" in d
     assert len(d["chunks"]) == 1
     assert len(d["claim_attributions"]) >= 1
+
+
+def test_calculate_overlap_ratio_deduplication_and_mixed_tokenizer():
+    """测试重叠率去重计算避免虚假 100% 评分，并验证中英混排标识符完整保留"""
+    # 1. 验证重复词不会膨胀覆盖率
+    source = ["数据", "数据", "数据", "隔离", "未匹配项"]  # 去重后有 3 个词
+    target = ["数据"]  # 仅命中 1 个词
+    ratio = _calculate_overlap_ratio(source, target)
+    assert round(ratio, 2) == 0.33
+
+    # 2. 验证中英混排词元保留
+    tokens = _tokenize_terms("被测模型为 Qwen-2.5-72B，表名为 t_order_shadow 影子表。")
+    assert "qwen-2.5-72b" in tokens
+    assert "t_order_shadow" in tokens
+    assert "影" in tokens
+    assert "子" in tokens
+    assert "表" in tokens

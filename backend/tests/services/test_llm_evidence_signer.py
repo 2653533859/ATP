@@ -197,3 +197,25 @@ def test_list_and_clear_certificates():
 
     clear_llm_certificates()
     assert len(list_llm_certificates()) == 0
+
+
+def test_certificate_store_capacity_eviction(monkeypatch):
+    """测试存证证书内存库超出最大容量时自动按 FIFO 淘汰最早证书"""
+    import app.services.llm_evidence_signer as signer_mod
+
+    clear_llm_certificates()
+    monkeypatch.setattr(signer_mod, "MAX_LLM_CERT_STORE_CAPACITY", 3)
+
+    rep = evaluate_rag_triad("Q", ["C"], "A")
+    c1 = sign_rag_triad_report(rep, target_model="m1")
+    c2 = sign_rag_triad_report(rep, target_model="m2")
+    c3 = sign_rag_triad_report(rep, target_model="m3")
+    assert len(list_llm_certificates()) == 3
+    assert get_llm_certificate(c1.certificate_id) is not None
+
+    # 签发第 4 个，c1 应该被淘汰
+    c4 = sign_rag_triad_report(rep, target_model="m4")
+    assert len(list_llm_certificates()) == 3
+    assert get_llm_certificate(c1.certificate_id) is None
+    assert get_llm_certificate(c2.certificate_id) is not None
+    assert get_llm_certificate(c4.certificate_id) is not None

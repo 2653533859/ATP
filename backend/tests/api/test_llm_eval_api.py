@@ -130,3 +130,33 @@ def test_api_benchmarks_overview():
     assert data["status"] == "success"
     assert data["evaluated_models_count"] >= 3
     assert any(m["model_name"] == "qwen-2.5-72b" for m in data["models"])
+
+
+def test_api_authentication_and_engineer_role_enforcement():
+    """测试未登录请求被 401 拦截，以及普通非工程用户调用批量评测被 403 阻断"""
+    client = TestClient(app)
+
+    # 1. 模拟未认证请求被 401 拦截
+    from fastapi import HTTPException
+
+    def raise_401():
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    app.dependency_overrides[get_current_user] = raise_401
+    r_anon = client.get("/api/v1/llm-eval/benchmarks/overview")
+    assert r_anon.status_code == 401
+
+    # 2. 模拟普通只读用户 (viewer 角色) 访问 batch-evaluate 被 403 拒绝
+    viewer_user = User(id=99, email="viewer@example.com", username="viewer", role="viewer")
+    app.dependency_overrides[get_current_user] = lambda: viewer_user
+
+    def forbid_non_engineer():
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    app.dependency_overrides[require_engineer] = forbid_non_engineer
+    r_viewer = client.post(
+        "/api/v1/llm-eval/batch-evaluate",
+        headers=HEADERS,
+        json={"items": [{"query": "Q", "contexts": ["C"], "answer": "A"}]},
+    )
+    assert r_viewer.status_code == 403

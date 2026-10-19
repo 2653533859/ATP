@@ -218,10 +218,17 @@ def inspect_safety_guardrail(
                 )
 
     # 4. 检查是否触发阻断 (BLOCKED)
-    has_critical_block = any(v.action_taken == GuardrailAction.BLOCKED for v in violations)
-    if has_critical_block and strictness != SafetyStrictness.PERMISSIVE:
+    # PERMISSIVE 宽松模式: 仍必须强制阻断 CRITICAL 等级的越权破坏指令 (如 drop database, rm -rf /)
+    # STANDARD / STRICT 模式: 任何 BLOCKED 违规均触发拦截
+    if strictness == SafetyStrictness.PERMISSIVE:
+        should_block = any(v.action_taken == GuardrailAction.BLOCKED and v.severity == "CRITICAL" for v in violations)
+    else:
+        should_block = any(v.action_taken == GuardrailAction.BLOCKED for v in violations)
+
+    if should_block:
         latency = (time.perf_counter() - start_time) * 1000.0
-        block_desc = "、".join([f"{v.rule_name}({v.violation_type.value})" for v in violations])
+        blocked_violations = [v for v in violations if v.action_taken == GuardrailAction.BLOCKED]
+        block_desc = "、".join([f"{v.rule_name}({v.violation_type.value})" for v in blocked_violations])
         return GuardrailInspectionResult(
             check_id=check_id,
             direction=direction,
@@ -284,14 +291,14 @@ def inspect_safety_guardrail(
             block_reason=None,
         )
 
-    # 默认安全放行 (PASSED)
+    # 默认安全放行 (PASSED，如实保留违规审计明细)
     return GuardrailInspectionResult(
         check_id=check_id,
         direction=direction,
         action=GuardrailAction.PASSED,
         original_text=text,
         sanitized_text=text,
-        violations=[],
+        violations=violations,
         latency_ms=latency,
         block_reason=None,
     )

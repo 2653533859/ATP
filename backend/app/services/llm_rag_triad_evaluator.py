@@ -77,25 +77,18 @@ class RagTriadEvaluationReport:
 
 def _tokenize_terms(text: str) -> List[str]:
     """提取中英文与符号关键词词元"""
-    cleaned = re.sub(r"[^\w\u4e00-\u9fa5]+", " ", text.lower()).strip()
-    # 拆分英文单词与中文单字
-    tokens: List[str] = []
-    for part in cleaned.split():
-        if re.search(r"[\u4e00-\u9fa5]", part):
-            # 中文按字切分
-            tokens.extend(list(part))
-        else:
-            tokens.append(part)
-    return [t for t in tokens if len(t) > 0]
+    # 精确保留连续的英文字符/下划线/连字符/点号标识符（如 qwen-2.5-72b、t_order_shadow），同时对汉字单字切分
+    return re.findall(r"[a-zA-Z0-9_]+(?:[\-\.][a-zA-Z0-9_]+)*|[一-龥]", text.lower())
 
 
 def _calculate_overlap_ratio(source_terms: List[str], target_terms: List[str]) -> float:
-    """计算源词元集合在目标词元集合中的覆盖率"""
+    """计算源词元集合在目标词元集合中的去重覆盖率"""
     if not source_terms or not target_terms:
         return 0.0
+    set_source = set(source_terms)
     set_target = set(target_terms)
-    matches = sum(1 for t in source_terms if t in set_target)
-    return min(1.0, matches / max(1, len(set(source_terms))))
+    matches = sum(1 for t in set_source if t in set_target)
+    return min(1.0, matches / max(1, len(set_source)))
 
 
 def _split_into_claims(answer: str) -> List[str]:

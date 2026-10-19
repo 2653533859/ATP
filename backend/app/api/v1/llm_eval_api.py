@@ -12,9 +12,11 @@ from __future__ import annotations
 import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.deps import get_current_user, require_engineer
+from app.models.user import User
 from app.services.llm_hallucination_detector import (
     detect_llm_hallucinations,
 )
@@ -22,7 +24,11 @@ from app.services.llm_rag_triad_evaluator import (
     evaluate_rag_triad,
 )
 
-router = APIRouter(prefix="/llm-eval", tags=["llm-eval"])
+router = APIRouter(
+    prefix="/llm-eval",
+    tags=["llm-eval"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 class EvaluateRagTriadRequest(BaseModel):
@@ -92,7 +98,10 @@ def api_detect_hallucination(req: DetectHallucinationRequest) -> Dict[str, Any]:
 
 
 @router.post("/batch-evaluate", summary="批量大模型综合测试集打分与评估")
-def api_batch_evaluate(req: BatchEvaluateRequest) -> Dict[str, Any]:
+def api_batch_evaluate(
+    req: BatchEvaluateRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
     if not req.items:
         raise HTTPException(status_code=400, detail="评测用例列表 items 不能为空")
 

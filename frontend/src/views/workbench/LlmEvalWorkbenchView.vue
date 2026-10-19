@@ -253,7 +253,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { message } from 'ant-design-vue'
 import {
   ExperimentOutlined,
   DeploymentUnitOutlined,
@@ -262,6 +263,7 @@ import {
   ReloadOutlined,
   EditOutlined,
 } from '@ant-design/icons-vue'
+import { llmEvalApi } from '@/api'
 import LlmRagInspectionDrawer from './components/LlmRagInspectionDrawer.vue'
 import LlmRedTeamConfigModal, { type RedTeamConfig } from './components/LlmRedTeamConfigModal.vue'
 
@@ -377,11 +379,27 @@ const modelColumns = [
   { title: '快捷操作', key: 'actions', width: '12%' },
 ]
 
-function fetchData() {
+async function fetchData() {
   loading.value = true
-  setTimeout(() => {
+  try {
+    const res = await llmEvalApi.getBenchmarksOverview()
+    if (res?.models && res.models.length > 0) {
+      res.models.forEach((remoteModel) => {
+        const found = benchmarkModels.value.find((m) => m.model_name === remoteModel.model_name)
+        if (found) {
+          found.rag_score = remoteModel.rag_triad_score
+          found.hallucination_defense_rate = remoteModel.hallucination_defense_rate_pct
+          found.red_team_robustness = remoteModel.red_team_robustness_pct
+          found.ttft_ms = remoteModel.avg_ttft_ms
+          found.tps = remoteModel.tps_rate
+        }
+      })
+    }
+  } catch (_e) {
+    // 保持预设基准展示，优雅降级
+  } finally {
     loading.value = false
-  }, 300)
+  }
 }
 
 function handleOpenRagDrawer(model?: ModelBenchmarkItem | Record<string, any>) {
@@ -403,20 +421,44 @@ function handleOpenRedTeamModal(model?: ModelBenchmarkItem | Record<string, any>
 }
 
 function handleRefreshDrawer() {
-  fetchData()
+  void fetchData()
 }
 
 function handleSaveConfig(config: RedTeamConfig) {
   currentConfig.value = config
 }
 
-function handleTriggerLiveEvaluation() {
+async function handleTriggerLiveEvaluation() {
+  if (!evalQuery.value.trim() || !evalAnswer.value.trim()) {
+    message.warning('请输入提问 Query 与大模型回答')
+    return
+  }
   evaluating.value = true
-  setTimeout(() => {
+  try {
+    const res = await llmEvalApi.evaluateRagTriad({
+      query: evalQuery.value.trim(),
+      contexts: evalContext.value ? [evalContext.value.trim()] : [],
+      answer: evalAnswer.value.trim(),
+    })
+    if (res?.report) {
+      currentDrawerQuery.value = res.report.query
+      currentDrawerScore.value = res.report.composite_score
+      currentDrawerModel.value = '在线评测模型'
+      ragDrawerVisible.value = true
+      message.success(`评测完成：综合分 ${res.report.composite_score.toFixed(1)} (${res.report.grade})`)
+      return
+    }
+  } catch (_err) {
+    // 若离线或接口异常则使用当前抽屉兜底展示
+  } finally {
     evaluating.value = false
-    handleOpenRagDrawer()
-  }, 200)
+  }
+  handleOpenRagDrawer()
 }
+
+onMounted(() => {
+  void fetchData()
+})
 
 function getScoreClass(score: number) {
   if (score >= 95.0) return 'text-success'

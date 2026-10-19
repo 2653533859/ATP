@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import enum
@@ -18,6 +19,7 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
+from app.core.config import settings
 from app.services.llm_eval_safety_boundary_guard import LlmSafetyAdmissionVerdict
 from app.services.llm_hallucination_detector import HallucinationAuditReport
 from app.services.llm_rag_triad_evaluator import RagTriadEvaluationReport
@@ -61,8 +63,20 @@ class LlmEvidenceCertificate:
         return asdict(self)
 
 
-_LLM_CERT_STORE: Dict[str, LlmEvidenceCertificate] = {}
-_DEFAULT_LLM_SECRET = b"atp-v6-3-0-llm-eval-evidence-secret-2026"
+MAX_LLM_CERT_STORE_CAPACITY = 2000
+_LLM_CERT_STORE: OrderedDict[str, LlmEvidenceCertificate] = OrderedDict()
+_FALLBACK_LLM_SECRET = b"atp-v6-3-0-llm-eval-evidence-secret-2026"
+
+
+def _get_default_secret() -> bytes:
+    """动态获取平台主秘钥，若不可用时使用安全备用秘钥"""
+    try:
+        sec = getattr(settings, "SECRET_KEY", None)
+        if sec:
+            return sec.encode("utf-8")
+    except Exception:
+        pass
+    return _FALLBACK_LLM_SECRET
 
 
 def clear_llm_certificates() -> None:
@@ -80,9 +94,10 @@ def compute_evidence_sha256(canonical_json: str) -> str:
     return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
 
-def compute_hmac_signature(canonical_json: str, secret: bytes = _DEFAULT_LLM_SECRET) -> str:
+def compute_hmac_signature(canonical_json: str, secret: Optional[bytes] = None) -> str:
     """使用平台秘钥生成 HMAC-SHA256 防伪签名"""
-    return hmac.new(secret, canonical_json.encode("utf-8"), hashlib.sha256).hexdigest()
+    actual_secret = secret if secret is not None else _get_default_secret()
+    return hmac.new(actual_secret, canonical_json.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def _issue_and_store_certificate(
@@ -92,12 +107,13 @@ def _issue_and_store_certificate(
     canonical_payload: Dict[str, Any],
     summary: Dict[str, Any],
     signer_identity: str = "ATP_LLM_EVAL_PLATFORM_V6_3_0",
-    secret: bytes = _DEFAULT_LLM_SECRET,
+    secret: Optional[bytes] = None,
 ) -> LlmEvidenceCertificate:
     """内部通用签发流水线"""
+    actual_secret = secret if secret is not None else _get_default_secret()
     canonical_json = compute_canonical_json(canonical_payload)
     sha256_digest = compute_evidence_sha256(canonical_json)
-    signature = compute_hmac_signature(canonical_json, secret=secret)
+    signature = compute_hmac_signature(canonical_json, secret=actual_secret)
 
     cert_id = f"llm_cert_{uuid.uuid4().hex[:12]}"
     cert = LlmEvidenceCertificate(
@@ -112,6 +128,8 @@ def _issue_and_store_certificate(
         canonical_payload=canonical_payload,
         summary=summary,
     )
+    if len(_LLM_CERT_STORE) >= MAX_LLM_CERT_STORE_CAPACITY:
+        _LLM_CERT_STORE.popitem(last=False)
     _LLM_CERT_STORE[cert_id] = cert
     return cert
 
@@ -119,7 +137,7 @@ def _issue_and_store_certificate(
 def sign_rag_triad_report(
     report: RagTriadEvaluationReport,
     target_model: str = "qwen-2.5-72b",
-    secret: bytes = _DEFAULT_LLM_SECRET,
+    secret: Optional[bytes] = None,
 ) -> LlmEvidenceCertificate:
     """为 RAG 核心三元组质量评测报告签发存证证书"""
     payload = report.to_dict()
@@ -146,7 +164,7 @@ def sign_rag_triad_report(
 def sign_hallucination_report(
     report: HallucinationAuditReport,
     target_model: str = "qwen-2.5-72b",
-    secret: bytes = _DEFAULT_LLM_SECRET,
+    secret: Optional[bytes] = None,
 ) -> LlmEvidenceCertificate:
     """为事实一致性与幻觉检出报告签发存证证书"""
     payload = report.to_dict()
@@ -171,7 +189,7 @@ def sign_hallucination_report(
 
 def sign_red_team_report(
     report: RedTeamSummaryReport,
-    secret: bytes = _DEFAULT_LLM_SECRET,
+    secret: Optional[bytes] = None,
 ) -> LlmEvidenceCertificate:
     """为红蓝越狱对抗渗透评估报告签发存证证书"""
     payload = report.to_dict()
@@ -196,7 +214,7 @@ def sign_red_team_report(
 
 def sign_safety_admission_verdict(
     verdict: LlmSafetyAdmissionVerdict,
-    secret: bytes = _DEFAULT_LLM_SECRET,
+    secret: Optional[bytes] = None,
 ) -> LlmEvidenceCertificate:
     """为大模型生产安全强准入放行裁决签发存证证书"""
     payload = verdict.to_dict()
@@ -235,12 +253,13 @@ def list_llm_certificates(
 
 def verify_llm_certificate(
     certificate_id: str,
-    secret: bytes = _DEFAULT_LLM_SECRET,
+    secret: Optional[bytes] = None,
 ) -> Tuple[LlmVerificationVerdict, Optional[str]]:
     """在线校验大模型存证证书指纹与 HMAC 防伪签名
 
     返回: (LlmVerificationVerdict, 诊断线索说明)
     """
+    actual_secret = secret if secret is not None else _get_default_secret()
     cert = _LLM_CERT_STORE.get(certificate_id)
     if not cert:
         return (
@@ -260,7 +279,7 @@ def verify_llm_certificate(
         )
 
     # 3. 校验 HMAC 数字签名
-    recomputed_signature = compute_hmac_signature(recomputed_canonical, secret=secret)
+    recomputed_signature = compute_hmac_signature(recomputed_canonical, secret=actual_secret)
     if not hmac.compare_digest(recomputed_signature, cert.hmac_signature):
         return (
             LlmVerificationVerdict.TAMPERED_INVALID,

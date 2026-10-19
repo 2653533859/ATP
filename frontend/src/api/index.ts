@@ -3759,6 +3759,66 @@ export const knowledgeApi = {
   update: (id: number, body: KnowledgeUpdatePayload) => http.patch<unknown, KnowledgeDetailItem>(`/knowledge/${id}`, body),
   delete: (id: number) => http.delete<unknown, { deleted: boolean; id: number }>(`/knowledge/${id}`),
 }
+
+export interface LlmBenchmarkOverviewResponse {
+  status: string
+  benchmark_dataset: string
+  evaluated_models_count: number
+  overall_rag_average: number
+  overall_hallucination_defense_rate: number
+  models: Array<{
+    model_name: string
+    rag_triad_score: number
+    hallucination_defense_rate_pct: number
+    red_team_robustness_pct: number
+    avg_ttft_ms: number
+    tps_rate: number
+    eval_status: string
+  }>
+}
+
+export interface LlmRagTriadEvaluatePayload {
+  query: string
+  contexts: string[]
+  answer: string
+  source_docs?: string[]
+}
+
+export interface LlmRagTriadEvaluateResponse {
+  status: string
+  report: {
+    evaluation_id: string
+    query: string
+    answer: string
+    context_relevance: number
+    groundedness: number
+    answer_relevance: number
+    composite_score: number
+    grade: string
+    chunks: Array<{
+      chunk_id: string
+      content: string
+      relevance_score: number
+      source_doc: string
+    }>
+    claim_attributions: Array<{
+      claim_text: string
+      is_grounded: boolean
+      supporting_chunk_id: string | null
+      evidence_snippet: string
+    }>
+    summary: string
+    evaluated_at: string
+  }
+}
+
+export const llmEvalApi = {
+  getBenchmarksOverview: () =>
+    http.get<unknown, LlmBenchmarkOverviewResponse>('/llm-eval/benchmarks/overview'),
+  evaluateRagTriad: (data: LlmRagTriadEvaluatePayload) =>
+    http.post<unknown, LlmRagTriadEvaluateResponse>('/llm-eval/rag-triad', data),
+}
+
 export * from './mobilePerf'
 export * from './webVitals'
 export * from './distributedTraces'

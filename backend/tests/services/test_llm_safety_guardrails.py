@@ -127,3 +127,23 @@ def test_guardrail_serialization_and_latency():
     assert "latency_ms" in d
     assert isinstance(d["latency_ms"], float)
     assert d["latency_ms"] < 20.0  # 确保毫秒级内完成
+
+
+def test_guardrail_permissive_mode_critical_blocks_and_preserves_violations():
+    """测试宽松模式下依然坚决拦截 CRITICAL 越权删库，且非阻断时如实保留违规审计列表"""
+    # 1. 宽松模式依然拦截 CRITICAL 越权
+    sql_text = "DROP DATABASE users_prod;"
+    res_sql = inspect_safety_guardrail(sql_text, strictness=SafetyStrictness.PERMISSIVE)
+    assert res_sql.action == GuardrailAction.BLOCKED
+    assert any(v.severity == "CRITICAL" for v in res_sql.violations)
+
+    # 2. 宽松模式下非 CRITICAL 违规放行，但保留 violations 列表供审计
+    custom_kw_text = "项目包含普通注意项：Project-Titan-Secret。"
+    res_custom = inspect_safety_guardrail(
+        custom_kw_text,
+        strictness=SafetyStrictness.PERMISSIVE,
+        custom_blocked_keywords=["Project-Titan-Secret"],
+    )
+    assert res_custom.action == GuardrailAction.PASSED
+    assert len(res_custom.violations) == 1
+    assert "CUSTOM_KEYWORD_BLOCKED" in res_custom.violations[0].rule_name
