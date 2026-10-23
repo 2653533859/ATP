@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 13
+CURRENT_LOCAL_SCHEMA_VERSION = 14
 
 
 def _create_job_queue(connection: Connection, table_name: str = "local_jobs") -> None:
@@ -302,6 +302,35 @@ def _create_device_agents_tables(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[13] = _create_device_agents_tables
+
+
+def _create_api_keys_table(connection: Connection) -> None:
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS api_keys ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "name VARCHAR(128) NOT NULL, "
+        "key_hash VARCHAR(64) NOT NULL UNIQUE, "
+        "key_prefix VARCHAR(16) NOT NULL, "
+        "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, "
+        "project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE, "
+        "environment_id INTEGER REFERENCES environments(id) ON DELETE SET NULL, "
+        "role VARCHAR(32) NOT NULL DEFAULT 'engineer', "
+        "ip_allowlist JSON NOT NULL DEFAULT '[]', "
+        "expires_at DATETIME, "
+        "is_active BOOLEAN NOT NULL DEFAULT 1, "
+        "last_used_at DATETIME, "
+        "last_used_ip VARCHAR(64), "
+        "total_calls INTEGER NOT NULL DEFAULT 0, "
+        "created_at DATETIME NOT NULL, "
+        "updated_at DATETIME NOT NULL"
+        ")"
+    )
+    connection.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_api_keys_key_hash ON api_keys(key_hash)")
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_api_keys_project ON api_keys(project_id)")
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_api_keys_user ON api_keys(user_id)")
+
+
+LOCAL_MIGRATIONS[14] = _create_api_keys_table
 
 
 def _read_version(connection: Connection) -> int:

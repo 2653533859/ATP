@@ -56,7 +56,7 @@
       :loading="loading"
       :pagination="{ pageSize: 10, showSizeChanger: true }"
       row-key="id"
-      :scroll="{ x: 1120 }"
+      :scroll="filteredDatasets.length ? { x: 1120 } : undefined"
       :locale="{ emptyText: t('dataset.empty') }"
     >
       <template #bodyCell="{ column, record }">

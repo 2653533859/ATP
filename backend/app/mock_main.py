@@ -62,4 +62,5 @@ app.api_route(
     "/{project_id}/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
     name="mock_endpoint_standalone",
+    include_in_schema=False,
 )(mock_endpoint)

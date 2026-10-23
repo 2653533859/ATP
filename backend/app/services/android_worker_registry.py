@@ -52,7 +52,10 @@ def _redis() -> Any:
     factory = getattr(_redis_client, "get_async_redis", None)
     if factory is None:
         raise AndroidWorkerRegistryError("Android Worker Redis 客户端不可用")
-    return factory()
+    try:
+        return factory()
+    except RuntimeError as exc:
+        raise AndroidWorkerRegistryError("Android Worker Redis 客户端不可用") from exc
 
 
 async def _close(redis: Any) -> None:

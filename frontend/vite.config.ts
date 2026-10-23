@@ -29,6 +29,9 @@ export default defineConfig(({ mode, command }) => {
         '@': resolve(__dirname, 'src'),
       },
     },
+    optimizeDeps: {
+      include: ['ant-design-vue/es', 'ant-design-vue/es/date-picker/dayjs'],
+    },
     server: {
       port: 5173,
       proxy: createBackendProxy(backendOrigin),

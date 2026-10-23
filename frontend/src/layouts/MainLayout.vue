@@ -19,7 +19,7 @@
             </div>
           </div>
           <a-menu
-            v-model:selectedKeys="selectedKeys"
+            :selectedKeys="selectedKeys"
             v-model:openKeys="openKeys"
             :theme="siderTheme"
             mode="inline"
@@ -254,7 +254,7 @@
               <span>{{ t('layout.quick_search.pages.cases') }}</span>
               <span class="quick-nav-hint">{{ t('layout.quick_search.hints.cases') }}</span>
             </button>
-            <button v-if="!localMode" type="button" class="quick-nav-item" @click="navTo('/hermes')">
+            <button v-if="supportsFeature('hermes')" type="button" class="quick-nav-item" @click="navTo('/hermes')">
               <ThunderboltFilled style="color: var(--c-ai);" />
               <span>{{ t('layout.quick_search.pages.hermes') }}</span>
               <span class="quick-nav-hint">{{ t('layout.quick_search.hints.ai_copilot') }}</span>
@@ -319,7 +319,7 @@ let workbenchRefreshTimer: number | undefined
 
 const collapsed = ref(false)
 
-const selectedKeys = ref([getSelectedMenuKey(route.path, localMode)])
+const selectedKeys = computed(() => [getSelectedMenuKey(route.path, localMode)])
 const openKeys = ref<string[]>(getMenuOpenKeys(route.path, localMode))
 
 // 快捷搜索状态
@@ -391,7 +391,6 @@ function onGlobalKeydown(e: KeyboardEvent) {
 }
 
 watch(() => route.path, (path) => {
-  selectedKeys.value = [getSelectedMenuKey(path, localMode)]
   const activeKeys = getMenuOpenKeys(path, localMode)
   openKeys.value = Array.from(new Set([...openKeys.value, ...activeKeys]))
 })
@@ -401,8 +400,8 @@ function queryProjectId(value: unknown) {
   const parsed = Number(raw)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
 }
-
 async function refreshWorkbenchSummary() {
+  if (localMode) return
   try {
     const summary = await workbenchApi.overview({
       project_id: queryProjectId(route.query.project_id),
@@ -417,8 +416,11 @@ async function refreshWorkbenchSummary() {
     activeTaskCount.value = 0
   }
 }
-
 async function refreshWorkerStatus() {
+  if (localMode) {
+    workerStatusLoading.value = false
+    return
+  }
   workerStatusLoading.value = true
   try {
     workerStatus.value = await webRecordingApi.workers()
@@ -432,18 +434,21 @@ async function refreshWorkerStatus() {
 watch(() => route.query.project_id, () => {
   void refreshWorkbenchSummary()
 })
-
 onMounted(() => {
   if (window.matchMedia('(max-width: 768px)').matches) {
     collapsed.value = true
   }
-  void refreshWorkbenchSummary()
-  void refreshWorkerStatus()
   void refreshProjectOptions()
-  workbenchRefreshTimer = window.setInterval(() => {
+  if (!localMode) {
     void refreshWorkbenchSummary()
     void refreshWorkerStatus()
-  }, 30_000)
+    workbenchRefreshTimer = window.setInterval(() => {
+      void refreshWorkbenchSummary()
+      void refreshWorkerStatus()
+    }, 30_000)
+  } else {
+    workerStatusLoading.value = false
+  }
   window.addEventListener('keydown', onGlobalKeydown)
 })
 

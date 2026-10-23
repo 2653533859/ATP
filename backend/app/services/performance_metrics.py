@@ -239,16 +239,17 @@ class PerformanceResourceSampler:
         metrics: dict[str, float] = {}
         errors: list[str] = []
         _collect_system_metrics(metrics, errors)
-        _collect_postgres_metrics(metrics, errors)
-        _collect_redis_metrics(metrics, errors)
+        if not settings.ATP_LOCAL_MODE:
+            _collect_postgres_metrics(metrics, errors)
+            _collect_redis_metrics(metrics, errors)
 
-        now = time.monotonic()
-        include_inventory = now - self._last_inventory_at >= max(
-            1, settings.PERFORMANCE_MINIO_INVENTORY_INTERVAL_SECONDS
-        )
-        _collect_minio_metrics(metrics, errors, include_inventory)
-        if include_inventory:
-            self._last_inventory_at = now
+            now = time.monotonic()
+            include_inventory = now - self._last_inventory_at >= max(
+                1, settings.PERFORMANCE_MINIO_INVENTORY_INTERVAL_SECONDS
+            )
+            _collect_minio_metrics(metrics, errors, include_inventory)
+            if include_inventory:
+                self._last_inventory_at = now
 
         try:
             from app.core.metrics import PERFORMANCE_RESOURCE

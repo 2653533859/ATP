@@ -1,3 +1,4 @@
+import { getRuntimeMode } from '@/runtimeMode'
 import { useAuthStore } from '@/stores/auth'
 
 export interface AiChatStreamPayload {
@@ -15,6 +16,7 @@ export async function streamAiChat(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
+    'X-ATP-Client-Mode': getRuntimeMode()?.mode || (import.meta.env.VITE_ATP_LOCAL_MODE === 'true' ? 'local' : 'server'),
   }
   if (auth.token) {
     headers['Authorization'] = `Bearer ${auth.token}`

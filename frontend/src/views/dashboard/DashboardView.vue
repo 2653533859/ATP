@@ -311,6 +311,7 @@ import { useChartTheme } from '@/utils/chartTheme'
 import { caseApi, dashboardAlertApi, projectApi, remoteToolboxApi, runApi, statisticsApi, storageApi, userSettingsApi, type DashboardAlertEventItem, type RemoteToolboxCheckItem, type RunDetailItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { hasAnyRole } from '@/utils/permissions'
+import { getRuntimeMode, supportsFeature } from '@/runtimeMode'
 import {
   cloneDefaultDashboardLayout,
   fillTrendGaps,
@@ -322,6 +323,7 @@ const router = useRouter()
 const { t, locale } = useI18n()
 const { chartTheme } = useChartTheme()
 const auth = useAuthStore()
+const localMode = getRuntimeMode()?.mode === 'local'
 
 type DashboardCaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android' | 'ios'
 type Aggregate = 'daily' | 'weekly'
@@ -502,7 +504,7 @@ const caseTypeOptions = computed(() => [
   { label: t('dashboard.case_types.grpc'), value: 'grpc' },
   { label: t('dashboard.case_types.web'), value: 'web' },
   { label: t('dashboard.case_types.android'), value: 'android' },
-  { label: t('dashboard.case_types.ios'), value: 'ios' },
+  ...(supportsFeature('ios') ? [{ label: t('dashboard.case_types.ios'), value: 'ios' as const }] : []),
 ])
 const caseTypeLabel = (type: string) => t(`dashboard.case_types.${type}`)
 const triggerTypeLabel = (type: string) => {
@@ -928,7 +930,10 @@ function extractRemoteDashboardLayout(value: Record<string, unknown>): LayoutIte
 
 async function loadDashboardLayoutSetting() {
   try {
-    const setting = await userSettingsApi.get(DASHBOARD_LAYOUT_SETTING_KEY)
+    const setting = typeof userSettingsApi.list === 'function'
+      ? (await userSettingsApi.list()).find(item => item.key === DASHBOARD_LAYOUT_SETTING_KEY)
+      : await userSettingsApi.get(DASHBOARD_LAYOUT_SETTING_KEY)
+    if (!setting) return
     const remoteLayout = extractRemoteDashboardLayout(setting.value)
     if (!remoteLayout) return
     applyingRemoteLayout.value = true
@@ -1137,7 +1142,7 @@ async function loadFirstScreen() {
   }
 }
 
-const canSeeServices = computed(() => hasAnyRole(auth.user?.role, ['admin', 'engineer']))
+const canSeeServices = computed(() => !localMode && hasAnyRole(auth.user?.role, ['admin', 'engineer']))
 
 const degradedServiceCount = computed(() => serviceChecks.value.filter(check => check.status !== 'ok').length)
 

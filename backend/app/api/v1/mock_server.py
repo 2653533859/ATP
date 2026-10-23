@@ -234,6 +234,7 @@ async def _find_matching_rule(
 @router.api_route(
     "/mock/{project_id}/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
+    include_in_schema=False,
 )
 async def mock_endpoint(project_id: int, path: str, request: Request):
     method = request.method.upper()

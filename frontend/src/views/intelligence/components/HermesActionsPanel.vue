@@ -101,8 +101,13 @@ const props = defineProps<{ projectId: number; canModify: boolean; latestAnswer:
 const emit = defineEmits<{ completed: [text: string, path?: string] }>()
 const { t } = useI18n()
 const router = useRouter()
-const auth = useAuthStore()
-const historyUserId = auth.user?.id
+let auth: ReturnType<typeof useAuthStore> | null = null
+try {
+  auth = useAuthStore()
+} catch {
+  auth = null
+}
+const historyUserId = auth?.user?.id
 const history = ref<HermesActionReceipt[]>(historyUserId ? readActionHistory(historyUserId, props.projectId) : [])
 const historyLoading = ref(false)
 const historyError = ref('')
@@ -130,7 +135,7 @@ async function refreshHistory() {
         dispatch_status?: string
       }>
     >('/hermes/action-records', { params: { project_id: projectId } })
-    if (!live || auth.user?.id !== historyUserId || props.projectId !== projectId || requestId !== historyRequestId) return
+    if (!live || auth?.user?.id !== historyUserId || props.projectId !== projectId || requestId !== historyRequestId) return
     const ids = new Set(persisted.map(item => item.command_id))
     history.value = [
       ...persisted.map(item => ({
@@ -169,13 +174,13 @@ async function refreshHistory() {
     }
   }
 }
-watch(() => auth.user?.id, userId => { if (userId !== historyUserId) history.value = [] })
+watch(() => auth?.user?.id, userId => { if (userId !== historyUserId) history.value = [] })
 watch(() => props.projectId, newPid => {
   history.value = historyUserId ? readActionHistory(historyUserId, newPid) : []
   refreshHistory()
 })
 function saveHistory() {
-  if (historyUserId && auth.user?.id === historyUserId && !writeActionHistory(historyUserId, props.projectId, history.value)) error.value = t('hermes.actions.history_unavailable')
+  if (historyUserId && auth?.user?.id === historyUserId && !writeActionHistory(historyUserId, props.projectId, history.value)) error.value = t('hermes.actions.history_unavailable')
 }
 function startReceipt(action: string): string {
   const id = crypto.randomUUID()

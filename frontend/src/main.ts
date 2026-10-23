@@ -1,3 +1,19 @@
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'error',
+    (event) => {
+      if (
+        typeof event.message === 'string' &&
+        (event.message.includes('ResizeObserver loop completed with undelivered notifications') ||
+          event.message.includes('ResizeObserver loop limit exceeded'))
+      ) {
+        event.stopImmediatePropagation()
+      }
+    },
+    true,
+  )
+}
+
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 // Ant Design 组件经 unplugin-vue-components 按需注册（见 vite.config.ts）；

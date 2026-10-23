@@ -59,7 +59,7 @@
       :row-selection="rowSelection"
       :pagination="false"
       :locale="{ emptyText: t('task_center.empty') }"
-      :scroll="{ x: 1180 }"
+      :scroll="tasks.length ? { x: 1180 } : undefined"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'type'">

@@ -261,7 +261,7 @@
                   :loading="casesLoading"
                   :pagination="{ pageSize: 6, size: 'small' }"
                   :row-selection="caseRowSelection"
-                  :scroll="{ x: 960 }"
+                  :scroll="filteredAvailableCases.length ? { x: 960 } : undefined"
                 >
                   <template #bodyCell="{ column, record }">
                     <template v-if="column.key === 'name'">

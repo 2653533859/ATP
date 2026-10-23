@@ -54,7 +54,7 @@
       :pagination="pagination"
       :locale="{ emptyText: t('run.empty') }"
       row-key="id"
-      :scroll="{ x: 1120 }"
+      :scroll="filteredRuns.length ? { x: 1120 } : undefined"
       @change="handleTableChange"
     >
       <template #bodyCell="{ column, record }">

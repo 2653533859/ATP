@@ -133,3 +133,18 @@ def test_version_eleven_to_twelve_drops_group_cancellations(tmp_path) -> None:
     assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
     with engine.connect() as connection:
         assert "local_group_cancellations" not in inspect(connection).get_table_names()
+
+
+def test_version_thirteen_to_fourteen_creates_api_keys_table(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'v13.sqlite3'}")
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE api_keys")
+        connection.exec_driver_sql("PRAGMA user_version=13")
+
+    with engine.connect() as connection:
+        assert "api_keys" not in inspect(connection).get_table_names()
+
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.connect() as connection:
+        assert "api_keys" in inspect(connection).get_table_names()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any
@@ -137,6 +138,25 @@ def _android_checks(workers: list[dict[str, Any]], started: float) -> list[Remot
 
 async def _load_android_checks() -> list[RemoteToolboxCheck]:
     started = perf_counter()
+    if settings.ATP_LOCAL_MODE:
+        adb_path = await asyncio.to_thread(shutil.which, "adb")
+        adb_ready = bool(adb_path)
+        return [
+            _check(
+                key="android_worker",
+                category="execution",
+                status="ok",
+                code="local_mode",
+                started=started,
+            ),
+            _check(
+                key="adb",
+                category="execution",
+                status="ok" if adb_ready else "warning",
+                code="adb_ready" if adb_ready else "adb_capability_missing",
+                started=started,
+            ),
+        ]
     try:
         workers = await list_android_workers()
     except AndroidWorkerRegistryError:
@@ -161,7 +181,7 @@ async def _load_android_checks() -> list[RemoteToolboxCheck]:
 
 async def _load_web_check() -> RemoteToolboxCheck:
     started = perf_counter()
-    if settings.WEB_RECORDER_MODE.strip().lower() != "worker":
+    if settings.ATP_LOCAL_MODE or settings.WEB_RECORDER_MODE.strip().lower() != "worker":
         return _check(
             key="web_worker",
             category="execution",
@@ -211,6 +231,14 @@ async def _load_web_check() -> RemoteToolboxCheck:
 
 async def _load_performance_check(db: AsyncSession) -> RemoteToolboxCheck:
     started = perf_counter()
+    if settings.ATP_LOCAL_MODE:
+        return _check(
+            key="performance_node",
+            category="execution",
+            status="ok",
+            code="local_mode",
+            started=started,
+        )
     try:
         result = await db.execute(select(PerformanceNode).order_by(PerformanceNode.name.asc()))
         nodes = result.scalars().all()
@@ -253,22 +281,94 @@ async def get_remote_toolbox_overview(
     db: AsyncSession = Depends(get_db),
     _engineer=Depends(require_engineer),
 ) -> RemoteToolboxOverview:
-    postgres, redis, minio, android_checks, web_check, performance_check = await asyncio.gather(
-        _probe_postgres(),
-        _probe_redis(),
-        _probe_minio(),
-        _load_android_checks(),
-        _load_web_check(),
-        _load_performance_check(db),
-    )
-    checks = [
-        _dependency_check("postgres", postgres),
-        _dependency_check("redis", redis),
-        _dependency_check("minio", minio),
-        *android_checks,
-        web_check,
-        performance_check,
-    ]
+    if settings.ATP_LOCAL_MODE:
+        started = perf_counter()
+
+        async def _probe_local_storage() -> RemoteToolboxCheck:
+            s = perf_counter()
+            try:
+                from app.core.local_object_store import ensure_store
+
+                await asyncio.to_thread(ensure_store)
+                return _check(
+                    key="minio",
+                    category="infrastructure",
+                    status="ok",
+                    code="ok",
+                    started=s,
+                    resources=[
+                        RemoteToolboxResource(
+                            id="minio",
+                            name="minio",
+                            status="ok",
+                            summary=_message("ok"),
+                        )
+                    ],
+                )
+            except Exception:
+                return _check(
+                    key="minio",
+                    category="infrastructure",
+                    status="error",
+                    code="unreachable",
+                    started=s,
+                    resources=[
+                        RemoteToolboxResource(
+                            id="minio",
+                            name="minio",
+                            status="error",
+                            summary=_message("unreachable"),
+                        )
+                    ],
+                )
+
+        postgres, minio_check, android_checks, web_check, performance_check = await asyncio.gather(
+            _probe_postgres(),
+            _probe_local_storage(),
+            _load_android_checks(),
+            _load_web_check(),
+            _load_performance_check(db),
+        )
+        redis_check = _check(
+            key="redis",
+            category="infrastructure",
+            status="ok",
+            code="local_mode",
+            started=started,
+            resources=[
+                RemoteToolboxResource(
+                    id="redis",
+                    name="redis",
+                    status="ok",
+                    summary=_message("local_mode"),
+                )
+            ],
+        )
+        checks = [
+            _dependency_check("postgres", postgres),
+            redis_check,
+            minio_check,
+            *android_checks,
+            web_check,
+            performance_check,
+        ]
+    else:
+        postgres, redis, minio, android_checks, web_check, performance_check = await asyncio.gather(
+            _probe_postgres(),
+            _probe_redis(),
+            _probe_minio(),
+            _load_android_checks(),
+            _load_web_check(),
+            _load_performance_check(db),
+        )
+        checks = [
+            _dependency_check("postgres", postgres),
+            _dependency_check("redis", redis),
+            _dependency_check("minio", minio),
+            *android_checks,
+            web_check,
+            performance_check,
+        ]
     checked_at = datetime.now(timezone.utc)
     if any(item.status == "error" for item in checks):
         overall = "error"

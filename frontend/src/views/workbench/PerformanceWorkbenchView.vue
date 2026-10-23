@@ -604,7 +604,7 @@ async function loadProjectData() {
       performanceApi.listTests(projectId),
       performanceApi.listRuns(projectId),
       environmentApi.list(projectId),
-      performanceApi.listNodes(),
+      localMode ? Promise.resolve([]) : performanceApi.listNodes(),
       performanceApi.listExecutors(),
     ])
     if (sequence !== loadSequence || selectedProjectId.value !== projectId) return

@@ -30,9 +30,12 @@ def get_async_redis(db: int = 2, *, socket_timeout: float | None = None) -> Any:
     factory = getattr(_redis_client, "get_async_redis", None)
     if factory is None:
         raise WebRecordingTransportError("Web 录制 Redis 客户端不可用")
-    if socket_timeout is None:
-        return factory(db)
-    return factory(db, socket_timeout=socket_timeout)
+    try:
+        if socket_timeout is None:
+            return factory(db)
+        return factory(db, socket_timeout=socket_timeout)
+    except RuntimeError as exc:
+        raise WebRecordingTransportError("Web 录制 Redis 客户端不可用") from exc
 
 
 class WebRecordingTransportError(RuntimeError):

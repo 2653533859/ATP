@@ -485,7 +485,7 @@ const agentProbeLoadingId = ref<number | null>(null)
 const agentsExpanded = ref(true)
 const currentOrigin = computed(() => {
   if (typeof window !== 'undefined' && window.location) {
-    return window.location.origin.replace(':5174', ':8001')
+    return window.location.origin.replace(':5174', ':8001').replace(':5173', ':8000')
   }
   return 'http://127.0.0.1:8001'
 })

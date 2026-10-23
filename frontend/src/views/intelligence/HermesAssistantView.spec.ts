@@ -66,6 +66,12 @@ vi.mock('ant-design-vue', () => ({
   message: { error: vi.fn(), success: vi.fn(), warning: messageWarning },
   Modal: { confirm: vi.fn() },
 }))
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({ user: { id: 1, role: 'admin' } }),
+}))
+vi.mock('@/api/http', () => ({
+  default: { get: vi.fn().mockResolvedValue([]) },
+}))
 vi.mock('@/api', () => ({
   caseApi: { list: caseList },
   hermesApi: { query: hermesQuery, createSession, createDraft, confirmDraft, feedback, governance, orchestrate, sessions },
@@ -84,7 +90,10 @@ vi.mock('@ant-design/icons-vue', () => {
     BulbOutlined: iconStub,
     CheckCircleOutlined: iconStub,
     CloseOutlined: iconStub,
+    DeleteOutlined: iconStub,
     ExclamationCircleOutlined: iconStub,
+    HolderOutlined: iconStub,
+    PlayCircleOutlined: iconStub,
     PlusOutlined: iconStub,
     MessageOutlined: iconStub,
     ReloadOutlined: iconStub,
@@ -97,7 +106,11 @@ const passthrough = defineComponent({
 })
 
 const globalStubs = Object.fromEntries(
-  ['AAlert', 'AButton', 'AEmpty', 'ARangePicker', 'ASelect', 'ATag', 'ARadioGroup', 'ARadioButton'].map((name) => [name, passthrough]),
+  [
+    'AAlert', 'AButton', 'ACard', 'ACheckbox', 'ADivider', 'ADrawer',
+    'AEmpty', 'AForm', 'AFormItem', 'AInput', 'AInputNumber',
+    'ARangePicker', 'ASelect', 'ATag', 'ATextarea', 'ARadioGroup', 'ARadioButton',
+  ].map((name) => [name, passthrough]),
 )
 
 const failedCase = {

@@ -353,10 +353,14 @@ async function submitMessage() {
   abortController.value = new AbortController()
 
   try {
-    const historyPayload = currentMessages.value.slice(-10).map((m) => ({
-      role: m.role,
-      content: m.text,
-    }))
+    const historyPayload = currentMessages.value
+      .slice(0, -1)
+      .slice(-10)
+      .filter((m) => m.text.trim().length > 0)
+      .map((m) => ({
+        role: m.role,
+        content: m.text.slice(0, 5000),
+      }))
 
     await streamAiChat(
       {

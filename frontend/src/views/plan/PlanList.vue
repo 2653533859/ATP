@@ -341,7 +341,7 @@
                 row-key="suite_run_id"
                 size="small"
                 :pagination="false"
-                :scroll="{ x: 520 }"
+                :scroll="record.suite_run_ids?.length ? { x: 520 } : undefined"
               >
                 <template #bodyCell="{ column, record: suiteRun }">
                   <template v-if="column.key === 'status'">

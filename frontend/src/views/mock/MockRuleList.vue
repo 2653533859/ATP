@@ -55,7 +55,7 @@
       row-key="id"
       size="middle"
       :pagination="{ pageSize: 20 }"
-      :scroll="{ x: 1640 }"
+      :scroll="rules.length ? { x: 1640 } : undefined"
       :row-selection="{
         selectedRowKeys: selectedRuleIds,
         onChange: handleRuleSelectionChange,

@@ -48,6 +48,14 @@
     <a-empty v-if="!selectedProjectId" class="project-empty" :description="t('hermes.select_project_hint')" />
 
     <template v-else>
+      <HermesActionsPanel
+        ref="actionsPanel"
+        :project-id="selectedProjectId"
+        :can-modify="canModify"
+        :latest-answer="latestAnswer"
+        @completed="handleActionCompleted"
+      />
+
       <div class="assistant-layout">
         <HermesConversationPanel
           v-model:input-text="inputText"
@@ -163,6 +171,7 @@ import {
   type ReportOverviewItem,
 } from '@/api'
 import type { Dayjs } from 'dayjs'
+import HermesActionsPanel from './components/HermesActionsPanel.vue'
 import HermesConversationContextPanel from './components/HermesConversationContextPanel.vue'
 import HermesConversationPanel from './components/HermesConversationPanel.vue'
 import HermesDiagnosisPanel from './components/HermesDiagnosisPanel.vue'
@@ -183,11 +192,20 @@ import {
   type DraftSuiteSuggestion,
   type PlanDraft,
 } from './composables/useHermesPlanDraft'
+import { useAuthStore } from '@/stores/auth'
+import { canEditProjectByRole } from '@/utils/permissions'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
+let auth: ReturnType<typeof useAuthStore> | null = null
+try {
+  auth = useAuthStore()
+} catch {
+  auth = null
+}
+const actionsPanel = ref<InstanceType<typeof HermesActionsPanel> | null>(null)
 const projects = ref<ProjectItem[]>([])
 const selectedProjectId = ref<number | null>(positiveInt(route.query.project_id))
 const projectSelectId = computed<number | undefined>({
@@ -240,6 +258,16 @@ let querySequence = 0
 const projectOptions = computed(() => projects.value.map((project) => ({ label: project.name, value: project.id })))
 const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
 const selectedProjectName = computed(() => selectedProject.value?.name || '')
+const canModify = computed(() =>
+  canEditProjectByRole(auth?.user?.role, selectedProject.value?.current_user_role),
+)
+const latestAnswer = computed(() => {
+  for (let i = messages.value.length - 1; i >= 0; i -= 1) {
+    const item = messages.value[i]
+    if (item.role === 'assistant' && !item.isWelcome) return item.text
+  }
+  return ''
+})
 const moduleCount = computed(() => flattenModules(modules.value).length)
 const totalRuns = computed(() => reportOverview.value?.total_runs ?? 0)
 const passRate = computed(() => Math.round(Number(reportOverview.value?.pass_rate ?? 0)))
@@ -562,6 +590,13 @@ function appendMessage(
     planner,
     isWelcome: false,
   })
+}
+function handleActionCompleted(text: string, path?: string) {
+  appendMessage(
+    'assistant',
+    text,
+    path ? [{ label: t('hermes.actions.open_result'), path }] : undefined,
+  )
 }
 function conversationHistory() {
   return messages.value
@@ -995,6 +1030,7 @@ async function submitPrompt() {
   if (!text) return
   inputText.value = ''
   appendMessage('user', text)
+  if (actionsPanel.value?.openForText(text)) return
   const key = intentFor(text)
   if (key === 'test_plan' || key === 'explain_failure') await executeIntent(key)
   else {

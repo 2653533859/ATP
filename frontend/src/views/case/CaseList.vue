@@ -332,7 +332,7 @@
               row-key="id"
               size="middle"
               :pagination="{ pageSize: 20, showSizeChanger: true }"
-              :scroll="cases.length ? { x: 1050 } : undefined"
+              :scroll="filteredCases.length ? { x: 1050 } : undefined"
               :row-selection="{ selectedRowKeys, columnWidth: 36, onChange: (keys: (string | number)[]) => (selectedRowKeys = keys as number[]) }"
             >
             <template #bodyCell="{ column, record }">

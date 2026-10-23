@@ -81,7 +81,7 @@
               row-key="id"
               :pagination="{ pageSize: 8, showSizeChanger: false }"
               :locale="{ emptyText: t('api_contract_assets.empty') }"
-              :scroll="{ x: 620 }"
+              :scroll="filteredAssets.length ? { x: 620 } : undefined"
             >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'name'">

@@ -145,3 +145,30 @@ def test_overview_aggregates_errors_and_keeps_dependency_payload_redacted(monkey
     assert payload["checks"][1]["code"] == "unreachable"
     assert "172.31.27.133" not in str(payload)
     assert "password" not in str(payload).lower()
+
+
+def test_overview_in_local_mode_avoids_remote_redis_and_minio_probes(monkeypatch, tmp_path):
+    async def postgres():
+        return health.DependencyCheck(status="ok", latency_ms=1.0, code="ok")
+
+    async def fail_probe():
+        raise AssertionError("remote Redis/MinIO probe should not run in local mode")
+
+    monkeypatch.setattr(remote_toolbox.settings, "ATP_LOCAL_MODE", True)
+    monkeypatch.setattr(remote_toolbox.settings, "ATP_LOCAL_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(remote_toolbox, "_probe_postgres", postgres)
+    monkeypatch.setattr(remote_toolbox, "_probe_redis", fail_probe)
+    monkeypatch.setattr(remote_toolbox, "_probe_minio", fail_probe)
+    monkeypatch.setattr(remote_toolbox.shutil, "which", lambda _cmd: "/usr/bin/adb")
+
+    result = _run(remote_toolbox.get_remote_toolbox_overview(db=object(), _engineer=types.SimpleNamespace()))
+    checks = {item.key: item for item in result.checks}
+
+    assert result.status == "ok"
+    assert checks["postgres"].status == "ok"
+    assert checks["redis"].code == "local_mode"
+    assert checks["minio"].status == "ok"
+    assert checks["android_worker"].code == "local_mode"
+    assert checks["adb"].code == "adb_ready"
+    assert checks["web_worker"].code == "local_mode"
+    assert checks["performance_node"].code == "local_mode"
