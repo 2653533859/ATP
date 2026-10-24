@@ -4,6 +4,8 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+> 基于 AutoDroid 对照的下一轮接口与 App 自动化候选任务见 [`docs/autodroid-learning-development-plan-2026-10-25.md`](docs/autodroid-learning-development-plan-2026-10-25.md)；任务均待启动，须先核实能力基线。
+
 ## 2026-10-15 v2.7.0 研发任务规划（已全量闭环）
 
 > v2.7.0 规划入口为 [`docs/development-task-plan-v2.7.0.md`](docs/development-task-plan-v2.7.0.md)，覆盖 T1（iOS 移动真机池化）、T2（全链路 Trace 追踪）、T3（多端多协议可视化画布）、T4（企业风控与灾备演练）。
