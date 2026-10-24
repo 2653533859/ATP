@@ -1,5 +1,7 @@
 # ATP Kubernetes Helm Chart 部署指南
 
+> 当前版本与最近一次现场部署记录见 [`project-status-2026-10-25.md`](project-status-2026-10-25.md)及 [`evidence/linux-site-production-cutover-v2-7-0-2026-10-16.md`](evidence/linux-site-production-cutover-v2-7-0-2026-10-16.md)。下文带日期的运维检查点保留当时状态；升级前应重新核对目标集群与迁移头。
+
 发布机现有 ATP 账号及密码文件位置见 [账号与密码取回](credential-access.md)。
 
 ## 发布前仓库校验

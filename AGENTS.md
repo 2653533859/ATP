@@ -46,7 +46,7 @@ Python 3.12 is required. Node 20+ for the frontend.
 - The root `backend/tests/conftest.py` stubs optional heavy dependencies with a fill-missing-only strategy — extend its defaults rather than adding blanket `sys.modules` overwrites. `PytestCollectionWarning` is escalated to an error, so keep collection clean.
 - The `flaky` marker requires an entry in `docs/flaky-governance.md` with cause, evidence and exit criteria.
 - Coverage gate: `make test-backend-coverage` enforces `--cov-fail-under=82`.
-- Every test file must also pass on its own — `make test-backend-standalone` sweeps all 184 non-integration files individually and CI runs it after the main pytest job. The root conftest puts `backend/` on `sys.path`, so new files need no `sys.path.insert`; a file that only passes inside the full suite is depending on another file's side effect.
+- Every test file must also pass on its own — `make test-backend-standalone` sweeps non-integration files individually and CI runs it after the main pytest job. The root conftest puts `backend/` on `sys.path`, so new files need no `sys.path.insert`; a file that only passes inside the full suite is depending on another file's side effect.
 - Cover critical flows from `PRD.md`: case execution, scheduling, reporting, role permissions. Add a regression test for every bug fix.
 
 ## Commit & Pull Request Guidelines
@@ -62,7 +62,7 @@ PR requirements:
 - Clear summary and scope, linked issue or `PRD.md` requirement section.
 - Test evidence (`make test` output, or screenshots for UI changes).
 - Notes on config, migration or rollout impact. Model changes require an Alembic migration — see `docs/alembic-migration-guidelines.md`.
-- CI (`.github/workflows/ci.yml`) runs empty-database migration verification, backend pytest, and frontend type-check + build on push/PR to `main`. Nightly/manual workflows cover integration, E2E, security scanning and release readiness (`docs/ci-workflows.md`).
+- CI (`.github/workflows/ci.yml`) runs empty-database migration verification, backend pytest, and frontend type-check + build weekly or by manual dispatch; it no longer runs on push/PR. Integration, E2E and release readiness are manual; see `docs/ci-workflows.md` for current triggers and security scanning.
 
 ## Security & Configuration Tips
 

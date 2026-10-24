@@ -2,6 +2,8 @@
 
 本文档用于记录 ATP iOS 真机 / 模拟器自动化能力的架构与环境验收计划。仓库已经完成 iOS 执行链路的代码主链：iOS 资产、专用 `ios` 队列、设备租约、W3C/Appium 执行器、低代码步骤、截图/录屏/syslog 产物、IPA Bundle ID/版本自动解析和脱敏验收脚本均已接入；真实 macOS/Xcode/WebDriverAgent/设备环境仍待验收。Android 能力仍基于 ADB / uiautomator2。
 
+> 2026-10-25 状态：v2.7.0 的 T1.1～T1.3 已按 [`development-task-plan-v2.7.0.md`](development-task-plan-v2.7.0.md) 完成研发与专项测试。本文件下方的分阶段方案保留早期设计背景；真实 iOS 环境验收仍以本文件的环境边界和 [`ios-appium-acceptance.md`](ios-appium-acceptance.md) 为准。
+
 ## 当前代码状态（2026-08-13）
 
 - 已实现：`IosDevice`/`IosApp` 资产及项目权限隔离、iOS 专用任务路由、设备租约获取/心跳/释放、Appium W3C session、XCUITest capabilities、点击/输入/断言/等待/截图/滑动等受控步骤。

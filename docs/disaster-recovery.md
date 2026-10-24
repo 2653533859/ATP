@@ -4,6 +4,14 @@ This runbook covers PostgreSQL backups created by `scripts/backup-postgres.sh`,
 database restores through `scripts/restore-postgres.sh`, and MinIO object
 storage backup/restore drills.
 
+ATP v2.7.0 additionally provides core-asset snapshot packages and sandboxed
+recovery drills through the disaster-recovery service. Its implementation and
+acceptance evidence are recorded in
+[`platform-snapshot-backup-and-disaster-recovery-drill-t4-3-2026-10-15.md`](evidence/platform-snapshot-backup-and-disaster-recovery-drill-t4-3-2026-10-15.md).
+The dated operational results below remain historical checkpoints; see
+[`project-status-2026-10-25.md`](project-status-2026-10-25.md) for the current
+repository status.
+
 Celery Worker 的自动备份路径直接调用容器内的 `pg_dump` 和 Python MinIO SDK，
 不要求镜像额外安装 `mc`，也不依赖只在仓库根目录存在的运维脚本；根目录脚本仍可供
 具备 `pg_dump`/`mc` 的运维主机手工执行。

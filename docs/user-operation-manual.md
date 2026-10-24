@@ -237,7 +237,7 @@ docker compose -f docker-compose.app.yml up --build -d
 
 #### 5.3 发布状态与环境验收
 
-发布前请先查看 [`docs/release-status-2026-08-25.md`](release-status-2026-08-25.md)，确认能力证据、环境边界和待验收门禁。该索引明确区分本地回归、q19/Windows 证据与真实生产环境证据：ADB `offline`、回环 SMTP 的 `local_link_only`、无外部平台凭据或未启动的生产性能环境都只能记录为“待环境验收”，不能作为发布通过条件。
+发布前先查看 [`project-status-2026-10-25.md`](project-status-2026-10-25.md)、[`v2.7.0-release-notes.md`](v2.7.0-release-notes.md)及对应的现场证据，再复核目标环境的实时状态。2026-10-16 的 v2.7.0 割接记录不覆盖后续代码提交；外部服务凭据、真机和生产性能等能力须分别依据目标环境验收，不能仅以本地回归代替。
 
 ## 6. 项目与模块管理
 

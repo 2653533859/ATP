@@ -2,6 +2,8 @@
 
 > 适用版本：2026 Q3 收口（方向 G）之后
 
+> v2.7.0 进一步加入出站 W3C `traceparent` 自动注入、Jaeger Span 瀑布检索与异常归因；本页重点说明原有应用 TraceID 与 OpenTelemetry 的关联。新增能力与验收入口见 [`v2.7.0-release-notes.md`](v2.7.0-release-notes.md)及 [`project-status-2026-10-25.md`](project-status-2026-10-25.md)。
+
 ## 1. 概述
 
 ATP 在 Q2 完成了**应用层 `trace_id` 关联链路**（请求 → Celery → Worker → Run 记录），

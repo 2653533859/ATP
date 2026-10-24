@@ -1,6 +1,6 @@
 # ATP 项目任务跟踪
 
-> 2026-10-07 起剩余工作的统一任务入口为 [`docs/development-task-plan-2026-10-07.md`](docs/development-task-plan-2026-10-07.md)，包含 N0–N6 共 28 项任务。此前 [`docs/development-plan-2026-09-08.md`](docs/development-plan-2026-09-08.md) 保留专项标准及服务器阶段记录；[`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md) 保留历史交付与环境证据。本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复和文档同步后再进入下一项，提交推送按用户要求执行。
+> 当前概况见 [`docs/project-status-2026-10-25.md`](docs/project-status-2026-10-25.md)。本文件保留 v2.7.0、v2.6.0 与历史任务的勾选和交付记录；早期 N0–N6 计划见 [`docs/development-task-plan-2026-10-07.md`](docs/development-task-plan-2026-10-07.md)。每个模块均须完成实现、测试、代码审查、修复和文档同步后再进入下一项，提交推送按用户要求执行。
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 

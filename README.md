@@ -4,106 +4,21 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 
 ## 当前状态
 
-- 当前仓库已具备统一自动化测试平台的主线能力，不再是规划稿或仅验证单点功能的原型。
-- 前后端、任务调度、对象存储、通知集成、测试套件、测试计划、报告导出、缺陷跟踪、统计看板、Mock 能力与 Android 联调说明均已落地。
-- 导航已按工作台、测试能力、测试资产、智能中枢、系统五组组织；远程工具箱和配置中心已完成本地实现、审查与自动化回归，配置中心支持脱敏查看、版本差异和单资源回退。
-- 当前剩余工作已从“主线功能缺失”转为“真实环境与发布收口”，重点是性能生产环境、目标部署、生产密钥、数据库迁移和运维证据；本次排除的外部集成不计入发布阻塞项。
+截至 2026-10-25，ATP 已实现统一自动化测试平台主线，v2.7.0 的 12 项研发任务在 [`Task.md`](Task.md) 中均已闭环。当前源码在 v2.7.0 发布后继续修复了 Hermes 操作面板和本地模式运行保护。功能、部署与验收边界以 [`docs/project-status-2026-10-25.md`](docs/project-status-2026-10-25.md) 为当前入口，版本交付明细见 [`docs/v2.7.0-release-notes.md`](docs/v2.7.0-release-notes.md)。
 
-> 本次发布的正式支持范围不包含 iOS/Appium、SMTP/企业微信/钉钉或 Jira/禅道/GitHub/GitLab。相关代码与配置入口作为技术预览保留，不代表真实环境验收通过；统一范围见 [`docs/release-scope-2026-09-01.md`](docs/release-scope-2026-09-01.md)。
+最近的 Linux 生产现场记录是 2026-10-16 的 v2.7.0 割接：PostgreSQL 迁移至 `20261015_0081`、Helm revision 65，健康检查和两次真实 API 用例 Canary 通过。该记录不代表实时线上状态，也不证明后续提交已部署；详见 [`docs/evidence/linux-site-production-cutover-v2-7-0-2026-10-16.md`](docs/evidence/linux-site-production-cutover-v2-7-0-2026-10-16.md)。
 
 ## 已实现能力
 
-### 基础平台
+- **平台主线**：用户认证与角色权限、项目/模块/用例管理、套件与计划调度、执行记录、报告、统计、通知、缺陷跟踪和 Mock 服务。
+- **测试执行**：HTTP/REST、GraphQL、WebSocket、gRPC、Web UI、Android；脚本与低代码执行、截图/录像和报告展示。
+- **智能与设备**：Hermes MCP 工具、视觉断言与定位自愈、Android 真机池与矩阵执行、iOS 设备资产与 WDA 会话自愈。
+- **编排与可观测性**：多协议 DAG 工作流、数据流校验与单步调试，TraceContext 注入、Jaeger 瀑布图及异常归因。
+- **治理与部署**：敏感数据脱敏、API Key 治理、灾备演练；Windows SQLite 单机模式与 Linux PostgreSQL/Redis/Celery/MinIO 服务器模式。
 
-- 用户登录、JWT 鉴权、基于角色的权限控制
-- 项目 / 模块 / 用例管理
-- 环境管理与环境变量注入
-- 执行记录查询、报告详情、WebSocket 实时状态推送
-- `GET /health` 健康检查接口
+## 验收与后续工作
 
-### 测试类型与执行能力
-
-- 接口测试：HTTP/REST、GraphQL、WebSocket、gRPC
-- Web UI 测试：
-  - pytest + Playwright 脚本模式
-  - 低代码步骤模式
-  - 截图、录像、报告展示
-- Android UI 测试：
-  - pytest + uiautomator2 脚本模式
-  - 低代码步骤模式
-  - 设备扫描、APK 管理、屏幕镜像
-
-### 编排与集成
-
-- 测试套件管理与执行
-- 测试计划管理
-- 手动触发、Cron 定时触发、Webhook 触发
-- 计划执行记录查看
-- 通知配置与测试发送：
-  - SMTP 邮件
-  - 企业微信机器人 Webhook
-  - 钉钉机器人 Webhook
-- CI/CD 集成：Webhook 触发、JUnit XML 导出、GitLab CI 示例文档
-
-## 当前未完成 / 仍待完善
-
-### 已实现但未完全收口
-
-- 数据库迁移能力已存在，当前默认要求先执行 Alembic；仅在显式打开 `APP_AUTO_CREATE_TABLES=true` 时保留兜底建表
-- Android 真机能力已具备 ADB 扫描、执行器、截图/镜像与 ADB over TCP 联调说明；若使用 Docker Worker，仍需结合宿主机网络环境完成最终连通验证
-- 统计看板、Mock Server、用例版本历史、报告导出、缺陷跟踪等模块已落地基础能力，仍有若干体验、联调与工程化收口项待继续完善
-
-### 已实现的增强能力
-
-- 统计看板：后端聚合接口 + 前端 ECharts 页面，支持按项目、时间范围、用例类型筛选，并为高频查询增加短 TTL 缓存；新增执行人 Top、触发方式分布、计划/套件趋势
-- 内置 Mock Server 与规则管理页面，支持路径模板匹配、条件响应、批量导入导出、最近请求日志、匹配缓存、响应模板、请求样本录制与规则版本号管理
-- 用例版本历史 / 回滚
-- 报告导出为 HTML / PDF，且支持单用例 / 套件 / 计划维度 JUnit XML 与 HTML/PDF 导出
-- Jira / 禅道 / GitHub Issues 缺陷跟踪增强：连接测试、重复缺陷检测、截图附件上传、字段映射、状态同步、自动创建缺陷与页面联动展示
-- 套件 / 计划运行结果展示增强：支持套件级 case run 明细查看、计划级自动缺陷结果展示
-- 敏感配置加密、接口限流、索引审查、大报告分页优化、Worker 资源隔离
-- 结构化日志统一收集、截图/报告文件清理任务、一键部署脚本
-- Android 真机联调沉淀：执行前设备可达性校验、ADB over TCP 联调说明、Docker worker 连接建议
-- 前端国际化基础能力：已接入 `vue-i18n`、语言切换与本地存储记忆；登录、导航、Dashboard、计划 / 套件 / 用例主列表、执行记录 / 执行详情、Android 专项任务，以及环境、通知、全局变量、AI 模型配置等系统页面已完成中英文文案迁移
-- 启动配置中心：管理员可在“系统 -> 启动配置”集中编辑启动变量，使用 Docker Compose / 远端基础设施预设，并复制或下载完整 `.env`；使用说明见 `docs/startup-config.md`
-- AI 自愈建议（iter5）：结构化定位 / 等待 / 断言 / 安全参数修复建议，人审应用、回归 run 关联与运行详情页预览采纳
-- AI 用例生成：需求 / OpenAPI / cURL 输入生成可编辑草稿，生成→保存漏斗统计与质量权重 prompt 示例
-- 性能压测中心：k6 脚本上传、独立 `performance` 队列与 worker、指标 / threshold / raw summary 展示、趋势与 run 对比、目标 allowlist 与 VUs / duration 限制
-- 数据集 Dataset v2 治理：schema 字段校验、上传预览、soft / hard-block 策略、版本历史与回滚、引用影响面查询
-- 用户偏好服务端持久化：Dashboard 布局等偏好同步到服务端并保留 localStorage 兜底
-- AI 自愈采纳率报表：按用例类型 / 错误特征查看采纳率、生产反馈回归通过率与用例生成漏斗
-- 远程工具箱与配置中心：统一诊断 PostgreSQL/Redis/MinIO/Worker/ADB/性能节点；统一查看脱敏配置、历史差异、影响提示和 `ROLLBACK` 回退，入口与验收边界见 `docs/product-navigation-roadmap-2026-08-24.md`
-
-> Q8/Q9/Q10/Q11/Q13/Q14 能力的设计与验收详见：`docs/implementation-plan-2026-Q8.md`、`docs/implementation-plan-2026-Q9.md`、`docs/implementation-plan-2026-Q10.md`、`docs/q8-acceptance-summary.md`、`docs/q9-acceptance-summary.md`、`docs/q10-acceptance-summary.md`、`docs/q11-acceptance-summary.md`、`docs/q13-acceptance-summary.md`、`docs/q14-acceptance-summary.md`、`docs/q14-completion-audit.md`、`docs/dataset-v2.md`、`docs/performance-testing-thin-slice.md`、`docs/q9-release-checklist.md`、`docs/scheduled-plan-incident-drill.md`、`docs/dependency-security-rollback.md`、`docs/frontend-bundle-decision.md`、`docs/product-navigation-roadmap-2026-08-24.md`、`docs/capability-baseline-2026-08-07.md`。
-
-### Q10 质量与稳定性收口
-
-- 后端质量门禁：Ruff lint / format、mypy 渐进式基线、pre-commit 与覆盖率门禁
-- 前端测试基线：Vitest 单测、Playwright mock E2E、type-check / build 验证
-- 安全扫描：Bandit、pip-audit、npm audit、Gitleaks、Trivy、Dependabot
-- 真实依赖集成：PostgreSQL / Redis / MinIO 下的 suite、plan、notification、bug-report 链路
-- SLO 薄切：API 可用性、API P95、run 成功率与错误预算 Grafana 面板
-- flaky 治理：pytest marker、integration 一次有界重试、E2E retry 边界与处理文档
-
-相关文档：`docs/code-quality.md`、`docs/frontend-testing.md`、`docs/security-scanning.md`、`docs/slo-guide.md`、`docs/flaky-governance.md`、`docs/q10-acceptance-summary.md`。
-
-Q13 已验收（`docs/q13-acceptance-summary.md`），Q14 的六个本地项已验收并记录于 `docs/q14-acceptance-summary.md` 与 `docs/q14-completion-audit.md`。唯一未收口项是 Q14-00（在 Q15 中承接为 Q15-00）——需要真实生产环境的 SLO 历史与 Android 真机演练证据，采集与校验工具已就绪（`make collect-q12-evidence` / `make scaffold-q12-evidence` / `make validate-q12-evidence`）。Q14 路线图见 `docs/optimization-roadmap-2026-q14.md`。
-
-Q15 本地工作已基本收口（当前仓库同步至 `135906d`，详见 `Task.md` 与 `docs/optimization-roadmap-2026-q15.md`），主线是让已声明的质量门禁真正生效：
-
-- **已完成**：后端测试单文件可运行（`make test-backend-standalone`，191 个文件逐个通过，CI 内置扫描）、Windows CI job（`ci.yml` 的 `backend-test-windows`）、前端系统管理页面挂载测试（6 组 spec，`views/system` statements **37.36%**）、worker/维护模块覆盖与门禁校准（后端 TOTAL **86.04%**，门禁 70 → **82**）、`chartTheme.spec.ts` 负载敏感治理，以及 Q14 验收总结（`docs/q14-acceptance-summary.md`）。
-- **部分完成**：门禁生效（Q15-01）—— mypy 钩子脱离环境 `PATH`、`make setup` 安装开发依赖并装钩子、新增门禁一致性契约测试。但 **`main` 上不存在服务端强制门禁**：仓库为个人账户下的 private 仓库，分支保护与 rulesets 均需 GitHub Pro，`required status checks` 无法配置，因此 CI 红绿只是通知、本地钩子可被 `--no-verify` 绕过。实测记录与恢复强制力的两条路径见 `docs/ci-workflows.md`「门禁强制力现状」。
-- **待外部环境**：Q15-00 / Q14-00——生产 SLO 7/14 天历史与 Android 真机演练；生产部署、备份恢复和 smoke evidence 也需真实集群。仓库级部署/灾备校验可运行 `make validate-deployment-readiness`；Windows 无 Git Bash、WSL 或其他 POSIX shell 时会跳过 shell 语法检查，发布机可追加 `--require-shell` 强制失败。
-
-当前质量基线（2026-08-05 对 `87f0fc7` 实测）：后端 `1467 passed`、TOTAL 86.04%（Python 3.12 / CI 口径；本地 Python 3.14 为 85.55%，两者语句总数不同，详见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note），门禁 82；前端 `128 passed`、statements 32.96%，branches 27.81%，functions 26.36%，lines 34.04%，`views/system` statements 37.36%，门禁 31.5 / 26.5 / 24.5 / 32.5。当前工作区已于 2026-08-06 与 `origin/main` 同步至 `135906d`；修改业务代码后需重新执行完整门禁。
-
-### 当前仍建议继续完善的方向
-
-- Android 真机在不同宿主机 / Docker 网络环境下的稳定性验证与排障经验沉淀
-- 部署、运维与性能优化的持续打磨
-- 少量页面的工程化类型收口与体验细节优化
-
-前端 i18n 迁移已收口：`Task.md` 的 `5.10 Q3 前端国际化 i18n` 九个批次全部完成，收口扫描（`rg "[一-龥]" frontend/src/views frontend/src/components`）确认无剩余可见中文 UI 文案，残留中文仅限开发注释与 `RunDetail.vue` 中用于匹配后端错误的字符串。历史执行拆分与验收标准见该章节与 `docs/implementation-plan-2026-Q3.md` 的 `方向 F`。
+v2.7.0 发布时的 Ruff、格式检查、mypy、Bandit、专项测试和迁移头验证结果见发布说明。iOS 的 macOS/Xcode/WebDriverAgent/真机端到端环境仍须按 [`docs/ios-device-automation-plan.md`](docs/ios-device-automation-plan.md) 单独验收；其他外部服务和实时生产状态也需在目标环境复核。当前 `main` 没有 required status checks，CI 结果不会阻断推送，具体门禁和触发条件见 [`docs/ci-workflows.md`](docs/ci-workflows.md)。
 
 ## 项目结构
 
@@ -313,6 +228,7 @@ make test-frontend-build
 
 ## 文档
 
+- 当前项目状态与验收边界：`docs/project-status-2026-10-25.md`
 - 当前进度与模块完成度：`Task.md`
 - 产品需求与整体范围：`PRD.md`
 - 平台详细操作手册：`docs/user-operation-manual.md`
@@ -320,21 +236,19 @@ make test-frontend-build
 - GitHub Actions 工作流说明：`docs/ci-workflows.md`
 - Windows 本地运行说明：`docs/windows-local-run.md`
 - Android 真机联调说明：`docs/android-device-debugging.md`
-- iOS 设备自动化扩展规划：`docs/ios-device-automation-plan.md`
+- iOS 设备自动化与环境验收：`docs/ios-device-automation-plan.md`
 - 外部基础设施运行说明：`docs/external-infra-run.md`
 - 前端到后端再到 Worker 的调用链：`docs/backend-request-flow.md`
 
 ## 持续集成
 
-仓库已配置 GitHub Actions（`.github/workflows/ci.yml`），在 `push` 到 `main` 与 `pull_request` 时并行执行：
+仓库已配置 GitHub Actions（`.github/workflows/ci.yml`），主 CI 每周日北京时间 10:00 定时运行，也可手动触发；当前不会在 `push` 或 `pull_request` 时自动运行。主 CI 包括：
 
 - **空库迁移校验**：从干净 PostgreSQL 16 执行 `alembic upgrade head`，防止迁移链断裂
-- **后端 pytest**：以 Postgres 16 + Redis 7 为 service container 运行 `backend/tests` 全量回归
-- **前端 type-check + build**：`vue-tsc --noEmit` 与 `vite build` 双重保障类型与产物
+- **后端 pytest**：以 Postgres 16 + Redis 7 为 service container 运行非 integration 回归、82% 覆盖率门禁及单文件独立扫描
+- **前端测试、type-check 与 build**：运行 Vitest 覆盖率、`vue-tsc --noEmit` 与 `vite build`
 
-同一分支的旧 CI 会自动取消，避免连续推送时的资源浪费。
-
-Nightly / 手动工作流还包括 integration、E2E 与 release readiness；触发方式、依赖服务和排查建议见 `docs/ci-workflows.md`。
+真实基础设施 integration、Playwright E2E 与 release readiness 目前仅手动运行。`main` 未配置 required status checks；触发方式、依赖服务和排查建议见 `docs/ci-workflows.md`。
 
 ## 说明
 
