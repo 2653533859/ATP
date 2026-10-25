@@ -4,7 +4,9 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-> 基于 AutoDroid 对照的下一轮接口与 App 自动化候选任务见 [`docs/autodroid-learning-development-plan-2026-10-25.md`](docs/autodroid-learning-development-plan-2026-10-25.md)；任务均待启动，须先核实能力基线。
+> 基于 AutoDroid 对照的下一轮接口与 App 自动化候选任务见 [`docs/autodroid-learning-development-plan-2026-10-25.md`](docs/autodroid-learning-development-plan-2026-10-25.md)；A0 已完成能力基线核对，其余任务待启动。
+
+- [x] 2026-10-25 AutoDroid 对照 A0：已用相同 API/App 流程核对两仓库的入口、源码和定向测试，收窄 A1/A2/M1/M2 范围；ATP 后端 30 passed、前端 15 passed，AutoDroid 对照测试因本地缺少 Python 依赖未复测，真实 API 与真机留待后续任务。见 [`docs/autodroid-atp-capability-baseline-2026-10-25.md`](docs/autodroid-atp-capability-baseline-2026-10-25.md)。
 
 ## 2026-10-15 v2.7.0 研发任务规划（已全量闭环）
 
