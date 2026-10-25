@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
+from app.api.v1.api_scenarios import read_project_scenarios_snapshot
 from app.core.database import get_db
 from app.models.api_contract_asset import ApiContractAsset
 from app.models.user_project import ProjectRole
@@ -57,4 +58,7 @@ async def sync_project_spec_with_cases(
 ):
     """分析 OpenAPI/Swagger 规范与项目内既有用例的差异，生成增量补丁草稿。"""
     await assert_project_access(db, user, project_id, ProjectRole.editor)
-    return await sync_spec_with_cases(db, project_id, body.spec, body.default_module_id)
+    scenarios = read_project_scenarios_snapshot(project_id)
+    return await sync_spec_with_cases(
+        db, project_id, body.spec, body.default_module_id, scenarios=scenarios, baseline=body.baseline
+    )

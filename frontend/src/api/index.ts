@@ -1948,6 +1948,28 @@ export interface ApiContractCompareResult {
   summary: string
 }
 
+export interface SpecCaseImpactPreview {
+  additions_count: number
+  modifications_count: number
+  deprecations_count: number
+  diffs: Array<{
+    endpoint: string
+    change_type: 'addition' | 'modification' | 'deprecation'
+    case_id: number | null
+    case_name: string | null
+    details: string[]
+  }>
+  scenario_impacts: Array<{
+    scenario_id: number
+    scenario_name: string
+    step_index: number
+    step_name: string
+    endpoint: string
+    source_case_id: number | null
+    review_reason: string
+  }>
+}
+
 export const apiContractApi = {
   compare: (projectId: number, baseline: Record<string, unknown>, current: Record<string, unknown>) =>
     http.post<unknown, ApiContractCompareResult>(`/projects/${projectId}/api-contracts/compare`, { baseline, current }),
@@ -1956,6 +1978,8 @@ export const apiContractApi = {
       baseline_asset_id: baselineAssetId,
       current_asset_id: currentAssetId,
   }),
+  previewImpact: (projectId: number, spec: Record<string, unknown>, baseline?: Record<string, unknown>) =>
+    http.post<unknown, SpecCaseImpactPreview>(`/projects/${projectId}/api-contracts/sync-cases`, { spec, baseline }),
 }
 
 export const caseReviewApi = {

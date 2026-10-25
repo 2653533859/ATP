@@ -3,6 +3,7 @@ import { defineComponent, h, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ApiWorkbenchView from './ApiWorkbenchView.vue'
+import ApiScenarioOrchestrator from './components/ApiScenarioOrchestrator.vue'
 
 const {
   caseGet,
@@ -14,6 +15,7 @@ const {
   routerPush,
   routerReplace,
   apiScenarioList,
+  routeQuery,
 } = vi.hoisted(() => ({
   caseGet: vi.fn(),
   caseList: vi.fn(),
@@ -24,10 +26,11 @@ const {
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   apiScenarioList: vi.fn().mockResolvedValue([]),
+  routeQuery: { project_id: '1', scenario_id: '', step_index: '' },
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: { project_id: '1' } }),
+  useRoute: () => ({ query: routeQuery }),
   useRouter: () => ({ push: routerPush, replace: routerReplace }),
 }))
 vi.mock('vue-i18n', () => ({
@@ -136,6 +139,8 @@ const apiCase = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  routeQuery.scenario_id = ''
+  routeQuery.step_index = ''
   projectList.mockResolvedValue([{ id: 1, name: '核心项目', current_user_role: 'owner' }])
   environmentList.mockResolvedValue([{ id: 3, name: '测试环境' }])
   caseList.mockResolvedValue([apiCase, { ...apiCase, id: 102, case_type: 'web' }])
@@ -156,6 +161,34 @@ function deferred<T>() {
 }
 
 describe('ApiWorkbenchView', () => {
+  it('opens a linked scenario at its affected step', async () => {
+    routeQuery.scenario_id = '9'
+    routeQuery.step_index = '1'
+    apiScenarioList.mockResolvedValueOnce([{
+      id: 9, project_id: 1, name: '回归场景', steps: [
+        { name: '准备', method: 'GET', url: '/ready' },
+        { name: '受影响步骤', method: 'GET', url: '/orders', sourceCaseId: 101 },
+      ],
+    }])
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      isAutomationMode: boolean
+      activeScenarioRecord: { id: number } | null
+      linkedStepIndex: number | null
+    }
+    expect(apiScenarioList).toHaveBeenCalledWith({ project_id: 1 })
+    expect(vm.isAutomationMode).toBe(true)
+    expect(vm.activeScenarioRecord?.id).toBe(9)
+    expect(vm.linkedStepIndex).toBe(1)
+    const orchestrator = wrapper.findComponent(ApiScenarioOrchestrator)
+    const child = orchestrator.vm as unknown as { currentStep: { name: string; sourceCaseId?: number } }
+    expect(child.currentStep.name).toBe('受影响步骤')
+    expect(child.currentStep.sourceCaseId).toBe(101)
+    wrapper.unmount()
+  })
+
   it('loads the selected project and keeps only API protocols', async () => {
     const wrapper = mountWorkbench()
     await flushPromises()

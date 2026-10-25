@@ -25,6 +25,7 @@ class ApiContractCompareOut(BaseModel):
 
 class SpecCaseSyncIn(BaseModel):
     spec: dict = Field(description="新版 OpenAPI / Swagger 规范 JSON 字典")
+    baseline: dict | None = Field(default=None, description="可选的旧版规格，用于发现仅在场景中引用的变更端点")
     default_module_id: int | None = Field(default=None, description="新增用例默认归属的模块编号 ID")
 
 
@@ -37,6 +38,16 @@ class SpecCaseDiff(BaseModel):
     patch_payload: dict | None = None
 
 
+class SpecScenarioImpact(BaseModel):
+    scenario_id: int
+    scenario_name: str
+    step_index: int
+    step_name: str
+    endpoint: str
+    source_case_id: int | None = None
+    review_reason: str
+
+
 class SpecCaseSyncOut(BaseModel):
     total_spec_endpoints: int
     total_cases: int
@@ -45,3 +56,4 @@ class SpecCaseSyncOut(BaseModel):
     deprecations_count: int
     diffs: list[SpecCaseDiff] = Field(default_factory=list)
     draft_patches: list[dict] = Field(default_factory=list)
+    scenario_impacts: list[SpecScenarioImpact] = Field(default_factory=list)

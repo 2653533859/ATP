@@ -157,6 +157,37 @@
             >
               {{ t('api_contract_assets.compare_action') }}
             </a-button>
+            <a-button
+              block
+              :loading="impactLoading"
+              :disabled="!currentAssetId"
+              @click="previewImpact"
+            >
+              {{ t('api_contract_assets.impact_action') }}
+            </a-button>
+
+            <div v-if="impactPreview" class="comparison-result">
+              <strong>{{ t('api_contract_assets.impact_title') }}</strong>
+              <p>{{ t('api_contract_assets.impact_summary', { cases: impactPreview.diffs.length, steps: impactPreview.scenario_impacts.length }) }}</p>
+              <p>{{ t('api_contract_assets.impact_review_hint') }}</p>
+              <ul v-if="impactPreview.diffs.length" class="change-list">
+                <li v-for="diff in impactPreview.diffs" :key="`${diff.endpoint}:${diff.case_id ?? 'new'}`">
+                  <code>{{ diff.endpoint }}</code>
+                  <span>{{ diff.details.join('；') }}</span>
+                  <a-button v-if="diff.case_id" type="link" size="small" @click="openCase(diff.case_id)">
+                    {{ t('api_contract_assets.open_case') }}
+                  </a-button>
+                </li>
+              </ul>
+              <ul v-if="impactPreview.scenario_impacts.length" class="change-list">
+                <li v-for="item in impactPreview.scenario_impacts" :key="`${item.scenario_id}:${item.step_index}`">
+                  <span>{{ item.scenario_name }} · {{ item.step_name }} · {{ item.review_reason }}</span>
+                  <a-button type="link" size="small" @click="openScenario(item.scenario_id, item.step_index)">
+                    {{ t('api_contract_assets.open_scenario') }}
+                  </a-button>
+                </li>
+              </ul>
+            </div>
 
             <div v-if="comparison" class="comparison-result">
               <div class="compatibility-banner" :class="comparison.compatible ? 'compatible' : 'breaking'">
@@ -250,24 +281,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { FileProtectOutlined, ReloadOutlined, FormatPainterOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { tryFormatJson } from '@/utils/jsonFormat'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   apiContractApi,
   apiContractAssetApi,
   projectApi,
   type ApiContractAssetItem,
   type ApiContractCompareResult,
+  type SpecCaseImpactPreview,
   type ProjectItem,
 } from '@/api'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 
 const projects = ref<ProjectItem[]>([])
 const projectId = ref<number | undefined>()
@@ -275,12 +308,18 @@ const assets = ref<ApiContractAssetItem[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const comparing = ref(false)
+const impactLoading = ref(false)
+const impactPreview = ref<SpecCaseImpactPreview | null>(null)
 const editorOpen = ref(false)
 const editing = ref<ApiContractAssetItem | null>(null)
 const roleFilter = ref<'all' | 'provider' | 'consumer'>('all')
 const baselineAssetId = ref<number | undefined>()
 const currentAssetId = ref<number | undefined>()
 const comparison = ref<ApiContractCompareResult | null>(null)
+watch([baselineAssetId, currentAssetId], () => {
+  comparison.value = null
+  impactPreview.value = null
+})
 const definitionError = ref('')
 
 type AssetRole = 'provider' | 'consumer'
@@ -358,6 +397,7 @@ async function loadAssets() {
   }
   loading.value = true
   comparison.value = null
+  impactPreview.value = null
   try {
     assets.value = await apiContractAssetApi.list(projectId.value)
     syncCompareSelection()
@@ -461,6 +501,32 @@ async function compareAssets() {
   } finally {
     comparing.value = false
   }
+}
+
+async function previewImpact() {
+  if (!projectId.value || !currentAssetId.value) return
+  const current = assets.value.find((asset) => asset.id === currentAssetId.value)
+  if (!current) return
+  const baseline = assets.value.find((asset) => asset.id === baselineAssetId.value)
+  impactLoading.value = true
+  impactPreview.value = null
+  try {
+    impactPreview.value = await apiContractApi.previewImpact(projectId.value, current.definition, baseline?.definition)
+  } catch (error) {
+    message.error(errorMessage(error, t('api_contract_assets.impact_failed')))
+  } finally {
+    impactLoading.value = false
+  }
+}
+
+function openCase(caseId: number) {
+  void router.push({ name: 'case-detail', params: { caseId: String(caseId) } })
+}
+
+function openScenario(scenarioId: number, stepIndex: number) {
+  void router.push({ name: 'api-workbench', query: {
+    project_id: String(projectId.value), scenario_id: String(scenarioId), step_index: String(stepIndex),
+  } })
 }
 
 onMounted(loadProjects)

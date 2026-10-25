@@ -25,7 +25,10 @@ def normalize_endpoint_path(path: str) -> str:
     """Normalize URL path by stripping queries, duplicate slashes, and trailing slashes."""
     if not path:
         return "/"
-    p = path.split("?", 1)[0].split("#", 1)[0].strip()
+    raw = path.strip()
+    parsed = urlparse(raw)
+    p = parsed.path if parsed.scheme in {"http", "https"} and parsed.netloc else raw
+    p = p.split("?", 1)[0].split("#", 1)[0]
     if not p.startswith("/"):
         p = "/" + p
     p = re.sub(r"/+", "/", p)
@@ -165,6 +168,9 @@ async def sync_spec_with_cases(
     project_id: int,
     spec: dict[str, Any],
     default_module_id: int | None = None,
+    *,
+    scenarios: list[dict[str, Any]] | None = None,
+    baseline: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Analyze spec endpoints vs existing test cases and produce synchronization diffs."""
     spec_endpoints = extract_spec_endpoints(spec)
@@ -241,9 +247,82 @@ async def sync_spec_with_cases(
                     }
                 )
 
+    if baseline is not None:
+        old_endpoints = extract_spec_endpoints(baseline)
+        existing_diff_endpoints = {diff["endpoint"] for diff in diffs}
+        for (method, path), old_meta in old_endpoints.items():
+            endpoint = f"{method} {path}"
+            if endpoint in existing_diff_endpoints:
+                continue
+            current_meta = spec_endpoints.get((method, path))
+            if current_meta is None:
+                details = ["旧版规格中的接口已移除，需检查场景引用"]
+                change_type = "deprecation"
+            elif any(old_meta.get(key) != current_meta.get(key) for key in ("parameters", "requestBody", "responses")):
+                details = ["规格请求或响应结构变化，需人工检查场景步骤"]
+                change_type = "modification"
+            else:
+                continue
+            diffs.append(
+                {
+                    "endpoint": endpoint,
+                    "change_type": change_type,
+                    "case_id": None,
+                    "case_name": None,
+                    "details": details,
+                    "patch_payload": None,
+                }
+            )
+
     additions = sum(1 for d in diffs if d["change_type"] == "addition")
     modifications = sum(1 for d in diffs if d["change_type"] == "modification")
     deprecations = sum(1 for d in diffs if d["change_type"] == "deprecation")
+
+    affected = {
+        (method, normalize_endpoint_path(path)): diff
+        for diff in diffs
+        if diff["change_type"] != "addition"
+        for method, path in [diff["endpoint"].split(" ", 1)]
+    }
+    affected_case_ids = {
+        diff["case_id"]: diff for diff in diffs if diff["case_id"] is not None and diff["change_type"] != "addition"
+    }
+    scenario_impacts: list[dict[str, Any]] = []
+    for scenario in scenarios or []:
+        if scenario.get("project_id") != project_id or not isinstance(scenario.get("steps"), list):
+            continue
+        scenario_id = scenario.get("id")
+        if not isinstance(scenario_id, int):
+            continue
+        for index, step in enumerate(scenario["steps"]):
+            if not isinstance(step, dict):
+                continue
+            source_case_id = step.get("sourceCaseId")
+            if not isinstance(source_case_id, int) or source_case_id not in affected_case_ids:
+                source_case_id = None
+            method = str(step.get("method") or "").upper()
+            url = str(step.get("url") or "")
+            endpoint = (method, normalize_endpoint_path(url)) if method and url else None
+            diff = affected_case_ids.get(source_case_id) if source_case_id is not None else None
+            if diff is None and endpoint is not None:
+                diff = affected.get(endpoint)
+            if diff is None:
+                continue
+            scenario_impacts.append(
+                {
+                    "scenario_id": scenario_id,
+                    "scenario_name": str(scenario.get("name") or f"场景 {scenario_id}"),
+                    "step_index": index,
+                    "step_name": str(step.get("name") or f"步骤 {index + 1}"),
+                    "endpoint": diff["endpoint"],
+                    "source_case_id": source_case_id,
+                    "review_reason": (
+                        "来源用例版本与局部覆盖未记录，请逐项确认"
+                        if source_case_id is not None
+                        else "按请求地址匹配；未记录来源用例，请人工确认"
+                    ),
+                }
+            )
 
     return {
         "total_spec_endpoints": len(spec_endpoints),
@@ -253,4 +332,5 @@ async def sync_spec_with_cases(
         "deprecations_count": deprecations,
         "diffs": diffs,
         "draft_patches": draft_patches,
+        "scenario_impacts": scenario_impacts,
     }

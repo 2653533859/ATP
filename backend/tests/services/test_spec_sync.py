@@ -57,6 +57,7 @@ def test_normalize_endpoint_path():
     assert normalize_endpoint_path("/api/v1/users/") == "/api/v1/users"
     assert normalize_endpoint_path("//api///v1//orders") == "/api/v1/orders"
     assert normalize_endpoint_path("/api/items?active=true") == "/api/items"
+    assert normalize_endpoint_path("https://api.example.com/api/items?active=true") == "/api/items"
     assert normalize_endpoint_path("") == "/"
 
 
@@ -161,7 +162,19 @@ def test_sync_spec_with_cases_detects_additions_modifications_deprecations():
         }
     }
 
-    result = asyncio.run(sync_spec_with_cases(db, project_id=5, spec=spec, default_module_id=10))
+    scenarios = [
+        {
+            "id": 7,
+            "name": "订单回归",
+            "project_id": 5,
+            "steps": [
+                {"name": "获取用户", "method": "GET", "url": "/old-copy", "sourceCaseId": 101},
+                {"name": "旧接口", "method": "GET", "url": "/legacy"},
+            ],
+        },
+        {"id": 8, "project_id": 6, "steps": [{"method": "GET", "url": "/legacy"}]},
+    ]
+    result = asyncio.run(sync_spec_with_cases(db, project_id=5, spec=spec, default_module_id=10, scenarios=scenarios))
 
     assert result["total_spec_endpoints"] == 2
     assert result["total_cases"] == 2
@@ -191,6 +204,25 @@ def test_sync_spec_with_cases_detects_additions_modifications_deprecations():
     assert dep_diff["case_id"] == 102
     assert dep_diff["endpoint"] == "GET /legacy"
 
+    assert [(item["scenario_id"], item["step_index"]) for item in result["scenario_impacts"]] == [(7, 0), (7, 1)]
+    assert result["scenario_impacts"][0]["source_case_id"] == 101
+    assert "版本" in result["scenario_impacts"][0]["review_reason"]
+    assert result["scenario_impacts"][1]["source_case_id"] is None
+    assert "人工确认" in result["scenario_impacts"][1]["review_reason"]
+
+
+def test_sync_spec_reports_scenario_only_endpoint_removed_from_baseline():
+    db = _FakeDB(modules=[Module(id=10, project_id=5, name="核心模块")], cases=[])
+    baseline = {"paths": {"/legacy": {"get": {"responses": {"200": {}}}}}}
+    current = {"paths": {}}
+    scenarios = [{"id": 7, "project_id": 5, "steps": [{"name": "旧查询", "method": "GET", "url": "/legacy"}]}]
+
+    result = asyncio.run(sync_spec_with_cases(db, 5, current, scenarios=scenarios, baseline=baseline))
+
+    assert result["deprecations_count"] == 1
+    assert result["diffs"][0]["endpoint"] == "GET /legacy"
+    assert result["scenario_impacts"][0]["step_name"] == "旧查询"
+
 
 def test_sync_api_contracts_endpoint(monkeypatch):
     from app.api.v1.api_contracts import sync_project_spec_with_cases
@@ -205,7 +237,9 @@ def test_sync_api_contracts_endpoint(monkeypatch):
         is_active=True,
     )
 
-    async def fake_sync(_db, project_id, spec, default_module_id):
+    async def fake_sync(_db, project_id, spec, default_module_id, *, scenarios, baseline):
+        assert scenarios == [{"id": 3, "project_id": 5, "steps": []}]
+        assert baseline is None
         return {
             "total_spec_endpoints": 1,
             "total_cases": 0,
@@ -214,9 +248,14 @@ def test_sync_api_contracts_endpoint(monkeypatch):
             "deprecations_count": 0,
             "diffs": [],
             "draft_patches": [],
+            "scenario_impacts": [],
         }
 
     monkeypatch.setattr("app.api.v1.api_contracts.sync_spec_with_cases", fake_sync)
+    monkeypatch.setattr(
+        "app.api.v1.api_contracts.read_project_scenarios_snapshot",
+        lambda project_id: [{"id": 3, "project_id": project_id, "steps": []}],
+    )
     monkeypatch.setattr("app.api.v1.api_contracts.assert_project_access", AsyncMock())
 
     body = SpecCaseSyncIn(spec={"paths": {}}, default_module_id=1)

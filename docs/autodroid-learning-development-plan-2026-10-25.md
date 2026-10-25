@@ -1,8 +1,8 @@
 # ATP 学习 AutoDroid：接口与 App 自动化开发任务计划
 
-> 制定日期：2026-10-25。**开发目标是 ATP**；`~/MyProject/AutoDroid` 仅作为对照项目。本文记录代码核对后的候选任务，不代表功能已实现或已在真机验收。A0 已完成源码核对，其余任务待启动；完成情况仍以 `Task.md` 和专项证据为准。
+> 制定日期：2026-10-25。**开发目标是 ATP**；`~/MyProject/AutoDroid` 仅作为对照项目。A0 已完成源码核对；A1 代码与定向验证完成，真实环境验收待补。完成情况以 `Task.md` 和专项证据为准。
 
-> A0 源码与定向测试基线见 [`autodroid-atp-capability-baseline-2026-10-25.md`](autodroid-atp-capability-baseline-2026-10-25.md)；A0 已完成，后续任务仍待开发。
+> A0 基线见 [`autodroid-atp-capability-baseline-2026-10-25.md`](autodroid-atp-capability-baseline-2026-10-25.md)；A1 实现与限制见 [`evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md`](evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md)。
 
 ## 1. 对比结论与边界
 

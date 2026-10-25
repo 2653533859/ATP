@@ -83,6 +83,21 @@ def _save_all(items: list[dict[str, Any]]) -> None:
     tmp_path.replace(path)
 
 
+def read_project_scenarios_snapshot(project_id: int) -> list[dict[str, Any]]:
+    """Read a project snapshot without writes; callers must enforce project access first."""
+    path = settings.LOCAL_DATA_PATH / "api_scenarios.json"
+    if not path.exists():
+        return []
+    try:
+        with _LOCK:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail="场景数据暂时不可读取，无法计算影响面") from exc
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=503, detail="场景数据格式异常，无法计算影响面")
+    return [item for item in raw if isinstance(item, dict) and item.get("project_id") == project_id]
+
+
 class ApiScenarioSaveIn(BaseModel):
     project_id: int
     module_id: int | None = None

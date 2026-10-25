@@ -236,6 +236,7 @@
           :environments="environments"
           :initial-steps="initialScenarioSteps"
           :initial-scenario="activeScenarioRecord"
+          :initial-step-index="linkedStepIndex"
           :initial-case="scenarioEditingCase"
           @exit="setAutomationMode(false)"
           @saved="handleScenarioSaved"
@@ -434,6 +435,7 @@ const projectSelectId = computed<number | undefined>({
   set: (value) => { selectedProjectId.value = positiveInt(value) },
 })
 const selectedModuleId = ref<number | null>(positiveInt(route.query.module_id))
+const linkedStepIndex = ref<number | null>(null)
 const cases = ref<CaseSummaryItem[]>([])
 const recentRuns = ref<RunDetailItem[]>([])
 const environments = ref<EnvironmentItem[]>([])
@@ -560,6 +562,7 @@ async function loadScenarios() {
 }
 
 function selectSavedScenario(sc: ApiScenarioRecord) {
+  linkedStepIndex.value = null
   activeScenarioRecord.value = sc
   initialScenarioSteps.value = null
   scenarioEditingCase.value = null
@@ -836,6 +839,15 @@ async function loadProjects() {
     }
     await Promise.all([loadEnvironments(), loadCases()])
     if (sequence !== projectSequence) return
+    const linkedScenarioId = positiveInt(route.query.scenario_id)
+    if (linkedScenarioId) {
+      const requestedStepIndex = Number(route.query.step_index)
+      linkedStepIndex.value = Number.isInteger(requestedStepIndex) && requestedStepIndex >= 0 ? requestedStepIndex : null
+      isAutomationMode.value = true
+      await loadScenarios()
+      const linkedScenario = scenarios.value.find((item) => item.id === linkedScenarioId)
+      if (linkedScenario) activeScenarioRecord.value = linkedScenario
+    }
     syncRoute()
   } catch (error: unknown) {
     if (sequence === projectSequence) message.error(errorMessage(error, t('api_workbench.load_failed')))
@@ -845,6 +857,7 @@ async function loadProjects() {
 async function handleProjectChange(value: unknown) {
   selectedProjectId.value = positiveInt(value)
   selectedModuleId.value = null
+  linkedStepIndex.value = null
   selectedBatchCaseIds.value = []
   activeScenarioRecord.value = null
   scenarioEditingCase.value = null

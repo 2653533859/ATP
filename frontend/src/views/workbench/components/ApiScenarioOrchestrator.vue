@@ -754,6 +754,7 @@ const props = defineProps<{
   environments: EnvironmentItem[]
   initialSteps?: ApiScenarioStep[] | null
   initialScenario?: ApiScenarioRecord | null
+  initialStepIndex?: number | null
   initialCase?: CaseDetailItem | null
 }>()
 
@@ -926,7 +927,7 @@ function markDirty() {
 function toOrchestratorStep(raw: ApiScenarioStep, sourceCaseId?: number): OrchestratorStep {
   return {
     uid: nextUid(),
-    sourceCaseId,
+    sourceCaseId: sourceCaseId ?? (typeof raw.sourceCaseId === 'number' ? raw.sourceCaseId : undefined),
     name: raw.name || '未命名步骤',
     method: (raw.method || 'GET').toUpperCase(),
     url: raw.url || '',
@@ -990,8 +991,10 @@ function loadScenarioRecord(sc: ApiScenarioRecord) {
   if (sc.env_id) selectedEnvId.value = sc.env_id
   const rawSteps = Array.isArray(sc.steps) ? (sc.steps as unknown as ApiScenarioStep[]) : []
   steps.value = rawSteps.map((s) => toOrchestratorStep(s))
-  selectedStepUid.value = steps.value[0]?.uid ?? null
-  loadStepIntoEditor(steps.value[0] ?? null)
+  const targetIndex = props.initialStepIndex != null && props.initialStepIndex < steps.value.length
+    ? props.initialStepIndex : 0
+  selectedStepUid.value = steps.value[targetIndex]?.uid ?? null
+  loadStepIntoEditor(steps.value[targetIndex] ?? null)
   isDirty.value = false
   loadScenarioModalOpen.value = false
   saveDraftToStorage()

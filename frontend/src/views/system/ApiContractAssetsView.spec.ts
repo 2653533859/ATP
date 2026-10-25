@@ -11,6 +11,8 @@ const {
   assetUpdate,
   assetDelete,
   compareAssets,
+  previewImpact,
+  routerPush,
   messageError,
   messageSuccess,
   messageWarning,
@@ -21,13 +23,18 @@ const {
   assetUpdate: vi.fn(),
   assetDelete: vi.fn(),
   compareAssets: vi.fn(),
+  previewImpact: vi.fn(),
+  routerPush: vi.fn(),
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }) }))
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} }),
+  useRouter: () => ({ push: routerPush }),
+}))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
 }))
@@ -39,7 +46,7 @@ vi.mock('@/api', () => ({
     update: assetUpdate,
     delete: assetDelete,
   },
-  apiContractApi: { compareAssets },
+  apiContractApi: { compareAssets, previewImpact },
 }))
 
 const passthrough = (name: string) =>
@@ -126,9 +133,29 @@ beforeEach(() => {
   assetUpdate.mockResolvedValue(ASSETS[0])
   assetDelete.mockResolvedValue(undefined)
   compareAssets.mockResolvedValue({ compatible: false, breaking_changes: [{ severity: 'breaking', location: '$.id', message: 'removed' }], warnings: [], summary: '1 breaking change' })
+  previewImpact.mockResolvedValue({
+    diffs: [{ endpoint: 'GET /orders', change_type: 'modification', case_id: 5, case_name: 'Orders', details: ['新增必填参数'] }],
+    scenario_impacts: [{ scenario_id: 9, scenario_name: '下单', step_index: 1, step_name: '查询订单', endpoint: 'GET /orders', source_case_id: 5, review_reason: '需人工确认' }],
+  })
 })
 
 describe('ApiContractAssetsView', () => {
+  it('previews specification impact and opens the affected scenario step', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.currentAssetId = 12
+    await vm.previewImpact()
+    expect(previewImpact).toHaveBeenCalledWith(1, ASSETS[1].definition, ASSETS[0].definition)
+    expect(vm.impactPreview.scenario_impacts).toHaveLength(1)
+    vm.openScenario(9, 1)
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'api-workbench',
+      query: { project_id: '1', scenario_id: '9', step_index: '1' },
+    })
+  })
+
   it('loads project-scoped assets and derives role/version summaries', async () => {
     const wrapper = mountPage()
     await flushPromises()
