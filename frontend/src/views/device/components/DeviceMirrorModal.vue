@@ -83,6 +83,15 @@
         </a-tooltip>
       </div>
 
+      <div v-if="canModify && recordable" class="mirror-record-bar">
+        <a-button v-if="!recording" size="small" @click="startRecording">开始录制步骤</a-button>
+        <template v-else>
+          <span>已录制 {{ recordedSteps.length }} 步</span>
+          <a-button size="small" type="primary" :disabled="!recordedSteps.length" @click="finishRecording">编辑录制用例</a-button>
+          <a-button size="small" @click="discardRecording">丢弃录制</a-button>
+        </template>
+      </div>
+
       <!-- 快捷文本输入行 -->
       <div class="mirror-text-bar">
         <a-input
@@ -160,21 +169,25 @@ import {
 } from '@ant-design/icons-vue'
 import { deviceApi, type DeviceItem } from '@/api'
 import { isWebCodecsSupported, useWebCodecsDecoder } from '@/composables/useWebCodecsDecoder'
+import { buildAndroidRecordedClickParams, buildAndroidRecordedSwipeParams, type AndroidRecordedStepDraft } from '@/utils/androidRecording'
 
 const props = withDefaults(
   defineProps<{
     open: boolean
     device: DeviceItem | null
     canModify?: boolean
+    recordable?: boolean
   }>(),
   {
     canModify: true,
+    recordable: false,
   },
 )
 
 const emit = defineEmits<{
   (e: 'update:open', val: boolean): void
   (e: 'close'): void
+  (e: 'recorded', steps: AndroidRecordedStepDraft[]): void
 }>()
 
 const visible = computed({
@@ -229,6 +242,30 @@ const mirrorScreenStyle = computed(() => {
 })
 
 const quickInputText = ref('')
+const recording = ref(false)
+const recordedSteps = ref<AndroidRecordedStepDraft[]>([])
+
+function startRecording() {
+  if (!props.canModify || !props.recordable || !props.device) return
+  recordedSteps.value = []
+  recording.value = true
+}
+
+function discardRecording() {
+  recording.value = false
+  recordedSteps.value = []
+}
+
+function finishRecording() {
+  if (!recording.value || !recordedSteps.value.length) return
+  emit('recorded', recordedSteps.value.map((step) => ({ ...step, params: { ...step.params } })))
+  discardRecording()
+  handleClose()
+}
+
+function appendRecordedStep(action: string, name: string, params: Record<string, unknown>) {
+  if (recording.value) recordedSteps.value.push({ action, name, params })
+}
 const isInteracting = ref(false)
 const ripple = ref({ visible: false, x: 0, y: 0 })
 let dragStartPos = { x: 0, y: 0, time: 0 }
@@ -238,6 +275,7 @@ const currentFps = ref(0)
 let scrcpyDecoder: ReturnType<typeof useWebCodecsDecoder> | null = null
 let scrcpyWs: WebSocket | null = null
 let isMouseDown = false
+let canvasDragStart: { x: number; y: number; w: number; h: number; time: number; sent: boolean } | null = null
 let lastMoveSentAt = 0
 let fpsCount = 0
 let fpsTimer: ReturnType<typeof setInterval> | null = null
@@ -397,7 +435,7 @@ function onCanvasMouseDown(e: MouseEvent) {
   isMouseDown = true
   const coords = getCanvasCoords(e)
   showRipple(e.clientX, e.clientY)
-  sendWsTouch(0, coords)
+  canvasDragStart = { ...coords, time: Date.now(), sent: sendWsTouch(0, coords) }
   window.addEventListener('mousemove', onWindowMouseMove)
   window.addEventListener('mouseup', onWindowMouseUp)
 }
@@ -418,13 +456,24 @@ function onWindowMouseUp(e: MouseEvent) {
   window.removeEventListener('mouseup', onWindowMouseUp)
   if (!props.device) return
   const coords = getCanvasCoords(e)
-  sendWsTouch(1, coords)
+  const sent = sendWsTouch(1, coords)
+  const start = canvasDragStart
+  canvasDragStart = null
+  if (!recording.value || !start || !start.sent || !sent) return
+  if (Math.hypot(coords.x - start.x, coords.y - start.y) < 12) {
+    appendRecordedStep('click', '镜像点击', buildAndroidRecordedClickParams(start, null))
+  } else {
+    appendRecordedStep('swipe', '镜像滑动', buildAndroidRecordedSwipeParams(
+      start, coords, { width: start.w, height: start.h }, Math.max(100, Math.min(Date.now() - start.time, 1500)),
+    ))
+  }
 }
 
 function removeWindowMouseListeners() {
   if (isMouseDown) {
     isMouseDown = false
   }
+  canvasDragStart = null
   window.removeEventListener('mousemove', onWindowMouseMove)
   window.removeEventListener('mouseup', onWindowMouseUp)
 }
@@ -494,7 +543,11 @@ async function onScreenMouseUp(e: MouseEvent) {
   isInteracting.value = true
   try {
     if (distance < 10) {
+      const target = recording.value
+        ? await deviceApi.uiTarget(props.device.id, { x: realStartX, y: realStartY }).then((result) => result.target).catch(() => null)
+        : null
       await deviceApi.tap(props.device.id, { x: realStartX, y: realStartY })
+      appendRecordedStep('click', '镜像点击', buildAndroidRecordedClickParams({ x: realStartX, y: realStartY }, target))
     } else {
       await deviceApi.swipe(props.device.id, {
         x1: realStartX,
@@ -503,6 +556,10 @@ async function onScreenMouseUp(e: MouseEvent) {
         y2: realEndY,
         duration_ms: duration,
       })
+      appendRecordedStep('swipe', '镜像滑动', buildAndroidRecordedSwipeParams(
+        { x: realStartX, y: realStartY }, { x: realEndX, y: realEndY },
+        { width: devW, height: devH }, duration,
+      ))
     }
     setTimeout(() => {
       refreshMirror(mirrorSession)
@@ -519,10 +576,12 @@ async function sendKeyEvent(keycode: number | string) {
   if (!props.device) return
   if (isScrcpyLive.value && scrcpyWs && scrcpyWs.readyState === WebSocket.OPEN) {
     scrcpyWs.send(JSON.stringify({ type: 'key', keycode: Number(keycode) }))
+    recordKeyEvent(Number(keycode))
     return
   }
   try {
     await deviceApi.keyevent(props.device.id, keycode)
+    recordKeyEvent(Number(keycode))
     if (!isScrcpyLive.value) {
       setTimeout(() => {
         refreshMirror(mirrorSession)
@@ -534,16 +593,26 @@ async function sendKeyEvent(keycode: number | string) {
   }
 }
 
+function recordKeyEvent(keycode: number) {
+  const names: Record<number, string> = {
+    3: 'HOME', 4: 'BACK', 187: 'RECENT', 26: 'POWER', 24: 'VOLUME_UP', 25: 'VOLUME_DOWN',
+  }
+  const key = names[keycode]
+  if (key) appendRecordedStep('press_key', `按键 ${key}`, { key })
+}
+
 async function sendQuickText() {
   const text = quickInputText.value.trim()
   if (!text || !props.device) return
   if (isScrcpyLive.value && scrcpyWs && scrcpyWs.readyState === WebSocket.OPEN) {
     scrcpyWs.send(JSON.stringify({ type: 'text', text }))
+    appendRecordedStep('input', '镜像输入文字', { text })
     quickInputText.value = ''
     return
   }
   try {
     await deviceApi.inputText(props.device.id, text)
+    appendRecordedStep('input', '镜像输入文字', { text })
     quickInputText.value = ''
     if (!isScrcpyLive.value) {
       setTimeout(() => {
@@ -630,6 +699,7 @@ function stopMirrorPolling() {
 }
 
 function handleClose() {
+  discardRecording()
   cleanupMirror()
   emit('update:open', false)
   emit('close')
@@ -746,6 +816,12 @@ onBeforeUnmount(() => {
 .nav-key-btn:hover {
   background: var(--c-bg-hover, rgba(0, 0, 0, 0.06));
   color: var(--c-primary);
+}
+.mirror-record-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 .mirror-text-bar {
   width: 100%;

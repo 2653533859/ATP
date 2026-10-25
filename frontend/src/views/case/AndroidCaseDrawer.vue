@@ -287,6 +287,7 @@ import { useI18n } from 'vue-i18n'
 import { apkApi, caseApi, deviceApi, type DeviceGroupItem, type DeviceItem, type DeviceLeaseItem, projectApi, scriptApi, type CaseStepItem } from '@/api'
 import CaseStepEditor from '@/components/case/CaseStepEditor.vue'
 import { buildAndroidStandardSteps } from '@/utils/androidStandardSteps'
+import type { AndroidRecordedStepDraft } from '@/utils/androidRecording'
 import AndroidStepEditor from '@/components/common/AndroidStepEditor.vue'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
 import GeneratedScriptModal from '@/components/common/GeneratedScriptModal.vue'
@@ -313,6 +314,8 @@ const props = defineProps<{
   moduleId: number | null
   projectId?: number | null
   editCase?: { id: number } | null
+  initialSteps?: AndroidRecordedStepDraft[] | null
+  initialDeviceSerial?: string | null
 }>()
 
 const emit = defineEmits<{ close: []; saved: [] }>()
@@ -577,6 +580,10 @@ watch(
     void loadApks()
 
     if (!props.editCase?.id) {
+      if (props.initialSteps?.length) {
+        lowcodeSteps.value = props.initialSteps.map((step) => ({ ...step, params: { ...step.params } }))
+        cfg.device_serial = props.initialDeviceSerial || undefined
+      }
       return
     }
 

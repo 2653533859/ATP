@@ -1,5 +1,11 @@
 export type AndroidRecordedPoint = { x: number; y: number }
 
+export type AndroidRecordedStepDraft = {
+  action: string
+  name: string
+  params: Record<string, unknown>
+}
+
 export type AndroidRecordedScreen = { width: number; height: number }
 
 export type AndroidRecordedTarget = {

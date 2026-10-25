@@ -561,6 +561,7 @@ export default {
     selected_device: 'Selected device',
     local_adb: 'Local ADB',
     lease_active: 'Reserved until {time}',
+    edit_recorded_draft: 'Edit recording draft ({count} steps)',
     reserve: 'Reserve device',
     release: 'Release reservation',
     preview: 'Screen preview',

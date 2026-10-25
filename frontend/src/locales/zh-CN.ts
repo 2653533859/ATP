@@ -561,6 +561,7 @@ export default {
     selected_device: '当前设备',
     local_adb: '本机 ADB',
     lease_active: '设备已预留至 {time}',
+    edit_recorded_draft: '编辑录制草稿（{count} 步）',
     reserve: '预留设备',
     release: '释放预留',
     preview: '投屏预览',

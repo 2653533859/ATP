@@ -10,6 +10,7 @@ const {
   caseGet,
   caseRun,
   deviceAcquireLease,
+  deviceReleaseLease,
   deviceList,
   deviceWorkers,
   mobileListRuns,
@@ -25,6 +26,7 @@ const {
   caseGet: vi.fn(),
   caseRun: vi.fn(),
   deviceAcquireLease: vi.fn(),
+  deviceReleaseLease: vi.fn(),
   deviceList: vi.fn(),
   deviceWorkers: vi.fn(),
   mobileListRuns: vi.fn(),
@@ -75,7 +77,7 @@ vi.mock('@/views/device/components/DeviceMirrorModal.vue', () => ({
 vi.mock('@/views/case/AndroidCaseDrawer.vue', () => ({
   default: defineComponent({
     name: 'AndroidCaseDrawer',
-    props: ['open', 'moduleId', 'projectId', 'editCase'],
+    props: ['open', 'moduleId', 'projectId', 'editCase', 'initialSteps', 'initialDeviceSerial'],
     emits: ['close', 'saved'],
     setup: () => () => h('div', { class: 'android-case-drawer-stub' }),
   }),
@@ -88,6 +90,7 @@ vi.mock('@/api', () => ({
   caseApi: { list: caseList, run: caseRun, get: caseGet },
   deviceApi: {
     acquireLease: deviceAcquireLease,
+    releaseLease: deviceReleaseLease,
     list: deviceList,
     workers: deviceWorkers,
     screenshot: vi.fn(),
@@ -175,6 +178,7 @@ beforeEach(() => {
   caseRun.mockResolvedValue({ id: 900 })
   mobileTriggerTask.mockResolvedValue({ id: 901 })
   deviceAcquireLease.mockResolvedValue({ device_id: 10, owner_label: 'app-workbench', acquired_at: '', heartbeat_at: '', expires_at: '2026-08-24T11:00:00Z', lease_token: 'lease-token-123456789' })
+  deviceReleaseLease.mockResolvedValue(undefined)
   routerPush.mockResolvedValue(undefined)
   routerReplace.mockResolvedValue(undefined)
 })
@@ -192,6 +196,44 @@ function deferred<T>() {
 }
 
 describe('AppWorkbenchView', () => {
+  it('hands recorded steps to the case draft after releasing the workbench lease', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      acquireLease: () => Promise<void>
+      handleMirrorRecorded: (steps: Array<{ action: string; name: string; params: Record<string, unknown> }>) => Promise<void>
+      caseDrawerOpen: boolean
+    }
+    await vm.acquireLease()
+    await vm.handleMirrorRecorded([{ action: 'click', name: '镜像点击', params: { x: 10, y: 20 } }])
+    await flushPromises()
+
+    expect(deviceReleaseLease).toHaveBeenCalledWith(10, 'lease-token-123456789')
+    expect(vm.caseDrawerOpen).toBe(true)
+    const drawer = wrapper.findComponent({ name: 'AndroidCaseDrawer' })
+    expect(drawer.props('initialSteps')).toEqual([{ action: 'click', name: '镜像点击', params: { x: 10, y: 20 } }])
+    expect(drawer.props('initialDeviceSerial')).toBe('emulator-5554')
+    wrapper.unmount()
+  })
+
+  it('retains the recorded draft when the workbench lease cannot be released', async () => {
+    deviceReleaseLease.mockRejectedValueOnce(new Error('release failed'))
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      acquireLease: () => Promise<void>
+      handleMirrorRecorded: (steps: Array<{ action: string; name: string; params: Record<string, unknown> }>) => Promise<void>
+      caseDrawerOpen: boolean
+      recordedDraftSteps: Array<{ action: string }>
+    }
+    await vm.acquireLease()
+    await vm.handleMirrorRecorded([{ action: 'click', name: '镜像点击', params: { x: 10, y: 20 } }])
+
+    expect(vm.caseDrawerOpen).toBe(false)
+    expect(vm.recordedDraftSteps).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('loads the Android capability assets and filters out non-Android cases', async () => {
     const wrapper = mountWorkbench()
     await flushPromises()

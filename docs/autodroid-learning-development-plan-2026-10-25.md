@@ -1,8 +1,8 @@
 # ATP 学习 AutoDroid：接口与 App 自动化开发任务计划
 
-> 制定日期：2026-10-25。**开发目标是 ATP**；`~/MyProject/AutoDroid` 仅作为对照项目。A0 已完成源码核对；A1/A2 代码与定向验证完成，真实环境验收待补。完成情况以 `Task.md` 和专项证据为准。
+> 制定日期：2026-10-25。**开发目标是 ATP**；`~/MyProject/AutoDroid` 仅作为对照项目。A0 已完成源码核对；A1/A2/M1 代码与定向验证完成，真实环境验收待补。完成情况以 `Task.md` 和专项证据为准。
 
-> A0 基线见 [`autodroid-atp-capability-baseline-2026-10-25.md`](autodroid-atp-capability-baseline-2026-10-25.md)；A1/A2 实现与限制分别见 [`evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md`](evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md)、[`evidence/autodroid-atp-api-suggestion-reliability-a2-2026-10-25.md`](evidence/autodroid-atp-api-suggestion-reliability-a2-2026-10-25.md)。
+> A0 基线见 [`autodroid-atp-capability-baseline-2026-10-25.md`](autodroid-atp-capability-baseline-2026-10-25.md)；A1/A2/M1 证据分别见 [`evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md`](evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md)、[`evidence/autodroid-atp-api-suggestion-reliability-a2-2026-10-25.md`](evidence/autodroid-atp-api-suggestion-reliability-a2-2026-10-25.md)、[`evidence/autodroid-atp-android-recording-bridge-m1-2026-10-25.md`](evidence/autodroid-atp-android-recording-bridge-m1-2026-10-25.md)。
 
 ## 1. 对比结论与边界
 

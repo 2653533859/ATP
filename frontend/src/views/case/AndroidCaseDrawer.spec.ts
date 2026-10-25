@@ -102,9 +102,9 @@ const formStub = defineComponent({
   },
 })
 
-function mountDrawer(editCase: { id: number } | null = null) {
+function mountDrawer(editCase: { id: number } | null = null, initialSteps: Array<{ action: string; name: string; params: Record<string, unknown> }> | null = null) {
   return mount(AndroidCaseDrawer, {
-    props: { open: true, moduleId: 7, projectId: 11, editCase },
+    props: { open: true, moduleId: 7, projectId: 11, editCase, initialSteps, initialDeviceSerial: 'emulator-5554' },
     global: {
       stubs: {
         AButton: buttonStub,
@@ -151,6 +151,20 @@ beforeEach(() => {
 })
 
 describe('AndroidCaseDrawer low-code flow', () => {
+  it('loads mirror recordings as an editable draft without creating a case', async () => {
+    const draft = [{ action: 'click', name: '镜像点击', params: { x: 12, y: 34 } }]
+    const wrapper = mountDrawer(null, draft)
+    await wrapper.setProps({ open: false })
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as { lowcodeSteps: typeof draft; cfg: { device_serial?: string } }
+    expect(vm.lowcodeSteps).toEqual(draft)
+    expect(vm.cfg.device_serial).toBe('emulator-5554')
+    expect(caseCreate).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('creates an Android case with low-code and generated standard steps', async () => {
     const wrapper = mountDrawer()
     await flushPromises()

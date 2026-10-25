@@ -150,6 +150,9 @@
               <a-button size="small" :disabled="!lease || selectedDevice.status !== 'online'" @click="openPreview">
                 <EyeOutlined /> {{ t('app_workbench.preview') }}
               </a-button>
+              <a-button v-if="recordedDraftSteps.length && recordedDraftProjectId === selectedProjectId" size="small" :disabled="!canModify" @click="openRecordedDraft">
+                {{ t('app_workbench.edit_recorded_draft', { count: recordedDraftSteps.length }) }}
+              </a-button>
             </div>
           </div>
         </aside>
@@ -342,14 +345,18 @@
       v-model:open="previewOpen"
       :device="selectedDevice"
       :can-modify="canModify"
+      recordable
       @close="closePreview"
+      @recorded="handleMirrorRecorded"
     />
     <AndroidCaseDrawer
       :open="caseDrawerOpen"
       :module-id="defaultModuleId"
       :project-id="selectedProjectId"
       :edit-case="editingCase"
-      @close="caseDrawerOpen = false"
+      :initial-steps="usingRecordedDraft ? recordedDraftSteps : null"
+      :initial-device-serial="usingRecordedDraft ? recordedDeviceSerial : null"
+      @close="closeCaseDrawer"
       @saved="handleCaseSaved"
     />
   </div>
@@ -399,6 +406,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getRuntimeMode } from '@/runtimeMode'
 import DeviceMirrorModal from '@/views/device/components/DeviceMirrorModal.vue'
 import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
+import type { AndroidRecordedStepDraft } from '@/utils/androidRecording'
 
 type LaunchMode = 'case' | 'special'
 const localMode = getRuntimeMode()?.mode === 'local'
@@ -450,6 +458,10 @@ const lease = ref<DeviceLeaseItem | null>(null)
 const previewOpen = ref(false)
 const caseDrawerOpen = ref(false)
 const editingCase = ref<CaseDetailItem | { id: number } | null>(null)
+const recordedDraftSteps = ref<AndroidRecordedStepDraft[]>([])
+const recordedDeviceSerial = ref<string | null>(null)
+const recordedDraftProjectId = ref<number | null>(null)
+const usingRecordedDraft = ref(false)
 const projectModules = ref<ModuleTreeItem[]>([])
 const defaultModuleId = computed<number | null>(() => projectModules.value[0]?.id ?? null)
 let leaseHeartbeatTimer: number | null = null
@@ -913,7 +925,35 @@ function openCreateCase() {
     return
   }
   editingCase.value = null
+  usingRecordedDraft.value = false
   caseDrawerOpen.value = true
+}
+
+async function handleMirrorRecorded(steps: AndroidRecordedStepDraft[]) {
+  if (!canModify.value || !selectedDevice.value || !steps.length) return
+  recordedDraftSteps.value = steps.map((step) => ({ ...step, params: { ...step.params } }))
+  recordedDeviceSerial.value = selectedDevice.value.serial
+  recordedDraftProjectId.value = selectedProjectId.value
+  closePreview()
+  await openRecordedDraft()
+}
+
+async function openRecordedDraft() {
+  if (!canModify.value || !recordedDraftSteps.value.length || !selectedProjectId.value
+    || recordedDraftProjectId.value !== selectedProjectId.value) return
+  if (lease.value) await releaseLease(true)
+  if (lease.value) {
+    message.error(t('app_workbench.release_failed'))
+    return
+  }
+  editingCase.value = null
+  usingRecordedDraft.value = true
+  caseDrawerOpen.value = true
+}
+
+function closeCaseDrawer() {
+  caseDrawerOpen.value = false
+  usingRecordedDraft.value = false
 }
 
 async function openEditCase() {
@@ -921,6 +961,7 @@ async function openEditCase() {
   try {
     const detail = await caseApi.get(selectedAndroidCase.value.id)
     editingCase.value = detail
+    usingRecordedDraft.value = false
     caseDrawerOpen.value = true
   } catch (err: unknown) {
     message.error(errorMessage(err, t('app_workbench.load_case_failed')))
@@ -931,6 +972,12 @@ async function handleCaseSaved() {
   caseDrawerOpen.value = false
   const wasEdit = Boolean(editingCase.value)
   editingCase.value = null
+  if (usingRecordedDraft.value) {
+    recordedDraftSteps.value = []
+    recordedDeviceSerial.value = null
+    recordedDraftProjectId.value = null
+  }
+  usingRecordedDraft.value = false
   if (selectedProjectId.value) {
     if (!wasEdit) {
       selectedCaseId.value = undefined
