@@ -17,6 +17,7 @@ const {
   routerPush,
   routerReplace,
   apiScenarioList,
+  apiScenarioCreate,
   routeQuery,
 } = vi.hoisted(() => ({
   caseGet: vi.fn(),
@@ -30,6 +31,7 @@ const {
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   apiScenarioList: vi.fn().mockResolvedValue([]),
+  apiScenarioCreate: vi.fn(),
   routeQuery: { project_id: '1', scenario_id: '', step_index: '' },
 }))
 
@@ -61,7 +63,7 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
 }))
 vi.mock('@/api', () => ({
-  apiScenarioApi: { list: apiScenarioList, create: vi.fn(), delete: vi.fn() },
+  apiScenarioApi: { list: apiScenarioList, create: apiScenarioCreate, delete: vi.fn() },
   caseApi: { get: caseGet, list: caseList, run: caseRun, previewRequest, suggestAssertions },
   environmentApi: { list: environmentList },
   projectApi: { list: projectList },
@@ -150,6 +152,7 @@ beforeEach(() => {
   caseList.mockResolvedValue([apiCase, { ...apiCase, id: 102, case_type: 'web' }])
   runList.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100 })
   caseRun.mockResolvedValue({ id: 500 })
+  apiScenarioCreate.mockResolvedValue({ id: 9, scenario_code: 'SCN-0009', project_id: 1, steps: [] })
   previewRequest.mockResolvedValue({ status_code: 200, duration_ms: 20, body: '{"code":0,"data":{"user_id":42}}', headers: {} })
   suggestAssertions.mockResolvedValue({
     source: 'heuristic',
@@ -171,6 +174,22 @@ function deferred<T>() {
 }
 
 describe('ApiWorkbenchView', () => {
+  it('keeps source case IDs when creating a scenario from selected cases', async () => {
+    caseGet.mockResolvedValue({ ...apiCase, config: { method: 'GET', url: '/login' } })
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      selectedBatchCaseIds: number[]
+      orchestrateSelectedIntoScenario: () => Promise<void>
+    }
+    vm.selectedBatchCaseIds = [101]
+    await vm.orchestrateSelectedIntoScenario()
+
+    const payload = apiScenarioCreate.mock.calls[0]?.[0]
+    expect(payload.steps[0]).toMatchObject({ method: 'GET', url: '/login', sourceCaseId: 101 })
+    wrapper.unmount()
+  })
+
   it('opens a linked scenario at its affected step', async () => {
     routeQuery.scenario_id = '9'
     routeQuery.step_index = '1'

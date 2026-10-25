@@ -9,6 +9,8 @@ Compares OpenAPI/Swagger definitions with existing test cases to:
 from __future__ import annotations
 
 import re
+import hashlib
+import json
 from typing import Any
 from urllib.parse import urlparse
 
@@ -92,6 +94,33 @@ def extract_case_endpoint(case: TestCase) -> tuple[str, str] | None:
     if method and url:
         return method, normalize_endpoint_path(url)
     return None
+
+
+def scenario_request_fingerprint(step: dict[str, Any]) -> str:
+    """Fingerprint request fields only; avoid storing another copy of headers or body."""
+    request = {
+        "method": str(step.get("method") or "GET").upper(),
+        "url": str(step.get("url") or ""),
+        "headers": step.get("headers") or {},
+        "params": step.get("params") or {},
+        "cookies": step.get("cookies") or {},
+        "body_type": step.get("body_type") or "none",
+        "body": step.get("body") if step.get("body") is not None else "",
+    }
+    payload = json.dumps(request, sort_keys=True, ensure_ascii=False, default=str, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def case_request_fingerprint(case: TestCase) -> str:
+    cfg = case.config or {}
+    steps = cfg.get("steps")
+    first = steps[0] if isinstance(steps, list) and steps and isinstance(steps[0], dict) else {}
+    request = {key: first.get(key) or cfg.get(key) for key in ("method", "url", "body_type")}
+    for key in ("headers", "params", "cookies"):
+        request[key] = first[key] if isinstance(first.get(key), dict) else cfg.get(key)
+    request["url"] = first.get("url") or cfg.get("url") or first.get("endpoint") or cfg.get("endpoint")
+    request["body"] = first.get("body") if first.get("body") is not None else cfg.get("body")
+    return scenario_request_fingerprint(request)
 
 
 def generate_addition_patch(endpoint_meta: dict[str, Any], default_module_id: int) -> dict[str, Any]:
@@ -189,6 +218,7 @@ async def sync_spec_with_cases(
 
     # Map existing cases by (method, path)
     case_by_endpoint: dict[tuple[str, str], list[TestCase]] = {}
+    case_by_id = {case.id: case for case in cases}
     for c in cases:
         endpoint = extract_case_endpoint(c)
         if endpoint:
@@ -308,6 +338,22 @@ async def sync_spec_with_cases(
                 diff = affected.get(endpoint)
             if diff is None:
                 continue
+            fingerprint = step.get("sourceCaseFingerprint")
+            if source_case_id is not None and isinstance(fingerprint, str) and source_case_id in case_by_id:
+                source_changed = fingerprint != case_request_fingerprint(case_by_id[source_case_id])
+                local_override = fingerprint != scenario_request_fingerprint(step)
+                reasons = []
+                if source_changed:
+                    reasons.append("来源用例请求已更新，存在版本冲突")
+                if local_override:
+                    reasons.append("场景步骤存在局部覆盖")
+                review_reason = "；".join(reasons) if reasons else "来源与场景请求一致，请检查规格变更"
+            else:
+                review_reason = (
+                    "来源用例版本与局部覆盖未记录，请逐项确认"
+                    if source_case_id is not None
+                    else "按请求地址匹配；未记录来源用例，请人工确认"
+                )
             scenario_impacts.append(
                 {
                     "scenario_id": scenario_id,
@@ -316,11 +362,7 @@ async def sync_spec_with_cases(
                     "step_name": str(step.get("name") or f"步骤 {index + 1}"),
                     "endpoint": diff["endpoint"],
                     "source_case_id": source_case_id,
-                    "review_reason": (
-                        "来源用例版本与局部覆盖未记录，请逐项确认"
-                        if source_case_id is not None
-                        else "按请求地址匹配；未记录来源用例，请人工确认"
-                    ),
+                    "review_reason": review_reason,
                 }
             )
 

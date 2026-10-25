@@ -751,6 +751,7 @@ import {
 export interface OrchestratorStep extends ApiScenarioStep {
   uid: string
   sourceCaseId?: number
+  sourceCaseFingerprint?: string
 }
 
 interface StepDebugResult {
@@ -965,6 +966,7 @@ function toOrchestratorStep(raw: ApiScenarioStep, sourceCaseId?: number): Orches
   return {
     uid: nextUid(),
     sourceCaseId: sourceCaseId ?? (typeof raw.sourceCaseId === 'number' ? raw.sourceCaseId : undefined),
+    sourceCaseFingerprint: typeof raw.sourceCaseFingerprint === 'string' ? raw.sourceCaseFingerprint : undefined,
     name: raw.name || '未命名步骤',
     method: (raw.method || 'GET').toUpperCase(),
     url: raw.url || '',
@@ -1773,6 +1775,7 @@ async function handleSaveScenario(silent = false): Promise<number | null> {
       depends_on: idx > 0 ? [idx - 1] : [],
       timeout: s.timeout || 30,
       sourceCaseId: s.sourceCaseId,
+      sourceCaseFingerprint: s.sourceCaseFingerprint,
     }))
 
     const payload = {

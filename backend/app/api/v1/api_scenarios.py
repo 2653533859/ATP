@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +15,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
@@ -21,6 +23,9 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.models.user_project import ProjectRole
+from app.models.case import CaseType, TestCase
+from app.models.project import Module
+from app.services.spec_sync import case_request_fingerprint
 
 from app.services.workflow_dag_engine import (
     WorkflowDagError,
@@ -112,6 +117,35 @@ class ApiScenarioRunRecordIn(BaseModel):
     duration_ms: int = 0
 
 
+async def _bind_source_cases(
+    db: AsyncSession, project_id: int, steps: list[dict[str, Any]], *, preserve_existing: bool = False
+) -> list[dict[str, Any]]:
+    source_ids = {
+        step.get("sourceCaseId")
+        for step in steps
+        if isinstance(step.get("sourceCaseId"), int) and not isinstance(step.get("sourceCaseId"), bool)
+    }
+    if not source_ids:
+        return steps
+    result = await db.execute(
+        select(TestCase)
+        .join(Module, TestCase.module_id == Module.id)
+        .where(Module.project_id == project_id, TestCase.case_type == CaseType.api, TestCase.id.in_(source_ids))
+    )
+    sources = {case.id: case for case in result.scalars().all()}
+    bound_steps = []
+    for step in steps:
+        bound = dict(step)
+        source = sources.get(step.get("sourceCaseId"))
+        fingerprint = step.get("sourceCaseFingerprint")
+        if source is None:
+            bound.pop("sourceCaseFingerprint", None)
+        elif not preserve_existing or not (isinstance(fingerprint, str) and re.fullmatch(r"[0-9a-f]{64}", fingerprint)):
+            bound["sourceCaseFingerprint"] = case_request_fingerprint(source)
+        bound_steps.append(bound)
+    return bound_steps
+
+
 @router.get("")
 async def list_api_scenarios(
     project_id: int | None = Query(default=None),
@@ -164,6 +198,7 @@ async def create_api_scenario(
     db: AsyncSession = Depends(get_db),
 ):
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    bound_steps = await _bind_source_cases(db, body.project_id, body.steps)
     now = datetime.now(timezone.utc).isoformat()
     with _LOCK:
         items = _load_all()
@@ -176,8 +211,8 @@ async def create_api_scenario(
             "name": body.name.strip(),
             "description": body.description.strip(),
             "env_id": body.env_id,
-            "steps": body.steps,
-            "step_count": len(body.steps),
+            "steps": bound_steps,
+            "step_count": len(bound_steps),
             "last_run_status": None,
             "last_run_duration_ms": None,
             "last_run_at": None,
@@ -197,6 +232,7 @@ async def update_api_scenario(
     db: AsyncSession = Depends(get_db),
 ):
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    bound_steps = await _bind_source_cases(db, body.project_id, body.steps, preserve_existing=True)
     now = datetime.now(timezone.utc).isoformat()
     with _LOCK:
         items = _load_all()
@@ -212,8 +248,8 @@ async def update_api_scenario(
                     "name": body.name.strip(),
                     "description": body.description.strip(),
                     "env_id": body.env_id,
-                    "steps": body.steps,
-                    "step_count": len(body.steps),
+                    "steps": bound_steps,
+                    "step_count": len(bound_steps),
                     "updated_at": now,
                 }
                 items[idx] = updated

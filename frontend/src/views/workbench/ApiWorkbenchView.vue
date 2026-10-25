@@ -653,6 +653,7 @@ async function orchestrateSelectedIntoScenario() {
         const parsed = parseStepFromCase(detail)
         steps.push({
           ...parsed,
+          sourceCaseId: id,
           depends_on: i > 0 ? [i - 1] : [],
         })
       } catch {

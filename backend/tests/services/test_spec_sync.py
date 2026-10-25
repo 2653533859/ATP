@@ -23,6 +23,7 @@ from app.models.user import User, UserRole
 
 load_all_models()
 from app.services.spec_sync import (
+    case_request_fingerprint,
     extract_case_endpoint,
     extract_spec_endpoints,
     normalize_endpoint_path,
@@ -119,6 +120,59 @@ def test_extract_case_endpoint():
     # Incomplete config
     c3 = TestCase(id=3, name="Case 3", case_type=CaseType.api, config={})
     assert extract_case_endpoint(c3) is None
+
+
+def test_scenario_impact_distinguishes_source_change_from_local_override():
+    module = Module(id=10, project_id=5, name="核心模块")
+    case = TestCase(
+        id=101,
+        name="订单查询",
+        case_type=CaseType.api,
+        module_id=10,
+        config={"method": "GET", "url": "/orders", "params": {}},
+    )
+    fingerprint = case_request_fingerprint(case)
+    scenario = {
+        "id": 7,
+        "name": "订单场景",
+        "project_id": 5,
+        "steps": [
+            {"method": "GET", "url": "/orders", "params": {}, "sourceCaseId": 101, "sourceCaseFingerprint": fingerprint}
+        ],
+    }
+    spec = {"paths": {"/orders": {"get": {"parameters": [{"name": "role", "in": "query", "required": True}]}}}}
+    db = _FakeDB(modules=[module], cases=[case])
+
+    first = asyncio.run(sync_spec_with_cases(db, project_id=5, spec=spec, scenarios=[scenario]))
+    assert "来源与场景请求一致" in first["scenario_impacts"][0]["review_reason"]
+    assert "版本冲突" not in first["scenario_impacts"][0]["review_reason"]
+
+    case.config = {"method": "GET", "url": "/orders", "params": {"region": "east"}}
+    second = asyncio.run(sync_spec_with_cases(db, project_id=5, spec=spec, scenarios=[scenario]))
+    assert "版本冲突" in second["scenario_impacts"][0]["review_reason"]
+    assert "局部覆盖" not in second["scenario_impacts"][0]["review_reason"]
+
+    scenario["steps"][0]["params"] = {"region": "west"}
+    third = asyncio.run(sync_spec_with_cases(db, project_id=5, spec=spec, scenarios=[scenario]))
+    assert "版本冲突" in third["scenario_impacts"][0]["review_reason"]
+    assert "局部覆盖" in third["scenario_impacts"][0]["review_reason"]
+
+
+def test_case_fingerprint_respects_empty_step_headers_over_flat_config():
+    case = TestCase(
+        id=1,
+        case_type=CaseType.api,
+        config={
+            "method": "GET",
+            "url": "/orders",
+            "headers": {"X-Old": "value"},
+            "steps": [{"method": "GET", "url": "/orders", "headers": {}}],
+        },
+    )
+    step = {"method": "GET", "url": "/orders", "headers": {}}
+    from app.services.spec_sync import scenario_request_fingerprint
+
+    assert case_request_fingerprint(case) == scenario_request_fingerprint(step)
 
 
 def test_sync_spec_with_cases_detects_additions_modifications_deprecations():
