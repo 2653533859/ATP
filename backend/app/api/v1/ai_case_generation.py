@@ -264,9 +264,11 @@ async def _record_generation_event(
 async def suggest_assertions_endpoint(
     body: AIAssertionSuggestIn,
     db: AsyncSession = Depends(get_db),
-    _user: User = Depends(require_engineer),
+    user: User = Depends(require_engineer),
 ):
     """AI / 规则混合智能推荐测试断言与变量提取。"""
+    if body.project_id is not None:
+        await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
     config: AILLMConfig | None = None
     if body.project_id:
         project = await db.get(Project, body.project_id)

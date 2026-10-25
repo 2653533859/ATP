@@ -4,10 +4,11 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-> 基于 AutoDroid 对照的接口与 App 自动化任务见 [`docs/autodroid-learning-development-plan-2026-10-25.md`](docs/autodroid-learning-development-plan-2026-10-25.md)；A0 已完成，A1 代码与定向验证完成，真实环境验收待补。
+> 基于 AutoDroid 对照的接口与 App 自动化任务见 [`docs/autodroid-learning-development-plan-2026-10-25.md`](docs/autodroid-learning-development-plan-2026-10-25.md)；A0 已完成，A1/A2 代码与定向验证完成，真实环境验收待补。
 
 - [x] 2026-10-25 AutoDroid 对照 A0：已用相同 API/App 流程核对两仓库的入口、源码和定向测试，收窄 A1/A2/M1/M2 范围；ATP 后端 30 passed、前端 15 passed，AutoDroid 对照测试因本地缺少 Python 依赖未复测，真实 API 与真机留待后续任务。见 [`docs/autodroid-atp-capability-baseline-2026-10-25.md`](docs/autodroid-atp-capability-baseline-2026-10-25.md)。
 - [x] 2026-10-25 A1 接口规格影响预览（代码与定向验证）：契约资产页可只读预览新增、修改、移除接口及关联场景步骤，跳转到用例或场景步骤；补旧版规格差异识别、完整 URL 匹配和来源用例关联保留。后端 8 passed、前端 17 passed、`vue-tsc --noEmit` 通过。来源版本与步骤局部覆盖尚未持久化，统一提示人工确认；真实环境验收待补。见 [`docs/evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md`](docs/evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md)。
+- [x] 2026-10-25 A2 接口调试建议可靠性（代码与定向验证）：工作台基于当前调试响应生成可审阅建议，校验与取值规则去重应用后只用缓存响应重新计算；请求草稿、环境或响应变化时禁止应用旧建议。后端检查项目访问、脱敏模型上下文并过滤与响应不一致的建议。后端 4 passed、前端工作台 16 passed、`vue-tsc --noEmit` 通过；真实业务接口与模型配置验收待补。见 [`docs/evidence/autodroid-atp-api-suggestion-reliability-a2-2026-10-25.md`](docs/evidence/autodroid-atp-api-suggestion-reliability-a2-2026-10-25.md)。
 
 ## 2026-10-15 v2.7.0 研发任务规划（已全量闭环）
 

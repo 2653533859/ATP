@@ -15,7 +15,8 @@ from app.schemas.ai_case import (
     AIExtractionSuggestion,
 )
 from app.services.ai_case.llm_client import LLMRequest, call_llm
-from app.services.ai_governance import check_and_incr_daily_limit, llm_extra_params
+from app.services.ai_governance import check_and_incr_daily_limit, llm_extra_params, redact_llm_text
+from app.services.sensitive_data_redactor import apply_pii_redaction_gateway, mask_pii_text
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,80 @@ def _sanitize_json(val: Any) -> Any:
             except Exception:
                 pass
     return val
+
+
+def _response_path(body: Any, expression: str) -> tuple[bool, Any]:
+    """Resolve the simple JSON paths supported by ATP's scenario editor."""
+    if expression == "$":
+        return True, body
+    if not expression.startswith("$.") and not expression.startswith("$["):
+        return False, None
+    parts = re.findall(r"[^.\[\]]+|\[\d+\]", expression[1:])
+    if not parts:
+        return False, None
+    current = body
+    for part in parts:
+        if part.startswith("["):
+            index = int(part[1:-1])
+            if not isinstance(current, list) or index >= len(current):
+                return False, None
+            current = current[index]
+        elif isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return False, None
+    return True, current
+
+
+def _suggestion_matches_response(suggestion: AIAssertionSuggestion, body: AIAssertionSuggestIn) -> bool:
+    if suggestion.target == "status_code":
+        found, actual = body.status_code is not None, body.status_code
+    elif suggestion.target == "header":
+        headers = {key.lower(): value for key, value in (body.response_headers or {}).items()}
+        found = suggestion.expression.lower() in headers
+        actual = headers.get(suggestion.expression.lower())
+    elif suggestion.target == "body":
+        if suggestion.expression:
+            found, actual = _response_path(_sanitize_json(body.response_body), suggestion.expression)
+        else:
+            found, actual = body.response_body is not None, body.response_body
+    else:
+        return False
+    if not found:
+        return False
+    if suggestion.operator == "exists":
+        return actual is not None and actual != ""
+    if isinstance(actual, (dict, list)):
+        return False
+    actual_text = str(actual).lower() if isinstance(actual, bool) else str(actual)
+    expected = suggestion.expected
+    if suggestion.operator == "eq":
+        return actual_text == expected
+    if suggestion.operator == "ne":
+        return actual_text != expected
+    if suggestion.operator == "contains":
+        return expected in actual_text and bool(expected)
+    if suggestion.operator in {"gt", "lt"}:
+        try:
+            actual_number, expected_number = float(actual_text), float(expected)
+        except ValueError:
+            return False
+        return actual_number > expected_number if suggestion.operator == "gt" else actual_number < expected_number
+    return False
+
+
+def _extraction_matches_response(suggestion: AIExtractionSuggestion, body: AIAssertionSuggestIn) -> bool:
+    if suggestion.type == "jsonpath":
+        found, value = _response_path(_sanitize_json(body.response_body), suggestion.expression)
+        return found and value is not None
+    if suggestion.type == "header":
+        return suggestion.expression.lower() in {key.lower() for key in (body.response_headers or {})}
+    if suggestion.type == "regex":
+        try:
+            return re.search(suggestion.expression, str(body.response_body or "")) is not None
+        except re.error:
+            return False
+    return False
 
 
 def heuristic_suggestions(
@@ -255,15 +330,16 @@ async def suggest_assertions_and_extractions(
             return AIAssertionSuggestOut(assertions=h_assertions, extractions=h_extractions, source="heuristic")
 
         body_preview = ""
-        if body.response_body is not None:
-            if isinstance(body.response_body, (dict, list)):
-                body_preview = json.dumps(body.response_body, ensure_ascii=False)[:3000]
+        safe_body = apply_pii_redaction_gateway(body.response_body)
+        if safe_body is not None:
+            if isinstance(safe_body, (dict, list)):
+                body_preview = redact_llm_text(json.dumps(safe_body, ensure_ascii=False), limit=3000)
             else:
-                body_preview = str(body.response_body)[:3000]
+                body_preview = redact_llm_text(safe_body, limit=3000)
 
         prompt = _LLM_SUGGESTION_PROMPT.format(
             method=body.method,
-            url=body.url,
+            url=redact_llm_text(mask_pii_text(body.url), limit=500),
             status_code=body.status_code or 200,
             response_body=body_preview or "（无响应体）",
         )
@@ -313,6 +389,9 @@ async def suggest_assertions_and_extractions(
                         )
                     )
 
+            if llm_assertions or llm_extractions:
+                llm_assertions = [item for item in llm_assertions if _suggestion_matches_response(item, body)]
+                llm_extractions = [item for item in llm_extractions if _extraction_matches_response(item, body)]
             if llm_assertions or llm_extractions:
                 # Merge: ensure status_code is retained
                 if not any(a.target == "status_code" for a in llm_assertions) and h_assertions:

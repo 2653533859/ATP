@@ -9,6 +9,8 @@ const {
   caseGet,
   caseList,
   caseRun,
+  previewRequest,
+  suggestAssertions,
   environmentList,
   projectList,
   runList,
@@ -20,6 +22,8 @@ const {
   caseGet: vi.fn(),
   caseList: vi.fn(),
   caseRun: vi.fn(),
+  previewRequest: vi.fn(),
+  suggestAssertions: vi.fn(),
   environmentList: vi.fn(),
   projectList: vi.fn(),
   runList: vi.fn(),
@@ -37,7 +41,7 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ locale: ref('zh-CN'), t: (key: string) => key }),
 }))
 vi.mock('ant-design-vue', () => ({
-  message: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
+  message: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }))
 vi.mock('@ant-design/icons-vue', () => ({
   ApiOutlined: true,
@@ -58,7 +62,7 @@ vi.mock('@/stores/auth', () => ({
 }))
 vi.mock('@/api', () => ({
   apiScenarioApi: { list: apiScenarioList, create: vi.fn(), delete: vi.fn() },
-  caseApi: { get: caseGet, list: caseList, run: caseRun },
+  caseApi: { get: caseGet, list: caseList, run: caseRun, previewRequest, suggestAssertions },
   environmentApi: { list: environmentList },
   projectApi: { list: projectList },
   runApi: { list: runList },
@@ -146,6 +150,12 @@ beforeEach(() => {
   caseList.mockResolvedValue([apiCase, { ...apiCase, id: 102, case_type: 'web' }])
   runList.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100 })
   caseRun.mockResolvedValue({ id: 500 })
+  previewRequest.mockResolvedValue({ status_code: 200, duration_ms: 20, body: '{"code":0,"data":{"user_id":42}}', headers: {} })
+  suggestAssertions.mockResolvedValue({
+    source: 'heuristic',
+    assertions: [{ target: 'body', operator: 'eq', expression: '$.code', expected: '0', description: '业务码' }],
+    extractions: [{ variable: 'user_id', type: 'jsonpath', expression: '$.data.user_id', description: '用户' }],
+  })
   routerPush.mockResolvedValue(undefined)
   routerReplace.mockResolvedValue(undefined)
 })
@@ -186,6 +196,93 @@ describe('ApiWorkbenchView', () => {
     const child = orchestrator.vm as unknown as { currentStep: { name: string; sourceCaseId?: number } }
     expect(child.currentStep.name).toBe('受影响步骤')
     expect(child.currentStep.sourceCaseId).toBe(101)
+    wrapper.unmount()
+  })
+
+  it('applies response suggestions once and rechecks without sending another request', async () => {
+    routeQuery.scenario_id = '9'
+    apiScenarioList.mockResolvedValueOnce([{
+      id: 9, project_id: 1, name: '回归场景', steps: [{ name: '查询', method: 'GET', url: '/orders' }],
+    }])
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const child = wrapper.findComponent(ApiScenarioOrchestrator).vm as unknown as {
+      debugCurrentStep: (mode: 'single') => Promise<void>
+      requestSuggestions: () => Promise<void>
+      applySuggestions: () => void
+      currentStep: { assertions: Array<{ expression: string }>; extractions: Array<{ variable: string }> }
+      currentDebugResult: { passed: boolean; assertionDetails: Array<{ passed: boolean }> }
+    }
+
+    await child.debugCurrentStep('single')
+    await child.requestSuggestions()
+    child.applySuggestions()
+    await child.requestSuggestions()
+    child.applySuggestions()
+
+    expect(previewRequest).toHaveBeenCalledTimes(1)
+    expect(suggestAssertions).toHaveBeenCalledWith(expect.objectContaining({
+      project_id: 1, status_code: 200, response_body: { code: 0, data: { user_id: 42 } },
+    }))
+    expect(child.currentStep.assertions.filter((item) => item.expression === '$.code')).toHaveLength(1)
+    expect(child.currentStep.extractions.filter((item) => item.variable === 'user_id')).toHaveLength(1)
+    expect(child.currentDebugResult.passed).toBe(true)
+    expect(child.currentDebugResult.assertionDetails[0].passed).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('rejects suggestions after the request draft changes', async () => {
+    routeQuery.scenario_id = '9'
+    apiScenarioList.mockResolvedValueOnce([{
+      id: 9, project_id: 1, name: '回归场景', steps: [{ name: '查询', method: 'GET', url: '/orders' }],
+    }])
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const child = wrapper.findComponent(ApiScenarioOrchestrator).vm as unknown as {
+      debugCurrentStep: (mode: 'single') => Promise<void>
+      requestSuggestions: () => Promise<void>
+      applySuggestions: () => void
+      currentStep: { url: string; assertions: Array<unknown> }
+    }
+
+    await child.debugCurrentStep('single')
+    await child.requestSuggestions()
+    child.currentStep.url = '/changed'
+    child.applySuggestions()
+
+    expect(child.currentStep.assertions).toHaveLength(1)
+    expect(previewRequest).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('checks body text suggestions against the full cached response', async () => {
+    routeQuery.scenario_id = '9'
+    apiScenarioList.mockResolvedValueOnce([{
+      id: 9, project_id: 1, name: '回归场景', steps: [{ name: '查询', method: 'GET', url: '/orders' }],
+    }])
+    previewRequest.mockResolvedValueOnce({
+      status_code: 200, duration_ms: 20, body: `${'x'.repeat(130)}needle`, headers: {},
+    })
+    suggestAssertions.mockResolvedValueOnce({
+      source: 'llm',
+      assertions: [{ target: 'body', operator: 'contains', expression: '', expected: 'needle', description: '响应文本' }],
+      extractions: [],
+    })
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const child = wrapper.findComponent(ApiScenarioOrchestrator).vm as unknown as {
+      debugCurrentStep: (mode: 'single') => Promise<void>
+      requestSuggestions: () => Promise<void>
+      applySuggestions: () => void
+      currentDebugResult: { passed: boolean; assertionDetails: Array<{ passed: boolean }> }
+    }
+    await child.debugCurrentStep('single')
+    await child.requestSuggestions()
+    child.applySuggestions()
+
+    expect(child.currentDebugResult.passed).toBe(true)
+    expect(child.currentDebugResult.assertionDetails[child.currentDebugResult.assertionDetails.length - 1]?.passed).toBe(true)
+    expect(previewRequest).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 

@@ -545,7 +545,24 @@
                 {{ currentDebugResult?.passed ? '校验通过' : '存在失败校验' }}
               </a-tag>
             </div>
+            <a-button size="small" :loading="suggestionLoading" @click="requestSuggestions">
+              生成校验与取值建议
+            </a-button>
           </div>
+
+          <div v-if="pendingSuggestions && suggestionsCurrent" class="suggestion-preview">
+            <span>当前响应建议：{{ pendingSuggestions.result.assertions.length }} 条校验，{{ pendingSuggestions.result.extractions.length }} 项取值（{{ pendingSuggestions.result.source === 'llm' ? 'AI' : '规则' }}）</span>
+            <ul>
+              <li v-for="(item, index) in pendingSuggestions.result.assertions" :key="`assert:${index}`">
+                校验 {{ item.expression || item.target }} {{ item.operator }} {{ item.expected }}
+              </li>
+              <li v-for="(item, index) in pendingSuggestions.result.extractions" :key="`extract:${index}`">
+                取值 {{ item.variable }} ← {{ item.expression }}
+              </li>
+            </ul>
+            <a-button size="small" type="primary" :disabled="!canModify" @click="applySuggestions">应用并重新校验</a-button>
+          </div>
+          <a-alert v-else-if="pendingSuggestions" type="warning" show-icon message="请求、环境或响应已变化，请重新生成建议" />
 
           <a-tabs v-model:activeKey="responseTab" size="small" class="response-tabs">
             <a-tab-pane key="fields" tab="点选字段 (快速校验/取值)">
@@ -724,6 +741,7 @@ import {
   type CaseDetailItem,
   type CaseSummaryItem,
   type EnvironmentItem,
+  type AIAssertionSuggestResult,
 } from '@/api'
 import {
   parseStepFromCase,
@@ -802,6 +820,13 @@ const jsonError = ref('')
 const bearerTokenInput = ref('{{token}}')
 
 const stepDebugResults = ref<Record<string, StepDebugResult>>({})
+const suggestionLoading = ref(false)
+const pendingSuggestions = ref<{
+  stepUid: string
+  response: StepDebugResult
+  signature: string
+  result: AIAssertionSuggestResult
+} | null>(null)
 const runtimeVariables = ref<Record<string, string>>({})
 
 const addStepDrawerOpen = ref(false)
@@ -846,6 +871,18 @@ const currentStep = computed<OrchestratorStep | null>(() =>
 const currentDebugResult = computed<StepDebugResult | null>(() =>
   currentStep.value ? stepDebugResults.value[currentStep.value.uid] ?? null : null,
 )
+
+function suggestionSignature(step: OrchestratorStep): string {
+  return JSON.stringify({ step, envId: selectedEnvId.value, envVariables: currentEnvVariables.value })
+}
+
+const suggestionsCurrent = computed(() => {
+  const pending = pendingSuggestions.value
+  const step = currentStep.value
+  return !!pending && !!step && pending.stepUid === step.uid
+    && pending.response === currentDebugResult.value
+    && pending.signature === suggestionSignature(step)
+})
 
 const availableUpstreamVars = computed(() => {
   const list: Array<{ name: string; stepName: string }> = []
@@ -1419,7 +1456,7 @@ function evaluateStepAssertions(
       const found = Object.entries(res.headers || {}).find(([k]) => k.toLowerCase() === hk)
       actualVal = found ? String(found[1]) : ''
     } else {
-      actualVal = res.body?.slice(0, 120) || ''
+      actualVal = res.body || ''
     }
 
     if (a.operator === 'eq') passed = actualVal === expected
@@ -1432,7 +1469,7 @@ function evaluateStepAssertions(
     details.push({
       label: `${a.target}${a.expression ? ` (${a.expression})` : ''} ${a.operator} ${expected}`,
       passed,
-      actual: actualVal,
+      actual: a.target === 'body_contains' ? actualVal.slice(0, 120) : actualVal,
     })
   }
   return { allPassed, details }
@@ -1608,6 +1645,76 @@ const formattedResponseBody = computed(() => {
   }
   return res.body || ''
 })
+
+async function requestSuggestions() {
+  const step = currentStep.value
+  const response = currentDebugResult.value
+  if (!step || !response) return
+  const signature = suggestionSignature(step)
+  suggestionLoading.value = true
+  pendingSuggestions.value = null
+  try {
+    const result = await caseApi.suggestAssertions({
+      project_id: props.projectId,
+      method: (step.method || 'GET').toUpperCase(),
+      url: step.url || '',
+      status_code: response.status_code,
+      response_body: response.body_json ?? response.body,
+      response_headers: response.headers,
+    })
+    if (currentStep.value?.uid !== step.uid || currentDebugResult.value !== response
+      || suggestionSignature(step) !== signature) return
+    pendingSuggestions.value = { stepUid: step.uid, response, signature, result }
+  } catch (error: any) {
+    message.error(`生成建议失败: ${error?.response?.data?.detail || error?.message || '请稍后重试'}`)
+  } finally {
+    suggestionLoading.value = false
+  }
+}
+
+function applySuggestions() {
+  const step = currentStep.value
+  const response = currentDebugResult.value
+  const pending = pendingSuggestions.value
+  if (!step || !response || !pending || !suggestionsCurrent.value) return
+
+  if (!step.assertions) step.assertions = []
+  if (!step.extractions) step.extractions = []
+  let added = 0
+  for (const item of pending.result.assertions) {
+    const operator = item.operator === 'exists' ? 'not_empty' : item.operator
+    if (!['eq', 'ne', 'contains', 'not_empty'].includes(operator)) continue
+    const target = item.target === 'status_code' ? 'status_code'
+      : item.target === 'header' ? 'response_header'
+        : item.target === 'body' && item.expression ? 'jsonpath'
+          : item.target === 'body' && operator === 'contains' ? 'body_contains' : null
+    if (!target) continue
+    const expression = target === 'status_code' || target === 'body_contains' ? '' : item.expression
+    if (step.assertions.some((existing) => existing.target === target
+      && (existing.expression || '') === expression && existing.operator === operator
+      && String(existing.expected || '') === item.expected)) continue
+    step.assertions.push({ target, operator, expression, expected: item.expected, description: item.description })
+    added++
+  }
+  for (const item of pending.result.extractions) {
+    if (item.type !== 'jsonpath' && item.type !== 'header') continue
+    if (step.extractions.some((existing) => existing.variable === item.variable
+      || (existing.type === item.type && existing.expression === item.expression))) continue
+    step.extractions.push({ variable: item.variable, type: item.type, expression: item.expression, description: item.description })
+    added++
+  }
+  pendingSuggestions.value = null
+  if (!added) {
+    message.info('建议均已存在或当前编辑器暂不支持')
+    return
+  }
+  const { allPassed, details } = evaluateStepAssertions(step, response)
+  response.assertionDetails = details
+  response.passed = allPassed && response.status_code > 0 && response.status_code < 400
+  inspectorMainTab.value = 'assertions'
+  markDirty()
+  message.success(`已应用 ${added} 条建议，并用当前响应重新校验`)
+}
 
 function quickAddAssertionFromField(field: { path: string; rawValue: unknown }) {
   if (!currentStep.value) return
