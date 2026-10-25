@@ -5,10 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AndroidCaseDrawer from './AndroidCaseDrawer.vue'
 import CaseDatasetBinding from '@/components/common/CaseDatasetBinding.vue'
 
-const { caseCreate, caseGet, caseUpdate, deviceList, apkList, datasetList, versionList } = vi.hoisted(() => ({
+const { caseCreate, caseGet, caseUpdate, casePrecheck, casePrecheckDraft, deviceList, apkList, datasetList, versionList } = vi.hoisted(() => ({
   caseCreate: vi.fn(),
   caseGet: vi.fn(),
   caseUpdate: vi.fn(),
+  casePrecheck: vi.fn(),
+  casePrecheckDraft: vi.fn(),
   deviceList: vi.fn(),
   apkList: vi.fn(),
   datasetList: vi.fn(),
@@ -31,7 +33,13 @@ vi.mock('ant-design-vue', () => ({
 
 vi.mock('@/api', () => ({
   apkApi: { list: apkList },
-  caseApi: { create: caseCreate, get: caseGet, update: caseUpdate },
+  caseApi: {
+    create: caseCreate,
+    get: caseGet,
+    update: caseUpdate,
+    precheck: casePrecheck,
+    precheckAndroidDraft: casePrecheckDraft,
+  },
   deviceApi: { list: deviceList },
   datasetApi: { list: datasetList, listVersions: versionList },
   scriptApi: { get: vi.fn(), upload: vi.fn(), saveContent: vi.fn() },
@@ -118,6 +126,10 @@ function mountDrawer(editCase: { id: number } | null = null, initialSteps: Array
         ADivider: passthrough('ADivider'),
         AInput: passthrough('AInput'),
         AInputNumber: passthrough('AInputNumber'),
+        AList: passthrough('AList'),
+        AListItem: passthrough('AListItem'),
+        AListItemMeta: passthrough('AListItemMeta'),
+        AModal: passthrough('AModal'),
         ARadioButton: passthrough('ARadioButton'),
         ARadioGroup: passthrough('ARadioGroup'),
         ARow: passthrough('ARow'),
@@ -278,5 +290,51 @@ describe('AndroidCaseDrawer low-code flow', () => {
       }),
     }))
     expect(wrapper.emitted('saved')).toHaveLength(1)
+  })
+
+  it('triggers execution precheck for android case draft and displays results', async () => {
+    casePrecheckDraft.mockResolvedValue({
+      ok: true,
+      device_serial: 'emulator-5554',
+      platform: 'android',
+      summary: {
+        total_steps: 1,
+        passed_steps: 1,
+        failed_steps: 0,
+        warning_steps: 0,
+        has_blocking_issue: false,
+      },
+      items: [
+        {
+          scope: 'step',
+          status: 'PASS',
+          code: 'STEP_OK',
+          message: '步骤有效',
+          suggestion: '无',
+          step_index: 1,
+        },
+      ],
+    })
+
+    const wrapper = mountDrawer(null, [{ action: 'click', name: '点按', params: { text: '确定' } }])
+    await wrapper.setProps({ open: false })
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+
+    const buttons = wrapper.findAll('button')
+    const precheckBtn = buttons.find((btn) => btn.text().includes('case.drawer.android.precheck_btn'))
+    expect(precheckBtn).toBeDefined()
+    await precheckBtn?.trigger('click')
+    await flushPromises()
+
+    expect(casePrecheckDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: 11,
+        device_serial: 'emulator-5554',
+        steps: expect.arrayContaining([
+          expect.objectContaining({ action: 'click' }),
+        ]),
+      }),
+    )
   })
 })

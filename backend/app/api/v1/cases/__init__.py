@@ -108,7 +108,14 @@ from .workflow import (
     rollback_case,
     submit_review,
 )
-from .runs import get_run, list_runs, stop_web_run, trigger_run
+from .runs import (
+    get_run,
+    list_runs,
+    precheck_android_draft,
+    precheck_case,
+    stop_web_run,
+    trigger_run,
+)
 
 __all__ = [
     "router",
@@ -138,6 +145,8 @@ __all__ = [
     "list_runs",
     "get_run",
     "stop_web_run",
+    "precheck_case",
+    "precheck_android_draft",
     "_validate_protocol_config",
     # 子模块（供测试访问 cases.batch / cases.workflow 等）
     "batch",

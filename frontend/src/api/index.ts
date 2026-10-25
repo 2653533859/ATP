@@ -1842,6 +1842,33 @@ export interface AIAssertionSuggestResult {
   source: 'llm' | 'heuristic'
 }
 
+export interface AndroidPrecheckItem {
+  scope: 'device' | 'platform' | 'app' | 'step' | 'variable' | 'environment'
+  status: 'PASS' | 'WARNING' | 'FAIL'
+  code: string
+  message: string
+  suggestion: string
+  step_index?: number | null
+  step_id?: string | null
+  step_action?: string | null
+}
+
+export interface AndroidPrecheckSummary {
+  total_steps: number
+  passed_steps: number
+  failed_steps: number
+  warning_steps: number
+  has_blocking_issue: boolean
+}
+
+export interface AndroidPrecheckResponse {
+  ok: boolean
+  device_serial?: string | null
+  platform: string
+  summary: AndroidPrecheckSummary
+  items: AndroidPrecheckItem[]
+}
+
 export const caseApi = {
   list: (params?: CaseQueryParams) =>
     http.get<unknown, CaseSummaryItem[]>('/cases', { params }),
@@ -1872,6 +1899,10 @@ export const caseApi = {
   reactivate: (id: number, data?: { comment?: string }) => http.post<unknown, CaseDetailItem>(`/cases/${id}/reactivate`, data ?? {}),
   run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
     http.post<unknown, CaseRunStartResponse>(`/cases/${id}/run`, data ?? {}),
+  precheck: (id: number, data?: { device_serial?: string; env_id?: number; extra_vars?: object; steps?: unknown[]; config?: object }) =>
+    http.post<unknown, AndroidPrecheckResponse>(`/cases/${id}/precheck`, data ?? {}),
+  precheckAndroidDraft: (data: { project_id: number; device_serial?: string; env_id?: number; extra_vars?: object; steps?: unknown[]; config?: object }) =>
+    http.post<unknown, AndroidPrecheckResponse>('/cases/android/precheck', data),
   listSnapshots: (caseId: number, params?: { page?: number; page_size?: number }) =>
     http.get<unknown, { items: CaseSnapshotItem[]; total: number; page: number; page_size: number }>(
       `/cases/${caseId}/snapshots`, { params },

@@ -266,9 +266,74 @@
       @close="scriptPreviewOpen = false"
       @save="handleSaveGeneratedScript"
     />
+    <a-modal
+      v-model:open="precheckModalVisible"
+      :title="t('case.drawer.android.precheck_title')"
+      :footer="null"
+      width="720px"
+    >
+      <div v-if="precheckResult" class="precheck-result-container">
+        <a-alert
+          :type="precheckResult.ok ? 'success' : 'error'"
+          show-icon
+          style="margin-bottom: 16px"
+        >
+          <template #message>
+            <strong>{{ precheckResult.ok ? t('case.drawer.android.precheck_passed') : t('case.drawer.android.precheck_failed') }}</strong>
+          </template>
+          <template #description>
+            <div>
+              {{ t('case.drawer.android.precheck_summary', {
+                total: precheckResult.summary.total_steps,
+                passed: precheckResult.summary.passed_steps,
+                failed: precheckResult.summary.failed_steps,
+                warnings: precheckResult.summary.warning_steps
+              }) }}
+            </div>
+          </template>
+        </a-alert>
+
+        <a-list
+          v-if="precheckResult.items && precheckResult.items.length > 0"
+          :data-source="precheckResult.items"
+          size="small"
+          bordered
+        >
+          <template #renderItem="{ item }">
+            <a-list-item>
+              <a-list-item-meta>
+                <template #title>
+                  <a-space>
+                    <a-tag :color="item.status === 'FAIL' ? 'error' : item.status === 'WARNING' ? 'warning' : 'success'">
+                      {{ item.code }}
+                    </a-tag>
+                    <span v-if="item.step_index">
+                      {{ t('case.drawer.android.step_tag', { index: item.step_index }) }}
+                      <span v-if="item.step_action">({{ item.step_action }})</span>
+                    </span>
+                    <span>{{ item.message }}</span>
+                  </a-space>
+                </template>
+                <template #description>
+                  <div style="color: #666; font-size: 13px">
+                    {{ t('case.drawer.android.suggestion_label') }}: {{ item.suggestion }}
+                  </div>
+                </template>
+              </a-list-item-meta>
+            </a-list-item>
+          </template>
+        </a-list>
+        <div v-else style="text-align: center; padding: 16px 0; color: #888">
+          {{ t('case.drawer.android.no_issues') }}
+        </div>
+      </div>
+    </a-modal>
 
     <template #footer>
       <a-space style="float: right">
+        <a-button :loading="prechecking" @click="handlePrecheck">
+          {{ t('case.drawer.android.precheck_btn') }}
+        </a-button>
         <a-button @click="handleClose">{{ t('common.cancel') }}</a-button>
         <a-button type="primary" :loading="saving" @click="handleSave">
           {{ localCaseId ? t('case.drawer.save_config') : t('case.drawer.create_case') }}
@@ -284,7 +349,7 @@ import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { CheckCircleOutlined, CodeOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { apkApi, caseApi, deviceApi, type DeviceGroupItem, type DeviceItem, type DeviceLeaseItem, projectApi, scriptApi, type CaseStepItem } from '@/api'
+import { apkApi, caseApi, deviceApi, type DeviceGroupItem, type DeviceItem, type DeviceLeaseItem, projectApi, scriptApi, type CaseStepItem, type AndroidPrecheckResponse } from '@/api'
 import CaseStepEditor from '@/components/case/CaseStepEditor.vue'
 import { buildAndroidStandardSteps } from '@/utils/androidStandardSteps'
 import type { AndroidRecordedStepDraft } from '@/utils/androidRecording'
@@ -872,6 +937,44 @@ async function handleSave() {
   }
 }
 
+
+const prechecking = ref(false)
+const precheckModalVisible = ref(false)
+const precheckResult = ref<AndroidPrecheckResponse | null>(null)
+
+async function handlePrecheck() {
+  prechecking.value = true
+  try {
+    const config = buildConfig()
+    const projectId = Number(route.params.id) || props.projectId || 0
+    let res: AndroidPrecheckResponse
+    if (localCaseId.value) {
+      res = await caseApi.precheck(localCaseId.value, {
+        device_serial: cfg.device_serial,
+        steps: lowcodeSteps.value,
+        config,
+      })
+    } else {
+      res = await caseApi.precheckAndroidDraft({
+        project_id: projectId,
+        device_serial: cfg.device_serial,
+        steps: lowcodeSteps.value,
+        config,
+      })
+    }
+    precheckResult.value = res
+    precheckModalVisible.value = true
+    if (res.ok) {
+      message.success(t('case.drawer.android.precheck_passed'))
+    } else {
+      message.warning(t('case.drawer.android.precheck_warning'))
+    }
+  } catch (error: any) {
+    message.error(error?.message || t('case.drawer.android.precheck_error'))
+  } finally {
+    prechecking.value = false
+  }
+}
 onBeforeUnmount(() => {
   ++editorLeaseSeq
   void releaseEditorLease()

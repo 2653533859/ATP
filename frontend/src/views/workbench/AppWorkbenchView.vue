@@ -504,7 +504,7 @@ const apkOptions = computed<SelectOption<number>[]>(() => [
   { label: t('app_workbench.no_apk_override'), value: 0 },
   ...apks.value.map((apk) => ({ label: `${apk.package_name || apk.filename}${apk.version_name ? ` · v${apk.version_name}` : ''}`, value: apk.id })),
 ])
-const canRunAndroidCase = computed(() => Boolean(canModify.value && selectedAndroidCase.value?.is_ready_for_execution && !lease.value && !runLoading.value))
+const canRunAndroidCase = computed(() => Boolean(canModify.value && selectedDevice.value && selectedAndroidCase.value?.is_ready_for_execution && !lease.value && !runLoading.value))
 const canRunSpecialTask = computed(() => Boolean(canModify.value && selectedSpecialTask.value && !lease.value && !runLoading.value))
 const deviceFamilies = compatibilityFamilies
 
@@ -870,9 +870,20 @@ async function releaseLease(silent = false) {
 
 async function runAndroidCase() {
   const current = selectedAndroidCase.value
-  if (!current || !canRunAndroidCase.value) return
+  const device = selectedDevice.value
+  if (!current || !device || !canRunAndroidCase.value) return
   runLoading.value = true
   try {
+    const precheck = await caseApi.precheck(current.id)
+    if (precheck.device_serial !== device.serial) {
+      message.warning(t('app_workbench.run_device_mismatch'))
+      return
+    }
+    if (!precheck.ok) {
+      const failure = precheck.items.find((item) => item.status === 'FAIL')
+      message.warning(failure ? `${failure.code}: ${failure.message}` : t('app_workbench.run_precheck_failed'))
+      return
+    }
     const result = await caseApi.run(current.id)
     message.success(t('app_workbench.run_started'))
     await router.push({ name: 'run-detail', params: { runId: String(result.id) } })

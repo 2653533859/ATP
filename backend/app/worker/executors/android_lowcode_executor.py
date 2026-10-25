@@ -48,6 +48,8 @@ from app.models.apk import Apk
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.models.device import Device
 from app.models.project import Module
+from app.schemas.android_precheck import PrecheckStatus
+from app.services.android_precheck import precheck_android_execution
 from app.services.device_compatibility import DeviceCompatibilityError, build_android_device_matrix
 from app.services.device_leases import DeviceLeaseConflict, acquire_device_lease, release_device_lease
 from app.services.dataset_execution import redact_execution_evidence
@@ -711,6 +713,30 @@ async def run_android_lowcode(
                 "device_serial": str(device_serial),
             },
         )
+        precheck_res = await precheck_android_execution(
+            db,
+            case=case,
+            device_serial=str(device_serial),
+            config=cfg,
+            steps=steps,
+            extra_vars=extra_vars,
+            ignore_lease_token=lease_token,
+            check_adb_environment=True,
+            strict_adb_environment=True,
+        )
+        if not precheck_res.ok:
+            first_fail = next(
+                (item for item in precheck_res.items if item.status == PrecheckStatus.FAIL),
+                None,
+            )
+            err_msg = (
+                f"执行前预检失败 [{first_fail.code}]: {first_fail.message} (建议: {first_fail.suggestion})"
+                if first_fail
+                else "执行前预检未通过"
+            )
+            await _mark_run_error(db, run, err_msg)
+            return
+
         await _run_android_lowcode_steps(db, run, case, extra_vars)
     except (DeviceLeaseConflict, LookupError) as exc:
         await _mark_run_error(db, run, f"设备租约冲突: {exc}")

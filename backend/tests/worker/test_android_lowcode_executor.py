@@ -493,6 +493,11 @@ def run_env(monkeypatch):
 
     monkeypatch.setattr(executor, "acquire_device_lease", fake_acquire)
     monkeypatch.setattr(executor, "release_device_lease", fake_release)
+
+    async def fake_precheck(*_args, **_kwargs):
+        return _Obj(ok=True)
+
+    monkeypatch.setattr(executor, "precheck_android_execution", fake_precheck)
     return {"events": events, "steps": step_results}
 
 

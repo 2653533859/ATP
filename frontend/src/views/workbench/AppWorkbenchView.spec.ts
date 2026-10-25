@@ -8,6 +8,7 @@ const {
   apkList,
   caseList,
   caseGet,
+  casePrecheck,
   caseRun,
   deviceAcquireLease,
   deviceReleaseLease,
@@ -24,6 +25,7 @@ const {
   apkList: vi.fn(),
   caseList: vi.fn(),
   caseGet: vi.fn(),
+  casePrecheck: vi.fn(),
   caseRun: vi.fn(),
   deviceAcquireLease: vi.fn(),
   deviceReleaseLease: vi.fn(),
@@ -87,7 +89,7 @@ vi.mock('@/stores/auth', () => ({
 }))
 vi.mock('@/api', () => ({
   apkApi: { list: apkList },
-  caseApi: { list: caseList, run: caseRun, get: caseGet },
+  caseApi: { list: caseList, run: caseRun, get: caseGet, precheck: casePrecheck },
   deviceApi: {
     acquireLease: deviceAcquireLease,
     releaseLease: deviceReleaseLease,
@@ -176,6 +178,7 @@ beforeEach(() => {
   mobileListRuns.mockResolvedValue([{ id: 800, task_id: 9, task_type: 'stability', status: 'completed', device_id: 10, device_serial: 'emulator-5554', apk_id: 21, app_package: 'com.example.karing', summary_json: {}, config_snapshot: {}, trigger_type: 'manual', created_at: '2026-08-24T10:00:00Z', updated_at: '2026-08-24T10:01:00Z', task_name: 'Karing 稳定性巡检' }])
   runList.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100 })
   caseRun.mockResolvedValue({ id: 900 })
+  casePrecheck.mockResolvedValue({ ok: true, device_serial: 'emulator-5554', items: [] })
   mobileTriggerTask.mockResolvedValue({ id: 901 })
   deviceAcquireLease.mockResolvedValue({ device_id: 10, owner_label: 'app-workbench', acquired_at: '', heartbeat_at: '', expires_at: '2026-08-24T11:00:00Z', lease_token: 'lease-token-123456789' })
   deviceReleaseLease.mockResolvedValue(undefined)
@@ -196,6 +199,25 @@ function deferred<T>() {
 }
 
 describe('AppWorkbenchView', () => {
+  it('checks the selected device before starting an Android run', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as { runAndroidCase: () => Promise<void> }
+
+    casePrecheck.mockResolvedValueOnce({ ok: true, device_serial: 'another-device', items: [] })
+    await vm.runAndroidCase()
+    expect(caseRun).not.toHaveBeenCalled()
+
+    casePrecheck.mockResolvedValueOnce({ ok: false, device_serial: 'emulator-5554', items: [{ status: 'FAIL', code: 'DEVICE_OFFLINE', message: '设备离线' }] })
+    await vm.runAndroidCase()
+    expect(caseRun).not.toHaveBeenCalled()
+
+    await vm.runAndroidCase()
+    expect(casePrecheck).toHaveBeenCalledWith(101)
+    expect(caseRun).toHaveBeenCalledWith(101)
+    wrapper.unmount()
+  })
+
   it('hands recorded steps to the case draft after releasing the workbench lease', async () => {
     const wrapper = mountWorkbench()
     await flushPromises()

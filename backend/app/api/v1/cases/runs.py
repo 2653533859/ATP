@@ -31,6 +31,12 @@ from app.schemas.case import (
     TestRunListItem,
     TestRunOut,
 )
+from app.schemas.android_precheck import (
+    AndroidDraftPrecheckIn,
+    AndroidPrecheckResponse,
+    CasePrecheckIn,
+)
+from app.services.android_precheck import precheck_android_execution
 from app.services.execution_routing import enqueue_case_run
 from app.services.failure_diagnosis import generate_failure_diagnosis
 from app.services.project_scope import visible_project_ids
@@ -114,6 +120,51 @@ async def trigger_run(
     enqueue_case_run(_cases.run_test_case, run.id, merged_vars, run.trace_id, case.case_type)
     result = await db.execute(select(TestRun).where(TestRun.id == run.id).options(selectinload(TestRun.steps)))
     return TestRunOut.model_validate(result.scalar_one())
+
+
+@router.post("/cases/android/precheck", response_model=AndroidPrecheckResponse)
+async def precheck_android_draft(
+    body: AndroidDraftPrecheckIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, current_user, body.project_id, ProjectRole.viewer)
+    return await precheck_android_execution(
+        db,
+        device_serial=body.device_serial,
+        config=body.config,
+        steps=body.steps,
+        extra_vars=body.extra_vars,
+        env_id=body.env_id,
+        project_id=body.project_id,
+    )
+
+
+@router.post("/cases/{case_id}/precheck", response_model=AndroidPrecheckResponse)
+async def precheck_case(
+    case_id: int,
+    body: CasePrecheckIn = CasePrecheckIn(),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    case = await db.get(TestCase, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="用例不存在")
+    module = await db.get(Module, case.module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="用例所属模块不存在")
+    await assert_project_access(db, current_user, module.project_id, ProjectRole.viewer)
+
+    return await precheck_android_execution(
+        db,
+        case=case,
+        device_serial=body.device_serial,
+        config=body.config,
+        steps=body.steps,
+        extra_vars=body.extra_vars,
+        env_id=body.env_id,
+        project_id=module.project_id,
+    )
 
 
 @router.get("/runs", response_model=Union[PaginatedRunsOut, RunCursorPage])
