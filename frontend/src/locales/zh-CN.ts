@@ -13,6 +13,25 @@ export default {
     executors_hint: '已安装并可在本机运行的执行器',
     performance_launch_hint: '选择场景后，在本机执行性能测试，配置本次运行的环境和参数。',
   },
+  cloud_sync: {
+    title: '云端结果中心',
+    sync_now: '同步到云端',
+    retry: '重试同步',
+    error: '错误',
+    status: {
+      pending: '待同步',
+      syncing: '同步中',
+      synced: '已同步',
+      failed: '失败重试',
+      interrupted: '异常中断',
+    },
+    msg: {
+      sync_success: '成功同步运行记录至云端',
+      sync_partial_failed: '同步失败，请检查云端服务',
+      sync_no_items: '当前无待同步记录',
+      sync_failed: '触发云端同步失败，请检查网络或配置',
+    },
+  },
   lang: {
     zh: '中文',
     en: 'English',
@@ -130,6 +149,7 @@ export default {
       todos: '我的待办',
       projects: '项目中心',
       tasks: '任务中心',
+      cloud_sync: '云端结果中心',
     },
     capabilities: {
       api: '接口测试',

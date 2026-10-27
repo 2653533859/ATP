@@ -31,6 +31,15 @@ _LOCAL_PROFILE_KEYS = frozenset(
         "PERFORMANCE_EXECUTORS",
         "WEB_BROWSER_POOLING_ENABLED",
         "WEB_BROWSER_POOL_MAX_CONTEXTS",
+        "CLOUD_SYNC_ENABLED",
+        "CLOUD_SYNC_URL",
+        "CLOUD_SYNC_API_KEY",
+        "REMOTE_NODE_SSH_HOST",
+        "REMOTE_NODE_SSH_PORT",
+        "REMOTE_NODE_SSH_USER",
+        "REMOTE_NODE_SSH_KEY_FILE",
+        "REMOTE_NODE_SSH_KNOWN_HOSTS",
+        "REMOTE_NODE_TUNNEL_PORT",
     }
 )
 
@@ -51,6 +60,15 @@ class Settings(BaseSettings):
     APP_AUTH_COOKIE_SAMESITE: str = "lax"
     APP_AUTO_CREATE_TABLES: bool = False
     ATP_LOCAL_MODE: bool = False
+    CLOUD_SYNC_ENABLED: bool = False
+    CLOUD_SYNC_URL: str = ""
+    CLOUD_SYNC_API_KEY: str = ""
+    REMOTE_NODE_SSH_HOST: str = ""
+    REMOTE_NODE_SSH_PORT: int = 22
+    REMOTE_NODE_SSH_USER: str = ""
+    REMOTE_NODE_SSH_KEY_FILE: str = ""
+    REMOTE_NODE_SSH_KNOWN_HOSTS: str = ""
+    REMOTE_NODE_TUNNEL_PORT: int = 18000
     ATP_LOCAL_DATA_DIR: str = ".local-data"
 
     # Database

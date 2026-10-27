@@ -4,7 +4,7 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 
 ## 当前状态
 
-截至 2026-10-25，ATP 已实现统一自动化测试平台主线，v2.7.0 的 12 项研发任务在 [`Task.md`](Task.md) 中均已闭环。当前源码在 v2.7.0 发布后继续修复了 Hermes 操作面板和本地模式运行保护。功能、部署与验收边界以 [`docs/project-status-2026-10-25.md`](docs/project-status-2026-10-25.md) 为当前入口，版本交付明细见 [`docs/v2.7.0-release-notes.md`](docs/v2.7.0-release-notes.md)。
+截至 2026-10-26，ATP 已实现统一自动化测试平台主线，v2.7.0 的 12 项研发任务在 [`Task.md`](Task.md) 中均已闭环。当前源码还包含 AutoDroid 对照计划的 A1/A2 接口改进与 M1/M2 Android 改进，代码和定向验证已完成，真实环境验收仍待补。功能、部署与未完成计划以 [`docs/project-status-2026-10-26.md`](docs/project-status-2026-10-26.md) 为当前入口，版本交付明细见 [`docs/v2.7.0-release-notes.md`](docs/v2.7.0-release-notes.md)。
 
 最近的 Linux 生产现场记录是 2026-10-16 的 v2.7.0 割接：PostgreSQL 迁移至 `20261015_0081`、Helm revision 65，健康检查和两次真实 API 用例 Canary 通过。该记录不代表实时线上状态，也不证明后续提交已部署；详见 [`docs/evidence/linux-site-production-cutover-v2-7-0-2026-10-16.md`](docs/evidence/linux-site-production-cutover-v2-7-0-2026-10-16.md)。
 
@@ -228,7 +228,7 @@ make test-frontend-build
 
 ## 文档
 
-- 当前项目状态与验收边界：`docs/project-status-2026-10-25.md`
+- 当前项目状态与验收边界：`docs/project-status-2026-10-26.md`
 - 当前进度与模块完成度：`Task.md`
 - 产品需求与整体范围：`PRD.md`
 - 平台详细操作手册：`docs/user-operation-manual.md`

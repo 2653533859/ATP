@@ -15,15 +15,15 @@ import struct
 import subprocess
 import threading
 import time
-from pathlib import Path
 from typing import Dict, Generator, List, Optional, Set
 
 import adbutils
 
+from app.core.package_paths import bundled_resource
+
 logger = logging.getLogger("ScrcpyManager")
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SCRCPY_SERVER_PATH = PROJECT_ROOT / "assets" / "scrcpy-server.jar"
+SCRCPY_SERVER_PATH = bundled_resource("backend/assets/scrcpy-server.jar")
 DEVICE_JAR_PATH = "/data/local/tmp/scrcpy-server.jar"
 
 PORT_RANGE_START = 27183

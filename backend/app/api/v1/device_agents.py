@@ -9,7 +9,6 @@
 
 import json
 import logging
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,6 +19,7 @@ from starlette.websockets import WebSocket
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.package_paths import bundled_resource
 from app.core.database import sync_engine as engine
 from app.core.security import decode_token
 from app.device_agents.tunnel_hub import tunnel_hub
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 ws_router = APIRouter()
 
-AGENT_SCRIPT_PATH = Path(__file__).resolve().parents[4] / "scripts" / "device_agent.py"
+AGENT_SCRIPT_PATH = bundled_resource("scripts/device_agent.py")
 
 
 def _authenticate_ws_token(websocket: WebSocket) -> Optional[str]:

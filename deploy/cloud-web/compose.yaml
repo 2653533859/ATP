@@ -1,0 +1,15 @@
+services:
+  atp-web:
+    build: .
+    image: registry.local/atp/frontend:v2.7.1-cloud-web-20261027
+    container_name: atp-cloud-web
+    restart: unless-stopped
+    ports:
+      - "${ATP_WEB_BIND_IP:-127.0.0.1}:${ATP_WEB_PORT:-8080}:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

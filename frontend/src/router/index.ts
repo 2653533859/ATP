@@ -213,6 +213,11 @@ const router = createRouter({
           component: () => import('@/views/run/RunDetail.vue'),
         },
         {
+          path: 'cloud-sync',
+          name: 'cloud-sync',
+          component: () => import('@/views/cloud-sync/CloudSyncDashboard.vue'),
+        },
+        {
           path: 'system/environments',
           name: 'environments',
           component: () => import('@/views/system/EnvironmentList.vue'),

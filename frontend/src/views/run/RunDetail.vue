@@ -32,6 +32,21 @@
             {{ run.status }}
           </a-tag>
           <a-spin v-if="isRunning" size="small" />
+          <template v-if="syncStatus && syncStatus.sync_status !== 'server_mode' && syncStatus.sync_status !== 'not_queued'">
+            <a-tooltip :title="syncTooltip">
+              <a-tag :color="syncColor" style="font-size: 13px">
+                <CloudSyncOutlined /> {{ syncLabel }}
+              </a-tag>
+            </a-tooltip>
+            <a-button
+              v-if="syncStatus.sync_status === 'pending' || syncStatus.sync_status === 'failed'"
+              size="small"
+              :loading="isManualSyncing"
+              @click="handleManualSync"
+            >
+              <SyncOutlined /> {{ t('cloud_sync.sync_now', '立即同步') }}
+            </a-button>
+          </template>
         </a-space>
       </template>
     </a-page-header>
@@ -75,6 +90,17 @@
             <a-tag color="red">{{ t('run.iteration.failed') }}: {{ iterationStats.failed }}</a-tag>
             <a-tag v-if="iterationStats.error > 0" color="orange">{{ t('run.iteration.error') }}: {{ iterationStats.error }}</a-tag>
             <a-tag>{{ t('run.iteration.total') }}: {{ iterationStats.total }}</a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item v-if="syncStatus && syncStatus.sync_status !== 'server_mode' && syncStatus.sync_status !== 'not_queued'" :label="t('cloud_sync.label', '云端汇总')" :span="2">
+            <a-space size="small">
+              <a-tag :color="syncColor">{{ syncLabel }}</a-tag>
+              <span v-if="syncStatus.synced_at" style="font-size: 12px; color: var(--c-text-tertiary)">
+                {{ syncStatus.synced_at.slice(0, 19).replace('T', ' ') }}
+              </span>
+              <span v-if="syncStatus.last_error" style="color: #ff4d4f; font-size: 12px">
+                {{ syncStatus.last_error }}
+              </span>
+            </a-space>
           </a-descriptions-item>
           <a-descriptions-item v-if="run.error_message" :label="t('run.labels.error_message')" :span="2">
             <span style="color: #ff4d4f">
@@ -687,9 +713,10 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
-import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined } from '@ant-design/icons-vue'
+import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined, CloudSyncOutlined, SyncOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
+import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, cloudSyncApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem, type RunSyncStatus } from '@/api'
+import { getRuntimeMode } from '@/runtimeMode'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
@@ -719,6 +746,67 @@ const runId = Number(route.params.runId)
 const run = ref<RunDetailItem | null>(null)
 const steps = ref<RunStepItem[]>([])
 const internalDefects = ref<DefectItem[]>([])
+const syncStatus = ref<RunSyncStatus | null>(null)
+const isManualSyncing = ref(false)
+
+const syncColor = computed(() => {
+  switch (syncStatus.value?.sync_status) {
+    case 'synced': return 'green'
+    case 'syncing': return 'blue'
+    case 'pending': return 'orange'
+    case 'failed': return 'red'
+    default: return 'default'
+  }
+})
+
+const syncLabel = computed(() => {
+  switch (syncStatus.value?.sync_status) {
+    case 'synced': return t('cloud_sync.status.synced', '已同步至云端')
+    case 'syncing': return t('cloud_sync.status.syncing', '正在同步...')
+    case 'pending': return t('cloud_sync.status.pending', '等待同步至云端')
+    case 'failed': return t('cloud_sync.status.failed', '云端同步失败')
+    default: return ''
+  }
+})
+
+const syncTooltip = computed(() => {
+  if (syncStatus.value?.synced_at) {
+    return `${t('cloud_sync.synced_at', '同步确认时间')}: ${syncStatus.value.synced_at}`
+  }
+  if (syncStatus.value?.last_error) {
+    return `${t('cloud_sync.error', '错误')}: ${syncStatus.value.last_error}`
+  }
+  return syncStatus.value?.unique_key || ''
+})
+
+async function fetchSyncStatus() {
+  if (getRuntimeMode()?.mode !== 'local') return
+  try {
+    const res = await cloudSyncApi.getRunSyncStatus('case', runId)
+    syncStatus.value = res
+  } catch {
+    syncStatus.value = null
+  }
+}
+
+async function handleManualSync() {
+  isManualSyncing.value = true
+  try {
+    const res = await cloudSyncApi.syncNow()
+    if (res.synced > 0) {
+      message.success(t('cloud_sync.msg.sync_success', `成功同步 ${res.synced} 条运行记录至云端`))
+    } else if (res.failed > 0) {
+      message.warning(t('cloud_sync.msg.sync_partial_failed', `同步失败 ${res.failed} 条，请检查云端服务`))
+    } else {
+      message.info(t('cloud_sync.msg.sync_no_items', '当前无待同步记录'))
+    }
+    await fetchSyncStatus()
+  } catch (err: unknown) {
+    message.error(errorMessage(err, t('cloud_sync.msg.sync_failed', '触发云端同步失败')))
+  } finally {
+    isManualSyncing.value = false
+  }
+}
 
 type AndroidMatrixResult = {
   run_id?: number
@@ -1340,6 +1428,7 @@ async function refreshRunDetail() {
     run.value = data
     steps.value = data.steps ?? []
     expandedKeys.value = computeExpandedKeys(steps.value)
+    void fetchSyncStatus()
   } catch {
     // 保留 WebSocket 已推送的状态，详情刷新失败不影响当前结果展示。
   }
@@ -1425,6 +1514,7 @@ onMounted(async () => {
     steps.value = data.steps ?? []
     expandedKeys.value = computeExpandedKeys(steps.value)
     await loadInternalDefects()
+    void fetchSyncStatus()
   } finally {
     loading.value = false
   }

@@ -43,6 +43,9 @@
         />
         <a-button type="primary" @click="applyFilters">{{ t('common.search') }}</a-button>
         <a-button @click="resetFilters">{{ t('common.reset') }}</a-button>
+        <a-button v-if="localMode" :loading="isSyncing" @click="handleManualSync">
+          <SyncOutlined /> {{ t('cloud_sync.sync_now', '同步到云端') }}
+        </a-button>
       </div>
       <span class="muted-text">{{ t('run.page_scope_hint') }}</span>
     </div>
@@ -95,11 +98,12 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted } from 'vue'
-import { PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons-vue'
+import { PlayCircleOutlined, ReloadOutlined, SyncOutlined } from '@ant-design/icons-vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { runApi, type RunDetailItem } from '@/api'
-
+import { message } from 'ant-design-vue'
+import { runApi, cloudSyncApi, type RunDetailItem } from '@/api'
+import { getRuntimeMode } from '@/runtimeMode'
 const router = useRouter()
 const { t } = useI18n()
 const runs = ref<RunDetailItem[]>([])
@@ -108,6 +112,27 @@ const caseId = ref<number | null>(null)
 const statusFilter = ref<string>()
 const keyword = ref('')
 
+const localMode = computed(() => getRuntimeMode()?.mode === 'local')
+const isSyncing = ref(false)
+
+async function handleManualSync() {
+  isSyncing.value = true
+  try {
+    const res = await cloudSyncApi.syncNow()
+    if (res.synced > 0 && res.failed === 0) {
+      message.success(t('cloud_sync.msg.sync_success', `成功同步 ${res.synced} 条运行记录至云端`))
+    } else if (res.failed > 0) {
+      message.warning(t('cloud_sync.msg.sync_partial_failed', `同步失败 ${res.failed} 条，请检查云端服务`))
+    } else {
+      message.info(t('cloud_sync.msg.sync_no_items', '当前无待同步记录'))
+    }
+    await loadRuns()
+  } catch {
+    message.error(t('cloud_sync.msg.sync_failed', '触发云端同步失败，请检查网络或配置'))
+  } finally {
+    isSyncing.value = false
+  }
+}
 const pagination = reactive({
   current: 1,
   pageSize: 20,

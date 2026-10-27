@@ -148,3 +148,23 @@ def test_version_thirteen_to_fourteen_creates_api_keys_table(tmp_path) -> None:
     assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
     with engine.connect() as connection:
         assert "api_keys" in inspect(connection).get_table_names()
+
+
+def test_version_fourteen_to_fifteen_creates_sync_outbox_table(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'v14.sqlite3'}")
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE local_sync_outbox")
+        connection.exec_driver_sql("DROP TABLE cloud_run_summaries")
+        connection.exec_driver_sql("PRAGMA user_version=14")
+
+    with engine.connect() as connection:
+        table_names = inspect(connection).get_table_names()
+        assert "local_sync_outbox" not in table_names
+        assert "cloud_run_summaries" not in table_names
+
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.connect() as connection:
+        table_names = inspect(connection).get_table_names()
+        assert "local_sync_outbox" in table_names
+        assert "cloud_run_summaries" in table_names

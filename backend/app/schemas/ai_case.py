@@ -6,7 +6,7 @@
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -152,6 +152,8 @@ class AIAssertionSuggestIn(BaseModel):
     response_body: object | None = None
     response_headers: dict[str, str] | None = None
     request_body: object | None = None
+    existing_assertions: list[dict[str, Any]] | None = None
+    existing_extractions: list[dict[str, Any]] | None = None
 
 
 class AIAssertionSuggestOut(BaseModel):

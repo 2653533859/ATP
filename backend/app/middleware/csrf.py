@@ -26,7 +26,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             if path not in _WHITELIST_PATHS and not any(path.startswith(p) for p in _WHITELIST_PREFIXES):
                 has_auth = "authorization" in request.headers
                 has_xhr = "x-requested-with" in request.headers
-                has_api_key = "x-api-key" in request.headers
+                has_api_key = "x-api-key" in request.headers or "x-atp-api-key" in request.headers
                 if not (has_auth or has_xhr or has_api_key):
                     return JSONResponse(
                         status_code=403,

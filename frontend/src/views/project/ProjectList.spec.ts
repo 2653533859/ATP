@@ -20,6 +20,7 @@ const {
   messageError,
   messageSuccess,
   messageWarning,
+  runtimeModeState,
 } = vi.hoisted(() => ({
   projectList: vi.fn(),
   projectCreate: vi.fn(),
@@ -36,7 +37,10 @@ const {
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
+  runtimeModeState: { mode: 'server' },
 }))
+
+vi.mock('@/runtimeMode', () => ({ getRuntimeMode: () => runtimeModeState }))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -104,6 +108,7 @@ const PROJECTS = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  runtimeModeState.mode = 'server'
   projectList.mockResolvedValue(PROJECTS)
   llmList.mockResolvedValue([
     { id: 7, name: 'GPT', provider: 'openai', model_name: 'model-a', enabled: true },
@@ -121,6 +126,20 @@ beforeEach(() => {
 })
 
 describe('ProjectList', () => {
+  it('allows project creation and copying in local mode while keeping member management hidden', async () => {
+    runtimeModeState.mode = 'local'
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.canCreateProjects).toBe(true)
+    const labels = wrapper.findAll('button').map((button) => button.text())
+    expect(labels).toContain('project.new')
+    expect(labels).toContain('project.copy')
+    expect(labels).not.toContain('project.members')
+    expect(labels).toContain('project.archive')
+  })
+
   it('loads projects and computes filters, summaries, options, and drawer state', async () => {
     const wrapper = mountPage()
     await flushPromises()

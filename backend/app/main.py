@@ -34,6 +34,22 @@ from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 
+
+async def _sync_local_outbox_loop(stop_event: asyncio.Event) -> None:
+    """Retry local result delivery while the desktop backend is online."""
+    from app.services.cloud_sync_client import sync_pending_outbox
+
+    while not stop_event.is_set():
+        try:
+            await asyncio.to_thread(sync_pending_outbox, batch_size=10)
+        except Exception:
+            logger.warning("Local result sync sweep failed", exc_info=True)
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=20)
+        except TimeoutError:
+            pass
+
+
 load_all_models()
 
 
@@ -68,6 +84,10 @@ async def _init_admin():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    sync_stop_event = asyncio.Event()
+    sync_task: asyncio.Task[None] | None = None
+    node_stop_event = asyncio.Event()
+    node_task: asyncio.Task[None] | None = None
     if settings.ATP_LOCAL_MODE:
         from app.core.database import sync_engine
         from app.core.local_schema import ensure_local_schema
@@ -97,6 +117,11 @@ async def lifespan(app: FastAPI):
 
         await ensure_local_workspace()
         start_local_runner()
+        if settings.CLOUD_SYNC_ENABLED and settings.CLOUD_SYNC_URL and settings.CLOUD_SYNC_API_KEY:
+            sync_task = asyncio.create_task(_sync_local_outbox_loop(sync_stop_event))
+            from app.services.remote_node_agent import run_local_node_agent
+
+            node_task = asyncio.create_task(run_local_node_agent(app, node_stop_event))
     from app.services.execution_dispatch import start_dispatcher, stop_dispatcher
 
     start_dispatcher()
@@ -113,6 +138,14 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        if node_task is not None:
+            node_stop_event.set()
+            node_task.cancel()
+            await asyncio.gather(node_task, return_exceptions=True)
+        if sync_task is not None:
+            sync_stop_event.set()
+            sync_task.cancel()
+            await asyncio.gather(sync_task, return_exceptions=True)
         # 先停止投递，再停止执行队列；异常关闭也走相同清理路径。
         stop_dispatcher()
         if settings.ATP_LOCAL_MODE:
@@ -220,7 +253,9 @@ async def health():
 
 
 if settings.ATP_LOCAL_MODE:
-    _local_frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    from app.core.package_paths import installation_root
+
+    _local_frontend_dist = installation_root() / "frontend" / "dist"
 
     @app.get("/{path:path}", include_in_schema=False)
     async def local_frontend(path: str) -> FileResponse:

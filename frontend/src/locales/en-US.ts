@@ -13,6 +13,25 @@ export default {
     executors_hint: 'Installed executors available on this computer',
     performance_launch_hint: 'Select a scenario to run on this computer with the environment and options for this run.',
   },
+  cloud_sync: {
+    title: 'Cloud Sync Center',
+    sync_now: 'Sync to Cloud',
+    retry: 'Retry Sync',
+    error: 'Error',
+    status: {
+      pending: 'Pending',
+      syncing: 'Syncing',
+      synced: 'Synced',
+      failed: 'Failed Retry',
+      interrupted: 'Interrupted',
+    },
+    msg: {
+      sync_success: 'Successfully synced execution records to cloud',
+      sync_partial_failed: 'Sync partially failed, please check cloud service',
+      sync_no_items: 'No pending records to sync',
+      sync_failed: 'Failed to trigger cloud sync, please check network or configuration',
+    },
+  },
   lang: {
     zh: '中文',
     en: 'English',
@@ -130,6 +149,7 @@ export default {
       todos: 'My Worklist',
       projects: 'Project Center',
       tasks: 'Task Center',
+      cloud_sync: 'Cloud Sync Center',
     },
     capabilities: {
       api: 'API Testing',

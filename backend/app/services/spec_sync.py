@@ -281,8 +281,8 @@ async def sync_spec_with_cases(
         old_endpoints = extract_spec_endpoints(baseline)
         existing_diff_endpoints = {diff["endpoint"] for diff in diffs}
         for (method, path), old_meta in old_endpoints.items():
-            endpoint = f"{method} {path}"
-            if endpoint in existing_diff_endpoints:
+            ep_key = f"{method} {path}"
+            if ep_key in existing_diff_endpoints:
                 continue
             current_meta = spec_endpoints.get((method, path))
             if current_meta is None:
@@ -295,7 +295,7 @@ async def sync_spec_with_cases(
                 continue
             diffs.append(
                 {
-                    "endpoint": endpoint,
+                    "endpoint": ep_key,
                     "change_type": change_type,
                     "case_id": None,
                     "case_name": None,

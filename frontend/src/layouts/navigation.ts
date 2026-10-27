@@ -6,6 +6,7 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/projects': 'workbench',
   '/tasks': 'workbench',
   '/runs': 'workbench',
+  '/cloud-sync': 'workbench',
   '/api-workbench': 'test-capabilities',
   '/mobile-special': 'test-capabilities',
   '/ui-workbench': 'test-capabilities',
@@ -121,6 +122,7 @@ export function getRouteTitleKey(path: string, menuTitleKey?: unknown): string {
   if (path.startsWith('/account')) return 'account.title'
   if (path.startsWith('/cases')) return 'menu.cases'
   if (path.startsWith('/runs')) return 'menu.runs'
+  if (path.startsWith('/cloud-sync')) return 'menu.workbench.cloud_sync'
   if (path.startsWith('/suites')) return 'menu.suites'
   if (path.startsWith('/plans')) return 'menu.plans'
   if (path.startsWith('/hermes')) return 'menu.intelligence.hermes'

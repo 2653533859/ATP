@@ -58,10 +58,14 @@ from app.api.v1 import (
     api_scenarios,
     mcp,
     security,
+    cloud_sync,
+    remote_nodes,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
 router = APIRouter(prefix="/api/v1")
+router.include_router(cloud_sync.router)
+router.include_router(remote_nodes.router)
 router.include_router(local_groups.router)
 router.include_router(auth.router)
 router.include_router(projects.router)

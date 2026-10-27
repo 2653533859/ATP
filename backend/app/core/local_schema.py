@@ -16,7 +16,67 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 14
+CURRENT_LOCAL_SCHEMA_VERSION = 15
+
+
+def _create_sync_outbox(connection: Connection) -> None:
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS local_sync_outbox ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "client_id TEXT NOT NULL, "
+        "run_type TEXT NOT NULL, "
+        "run_id INTEGER NOT NULL, "
+        "unique_key TEXT NOT NULL UNIQUE, "
+        "payload_json TEXT NOT NULL, "
+        "status TEXT NOT NULL DEFAULT 'pending', "
+        "attempts INTEGER NOT NULL DEFAULT 0, "
+        "last_error TEXT, "
+        "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "synced_at TEXT"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_local_sync_outbox_status_id ON local_sync_outbox(status, id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS cloud_run_summaries ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "client_id VARCHAR(64) NOT NULL, "
+        "machine_name VARCHAR(64) NOT NULL, "
+        "unique_key VARCHAR(128) NOT NULL, "
+        "run_type VARCHAR(32) NOT NULL, "
+        "run_id INTEGER NOT NULL, "
+        "project_name VARCHAR(128) NOT NULL, "
+        "project_code VARCHAR(64) NOT NULL, "
+        "title VARCHAR(256) NOT NULL, "
+        "status VARCHAR(32) NOT NULL, "
+        "started_at DATETIME, "
+        "finished_at DATETIME, "
+        "duration_ms INTEGER, "
+        "triggered_by VARCHAR(64) NOT NULL DEFAULT 'admin', "
+        "environment VARCHAR(64), "
+        "metrics JSON NOT NULL DEFAULT '{}', "
+        "error_summary TEXT, "
+        "steps_summary JSON NOT NULL DEFAULT '[]', "
+        "reported_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "CONSTRAINT uq_cloud_run_summaries_unique_key UNIQUE (unique_key)"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_cloud_run_summaries_client_id ON cloud_run_summaries(client_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_cloud_run_summaries_run_type ON cloud_run_summaries(run_type)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_cloud_run_summaries_project_code ON cloud_run_summaries(project_code)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_cloud_run_summaries_status ON cloud_run_summaries(status)"
+    )
 
 
 def _create_job_queue(connection: Connection, table_name: str = "local_jobs") -> None:
@@ -331,6 +391,7 @@ def _create_api_keys_table(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[14] = _create_api_keys_table
+LOCAL_MIGRATIONS[15] = _create_sync_outbox
 
 
 def _read_version(connection: Connection) -> int:
@@ -370,6 +431,7 @@ def ensure_local_schema(engine: Engine) -> int:
             _extend_job_dispatch_identity(connection)
             _create_run_id_allocator(connection)
             _extend_run_id_allocator(connection)
+            _create_sync_outbox(connection)
             _set_version(connection, CURRENT_LOCAL_SCHEMA_VERSION)
         elif version == 0:
             # Adopt only a complete prototype database. Incomplete databases
@@ -379,6 +441,7 @@ def ensure_local_schema(engine: Engine) -> int:
             _extend_job_dispatch_identity(connection)
             _create_run_id_allocator(connection)
             _extend_run_id_allocator(connection)
+            _create_sync_outbox(connection)
             _set_version(connection, CURRENT_LOCAL_SCHEMA_VERSION)
         else:
             for next_version in range(version + 1, CURRENT_LOCAL_SCHEMA_VERSION + 1):
@@ -387,10 +450,11 @@ def ensure_local_schema(engine: Engine) -> int:
                     raise RuntimeError(f"missing local SQLite migration {next_version}")
                 migration(connection)
                 _set_version(connection, next_version)
-
         _assert_current_schema(connection)
         if "local_jobs" not in inspect(connection).get_table_names():
             raise RuntimeError("local SQLite job queue is missing")
         if "local_run_ids" not in inspect(connection).get_table_names():
             raise RuntimeError("local SQLite run ID allocator is missing")
+        if "local_sync_outbox" not in inspect(connection).get_table_names():
+            raise RuntimeError("local SQLite sync outbox is missing")
         return _read_version(connection)

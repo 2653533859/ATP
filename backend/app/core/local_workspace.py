@@ -1,4 +1,4 @@
-"""Bootstrap and preserve the single-user, single-project local workspace."""
+"""Bootstrap the local administrator and preserve independently owned projects."""
 
 from sqlalchemy import func, select
 
@@ -24,25 +24,25 @@ async def ensure_local_workspace() -> int:
             raise RuntimeError("local profile requires one active administrator")
 
         projects = list((await db.scalars(select(Project).order_by(Project.id))).all())
-        if len(projects) > 1:
-            raise RuntimeError("local profile requires one project; preserve data and resolve extra projects manually")
-        if projects:
-            project = projects[0]
-            if project.owner_id != admin.id:
-                raise RuntimeError("local project owner differs from the local administrator")
-        else:
+        if not projects:
             project = Project(name="本地项目", project_code="LOCAL", owner_id=admin.id, status="active")
             db.add(project)
             await db.flush()
+            projects = [project]
 
-        membership = await db.scalar(
-            select(UserProject).where(UserProject.user_id == admin.id, UserProject.project_id == project.id)
-        )
-        if membership is None:
-            db.add(UserProject(user_id=admin.id, project_id=project.id, role=ProjectRole.owner))
+        for project in projects:
+            if project.owner_id != admin.id:
+                raise RuntimeError("local project owner differs from the local administrator")
+            membership = await db.scalar(
+                select(UserProject).where(UserProject.user_id == admin.id, UserProject.project_id == project.id)
+            )
+            if membership is None:
+                db.add(UserProject(user_id=admin.id, project_id=project.id, role=ProjectRole.owner))
 
-        module_id = await db.scalar(select(Module.id).where(Module.project_id == project.id).limit(1))
-        if module_id is None:
-            db.add(Module(name="默认模块", module_code="DEFAULT", project_id=project.id, sort_order=0))
+        if len(projects) == 1:
+            # Preserve legacy single-project bootstrap. Existing multi-project data is left untouched.
+            module_id = await db.scalar(select(Module.id).where(Module.project_id == projects[0].id).limit(1))
+            if module_id is None:
+                db.add(Module(name="默认模块", module_code="DEFAULT", project_id=projects[0].id, sort_order=0))
         await db.commit()
-        return project.id
+        return projects[0].id

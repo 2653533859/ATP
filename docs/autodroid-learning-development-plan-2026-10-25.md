@@ -4,6 +4,8 @@
 
 > A0 基线见 [`autodroid-atp-capability-baseline-2026-10-25.md`](autodroid-atp-capability-baseline-2026-10-25.md)；A1/A2/M1/M2 证据分别见 [`evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md`](evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md)、[`evidence/autodroid-atp-api-suggestion-reliability-a2-2026-10-25.md`](evidence/autodroid-atp-api-suggestion-reliability-a2-2026-10-25.md)、[`evidence/autodroid-atp-android-recording-bridge-m1-2026-10-25.md`](evidence/autodroid-atp-android-recording-bridge-m1-2026-10-25.md)、[`evidence/autodroid-atp-android-precheck-m2-2026-10-25.md`](evidence/autodroid-atp-android-precheck-m2-2026-10-25.md)。
 
+> 2026-10-26 进度：A0/A1/A2/M1/M2/M3 已全量闭环：A1/A2 真实业务规格比对、场景请求指纹追溯、建议可靠性与零二次写实测通过；M3 Android 真机闭环在华为平板（`5CQBB26605200808`）实测完成（Run 1 passed 16265ms，故障路径 Run 2 自愈，产出本地截图并同步至云端 `192.168.3.196:8000`）；实测证据分别见 [`evidence/autodroid-atp-api-real-spec-and-suggestions-a1-a2-2026-10-26.md`](evidence/autodroid-atp-api-real-spec-and-suggestions-a1-a2-2026-10-26.md) 及 [`evidence/autodroid-atp-android-m3-closed-loop-2026-10-26.md`](evidence/autodroid-atp-android-m3-closed-loop-2026-10-26.md)；M4 iOS 试点和 M5 探索试点仍开放。
+
 ## 1. 对比结论与边界
 
 ATP 已有 HTTP/GraphQL/WebSocket/gRPC 执行、OpenAPI/Swagger 契约比较与同步、API 场景字段点选和断点调试、混合 DAG、Android 投屏与低代码执行、iOS Appium/WDA 执行及设备租约。这些能力见 [`current-capability-baseline-2026-10-15.md`](current-capability-baseline-2026-10-15.md)、[`development-task-plan-v2.7.0.md`](development-task-plan-v2.7.0.md) 和 [`ios-device-automation-plan.md`](ios-device-automation-plan.md)。计划聚焦从“已有执行能力”走向“测试人员可持续创建、维护和复用自动化资产”。

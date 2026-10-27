@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
@@ -20,6 +20,7 @@ from app.api.deps import (
 )
 from app.api.local_scope import require_server_workspace
 from app.api.v1.statistics import invalidate_stats_cache
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.audit import AuditLog
 from app.models.ai_llm_config import AILLMConfig
@@ -116,6 +117,23 @@ async def _project_code_exists(db: AsyncSession, project_code: str | None) -> bo
     return result.scalar_one_or_none() is not None
 
 
+async def _protect_last_local_project(db: AsyncSession, project: Project) -> None:
+    if not settings.ATP_LOCAL_MODE:
+        return
+    # SQLite serializes writers. Take its write lock before counting so two
+    # concurrent requests cannot each remove one of the final active projects.
+    await db.execute(update(Project).where(Project.id == project.id).values(status=Project.status))
+    remaining = await db.scalar(select(func.count(Project.id)).where(Project.id != project.id))
+    if not remaining:
+        raise HTTPException(status_code=409, detail="本地模式至少需要保留一个项目")
+    if project.status == "active":
+        active_remaining = await db.scalar(
+            select(func.count(Project.id)).where(Project.id != project.id, Project.status == "active")
+        )
+        if not active_remaining:
+            raise HTTPException(status_code=409, detail="本地模式至少需要保留一个活动项目")
+
+
 async def _preview_project_import(db: AsyncSession, body: ProjectImportIn) -> ProjectImportPreviewOut:
     payload = body.payload
     conflicts: list[str] = []
@@ -169,7 +187,6 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_engineer),
 ):
-    require_server_workspace("创建额外项目")
     payload = body.model_dump()
     payload.pop("template", None)
     # 名称归一化会截断且丢弃非 ASCII 字符；自动编码不能仅依赖名称。
@@ -229,7 +246,6 @@ async def import_project(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_engineer),
 ):
-    require_server_workspace("导入额外项目")
     preview = await _preview_project_import(db, body)
     if not preview.valid:
         raise HTTPException(status_code=409, detail={"message": "项目编码冲突", "conflicts": preview.conflicts})
@@ -396,7 +412,6 @@ async def copy_project(
     current_user: User = Depends(get_current_user),
     _=Depends(require_project_writable_access(ProjectRole.owner)),
 ):
-    require_server_workspace("复制项目")
     source = await db.get(Project, project_id)
     if not source:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -484,10 +499,10 @@ async def delete_project(
     db: AsyncSession = Depends(get_db),
     _=Depends(require_project_access(ProjectRole.owner)),
 ):
-    require_server_workspace("删除唯一项目")
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
+    await _protect_last_local_project(db, project)
     await db.delete(project)
     await db.commit()
     try:
@@ -503,10 +518,10 @@ async def archive_project(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_project_access(ProjectRole.owner)),
 ):
-    require_server_workspace("归档唯一项目")
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    await _protect_last_local_project(db, project)
     project.status = "archived"
     await _audit_project_action(db, "project_archived", project_id, current_user)
     await db.commit()

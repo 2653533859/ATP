@@ -43,6 +43,7 @@
                   <a-badge v-if="activeTaskCount > 0" :count="activeTaskCount" :overflow-count="99" />
                 </span>
               </a-menu-item>
+              <a-menu-item v-if="localMode || canAccess(['admin'])" key="/cloud-sync">{{ t('menu.workbench.cloud_sync', '云端结果中心') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu key="test-capabilities">

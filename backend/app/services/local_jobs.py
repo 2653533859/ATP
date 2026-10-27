@@ -108,6 +108,12 @@ def recover_interrupted_jobs() -> int:
                 ),
                 {"id": job_id, "error": _INTERRUPTED},
             )
+            try:
+                from app.services.sync_outbox import record_run_in_outbox
+
+                record_run_in_outbox(connection, task_name, run_id)
+            except Exception:
+                logger.warning("Failed to record outbox for interrupted job %s", job_id, exc_info=True)
     return len(rows)
 
 
@@ -351,12 +357,24 @@ def _run_next_job() -> bool:
                 ),
                 {"id": job_id, "error": "执行失败；详情见本地日志"},
             )
+            try:
+                from app.services.sync_outbox import record_run_in_outbox
+
+                record_run_in_outbox(connection, task_name, run_id)
+            except Exception:
+                logger.warning("Failed to record outbox for failed job %s", job_id, exc_info=True)
     else:
         with _engine().begin() as connection:
             connection.execute(
                 text("UPDATE local_jobs SET status='finished', finished_at=CURRENT_TIMESTAMP WHERE id=:id"),
                 {"id": job_id},
             )
+            try:
+                from app.services.sync_outbox import record_run_in_outbox
+
+                record_run_in_outbox(connection, task_name, run_id)
+            except Exception:
+                logger.warning("Failed to record outbox for finished job %s", job_id, exc_info=True)
     return True
 
 

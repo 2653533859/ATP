@@ -58,6 +58,8 @@ def _response_path(body: Any, expression: str) -> tuple[bool, Any]:
 
 
 def _suggestion_matches_response(suggestion: AIAssertionSuggestion, body: AIAssertionSuggestIn) -> bool:
+    found: bool = False
+    actual: Any = None
     if suggestion.target == "status_code":
         found, actual = body.status_code is not None, body.status_code
     elif suggestion.target == "header":
@@ -303,6 +305,50 @@ _LLM_SUGGESTION_PROMPT = """你是一个资深的 API 自动化测试专家。
 """
 
 
+def _filter_existing_rules(
+    assertions: list[AIAssertionSuggestion],
+    extractions: list[AIExtractionSuggestion],
+    existing_assertions: list[dict[str, Any]] | None,
+    existing_extractions: list[dict[str, Any]] | None,
+) -> tuple[list[AIAssertionSuggestion], list[AIExtractionSuggestion]]:
+    if not existing_assertions and not existing_extractions:
+        return assertions, extractions
+
+    filtered_assertions = assertions
+    if existing_assertions:
+        filtered_assertions = []
+        for a in assertions:
+            is_dup = False
+            for ex in existing_assertions:
+                if not isinstance(ex, dict):
+                    continue
+                t = ex.get("target") or "body"
+                exp = str(ex.get("expression") or ex.get("property") or "")
+                raw_expected = ex.get("expected") if "expected" in ex else ex.get("value")
+                expected_str = str(raw_expected) if raw_expected is not None else ""
+                if (
+                    t == "status_code"
+                    and a.target == "status_code"
+                    and (raw_expected is None or expected_str == a.expected)
+                ):
+                    is_dup = True
+                    break
+                if t == a.target and exp == a.expression and (raw_expected is None or expected_str == a.expected):
+                    is_dup = True
+                    break
+            if not is_dup:
+                filtered_assertions.append(a)
+
+    filtered_extractions = extractions
+    if existing_extractions:
+        existing_vars = {
+            str(ex.get("variable") or ex.get("name") or "") for ex in existing_extractions if isinstance(ex, dict)
+        }
+        filtered_extractions = [e for e in extractions if e.variable not in existing_vars]
+
+    return filtered_assertions, filtered_extractions
+
+
 async def suggest_assertions_and_extractions(
     body: AIAssertionSuggestIn,
     config: AILLMConfig | None,
@@ -316,6 +362,9 @@ async def suggest_assertions_and_extractions(
         status_code=body.status_code,
         response_body=body.response_body,
     )
+    h_assertions, h_extractions = _filter_existing_rules(
+        h_assertions, h_extractions, body.existing_assertions, body.existing_extractions
+    )
 
     if not config or not config.enabled:
         return AIAssertionSuggestOut(
@@ -323,7 +372,6 @@ async def suggest_assertions_and_extractions(
             extractions=h_extractions,
             source="heuristic",
         )
-
     # 2. Try LLM enhancement
     try:
         if not await check_and_incr_daily_limit(config=config, capability="ai_case_suggest"):
@@ -394,12 +442,18 @@ async def suggest_assertions_and_extractions(
                 llm_extractions = [item for item in llm_extractions if _extraction_matches_response(item, body)]
             if llm_assertions or llm_extractions:
                 # Merge: ensure status_code is retained
-                if not any(a.target == "status_code" for a in llm_assertions) and h_assertions:
-                    llm_assertions.insert(0, h_assertions[0])
-
+                sc_rule = next((a for a in h_assertions if a.target == "status_code"), None)
+                if sc_rule and not any(a.target == "status_code" for a in llm_assertions):
+                    llm_assertions.insert(0, sc_rule)
+                final_a, final_e = _filter_existing_rules(
+                    llm_assertions or h_assertions,
+                    llm_extractions or h_extractions,
+                    body.existing_assertions,
+                    body.existing_extractions,
+                )
                 return AIAssertionSuggestOut(
-                    assertions=llm_assertions or h_assertions,
-                    extractions=llm_extractions or h_extractions,
+                    assertions=final_a,
+                    extractions=final_e,
                     source="llm",
                 )
     except Exception as exc:  # noqa: BLE001
