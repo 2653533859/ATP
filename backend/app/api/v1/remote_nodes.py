@@ -86,7 +86,14 @@ async def _node_key_fingerprint(raw_key: str | None, db: AsyncSession, client_ip
         raise HTTPException(status_code=401, detail="Node API Key required")
     key = await validate_api_key(db, raw_key, client_ip=client_ip)
     user = await db.get(User, key.user_id) if key else None
-    if user is None or not user.is_active or user.role != UserRole.admin:
+    if (
+        user is None
+        or not user.is_active
+        or user.role != UserRole.admin
+        or key.role != "admin"
+        or key.project_id is not None
+        or key.environment_id is not None
+    ):
         raise HTTPException(status_code=401, detail="Invalid node API Key")
     return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 

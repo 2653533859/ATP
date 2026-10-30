@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 import os
 import shutil
 import sys
@@ -12,6 +13,7 @@ from typing import Any
 
 # Add backend to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+
 
 def _private_profile_value(name: str) -> str:
     value = os.environ.get(name)
@@ -33,7 +35,7 @@ os.environ["APP_SECRET_KEY"] = _private_profile_value("APP_SECRET_KEY")
 os.environ["FIRST_ADMIN_PASSWORD"] = _private_profile_value("FIRST_ADMIN_PASSWORD")
 
 import paramiko
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.orm import Session
 
 from app.models.bootstrap import load_all_models
@@ -41,6 +43,7 @@ from app.models.bootstrap import load_all_models
 load_all_models()
 
 from app.core.local_schema import ensure_local_schema
+from app.core.security import hash_password
 from app.models.case import CaseStatus, CaseType, StepResult, TestCase, TestRun, RunStatus
 from app.models.project import Module, Project
 from app.models.user import User, UserRole
@@ -126,6 +129,14 @@ SELECT coalesce(json_agg(t), '[]'::json) FROM (SELECT * FROM {tbl}) t;
     return data
 
 
+def _historical_fields(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: datetime.fromisoformat(record[key].replace("Z", "+00:00")) if isinstance(record[key], str) else record[key]
+        for key in ("created_at", "updated_at")
+        if record.get(key) is not None
+    }
+
+
 def step3_import_to_local_sqlite(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
     print("\n[D6.3] 向本地 SQLite (D:\\ATP_resources\\atp.sqlite3) 分批导入并映射所有权...")
     LOCAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -135,10 +146,32 @@ def step3_import_to_local_sqlite(data: dict[str, list[dict[str, Any]]]) -> dict[
     imported_stats = {"projects": 0, "modules": 0, "test_cases": 0, "test_runs": 0, "step_results": 0}
 
     with Session(sync_eng) as session:
+        # Preserve source IDs because object-store paths also contain run IDs.
+        # Independent databases may reuse IDs: reject before writing anything.
+        for table, model in (
+            ("projects", Project),
+            ("modules", Module),
+            ("test_cases", TestCase),
+            ("test_runs", TestRun),
+            ("step_results", StepResult),
+        ):
+            source_ids = [row["id"] for row in data.get(table, [])]
+            if len(set(source_ids)) != len(source_ids):
+                raise ValueError(f"Duplicate source IDs in {table}")
+            if source_ids and session.scalar(select(model.id).where(model.id.in_(source_ids)).limit(1)) is not None:
+                raise ValueError(
+                    f"Migration ID collision in {table}; use a fresh destination or an explicit remapping migration"
+                )
         # 获取本地管理员
         admin = session.query(User).filter(User.username == "admin").first()
         if not admin:
-            admin = User(username="admin", email="admin@local.desktop", hashed_password="pw", role=UserRole.admin, is_active=True)
+            admin = User(
+                username="admin",
+                email="admin@local.desktop",
+                hashed_password=hash_password(os.environ["FIRST_ADMIN_PASSWORD"]),
+                role=UserRole.admin,
+                is_active=True,
+            )
             session.add(admin)
             session.flush()
 
@@ -150,6 +183,7 @@ def step3_import_to_local_sqlite(data: dict[str, list[dict[str, Any]]]) -> dict[
             existing = session.query(Project).filter(Project.id == pid).first()
             if not existing:
                 proj = Project(
+                    **_historical_fields(p),
                     id=pid,
                     name=p["name"],
                     project_code=p.get("project_code") or f"PROJ_{pid}",
@@ -169,6 +203,7 @@ def step3_import_to_local_sqlite(data: dict[str, list[dict[str, Any]]]) -> dict[
             existing = session.query(Module).filter(Module.id == mid).first()
             if not existing:
                 mod = Module(
+                    **_historical_fields(m),
                     id=mid,
                     name=m["name"],
                     module_code=m.get("module_code") or f"MOD_{mid}",
@@ -186,6 +221,7 @@ def step3_import_to_local_sqlite(data: dict[str, list[dict[str, Any]]]) -> dict[
             existing = session.query(TestCase).filter(TestCase.id == cid).first()
             if not existing:
                 case = TestCase(
+                    **_historical_fields(c),
                     id=cid,
                     name=c["name"],
                     description=c.get("description"),
@@ -217,6 +253,10 @@ def step3_import_to_local_sqlite(data: dict[str, list[dict[str, Any]]]) -> dict[
                 st = r.get("status") or "passed"
                 run_st = RunStatus(st) if st in RunStatus.__members__ else RunStatus.passed
                 run = TestRun(
+                    **_historical_fields(r),
+                    environment=r.get("environment"),
+                    iteration_index=r.get("iteration_index"),
+                    iteration_data=r.get("iteration_data"),
                     id=rid,
                     case_id=r["case_id"],
                     triggered_by=admin_id,
@@ -229,6 +269,20 @@ def step3_import_to_local_sqlite(data: dict[str, list[dict[str, Any]]]) -> dict[
                 imported_stats["test_runs"] += 1
         session.flush()
 
+        # Assign parents after all source runs exist, regardless of export order.
+        for r in data.get("test_runs", []):
+            parent_id = r.get("parent_run_id")
+            if parent_id is not None:
+                if session.get(TestRun, parent_id) is None:
+                    raise ValueError(f"Missing parent run {parent_id}")
+                run = session.get(TestRun, r["id"])
+                session.execute(
+                    update(TestRun)
+                    .where(TestRun.id == r["id"])
+                    .values(parent_run_id=parent_id, updated_at=_historical_fields(r).get("updated_at", run.updated_at))
+                )
+        session.flush()
+
         # 5. 导入 StepResults
         for s in data.get("step_results", []):
             sid = s["id"]
@@ -237,6 +291,7 @@ def step3_import_to_local_sqlite(data: dict[str, list[dict[str, Any]]]) -> dict[
                 st = s.get("status") or "passed"
                 step_st = RunStatus(st) if st in RunStatus.__members__ else RunStatus.passed
                 sr = StepResult(
+                    **_historical_fields(s),
                     id=sid,
                     run_id=s["run_id"],
                     step_index=s.get("step_index", 0),

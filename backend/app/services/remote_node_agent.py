@@ -23,6 +23,8 @@ from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 MAX_PROXY_BYTES = 8 * 1024 * 1024
+# WebSocket messages contain a Base64 body plus JSON metadata.
+MAX_PROXY_FRAME_BYTES = 4 * ((MAX_PROXY_BYTES + 2) // 3) + 64 * 1024
 
 
 def _node_ws_url(origin: str, client_id: str) -> str:
@@ -182,7 +184,11 @@ async def run_local_node_agent(app: FastAPI, stop_event: asyncio.Event) -> None:
         tunnel: asyncio.subprocess.Process | None = None
         try:
             tunnel = await _start_private_tunnel()
-            async with connect(url, additional_headers={"X-ATP-Api-Key": settings.CLOUD_SYNC_API_KEY}) as ws:
+            async with connect(
+                url,
+                additional_headers={"X-ATP-Api-Key": settings.CLOUD_SYNC_API_KEY},
+                max_size=MAX_PROXY_FRAME_BYTES,
+            ) as ws:
 
                 async def heartbeat() -> None:
                     while not stop_event.is_set():

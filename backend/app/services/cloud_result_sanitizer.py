@@ -163,7 +163,11 @@ def _build_suite_summary(
         connection,
         """
         SELECT r.id, r.status, r.created_at, r.updated_at, r.duration_ms, r.error_message,
-               r.total_cases, r.passed_cases, r.failed_cases, r.error_cases, r.skipped_cases,
+               json_extract(r.result_summary, '$.total') AS total_cases,
+               json_extract(r.result_summary, '$.passed') AS passed_cases,
+               json_extract(r.result_summary, '$.failed') AS failed_cases,
+               json_extract(r.result_summary, '$.error') AS error_cases,
+               json_extract(r.result_summary, '$.skipped') AS skipped_cases,
                s.name as suite_name, p.name as project_name, p.project_code, u.username
         FROM suite_runs r
         LEFT JOIN test_suites s ON r.suite_id = s.id
@@ -219,7 +223,11 @@ def _build_plan_summary(
         connection,
         """
         SELECT r.id, r.status, r.created_at, r.updated_at, r.duration_ms, r.error_message,
-               r.total_cases, r.passed_cases, r.failed_cases, r.error_cases, r.skipped_cases,
+               json_extract(r.result_summary, '$.total') AS total_cases,
+               json_extract(r.result_summary, '$.passed') AS passed_cases,
+               json_extract(r.result_summary, '$.failed') AS failed_cases,
+               json_extract(r.result_summary, '$.error') AS error_cases,
+               json_extract(r.result_summary, '$.skipped') AS skipped_cases,
                pl.name as plan_name, p.name as project_name, p.project_code, u.username
         FROM plan_runs r
         LEFT JOIN test_plans pl ON r.plan_id = pl.id
@@ -273,7 +281,7 @@ def _build_mobile_summary(
         connection,
         """
         SELECT r.id, r.status, r.created_at, r.updated_at, r.duration_ms,
-               t.name as task_name, t.task_type, t.package_name,
+               t.name as task_name, t.task_type, t.app_package AS package_name,
                p.name as project_name, p.project_code, u.username
         FROM mobile_special_runs r
         LEFT JOIN mobile_special_tasks t ON r.task_id = t.id

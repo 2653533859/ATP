@@ -152,6 +152,8 @@ async def update_me(
     db: AsyncSession = Depends(get_db),
 ):
     """修改当前账号资料或密码，并为用户名变化重新签发会话。"""
+    if getattr(request.state, "api_key_authenticated", False):
+        raise HTTPException(status_code=403, detail="API keys cannot change account credentials")
     if not verify_password(body.current_password, current_user.hashed_password):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前密码错误")
 

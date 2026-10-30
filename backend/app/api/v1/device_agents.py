@@ -20,13 +20,13 @@ from starlette.websockets import WebSocket
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.package_paths import bundled_resource
-from app.core.database import sync_engine as engine
+from app.core.database import AsyncSessionLocal, sync_engine as engine
 from app.core.security import decode_token
 from app.device_agents.tunnel_hub import tunnel_hub
 from app.device_agents.protocol import tunnel_serial
 from app.models.device import Device
 from app.models.device_agent import RemoteAgent, RemoteAgentDevice
-from app.models.user import User
+from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -56,13 +56,11 @@ def _authenticate_ws_token(websocket: WebSocket) -> Optional[str]:
     try:
         payload = decode_token(token)
         sub = payload.get("sub")
-        if sub:
+        if sub and payload.get("type") == "access":
             return str(sub)
     except Exception:
         pass
 
-    if settings.ATP_LOCAL_MODE:
-        return "local_agent_user"
     return None
 
 
@@ -70,6 +68,13 @@ def _authenticate_ws_token(websocket: WebSocket) -> Optional[str]:
 async def device_agent_ws(websocket: WebSocket):
     """Agent 反向隧道长连接：鉴权通过后交由 TunnelHub 托管。"""
     username = _authenticate_ws_token(websocket)
+    if username is not None:
+        if settings.ATP_LOCAL_MODE and username == "local_admin":
+            username = settings.FIRST_ADMIN_USERNAME
+        async with AsyncSessionLocal() as db:
+            user = await db.scalar(select(User).where(User.username == username))
+            if user is None or not user.is_active or user.role not in {UserRole.admin, UserRole.engineer}:
+                username = None
     await websocket.accept()
     if username is None:
         try:

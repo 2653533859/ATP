@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import multiprocessing
 import os
+import runpy
 import sys
 
 import uvicorn
@@ -12,6 +13,19 @@ import uvicorn
 
 def main() -> None:
     multiprocessing.freeze_support()
+    if len(sys.argv) >= 3 and sys.argv[1] == "-m":
+        module = sys.argv[2]
+        if module not in {"pytest", "locust", "pip"}:
+            raise SystemExit("Unsupported worker module")
+        if os.environ.get("ATP_LOCAL_MODE", "").lower() not in {"1", "true", "yes", "on"}:
+            raise SystemExit("ATP_LOCAL_MODE=true is required for workers")
+        sys.argv = [module, *sys.argv[3:]]
+        # Frozen Python does not initialize sys.path from PYTHONPATH.
+        for entry in reversed(os.environ.get("PYTHONPATH", "").split(os.pathsep)):
+            if entry:
+                sys.path.insert(0, entry)
+        runpy.run_module(module, run_name="__main__", alter_sys=True)
+        return
     parser = argparse.ArgumentParser(description="ATP Windows local backend")
     parser.add_argument("--host", choices=["127.0.0.1", "localhost", "::1"], default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8001)

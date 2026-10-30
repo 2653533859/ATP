@@ -76,6 +76,13 @@ async def create_api_key_endpoint(
     current_user: User = Depends(require_engineer),
 ):
     """生成全新的 API Key，明文令牌仅在创建响应中返回一次，后台仅存储 SHA-256 安全哈希。"""
+    ranks = {UserRole.viewer: 0, UserRole.tester: 1, UserRole.engineer: 2, UserRole.admin: 3}
+    try:
+        requested_role = UserRole(body.role)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid API key role")
+    if ranks[requested_role] > ranks[current_user.role]:
+        raise HTTPException(status_code=403, detail="Cannot issue an API key above your effective role")
     api_key, raw_token = await generate_api_key(
         db,
         name=body.name,

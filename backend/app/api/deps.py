@@ -31,7 +31,26 @@ async def get_current_user(
         if valid_key:
             user = await db.get(User, valid_key.user_id)
             if user and user.is_active:
-                return user
+                # Resource-ID routes cannot infer a project/environment from the URL.
+                # Fail closed until an endpoint has an explicit scoped-key contract.
+                if valid_key.project_id is not None or valid_key.environment_id is not None:
+                    raise HTTPException(status_code=403, detail="Scoped API keys are not supported by this endpoint")
+                ranks = {UserRole.viewer: 0, UserRole.tester: 1, UserRole.engineer: 2, UserRole.admin: 3}
+                try:
+                    key_role = UserRole(valid_key.role)
+                except ValueError:
+                    raise HTTPException(status_code=403, detail="Invalid API key role")
+                effective_role = min((user.role, key_role), key=lambda role: ranks[role])
+                request.state.api_key_authenticated = True
+                # A transient principal avoids changing the persisted owner's role.
+                return User(
+                    **{
+                        column.key: getattr(user, column.key)
+                        for column in User.__table__.columns
+                        if column.key != "role"
+                    },
+                    role=effective_role,
+                )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired API Key")
 
     if not token:

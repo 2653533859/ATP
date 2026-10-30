@@ -24,6 +24,13 @@ New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
   --name atp-backend `
   --distpath $distPath --workpath $buildPath --specpath $specPath `
   --paths (Join-Path $repoRoot 'backend') `
+  --collect-all pytest `
+  --collect-all _pytest `
+  --collect-all pytest_playwright `
+  --collect-all pytest_jsonreport `
+  --collect-all pytest_asyncio `
+  --collect-all locust `
+  --collect-all pip `
   --collect-submodules app `
   --collect-submodules uvicorn `
   --collect-submodules sqlalchemy.dialects.sqlite `
