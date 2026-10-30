@@ -81,7 +81,7 @@ export interface RunSyncStatus {
 export const cloudSyncApi = {
   getLocalStatus: () => http.get<unknown, CloudSyncLocalStatus>('/cloud-sync/local/status'),
   syncNow: () =>
-    http.post<unknown, { status: string; synced: number; failed: number; processed: number }>(
+    http.post<unknown, { status: string; synced: number; failed: number; processed?: number; message?: string }>(
       '/cloud-sync/local/sync-now'
     ),
   getRunSyncStatus: (runType: string, runId: number) =>

@@ -29,6 +29,7 @@ export default {
       sync_success: 'Successfully synced execution records to cloud',
       sync_partial_failed: 'Sync partially failed, please check cloud service',
       sync_no_items: 'No pending records to sync',
+      sync_disabled: 'Cloud sync is not configured. Configure the cloud URL first; pending records remain on this computer.',
       sync_failed: 'Failed to trigger cloud sync, please check network or configuration',
     },
   },

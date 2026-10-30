@@ -1,5 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { message } from 'ant-design-vue'
 import CloudSyncDashboard from './CloudSyncDashboard.vue'
 
 const { getStatsMock, listRunsMock, getRunDetailMock, syncNowMock, getLocalStatusMock, currentRuntimeMode } = vi.hoisted(() => ({
@@ -140,4 +141,52 @@ describe('CloudSyncDashboard', () => {
 
     expect(syncNowMock).toHaveBeenCalledOnce()
   })
+
+  it.each([
+    [{ status: 'disabled', synced: 0, failed: 0 }, 'warning', 'sync_disabled'],
+    [{ status: 'ok', synced: 1, failed: 1 }, 'warning', 'sync_partial_failed'],
+    [{ status: 'ok', synced: 0, failed: 2 }, 'warning', 'sync_partial_failed'],
+    [{ status: 'ok', synced: 0, failed: 0 }, 'info', 'sync_no_items'],
+    [{ status: 'ok', synced: 2, failed: 0 }, 'success', 'sync_success'],
+    [{ status: 'unexpected', synced: 0, failed: 0 }, 'error', 'sync_failed'],
+  ] as const)('uses the actual sync outcome for its feedback: %j', async (result, level, key) => {
+    currentRuntimeMode.mode = 'local'
+    syncNowMock.mockResolvedValue(result)
+    const wrapper = mountLocalDashboard()
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('立即同步'))!.trigger('click')
+    await flushPromises()
+
+    expect(message[level]).toHaveBeenCalledWith(`cloud_sync.msg.${key}`)
+    if (level !== 'success') expect(message.success).not.toHaveBeenCalled()
+    expect(getLocalStatusMock).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('reports a request failure without showing success and releases the loading state', async () => {
+    currentRuntimeMode.mode = 'local'
+    syncNowMock.mockRejectedValueOnce(new Error('offline'))
+    const wrapper = mountLocalDashboard()
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('立即同步'))!.trigger('click')
+    await flushPromises()
+
+    expect(message.error).toHaveBeenCalledWith('cloud_sync.msg.sync_failed')
+    expect(message.success).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).syncing).toBe(false)
+    wrapper.unmount()
+  })
 })
+
+function mountLocalDashboard() {
+  return mount(CloudSyncDashboard, {
+    global: {
+      stubs: {
+        'a-card': true, 'a-table': true, 'a-modal': true, 'a-select': true,
+        'a-select-option': true, 'a-statistic': true,
+        'a-space': { template: '<div><slot /></div>' },
+        'a-button': { template: '<button><slot /></button>' },
+      },
+    },
+  })
+}

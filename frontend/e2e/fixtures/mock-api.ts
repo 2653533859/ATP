@@ -35,6 +35,11 @@ export { expect }
 
 /** 注入所有 spec 共用的接口 mock。spec 内可继续 page.route 覆盖。*/
 export async function installCommonMocks(page: Page) {
+  // Runtime identity is fetched before Vue mounts, so it must be available
+  // even when no backend is running during mocked browser tests.
+  await page.route('**/api/v1/runtime', (route) =>
+    route.fulfill({ json: { mode: 'server', database: 'postgresql', storage: 'minio', execution: 'celery' } }),
+  )
   // auth
   let authenticated = false
   await page.route('**/api/v1/auth/login', (route) => {

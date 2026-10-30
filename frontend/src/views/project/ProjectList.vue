@@ -44,8 +44,8 @@
         <a-col v-for="p in filteredProjects" :key="p.id" :xs="24" :sm="12" :md="8">
           <a-card hoverable class="project-bento-card" @click="router.push({ name: 'project-overview', params: { projectId: p.id } })">
             <template #title>
-              <a-space>
-                <span>{{ p.name }}</span>
+              <a-space wrap>
+                <span class="project-card-name">{{ p.name }}</span>
                 <a-tag :color="p.status === 'active' ? 'green' : 'default'">
                   {{ p.status === 'active' ? t('project.status.active') : t('project.status.archived') }}
                 </a-tag>
@@ -55,7 +55,7 @@
             <p style="color: var(--c-text-tertiary); font-size: 12px">
               {{ t('project.ai_model_label', { model: llmConfigLabel(p.ai_llm_config_id) }) }}
             </p>
-            <template #extra>
+            <div class="project-card-actions" @click.stop>
               <a-button v-if="!localMode && canManage(p)" type="link" @click.stop="openMembers(p)">{{ t('project.members') }}</a-button>
               <a-button
                 v-if="canManage(p)"
@@ -87,7 +87,7 @@
               </a-popconfirm>
               <a-button v-else-if="canManage(p)" type="link" @click.stop="handleRestore(p.id)">{{ t('project.restore') }}</a-button>
               <a-button v-if="canManage(p)" type="link" danger @click.stop="handleDelete(p.id)">{{ t('common.delete') }}</a-button>
-            </template>
+            </div>
           </a-card>
         </a-col>
       </a-row>
@@ -520,6 +520,18 @@ onMounted(() => {
   box-shadow: var(--shadow-sm);
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
   height: 100%;
+}
+.project-bento-card :deep(.ant-card-head-title) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.project-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--c-border);
 }
 .project-bento-card:hover {
   transform: translateY(-3px);

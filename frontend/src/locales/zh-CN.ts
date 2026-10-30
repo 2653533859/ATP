@@ -29,6 +29,7 @@ export default {
       sync_success: '成功同步运行记录至云端',
       sync_partial_failed: '同步失败，请检查云端服务',
       sync_no_items: '当前无待同步记录',
+      sync_disabled: '尚未配置云端同步地址，请先完成云端同步配置，待同步记录仍保留在本机',
       sync_failed: '触发云端同步失败，请检查网络或配置',
     },
   },

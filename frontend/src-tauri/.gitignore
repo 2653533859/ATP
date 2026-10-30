@@ -1,0 +1,3 @@
+# Tauri / Cargo 构建产物：由 `cargo tauri build` 生成，不纳入版本库。
+/target
+/gen

@@ -4,7 +4,7 @@
       <div class="toolbar-left">
         <div class="toolbar-identity">
           <SettingOutlined class="toolbar-icon" />
-          <span class="toolbar-name">{{ t('configuration_center.title') }}</span>
+          <h1 class="toolbar-name">{{ t('configuration_center.title') }}</h1>
         </div>
         <div class="toolbar-project">
           <label class="project-filter">
@@ -641,6 +641,7 @@ onMounted(async () => {
   border-radius: 6px;
 }
 .toolbar-name {
+  margin: 0;
   font-size: 14px;
   font-weight: 700;
   color: var(--ink);

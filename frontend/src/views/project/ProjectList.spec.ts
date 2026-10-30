@@ -126,6 +126,22 @@ beforeEach(() => {
 })
 
 describe('ProjectList', () => {
+  it('opens the project from its title while keeping action clicks separate', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.find('.project-card-name').trigger('click')
+    expect(routerPush).toHaveBeenCalledWith({ name: 'project-overview', params: { projectId: 1 } })
+    expect(projectExport).not.toHaveBeenCalled()
+
+    routerPush.mockClear()
+    const edit = wrapper.find('.project-card-actions').findAll('button')
+      .find((button) => button.text() === 'common.edit')!
+    await edit.trigger('click')
+    expect(routerPush).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).showModal).toBe(true)
+  })
+
   it('allows project creation and copying in local mode while keeping member management hidden', async () => {
     runtimeModeState.mode = 'local'
     const wrapper = mountPage()
