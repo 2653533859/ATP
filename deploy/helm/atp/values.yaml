@@ -9,7 +9,7 @@ image:
   repository: registry.local/atp
   backend:
     # Backend API image tag.
-    tag: latest
+    tag: v2.7.1-d5-safe2
     # Kubernetes imagePullPolicy for the backend container.
     pullPolicy: IfNotPresent
   worker:
