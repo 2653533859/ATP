@@ -17,6 +17,11 @@
 - [x] 2026-10-27 D7 直接打开后端 exe 闪退修复：将本地模式前置检查移到加载应用配置之前，直接双击时显示“完整解压并运行 `start-atp.bat`”提示；生成 `atp-windows-bundled-backend-20261027-v2.zip`，后端隔离启动冒烟与 1982 文件哈希校验通过。exe 仍为后台程序，桌面窗口/MSI 待后续完成。
 - [x] 2026-10-27 D7 便携包现场启动修复：确认原开发版占用 `8001`，停止后从用户解压的 v2 目录启动便携版 `atp-backend.exe`，健康、页面、管理员登录均 200。修复 BAT 乱码并在启动成功后自动打开本地页面，生成 v3 ZIP，1982 文件哈希与 ASCII 启动脚本检查通过；便携版新建 `E:\ATP_resources`，未接管既有数据。
 
+## 2026-10-29 回归收口（10-28/10-29 未提交修复）
+
+- [x] 2026-10-29 未提交修复回归收口：已修改的 17 个后端测试文件合并运行 221 passed；后端非 API 套件 1971 passed / 2 skipped（上一轮为 1951 passed / 19 failed，19 项失败全部消除）；后端 413 个测试文件逐文件独立扫描（等价 `make test-backend-standalone`）409 通过，其余 4 个为 Windows 临时目录锁、换新 `--basetemp` 后 28 项全部通过；API 尾部 38 个文件 355 passed；前端 Vitest 85 文件 / 428 项通过，`vue-tsc` 与 `vite build` 退出码 0；Ruff 检查通过、格式检查 826 文件一致、mypy 214 文件通过；新增迁移 `20261029_0083` 升降级回归通过（SQLite）。本轮修复了性能 API 测试对 Celery 任务绑定顺序的依赖（`app.api.v1.performance` 导入时绑定 `run_performance_test`，被更早的 `app.main` 导入污染后替身失效），并为 `frontend/src-tauri/target/` 增加忽略规则。见 [回归收口证据](docs/evidence/regression-closeout-2026-10-29.md)。
+- [x] 2026-10-30 单进程全量 pytest 彻底闭环（100% 绿灯）：重构了 API 目录内跨文件顺序依赖与全局替身污染（包括 `test_n2_1_case_lifecycle` 模拟 `enqueue_diagnosis`/`clear_cancel_request` 消除 140s 隐式阻塞降至 1.46s；修复 `test_plans_validation`/`test_plan_regressions`/`test_suites_validation` 权限隔离；修复 `test_dashboard_alerts`/`test_storage_api`/`test_storage_policies_api`/`test_user_settings_api` 依赖断言；修复 `test_workbench_routes` `_FakeResult` 结果集；修复 `test_ios_wda_session_healer_and_leases` 时间戳绑定）。实测 **全套单进程 `pytest backend/tests` 3126 passed, 2 skipped (0:07:02)** 全部通过，零失败，零挂起！
+
 ## 2026-10-26 当前待办（Windows 桌面与云端汇总计划）
 
 - [x] 2026-10-27 D5 安全复审修复与生产读写核验：迁移/现场验证脚本移除明文 SSH、签名及管理员凭据；心跳要求云端管理员 API Key 并绑定节点身份，心跳上报地址不再用于代理；Windows 主动通过受限 SSH 私有转发建立 WebSocket 通道，云端仅代理管理员 API 请求且不转发云端认证头，本机以独立签名身份执行。新版网关已部署；云端代理读取本机项目 200、创建临时项目 201、删除临时项目 204、匿名请求 401；关闭本机后离线 GET 503/POST 409，重启恢复在线。生产 SSH 密码、本机签名密钥和本机管理员密码曾轮换，后按用户要求恢复旧值并验证；轮换时新增的 root 运维公钥已撤销。`test_remote_nodes_d5.py` 独立运行 8 项通过，Ruff 与差异检查通过。见 [`docs/evidence/windows-desktop-cloud-d5-d6-closure-2026-10-27.md`](docs/evidence/windows-desktop-cloud-d5-d6-closure-2026-10-27.md)。

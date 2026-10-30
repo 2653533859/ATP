@@ -20,6 +20,8 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 
 v2.7.0 发布时的 Ruff、格式检查、mypy、Bandit、专项测试和迁移头验证结果见发布说明。iOS 的 macOS/Xcode/WebDriverAgent/真机端到端环境仍须按 [`docs/ios-device-automation-plan.md`](docs/ios-device-automation-plan.md) 单独验收；其他外部服务和实时生产状态也需在目标环境复核。当前 `main` 没有 required status checks，CI 结果不会阻断推送，具体门禁和触发条件见 [`docs/ci-workflows.md`](docs/ci-workflows.md)。
 
+2026-09-01 的历史发布范围及技术预览边界见 [`docs/release-scope-2026-09-01.md`](docs/release-scope-2026-09-01.md)；该记录不替代后续版本的实际验收证据。
+
 ## 项目结构
 
 - `backend/`：FastAPI API、SQLAlchemy 模型、Celery 任务、执行器、服务层

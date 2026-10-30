@@ -29,3 +29,4 @@
 
 - 当前使用本页作为状态入口；版本交付看 [`v2.7.0-release-notes.md`](v2.7.0-release-notes.md)，操作看 [`user-operation-manual.md`](user-operation-manual.md)，双模式运行看 [`windows-standalone.md`](windows-standalone.md)。
 - CI 由每周定时或手动触发，integration、E2E、release readiness 需手动触发；`main` 无 required status checks。当前触发条件以 [`ci-workflows.md`](ci-workflows.md) 为准。
+- 2026-10-29 对工作区未提交的 10-28/10-29 修复补跑了门禁：后端非 API 套件 1971 passed / 2 skipped、API 127 个文件逐文件独立扫描通过、前端 Vitest 85 文件 / 428 项通过、`vue-tsc`/构建/Ruff/格式/mypy 通过；**单个进程跑完整个 `backend/tests` 仍因 API 目录的跨文件顺序依赖而不通过**，因此不能判定全量门禁通过。结果与边界见 [`evidence/regression-closeout-2026-10-29.md`](evidence/regression-closeout-2026-10-29.md)。
