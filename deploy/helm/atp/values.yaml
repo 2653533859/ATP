@@ -9,13 +9,13 @@ image:
   repository: registry.local/atp
   backend:
     # Backend API image tag.
-    tag: v2.7.1-d5-safe2
+    tag: 5e2173dd-site
     # Kubernetes imagePullPolicy for the backend container.
     pullPolicy: IfNotPresent
   worker:
     # Worker image tag. This image should include Playwright, Chromium, ADB,
     # pg_dump, and MinIO mc when database backup tasks are enabled.
-    tag: latest
+    tag: 5e2173dd-site
     pullPolicy: IfNotPresent
   frontend:
     # Frontend static-site image tag.
@@ -50,7 +50,7 @@ flower:
 worker:
   # Empty inherits image.worker.tag. Set an immutable tag to update only the
   # ordinary Worker Deployment without changing Beat/Flower/other worker images.
-  imageTag: ""
+  imageTag: "5e2173dd-site-runmetrics"
   # 每个 worker 子进程暴露 Prometheus /metrics 的端口；与 backend:8000/metrics 区分。
   # 设为 0 可关闭（仅当 Prometheus 不抓取 worker 时）
   metricsPort: 9091
@@ -76,7 +76,7 @@ performanceWorker:
   # Enable a dedicated Celery worker Deployment for HTTP performance tests.
   # When enabled, consider removing "performance" from worker.queues/config.CELERY_QUEUES.
   # Empty inherits image.worker.tag; set a dedicated tag for a bounded performance Worker rollout.
-  imageTag: ""
+  imageTag: "5e2173dd-site-heartbeat"
   enabled: false
   replicas: 1
   queues: performance

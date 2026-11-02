@@ -2665,3 +2665,16 @@ N5.2 验收口径：管理员/工程师能从统一入口定位可见配置，�
 - [x] 静态门禁复核（与 ci.yml 同范围）：`ruff check` 全绿、`ruff format --check` 853 文件一致、`mypy` 214 源文件 0 问题。
 - [x] standalone 逐文件扫描（CI 同款 `scripts/pytest-standalone-sweep.py --jobs 4`）：两轮均为 `437 passed, 2 failed`——`test_local_schema.py`、`test_tunnel_hub.py` 报 300s 超时。对照实验确证根因：本机仓库盘 E: 为 1TB 机械硬盘（fsync 基准 24.8ms vs C: SSD 1.0ms），sweep 的 basetemp 固定落在仓库下（E:），这两个 tmp_path 重度文件单测试被放大到 30–70s（正常 0.1–0.5s）；同一 4 并发形态改用 C: SSD basetemp 后分别 `10 passed in 4.90s`、`99 passed in 11.27s` 全绿，与并发/负载无关。CI（Linux runner，SSD）不受影响，且 Windows CI job 不含 sweep；两个文件在 CI 形态下实测全绿。
 - [x] 证据文档：[`docs/evidence/backend-coverage-gate-closeout-2026-11-02.md`](docs/evidence/backend-coverage-gate-closeout-2026-11-02.md)。
+
+## 2026-11-02 单节点 5e2173dd 发布（D5 迁移 + 安全钉版 + 云端前端切换）
+
+- [x] 前端依赖审计清零：brace-expansion override 5.0.9→5.0.12、vue ^3.5.44、vitest/@vitest/coverage-v8 ^4.1.12；`npm audit --audit-level=high` 退出码 0（残留 4 项 moderate 为 js-beautify/editorconfig 开发期链），type-check/build/Vitest 432 用例全绿（提交 `405140c0`）。
+- [x] CI 运行 41476949313（`3ca87068`）5 job 全绿：含 `--cov-fail-under=82` 覆盖率门禁与 standalone sweep、Windows pytest、空库迁移、前端构建。
+- [x] Dependabot #7（GitHub Actions 6 项升级）按「CI 绿后合并」既定方案 squash 合并；新版本动作由最终 CI 认证运行实际执行。
+- [x] 迁移演练与备份：升级前 dump 409435 B（SHA-256 df969fac…，pg_restore 956 行）；隔离库 0083→0084 演练 `MIGRATION-DRILL-OK`。
+- [x] 离线 overlay 四镜像导入 k3s（digest 核对、pip check 通过、0084 迁移文件在镜像内）；Helm 升级 **revision 69 / deployed**（--force-conflicts 处理历史 kubectl 字段所有权）。
+- [x] 发布核验：6 Pod 1/1 Running；/health 200；runtime=server/postgresql/minio/celery；alembic 20261102_0084 且 remote_node_grants 存在；双 Celery Worker pong。
+- [x] 云端前端切换 `frontend:405140c0`：项目名 atp-cloud-web-20261027 不变，页面 200 且入口资源为新构建 `index-2mRL5CgK.js`，/api 反代 200；回退镜像 frontend:cef6d59b 保留。
+- [x] Helm values 回写：仓库 values.yaml 四个生效镜像标签对齐 rev69（frontend.tag 为 chart 惰性键，未回写）。
+- [x] 证据文档：[`docs/evidence/k3s-single-node-5e2173dd-release-2026-11-02.md`](docs/evidence/k3s-single-node-5e2173dd-release-2026-11-02.md)。
+- [ ] 最终认证补记：Security 41478171678 与合并 #7 后的 CI 认证运行结果（见证据文档补记节）；Trivy worker 内嵌工具 16 项为已知残留（修复路径见证据文档）。
