@@ -2677,4 +2677,4 @@ N5.2 验收口径：管理员/工程师能从统一入口定位可见配置，�
 - [x] 云端前端切换 `frontend:405140c0`：项目名 atp-cloud-web-20261027 不变，页面 200 且入口资源为新构建 `index-2mRL5CgK.js`，/api 反代 200；回退镜像 frontend:cef6d59b 保留。
 - [x] Helm values 回写：仓库 values.yaml 四个生效镜像标签对齐 rev69（frontend.tag 为 chart 惰性键，未回写）。
 - [x] 证据文档：[`docs/evidence/k3s-single-node-5e2173dd-release-2026-11-02.md`](docs/evidence/k3s-single-node-5e2173dd-release-2026-11-02.md)。
-- [ ] 最终认证补记：Security 41478171678 与合并 #7 后的 CI 认证运行结果（见证据文档补记节）；Trivy worker 内嵌工具 16 项为已知残留（修复路径见证据文档）。
+- [x] 最终认证补记：Security 41478171678——Dependency audit success（pip-audit 零已知漏洞 + `npm audit --audit-level=high` 退出码 0）、Gitleaks success；仅 Trivy image scan failure，为 worker 镜像内嵌 JMeter/k6 16 项已知残留（修复路径见证据文档）。最终 CI 41478902614（`33a6ec7b`，合并 #7 后新版 actions 实际执行）5/5 全绿：Backend pytest（含覆盖率门禁与 standalone sweep）、Backend pytest (Windows)、Backend lint、Empty database migration、Frontend type-check + build。运行 41478318629 被 concurrency 顶替取消属预期。见证据文档补记节。

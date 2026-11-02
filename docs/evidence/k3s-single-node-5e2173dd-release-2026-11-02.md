@@ -31,3 +31,9 @@
 - D5 现场验收、D7 MSI 升级/新机验收为外部阻塞项，不在本发布范围。
 
 上述现场结果只覆盖当次单节点短时检查与云端切换核验，不代表长期稳定、多节点或全部业务验收。
+
+## CI 与 Security 认证结果（补记）
+
+- Security 运行 41478171678（提交 `405140c0`）：**Dependency audit success**（pip-audit 无已知漏洞、`npm audit --audit-level=high` 退出码 0）、Gitleaks secret scan success；Trivy image scan failure，唯一失败原因是上节已列明的 worker 镜像内嵌 JMeter/k6 16 项残留（backend 镜像 0 项）。
+- 运行 41478318629（`405140c0`）被最终认证运行按 concurrency 顶替取消（属预期；取消前 Backend lint、Empty database migration、Frontend type-check + build 已 success）。
+- 最终 CI 认证运行 41478902614（提交 `33a6ec7b`，合并 #7 后新版 actions 实际执行）：**5/5 全绿**——Backend pytest（覆盖率 82% 门禁与 standalone sweep 均通过）、Backend pytest (Windows)、Backend lint、Empty database migration、Frontend type-check + build 均 success，整体 conclusion=success。
