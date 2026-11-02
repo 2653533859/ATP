@@ -96,7 +96,9 @@ def test_endpoints_use_current_user_dependency():
         user_settings.delete_my_setting,
     ):
         dep = inspect.signature(fn).parameters["current_user"].default.dependency
-        assert dep is _fake_get_current_user
+        # 与路由模块实际绑定的依赖对象比较：整套运行时路由可能已被更早的测试文件用另一份 app.api.deps 替身导入，
+        # 本文件顶部的 fake 不一定就是 Depends 捕获的那个对象，但“端点依赖 user_settings.get_current_user”这一契约与导入顺序无关。
+        assert dep is user_settings.get_current_user
 
 
 def test_list_my_settings_returns_values():

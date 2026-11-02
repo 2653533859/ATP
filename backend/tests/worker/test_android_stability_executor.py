@@ -144,6 +144,9 @@ class _FakeDB:
     async def commit(self):
         self.commits += 1
 
+    async def flush(self):
+        pass
+
 
 class _FakeMonkeyProc:
     def __init__(self):
@@ -230,7 +233,7 @@ def quiet_start_app(monkeypatch):
 
 def _logcat_stub(monkeypatch, crashes=None, anrs=None):
     async def fake_monitor(serial, run_id, duration_seconds):
-        return list(crashes or []), list(anrs or [])
+        return list(crashes or []), list(anrs or []), ""
 
     monkeypatch.setattr(android_stability_executor, "_run_logcat_monitor", fake_monitor)
 
@@ -382,7 +385,8 @@ def test_run_logcat_monitor_parses_crash_lines(monkeypatch):
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
     monkeypatch.setattr(android_stability_executor, "_clear_logcat_buffer", lambda serial: None)
 
-    crashes, anrs = asyncio.run(android_stability_executor._run_logcat_monitor("emu-5554", 1, 30))
+    crashes, anrs, raw_log = asyncio.run(android_stability_executor._run_logcat_monitor("emu-5554", 1, 30))
+    assert "FATAL EXCEPTION: main" in raw_log
 
     assert anrs == []
     assert len(crashes) >= 1

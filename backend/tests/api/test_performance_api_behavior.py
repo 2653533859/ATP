@@ -59,6 +59,14 @@ from app.schemas.performance_node import PerformanceNodeCreate, PerformanceNodeU
 
 load_all_models()
 
+
+@pytest.fixture(autouse=True)
+def _bind_task_recorder(monkeypatch):
+    """整套运行时 app.api.v1.performance 可能已被更早收集的文件以真实 Celery 任务导入，
+    上面的 sys.modules 桩对已缓存模块无效；这里按属性替换，保证触发接口始终落到记录器而非真实 broker。"""
+    monkeypatch.setattr(performance, "run_performance_test", _delay_recorder)
+
+
 _uploaded_objects: list[tuple[str, bytes, str]] = []
 performance.minio_client.ensure_bucket = lambda: None
 performance.minio_client.upload_bytes = (

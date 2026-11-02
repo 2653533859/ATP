@@ -140,8 +140,27 @@ async def test_api_disconnect_remote_device(monkeypatch):
         async def commit(self):
             pass
 
+        async def flush(self):
+            pass
+
         async def scalar(self, stmt):
             return mock_device
+
+        async def get(self, model, pk):
+            return mock_device
+
+        async def execute(self, stmt):
+            class _EmptyResult:
+                def scalars(self):
+                    return self
+
+                def all(self):
+                    return []
+
+            return _EmptyResult()
+
+        async def delete(self, obj):
+            pass
 
     monkeypatch.setattr(
         devices,

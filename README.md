@@ -230,6 +230,7 @@ make test-frontend-build
 
 - 当前项目状态与验收边界：`docs/project-status-2026-10-26.md`
 - 当前进度与模块完成度：`Task.md`
+- 单节点发布范围与技术预览边界：`docs/release-scope-2026-09-01.md`
 - 产品需求与整体范围：`PRD.md`
 - 平台详细操作手册：`docs/user-operation-manual.md`
 - CI/CD 集成说明：`docs/cicd-integration.md`

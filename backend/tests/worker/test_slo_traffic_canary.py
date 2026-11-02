@@ -119,6 +119,7 @@ def test_secret_errors_do_not_include_secret_value(repo_root, tmp_path, monkeypa
     module = _load_canary(repo_root)
     password_file = tmp_path / "password"
     password_file.write_text("", encoding="utf-8")
+    password_file.chmod(0o600)  # 否则先触发权限校验，得不到空值提示
     monkeypatch.setenv("ATP_PASSWORD_FILE", str(password_file))
     monkeypatch.delenv("ATP_PASSWORD", raising=False)
 

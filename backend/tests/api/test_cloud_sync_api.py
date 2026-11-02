@@ -8,8 +8,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy import create_engine
 
+from app.api.v1 import cloud_sync as cloud_sync_module
 from app.api.v1.cloud_sync import router as cloud_sync_router
-from app.core.database import get_db
 from app.core.local_schema import ensure_local_schema
 from app.models.base import Base
 from app.models.bootstrap import load_all_models
@@ -20,6 +20,11 @@ from app.services.sync_outbox import list_outbox_items, record_run_in_outbox
 from fastapi import FastAPI
 
 load_all_models()
+
+# 整套运行时 app.core.database / app.api.deps 可能已被其他测试文件替换过，
+# override 必须使用路由模块实际绑定的依赖对象，否则身份不一致导致 override 失效。
+get_db = cloud_sync_module.get_db
+get_current_user = cloud_sync_module.get_current_user
 
 
 @pytest.fixture
@@ -43,7 +48,6 @@ async def test_cloud_sync_receive_and_idempotent_deduplication(tmp_path, sync_ap
             yield s
 
     sync_app.dependency_overrides[get_db] = override_get_db
-    from app.api.deps import get_current_user
     from app.models.user import User, UserRole
 
     admin = User(id=1, username="admin", email="admin@test.local", hashed_password="x", role=UserRole.admin)
@@ -150,7 +154,6 @@ def test_cloud_sync_client_sweeps_outbox_to_server(tmp_path, sync_app, monkeypat
             yield s
 
     sync_app.dependency_overrides[get_db] = override_get_db
-    from app.api.deps import get_current_user
     from app.models.user import User, UserRole
 
     cloud_admin = User(id=9, username="cloud-admin", email="cloud@test.local", hashed_password="x", role=UserRole.admin)
@@ -276,7 +279,6 @@ def test_cloud_sync_client_retries_failed_and_abandoned_records(tmp_path):
 @pytest.mark.asyncio
 async def test_local_outbox_endpoints(tmp_path, sync_app, monkeypatch):
     """Test /api/v1/cloud-sync/local/* endpoints in local mode."""
-    from app.api.deps import get_current_user
     from app.models.user import User, UserRole
     import app.core.database as db_mod
     from app.core.config import settings

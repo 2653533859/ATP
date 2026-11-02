@@ -97,8 +97,10 @@ def test_notification_read_endpoints_require_engineer_dependency():
     list_dep = inspect.signature(notifications.list_notifications).parameters["user"].default.dependency
     get_dep = inspect.signature(notifications.get_notification).parameters["user"].default.dependency
 
-    assert list_dep is _fake_require_engineer
-    assert get_dep is _fake_require_engineer
+    # 与路由模块实际绑定的依赖对象比较：整套运行时路由可能已被更早的测试文件用另一份 app.api.deps 替身导入，
+    # 本文件顶部的 fake 不一定就是 Depends 捕获的那个对象，但“端点依赖 notifications.require_engineer”这一契约与导入顺序无关。
+    assert list_dep is notifications.require_engineer
+    assert get_dep is notifications.require_engineer
 
 
 def test_notification_test_send_returns_404_for_missing_config():

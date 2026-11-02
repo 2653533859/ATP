@@ -89,6 +89,9 @@ def perf_task(monkeypatch):
     """以伪造的 celery_app 重新导入任务模块，避免拿到别的测试留下的真 Task 对象。"""
     monkeypatch.setitem(sys.modules, "app.worker.celery_app", types.SimpleNamespace(celery_app=_FakeCeleryApp()))
     monkeypatch.delitem(sys.modules, "app.worker.tasks_performance", raising=False)
+    # `from app.worker import tasks_performance` 会优先命中 app.worker 包对象上缓存的旧模块属性
+    # （整套运行时是别的测试导入的真 Task 版本），不会回到 sys.modules 重新导入，所以要一并清掉。
+    monkeypatch.delattr(importlib.import_module("app.worker"), "tasks_performance", raising=False)
 
     from app.core import config
 

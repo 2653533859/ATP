@@ -16,7 +16,16 @@ async def test_local_lifespan_starts_schema_workspace_and_queue(monkeypatch):
     events = []
     sync_engine = object()
     monkeypatch.setattr(
-        main, "settings", SimpleNamespace(ATP_LOCAL_MODE=True, OTEL_SERVICE_NAME="test", APP_AUTO_CREATE_TABLES=False)
+        main,
+        "settings",
+        SimpleNamespace(
+            ATP_LOCAL_MODE=True,
+            OTEL_SERVICE_NAME="test",
+            APP_AUTO_CREATE_TABLES=False,
+            CLOUD_SYNC_ENABLED=False,
+            CLOUD_SYNC_URL="",
+            CLOUD_SYNC_API_KEY="",
+        ),
     )
     monkeypatch.setattr(sys.modules["app.core.database"], "sync_engine", sync_engine, raising=False)
     monkeypatch.setattr(main, "setup_logging", lambda: events.append("logging"))
@@ -101,7 +110,7 @@ async def test_local_unsupported_write_guard_blocks_only_unimplemented_prefixes(
         return "next"
 
     monkeypatch.setattr(main, "settings", SimpleNamespace(ATP_LOCAL_MODE=True))
-    request = SimpleNamespace(method="POST", url=SimpleNamespace(path="/api/v1/plans"))
+    request = SimpleNamespace(method="POST", url=SimpleNamespace(path="/api/v1/plans"), headers={})
 
     # 本地已开放手动套件/计划、性能与 Hermes；只有尚未纳入的能力继续被 409 拦截。
     for path in ("/api/v1/plans", "/api/v1/suites", "/api/v1/devices/scan", "/api/v1/mobile-special/tasks"):

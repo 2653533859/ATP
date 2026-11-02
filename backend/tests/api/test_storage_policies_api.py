@@ -103,7 +103,9 @@ def test_policy_endpoints_require_admin():
         storage.delete_storage_policy,
     ):
         dep = inspect.signature(fn).parameters["_"].default.dependency
-        assert dep is _fake_require_admin
+        # 与路由模块实际绑定的依赖对象比较：整套运行时路由可能已被更早的测试文件用另一份 app.api.deps 替身导入，
+        # 本文件顶部的 fake 不一定就是 Depends 捕获的那个对象，但“端点依赖 storage.require_admin”这一契约与导入顺序无关。
+        assert dep is storage.require_admin
 
 
 def test_create_policy_normalizes_prefix_and_persists():

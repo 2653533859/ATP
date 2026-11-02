@@ -153,7 +153,7 @@ def denied_audits(monkeypatch):
 def test_get_current_user_accepts_http_only_cookie(monkeypatch):
     user = _user(uid=11)
     monkeypatch.setattr(deps, "decode_token", lambda token: {"type": "access", "sub": user.username})
-    request = types.SimpleNamespace(cookies={"atp_access_token": "cookie-token"})
+    request = types.SimpleNamespace(cookies={"atp_access_token": "cookie-token"}, headers={})
 
     result = asyncio.run(_real_get_current_user(request, None, _AuthDB(user)))
 
@@ -161,7 +161,7 @@ def test_get_current_user_accepts_http_only_cookie(monkeypatch):
 
 
 def test_get_current_user_rejects_missing_credentials():
-    request = types.SimpleNamespace(cookies={})
+    request = types.SimpleNamespace(cookies={}, headers={})
 
     try:
         asyncio.run(_real_get_current_user(request, None, _AuthDB(_user())))

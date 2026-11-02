@@ -42,6 +42,8 @@ sys.modules["app.core.tracing"] = types.SimpleNamespace(
     generate_trace_id=lambda: "trace-test",
     set_trace_id=lambda value: value,
     reset_trace_id=lambda _token: None,
+    # api_executor / graphql_executor 在 import 期就需要它；直接复用真实实现，避免单文件运行时 ImportError
+    inject_w3c_trace_headers=_REAL_TRACING.inject_w3c_trace_headers,
 )
 sys.modules["app.worker.tasks"] = types.SimpleNamespace(
     run_test_case=types.SimpleNamespace(delay=lambda *_args, **_kwargs: None)

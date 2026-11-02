@@ -86,6 +86,31 @@ def _ensure_stub_attrs(module_name: str, defaults: dict) -> None:
             setattr(existing, name, value)
 
 
+_CANONICAL_STUBS: dict[str, types.ModuleType] = {}
+
+
+def _ensure_canonical_stub(module_name: str, defaults: dict) -> None:
+    """为身份必须稳定的模块（目前是 app.api.deps）维护唯一的规范桩，并强制装回 sys.modules。
+
+    路由模块在 import 期就把 `Depends(get_current_user)` / `assert_project_access` 等对象固化进
+    FastAPI 路由与模块全局；`app.main` 一旦被任一测试文件导入，全部路由就绑定了当时 sys.modules
+    里的对象。若某个文件 pop 掉桩并导入真实模块（或换成自己的 SimpleNamespace）后不恢复，之后
+    首次导入的路由会绑到真实实现或他人的替身上，与各测试自己的替身身份不一致（典型症状：
+    `'_User' object has no attribute 'role'`、dependency_overrides 失效返回 401）。
+
+    因此对这类模块不再只补缺字段，而是在每次收集 / 用例 setup 前都把同一个规范对象装回去。
+    测试文件在自己模块体内 hard-set 的对象仍对其自身随后 import 的路由生效，不受影响。
+    """
+    canonical = _CANONICAL_STUBS.get(module_name)
+    if canonical is None:
+        canonical = types.ModuleType(module_name)
+        _CANONICAL_STUBS[module_name] = canonical
+    for name, value in defaults.items():
+        if not hasattr(canonical, name):
+            setattr(canonical, name, value)
+    sys.modules[module_name] = canonical
+
+
 # ── app.core.database 的同步入口替身 ─────────────────────────────
 # N1 可靠执行批次起，生产代码在调用点延迟导入 sync_session_factory / sync_engine
 # （投递器、套件接受、组取消检查、应用生命周期）。单元测试没有真实引擎，这里给出
@@ -206,7 +231,7 @@ def _refresh_common_test_stubs() -> None:
     # is complete so those files remain independently collectable.
     import app.services.audit  # noqa: F401
 
-    _ensure_stub_attrs(
+    _ensure_canonical_stub(
         "app.api.deps",
         {
             "get_current_user": lambda: None,
@@ -277,7 +302,7 @@ if not _INTEGRATION_MODE:
         },
     )
 
-    _ensure_stub_attrs(
+    _ensure_canonical_stub(
         "app.api.deps",
         {
             "get_current_user": lambda: None,

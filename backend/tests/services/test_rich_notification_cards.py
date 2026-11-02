@@ -25,6 +25,14 @@ from app.services.rich_notification_cards import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _stub_public_url_guard(monkeypatch):
+    """SSRF 校验会做真实 DNS 解析，离线或受限网络下必须替身化（同 tests/services/test_notifier.py）。"""
+    from app.services import notifier as notifier_module
+
+    monkeypatch.setattr(notifier_module, "validate_public_http_url", lambda value: value)
+
+
 def test_build_wechat_template_card():
     summary = {
         "title": "支付链路冒烟测试计划",

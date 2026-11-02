@@ -52,9 +52,11 @@ def test_storage_endpoints_require_expected_dependencies():
     preview_dep = inspect.signature(storage.storage_cleanup_preview).parameters["_"].default.dependency
     execute_dep = inspect.signature(storage.storage_cleanup_execute).parameters["_"].default.dependency
 
-    assert stats_dep is _fake_require_admin
-    assert preview_dep is _fake_require_engineer
-    assert execute_dep is _fake_require_admin
+    # 与路由模块实际绑定的依赖对象比较：整套运行时路由可能已被更早的测试文件用另一份 app.api.deps 替身导入，
+    # 本文件顶部的 fake 不一定就是 Depends 捕获的那个对象，但“端点依赖 storage.require_admin”这一契约与导入顺序无关。
+    assert stats_dep is storage.require_admin
+    assert preview_dep is storage.require_engineer
+    assert execute_dep is storage.require_admin
 
 
 def test_storage_stats_delegates_to_service(monkeypatch):

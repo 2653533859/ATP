@@ -8,6 +8,8 @@ filterwarnings = [
     "error::pytest.PytestCollectionWarning",
     "ignore::DeprecationWarning",
 ]
+# 单个用例挂起不得拖垮整轮门禁（pytest-timeout，见 requirements-dev.txt）
+timeout = 300
 
 [tool.ruff]
 target-version = "py312"
