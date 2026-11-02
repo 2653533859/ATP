@@ -217,6 +217,9 @@ def test_start_without_display_omits_display_env(monkeypatch):
     monkeypatch.setattr(web_recordings, "async_playwright", lambda: factory)
     monkeypatch.setattr(web_recordings.settings, "WEB_RECORDER_DISPLAY", "")
     monkeypatch.delenv("DISPLAY", raising=False)
+    # Linux 上「无 display」会在 start() 前段按设计直接拒绝（由 test_start_requires_display_on_linux 覆盖）；
+    # 本用例验证非 Linux 路径：未解析出 display 时不应向浏览器进程注入 DISPLAY。
+    monkeypatch.setattr(web_recordings.sys, "platform", "darwin")
     _stub_artifacts(monkeypatch)
     session = _session(page=None, status="starting")
 
