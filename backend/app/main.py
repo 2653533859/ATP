@@ -55,6 +55,10 @@ load_all_models()
 
 async def _init_admin():
     """首次启动时创建默认管理员，并对用户名/邮箱保持幂等。"""
+    if settings.APP_ENV == "production" and settings.FIRST_ADMIN_PASSWORD == "Admin@123456":
+        logger.warning(
+            "FIRST_ADMIN_PASSWORD is still the default value under APP_ENV=production; rotate it before exposing the service"
+        )
     async with AsyncSessionLocal() as db:
         if settings.ATP_LOCAL_MODE and await db.scalar(select(func.count(User.id))):
             return

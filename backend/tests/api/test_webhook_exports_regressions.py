@@ -87,8 +87,9 @@ class _FakeSuite:
 
 
 class _FakePlan:
-    def __init__(self, plan_id: int = 21, suite_ids=None):
+    def __init__(self, plan_id: int = 21, suite_ids=None, is_enabled: bool = True):
         self.id = plan_id
+        self.is_enabled = is_enabled
         self.suite_ids = suite_ids if suite_ids is not None else [{"suite_id": 1, "sort": 0}]
 
 
@@ -244,6 +245,17 @@ def test_webhook_trigger_rejects_unknown_env_id():
         asyncio.run(webhook.webhook_trigger(request=_fake_request(), body=body, db=db, _api_key="ok"))
 
     assert exc.value.status_code == 404
+
+
+def test_webhook_trigger_rejects_disabled_plan():
+    db = _FakeWebhookDB(plan=_FakePlan(is_enabled=False), env=None)
+    body = webhook.WebhookTriggerBody(target_type="plan", target_id=21, extra_vars={})
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(webhook.webhook_trigger(request=_fake_request(), body=body, db=db, _api_key="ok"))
+
+    assert exc.value.status_code == 409
+    assert db.added == []
 
 
 def test_webhook_performance_trigger_uses_encrypted_runtime_snapshot(monkeypatch):

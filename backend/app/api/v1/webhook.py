@@ -132,6 +132,8 @@ async def webhook_trigger(
         plan = await db.get(TestPlan, body.target_id)
         if not plan:
             raise HTTPException(status_code=404, detail="测试计划不存在")
+        if not plan.is_enabled:
+            raise HTTPException(status_code=409, detail="测试计划已禁用，无法通过 Webhook 触发")
         if not plan.suite_ids:
             raise HTTPException(status_code=400, detail="计划中没有测试套件")
 

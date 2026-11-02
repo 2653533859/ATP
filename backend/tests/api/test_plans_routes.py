@@ -277,6 +277,7 @@ def _hook_plan(**overrides):
         webhook_secret="s3cr3t",
         suite_ids=[{"suite_id": 1}],
         env_id=None,
+        is_enabled=True,
     )
     values.update(overrides)
     return _Obj(**values)
@@ -327,6 +328,17 @@ def test_webhook_trigger_rejects_bad_secret():
             )
         )
     assert exc.value.status_code == 403 and "验证失败" in exc.value.detail
+
+
+def test_webhook_trigger_rejects_disabled_plan(stubs):
+    plan = _hook_plan(is_enabled=False)
+    db = _FakeDB({("TestPlan", 1): plan, ("Project", 5): _Obj(id=5, status="active")})
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(pl.webhook_trigger(body=WebhookTriggerRequest(plan_id=1), x_webhook_secret="s3cr3t", db=db))
+
+    assert exc.value.status_code == 409 and "已禁用" in exc.value.detail
+    assert stubs["delayed"] == []
 
 
 def test_webhook_trigger_rejects_empty_suites():

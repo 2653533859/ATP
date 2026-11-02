@@ -44,6 +44,15 @@ _LOCAL_PROFILE_KEYS = frozenset(
 )
 
 
+# 默认值与 .env.example 示例值；APP_ENV=production 时拒绝以这些值启动（P0-2）
+_PLACEHOLDER_APP_SECRET_KEYS = frozenset(
+    {"dev-secret-key-change-in-production", "change_this_to_a_random_secret_key_at_least_32_chars"}
+)
+_PLACEHOLDER_WEBHOOK_API_KEYS = frozenset(
+    {"atp-webhook-key-change-in-production", "change_this_to_a_random_webhook_key"}
+)
+
+
 class Settings(BaseSettings):
     # Pydantic loads dotenv files in order, so the working directory must be last
     # to keep its values authoritative. The absolute fallback handles both the
@@ -300,6 +309,19 @@ class Settings(BaseSettings):
             or self.FIRST_ADMIN_PASSWORD == "Admin@123456"
         ):
             raise ValueError("local profile requires APP_ENV=local and private app/admin secrets")
+        return self
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> Self:
+        """生产环境禁止使用默认/示例密钥启动，避免 JWT 签名与 Webhook 凭据可被猜测。"""
+        if self.ATP_LOCAL_MODE or self.APP_ENV != "production":
+            return self
+        if self.APP_SECRET_KEY in _PLACEHOLDER_APP_SECRET_KEYS:
+            raise ValueError("APP_ENV=production requires a private APP_SECRET_KEY; default/placeholder value rejected")
+        if self.WEBHOOK_API_KEY in _PLACEHOLDER_WEBHOOK_API_KEYS:
+            raise ValueError(
+                "APP_ENV=production requires a private WEBHOOK_API_KEY; default/placeholder value rejected"
+            )
         return self
 
     @property

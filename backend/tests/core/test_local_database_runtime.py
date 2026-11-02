@@ -42,7 +42,13 @@ async def test_local_database_engines_use_sqlite_wal_and_foreign_keys(tmp_path, 
 
 @pytest.mark.asyncio
 async def test_server_database_engines_keep_postgres_dialect(monkeypatch):
-    server_settings = config.Settings(_env_file=None, ATP_LOCAL_MODE=False, APP_ENV="production")
+    server_settings = config.Settings(
+        _env_file=None,
+        ATP_LOCAL_MODE=False,
+        APP_ENV="production",
+        APP_SECRET_KEY="unit-test-private-secret-key-0123456789abcdef",
+        WEBHOOK_API_KEY="unit-test-private-webhook-key",
+    )
     monkeypatch.setattr(config, "settings", server_settings)
     source = Path(__file__).parents[2] / "app" / "core" / "database.py"
     database = runpy.run_path(str(source))

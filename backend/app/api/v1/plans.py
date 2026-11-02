@@ -321,6 +321,8 @@ async def webhook_trigger(
         raise HTTPException(status_code=400, detail="该计划不支持 Webhook 触发")
     if not plan.webhook_secret or plan.webhook_secret != x_webhook_secret:
         raise HTTPException(status_code=403, detail="Webhook Secret 验证失败")
+    if not plan.is_enabled:
+        raise HTTPException(status_code=409, detail="测试计划已禁用，无法通过 Webhook 触发")
     if not plan.suite_ids:
         raise HTTPException(status_code=400, detail="计划中没有测试套件")
     project = await db.get(Project, plan.project_id)
