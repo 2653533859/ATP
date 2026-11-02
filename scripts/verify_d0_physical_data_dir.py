@@ -49,7 +49,7 @@ from app.core.local_machine_identity import get_machine_id
 def test_d0_physical_disk_selection():
     print("[D0.1] 检查非 C 盘存储目标空间...")
     total, used, free = shutil.disk_usage("D:/")
-    free_gb = free / (1024 ** 3)
+    free_gb = free / (1024**3)
     print(f"       选定磁盘 D: 可用空间 {free_gb:.2f} GB (满足 >= 20 GB 预留要求)")
     assert free_gb >= 20.0, "D 盘剩余空间不足 20 GB"
 
@@ -70,7 +70,9 @@ async def run_d0_representative_flows():
 
     # 1. 建立两个独立项目及模块 (D1)
     async with sessions() as db:
-        admin = User(username="admin", email="admin@local.desktop", hashed_password="pw", role=UserRole.admin, is_active=True)
+        admin = User(
+            username="admin", email="admin@local.desktop", hashed_password="pw", role=UserRole.admin, is_active=True
+        )
         db.add(admin)
         await db.flush()
 
@@ -79,10 +81,12 @@ async def run_d0_representative_flows():
         db.add_all([proj1, proj2])
         await db.flush()
 
-        db.add_all([
-            UserProject(user_id=admin.id, project_id=proj1.id, role=ProjectRole.owner),
-            UserProject(user_id=admin.id, project_id=proj2.id, role=ProjectRole.owner),
-        ])
+        db.add_all(
+            [
+                UserProject(user_id=admin.id, project_id=proj1.id, role=ProjectRole.owner),
+                UserProject(user_id=admin.id, project_id=proj2.id, role=ProjectRole.owner),
+            ]
+        )
 
         mod1_user = Module(name="用户模块", module_code="USER_MOD", project_id=proj1.id, sort_order=0)
         mod1_order = Module(name="订单模块", module_code="ORDER_MOD", project_id=proj1.id, sort_order=1)
@@ -207,20 +211,34 @@ async def run_d0_representative_flows():
     print("\n[D1.1] 核验跨项目用例与执行记录物理隔离...")
     async with sessions() as db:
         # 项目 1 用例数与运行数
-        runs_p1 = (await db.execute(
-            select(TestRun).join(TestCase, TestRun.case_id == TestCase.id)
-            .join(Module, TestCase.module_id == Module.id)
-            .where(Module.project_id == ids["proj1_id"])
-        )).scalars().all()
+        runs_p1 = (
+            (
+                await db.execute(
+                    select(TestRun)
+                    .join(TestCase, TestRun.case_id == TestCase.id)
+                    .join(Module, TestCase.module_id == Module.id)
+                    .where(Module.project_id == ids["proj1_id"])
+                )
+            )
+            .scalars()
+            .all()
+        )
         assert len(runs_p1) == 1
         assert runs_p1[0].id == api_run_id
 
         # 项目 2 用例数与运行数
-        runs_p2 = (await db.execute(
-            select(TestRun).join(TestCase, TestRun.case_id == TestCase.id)
-            .join(Module, TestCase.module_id == Module.id)
-            .where(Module.project_id == ids["proj2_id"])
-        )).scalars().all()
+        runs_p2 = (
+            (
+                await db.execute(
+                    select(TestRun)
+                    .join(TestCase, TestRun.case_id == TestCase.id)
+                    .join(Module, TestCase.module_id == Module.id)
+                    .where(Module.project_id == ids["proj2_id"])
+                )
+            )
+            .scalars()
+            .all()
+        )
         assert len(runs_p2) == 1
         assert runs_p2[0].id == android_run_id
 

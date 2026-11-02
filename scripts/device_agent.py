@@ -18,6 +18,7 @@
 
 按 Ctrl+C 退出；退出时会清理本脚本创建的 adb forward。
 """
+
 import argparse
 import base64
 import hashlib
@@ -170,9 +171,9 @@ class MiniWebSocket:
             status_line = response.split("\r\n", 1)[0]
             if " 101 " not in f"{status_line} ":
                 raise ConnectionError(f"WebSocket 握手失败: {status_line.strip()}")
-            accept_expected = base64.b64encode(
-                hashlib.sha1((key + _WS_ACCEPT_GUID).encode("ascii")).digest()
-            ).decode("ascii")
+            accept_expected = base64.b64encode(hashlib.sha1((key + _WS_ACCEPT_GUID).encode("ascii")).digest()).decode(
+                "ascii"
+            )
             match = re.search(r"(?im)^sec-websocket-accept:\s*(\S+)\s*$", response)
             if not match or match.group(1) != accept_expected:
                 raise ConnectionError("WebSocket 握手校验失败（Sec-WebSocket-Accept 不匹配）")
@@ -325,8 +326,7 @@ class TunnelSendScheduler:
             while (
                 not self._closed
                 and conn_id not in self._closed_connections
-                and self._data_pending_bytes.get(conn_id, 0) + len(payload)
-                > TUNNEL_CONNECTION_MAX_PENDING_BYTES
+                and self._data_pending_bytes.get(conn_id, 0) + len(payload) > TUNNEL_CONNECTION_MAX_PENDING_BYTES
             ):
                 self._condition.wait()
             if self._closed or conn_id in self._closed_connections:
@@ -388,9 +388,7 @@ class TunnelSendScheduler:
                         self._round_robin.append(conn_id)
                     else:
                         self._data_queues.pop(conn_id, None)
-                    self._data_pending_bytes[conn_id] = max(
-                        0, self._data_pending_bytes.get(conn_id, 0) - len(chunk)
-                    )
+                    self._data_pending_bytes[conn_id] = max(0, self._data_pending_bytes.get(conn_id, 0) - len(chunk))
                     if self._data_pending_bytes.get(conn_id) == 0:
                         self._data_pending_bytes.pop(conn_id, None)
                     self._condition.notify_all()
@@ -479,7 +477,7 @@ def parse_adb_devices_output(output: str) -> List[Dict[str, str]]:
         model = ""
         for token in parts[2:]:
             if token.startswith("model:"):
-                model = token[len("model:"):].replace("_", " ")
+                model = token[len("model:") :].replace("_", " ")
                 break
         devices.append({"serial": serial, "state": state, "model": model})
     return devices
@@ -870,9 +868,7 @@ class TunnelAgent:
             self._registered.set()
             devices = control.get("devices") or []
             rejected = control.get("rejected") or []
-            summary = ", ".join(
-                f"{d.get('usb_serial')} → 平台侧 {d.get('serial')}" for d in devices
-            ) or "（暂无设备）"
+            summary = ", ".join(f"{d.get('usb_serial')} → 平台侧 {d.get('serial')}" for d in devices) or "（暂无设备）"
             log(f"注册成功：{summary}")
             for item in rejected:
                 log(f"设备被平台拒绝: {item.get('usb_serial')}: {item.get('error')}")
@@ -907,9 +903,7 @@ class TunnelAgent:
         if sender is None:
             return
         payload = base64.b64encode(os.urandom(size)).decode("ascii")
-        sender.send_text(
-            json.dumps({"type": "bandwidth_probe_result", "probe_id": probe_id, "payload": payload})
-        )
+        sender.send_text(json.dumps({"type": "bandwidth_probe_result", "probe_id": probe_id, "payload": payload}))
 
     def _on_open(self, conn_id: int, usb_serial: str) -> None:
         ws = self.ws
@@ -938,9 +932,7 @@ class TunnelAgent:
         with self._conn_lock:
             self.conns[conn_id] = sock
         self._send_open_result(conn_id, True, None)
-        pump = threading.Thread(
-            target=self._pump_device_to_ws, args=(conn_id, sock), daemon=True
-        )
+        pump = threading.Thread(target=self._pump_device_to_ws, args=(conn_id, sock), daemon=True)
         pump.start()
 
     def _send_open_result(self, conn_id: int, ok: bool, error: Optional[str]) -> None:
@@ -1071,7 +1063,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     log(f"接入点名称: {args.name} | adb: {adb_path}")
     log("提示：手机首次接入需确认两次「允许 USB 调试」弹窗（本机密钥 + 平台服务器密钥）")
 
-    registry = DeviceRegistry(adb, on_change=lambda reports: agent.notify_devices_changed(reports), poll_interval=args.poll)
+    registry = DeviceRegistry(
+        adb, on_change=lambda reports: agent.notify_devices_changed(reports), poll_interval=args.poll
+    )
     agent = TunnelAgent(args.server, str(args.token).strip(), args.name, registry)
 
     def _handle_signal(signum, frame):

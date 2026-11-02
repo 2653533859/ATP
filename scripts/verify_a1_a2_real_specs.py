@@ -129,7 +129,9 @@ async def verify_a1(db_file: Path):
     sessions = async_sessionmaker(async_eng, expire_on_commit=False)
 
     async with sessions() as db:
-        user = User(username="a1_tester", email="a1@atp.local", hashed_password="pw", role=UserRole.admin, is_active=True)
+        user = User(
+            username="a1_tester", email="a1@atp.local", hashed_password="pw", role=UserRole.admin, is_active=True
+        )
         proj = Project(name="E-Commerce API Project", project_code="ECOM_API", owner_id=1, status="active")
         mod = Module(name="Order Module", module_code="ORDER_MOD", project_id=1, sort_order=0)
 
@@ -240,7 +242,9 @@ async def verify_a1(db_file: Path):
 
         print("[A1.3] 场景步骤影响与来源指纹审查结论:")
         for imp in sync_result["scenario_impacts"]:
-            print(f"       * [{imp['scenario_name']}] 步骤 {imp['step_index']}: {imp['step_name']} -> {imp['endpoint']}")
+            print(
+                f"       * [{imp['scenario_name']}] 步骤 {imp['step_index']}: {imp['step_name']} -> {imp['endpoint']}"
+            )
             print(f"         审查判定: \"{imp['review_reason']}\"")
 
         # 校验指纹审查原因

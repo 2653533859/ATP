@@ -49,8 +49,10 @@ async def main():
     if not target_dev:
         print("ERROR: 未找到设备 5CQBB26605200808")
         sys.exit(1)
-    print(f"      识别到设备: 品牌={target_dev.brand}, 型号={target_dev.model}, "
-          f"系统={target_dev.os_version} (SDK {target_dev.sdk_version}), 分辨率={target_dev.resolution}")
+    print(
+        f"      识别到设备: 品牌={target_dev.brand}, 型号={target_dev.model}, "
+        f"系统={target_dev.os_version} (SDK {target_dev.sdk_version}), 分辨率={target_dev.resolution}"
+    )
 
     # 2. 初始化本地 SQLite 数据库与 Schema v15
     db_file = Path("E:/csh/MyProject/ATP/.pytest_tmp/m3_real_device.sqlite3")
@@ -65,13 +67,17 @@ async def main():
     async with sessions() as db:
         admin = await db.scalar(select(User).where(User.username == "admin"))
         if not admin:
-            admin = User(username="admin", email="admin@atp.local", hashed_password="pw", role=UserRole.admin, is_active=True)
+            admin = User(
+                username="admin", email="admin@atp.local", hashed_password="pw", role=UserRole.admin, is_active=True
+            )
             db.add(admin)
             await db.flush()
 
         proj = await db.scalar(select(Project).where(Project.project_code == "ANDROID_REAL"))
         if not proj:
-            proj = Project(name="Android Real Device Project", project_code="ANDROID_REAL", owner_id=admin.id, status="active")
+            proj = Project(
+                name="Android Real Device Project", project_code="ANDROID_REAL", owner_id=admin.id, status="active"
+            )
             db.add(proj)
             await db.flush()
 
@@ -141,7 +147,9 @@ async def main():
             check_adb_environment=True,
             strict_adb_environment=True,
         )
-        print(f"[3/7] M2 执行前预检完成: ok={precheck.ok}, total_steps={precheck.summary.total_steps}, items_count={len(precheck.items)}")
+        print(
+            f"[3/7] M2 执行前预检完成: ok={precheck.ok}, total_steps={precheck.summary.total_steps}, items_count={len(precheck.items)}"
+        )
         for item in precheck.items:
             print(f"      - [{item.status.value.upper()}] {item.scope.value}: {item.code} -> {item.message}")
         if not precheck.ok:
@@ -163,14 +171,18 @@ async def main():
         await run_android_lowcode(db, run, case, {})
 
         await db.refresh(run)
-        print(f"      真机用例执行完成: Status={run.status.value}, Duration={run.duration_ms}ms, Error={run.error_message}")
+        print(
+            f"      真机用例执行完成: Status={run.status.value}, Duration={run.duration_ms}ms, Error={run.error_message}"
+        )
 
         # 检查步骤结果
         steps_stmt = select(StepResult).where(StepResult.run_id == run.id).order_by(StepResult.step_index)
         steps_res = (await db.execute(steps_stmt)).scalars().all()
         print(f"      步骤完成总数: {len(steps_res)}")
         for s in steps_res:
-            print(f"      - 步骤 {s.step_index} [{s.name}]: {s.status.value} ({s.duration_ms}ms), 截图={s.screenshot_url}")
+            print(
+                f"      - 步骤 {s.step_index} [{s.name}]: {s.status.value} ({s.duration_ms}ms), 截图={s.screenshot_url}"
+            )
 
         # 检查租约是否安全释放
         leases_cnt = await db.scalar(select(func.count(DeviceLease.id)))
