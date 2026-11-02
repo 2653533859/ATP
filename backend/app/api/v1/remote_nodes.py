@@ -268,9 +268,14 @@ async def proxy_to_desktop_node(
 
     if not path.startswith("api/v1/") or ".." in path.split("/") or path.startswith("api/v1/remote-nodes"):
         raise HTTPException(status_code=400, detail="Unsupported node API path")
-    body = await request.body()
-    if len(body) > MAX_PROXY_BYTES:
-        raise HTTPException(status_code=413, detail="Remote request exceeds channel limit")
+    body_parts: list[bytes] = []
+    body_size = 0
+    async for chunk in request.stream():
+        body_size += len(chunk)
+        if body_size > MAX_PROXY_BYTES:
+            raise HTTPException(status_code=413, detail="Remote request exceeds channel limit")
+        body_parts.append(chunk)
+    body = b"".join(body_parts)
     forward_headers = {key: val for key, val in request.headers.items() if key.lower() in {"accept", "content-type"}}
     full_path = f"/{path}"
     if request.url.query:

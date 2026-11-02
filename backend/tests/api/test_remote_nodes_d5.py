@@ -1,6 +1,7 @@
 """Remote node authentication, offline behavior, and reverse-channel tests."""
 
 import base64
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
@@ -34,7 +35,7 @@ async def test_node_key_requires_active_cloud_admin(monkeypatch):
             )
 
     async def valid_key(*_args, **_kwargs):
-        return SimpleNamespace(user_id=1)
+        return SimpleNamespace(user_id=1, role="admin", project_id=None, environment_id=None)
 
     monkeypatch.setattr("app.api.v1.remote_nodes.validate_api_key", valid_key)
     with pytest.raises(HTTPException) as missing:
@@ -121,6 +122,64 @@ async def test_online_proxy_uses_channel_without_forwarding_cloud_credentials(no
         )
         assert response.status_code == 200
         assert response.json() == [{"id": 1}]
+
+
+@pytest.mark.asyncio
+async def test_proxy_enforces_request_limit_while_streaming(node_app):
+    from app.api.v1.remote_nodes import MAX_PROXY_BYTES
+
+    _NODE_REGISTRY["win-limit"] = {
+        "machine_name": "PC",
+        "last_seen_ts": time.time(),
+        "last_seen_at": "2026-10-27T00:00:00Z",
+        "capabilities": [],
+    }
+    forwarded_sizes = []
+
+    class Channel:
+        async def send_request(self, method, path, headers, body):
+            forwarded_sizes.append(len(body))
+            return {"status": 200, "headers": {}, "body": ""}
+
+    _NODE_CHANNELS["win-limit"] = Channel()
+    path = "/api/v1/remote-nodes/win-limit/proxy/api/v1/projects"
+    async with AsyncClient(transport=ASGITransport(app=node_app), base_url="http://test") as client:
+        assert (await client.post(path, content=b"a" * MAX_PROXY_BYTES)).status_code == 200
+        consumed_after_limit = False
+
+        async def oversized_body():
+            nonlocal consumed_after_limit
+            yield b"a" * MAX_PROXY_BYTES
+            yield b"b"
+            consumed_after_limit = True
+            yield b"c"
+
+        assert (await client.post(path, content=oversized_body())).status_code == 413
+        assert not consumed_after_limit
+    assert forwarded_sizes == [MAX_PROXY_BYTES]
+
+
+@pytest.mark.asyncio
+async def test_node_reports_oversized_download_as_limit_error(monkeypatch):
+    from fastapi.responses import Response
+    from app.services.remote_node_agent import MAX_PROXY_BYTES
+
+    app = FastAPI()
+
+    @app.get("/api/v1/example")
+    async def download():
+        return Response(content=b"a" * (MAX_PROXY_BYTES + 1))
+
+    async def token():
+        return "local-signed-token"
+
+    monkeypatch.setattr("app.services.remote_node_agent._local_admin_token", token)
+    result = await dispatch_node_request(
+        app,
+        {"request_id": "download", "method": "GET", "path": "/api/v1/example", "headers": {}, "body": ""},
+    )
+    assert result["status"] == 413
+    assert json.loads(base64.b64decode(result["body"])) == {"detail": "Remote response exceeds channel limit"}
 
 
 @pytest.mark.asyncio

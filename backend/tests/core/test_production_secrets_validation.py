@@ -28,7 +28,9 @@ def test_production_accepts_private_secrets():
     assert settings.APP_ENV == "production"
 
 
-def test_non_production_profiles_keep_default_secrets():
+def test_non_production_profiles_keep_default_secrets(monkeypatch):
+    monkeypatch.delenv("APP_SECRET_KEY", raising=False)
+    monkeypatch.delenv("WEBHOOK_API_KEY", raising=False)
     settings = config.Settings(_env_file=None, APP_ENV="development")
     assert settings.APP_SECRET_KEY == "dev-secret-key-change-in-production"
     assert settings.WEBHOOK_API_KEY == "atp-webhook-key-change-in-production"

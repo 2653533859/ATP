@@ -144,7 +144,13 @@ async def dispatch_node_request(app: FastAPI, frame: dict) -> dict:
                 str(frame.get("method", "GET")), path, headers=headers, content=body, timeout=30
             )
         if len(response.content) > MAX_PROXY_BYTES:
-            raise ValueError("Response exceeds channel limit")
+            return {
+                "type": "response",
+                "request_id": request_id,
+                "status": 413,
+                "headers": {"content-type": "application/json"},
+                "body": base64.b64encode(b'{"detail":"Remote response exceeds channel limit"}').decode("ascii"),
+            }
         response_headers = {
             key: val for key, val in response.headers.items() if key.lower() in {"content-type", "content-disposition"}
         }

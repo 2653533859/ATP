@@ -25,7 +25,7 @@
 ## 2026-10-26 当前待办（Windows 桌面与云端汇总计划）
 
 - [x] 2026-10-27 D5 安全复审修复与生产读写核验：迁移/现场验证脚本移除明文 SSH、签名及管理员凭据；心跳要求云端管理员 API Key 并绑定节点身份，心跳上报地址不再用于代理；Windows 主动通过受限 SSH 私有转发建立 WebSocket 通道，云端仅代理管理员 API 请求且不转发云端认证头，本机以独立签名身份执行。新版网关已部署；云端代理读取本机项目 200、创建临时项目 201、删除临时项目 204、匿名请求 401；关闭本机后离线 GET 503/POST 409，重启恢复在线。生产 SSH 密码、本机签名密钥和本机管理员密码曾轮换，后按用户要求恢复旧值并验证；轮换时新增的 root 运维公钥已撤销。`test_remote_nodes_d5.py` 独立运行 8 项通过，Ruff 与差异检查通过。见 [`docs/evidence/windows-desktop-cloud-d5-d6-closure-2026-10-27.md`](docs/evidence/windows-desktop-cloud-d5-d6-closure-2026-10-27.md)。
-- [ ] D5 剩余现场验收：大文件限制和多用户权限映射；同时将临时 `kubectl set image` 的生产镜像版本纳入 Helm 发布配置，避免后续 Helm 升级回退到旧网关。
+- [ ] D5 剩余现场验收：2026-11-02 已现场验证 8 MiB 请求/下载边界及现有角色拒绝策略；修正后 Windows 开发节点经线上网关复测，超限下载返回 413，修正尚未发布。用户要求按用户或项目授权指定电脑、分别授予只读或读写，覆盖该电脑全部本地项目；目前仍缺授权与身份映射。Helm revision 65 的实际镜像虽为 D5 版本，保存的显式 tag 与清单仍为 `v2.7.0`，服务端 dry-run 已验证显式覆盖方案，真实 release 尚未更新。见 [`docs/evidence/d5-field-acceptance-2026-11-02.md`](docs/evidence/d5-field-acceptance-2026-11-02.md)。
 - [x] 2026-10-27 云端 Web 局域网入口：服务器模式前端通过 `vue-tsc && vite build` 构建，Docker Compose 在 `192.168.3.196:8080` 提供静态页面并同源代理云端 API/WebSocket；容器健康且零重启，页面、构建资源、深链接与 `/api/v1/runtime` 返回 200，未登录 `/api/v1/auth/me` 返回 401。部署方式和 HTTPS 边界见 [`docs/cloud-web-entry-2026-10-27.md`](docs/cloud-web-entry-2026-10-27.md)。
 
 - [x] 2026-10-26 D3/D4 审查修复（代码与定向验证）：汇总接口改为仅云端管理员或其 API Key 可访问；云端错误摘要不再包含自由文本；本地队列恢复到期失败项和中断项，手动同步立即重试失败项，配置云端凭据后启动后台扫描；本地大盘只展示队列状态，云端 Web 端展示跨电脑汇总；Windows 依赖清单加入 `pywebview`。相关后端测试文件分别通过（API 4、D2 4、桌面 3），Ruff、前端构建和 `git diff --check` 通过。云端部署与现场重试验收未在本轮执行。
