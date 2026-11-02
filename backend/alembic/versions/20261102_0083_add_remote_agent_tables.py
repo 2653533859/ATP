@@ -1,7 +1,7 @@
 """add remote_agents and remote_agent_devices tables for device agent tunnels
 
 Revision ID: 20261102_0083
-Revises: 20261026_0082
+Revises: 20261029_0083
 Create Date: 2026-11-02 10:00:00
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 revision: str = "20261102_0083"
-down_revision: Union[str, None] = "20261026_0082"
+down_revision: Union[str, None] = "20261029_0083"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -62,8 +62,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_remote_agent_devices_usb_serial", table_name="remote_agent_devices")
-    op.drop_index("ix_remote_agent_devices_agent_id", table_name="remote_agent_devices")
-    op.drop_table("remote_agent_devices")
-    op.drop_index("ix_remote_agents_name", table_name="remote_agents")
-    op.drop_table("remote_agents")
+    # The restored preceding revision owns these tables; keep them on downgrade.
+    pass

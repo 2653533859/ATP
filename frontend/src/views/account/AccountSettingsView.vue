@@ -7,7 +7,7 @@
     </div>
 
     <a-card class="account-card" :bordered="false">
-      <a-form layout="vertical" @finish="handleSave">
+      <a-form :model="form" layout="vertical" @finish="handleSave">
         <a-form-item :label="t('account.username')" required>
           <a-input v-model:value="form.username" autocomplete="username" />
         </a-form-item>
