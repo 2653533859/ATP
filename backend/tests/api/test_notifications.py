@@ -38,6 +38,24 @@ def _fake_safe_exception_message(_error):
     return "redacted provider error"
 
 
+def _stub_notifier_module(monkeypatch, send_channel):
+    """把 app.services.notifier 换成桩对象并通过 monkeypatch 注册，用例结束自动还原。
+
+    被测路由在调用时才 `from app.services.notifier import ...`，晚导入读的是
+    sys.modules 中的对象；直接赋值不会还原，桩会泄漏给后续测试文件（worker
+    性能测试曾因此拿到缺少 send_notifications 的桩而报 AttributeError）。
+    """
+    monkeypatch.setitem(
+        sys.modules,
+        "app.services.notifier",
+        types.SimpleNamespace(
+            send_notification_channel=send_channel,
+            persist_notification_delivery=_fake_persist_notification_delivery,
+            _safe_exception_message=_fake_safe_exception_message,
+        ),
+    )
+
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=_fake_get_current_user,
     require_engineer=_fake_require_engineer,
@@ -120,11 +138,7 @@ def test_notification_test_send_dispatches_email(monkeypatch):
         called["config"] = config
         called["summary"] = summary
 
-    sys.modules["app.services.notifier"] = types.SimpleNamespace(
-        send_notification_channel=fake_send,
-        persist_notification_delivery=_fake_persist_notification_delivery,
-        _safe_exception_message=_fake_safe_exception_message,
-    )
+    _stub_notifier_module(monkeypatch, fake_send)
 
     cfg = _FakeNotificationConfig(
         id=3,
@@ -142,15 +156,11 @@ def test_notification_test_send_dispatches_email(monkeypatch):
     assert called["summary"]["title"]
 
 
-def test_notification_test_send_converts_delivery_failure_to_http_500():
+def test_notification_test_send_converts_delivery_failure_to_http_500(monkeypatch):
     async def fake_send(_channel, _config, _summary):
         raise RuntimeError("invalid webhook with access_token=raw-secret")
 
-    sys.modules["app.services.notifier"] = types.SimpleNamespace(
-        send_notification_channel=fake_send,
-        persist_notification_delivery=_fake_persist_notification_delivery,
-        _safe_exception_message=_fake_safe_exception_message,
-    )
+    _stub_notifier_module(monkeypatch, fake_send)
 
     cfg = _FakeNotificationConfig(
         id=8,
@@ -463,11 +473,7 @@ def test_test_notification_dingtalk_dispatch(monkeypatch):
         "decrypt_config",
         lambda c: {"webhook_url": "https://oapi.dingtalk.com/robot/send", "language": "en-US"},
     )
-    sys.modules["app.services.notifier"] = types.SimpleNamespace(
-        send_notification_channel=fake_send,
-        persist_notification_delivery=_fake_persist_notification_delivery,
-        _safe_exception_message=_fake_safe_exception_message,
-    )
+    _stub_notifier_module(monkeypatch, fake_send)
     cfg = _FakeNotificationConfig(id=9, project_id=1, channel=NotifyChannel.dingtalk, config={"webhook_url": "c"})
 
     result = asyncio.run(notifications.test_notification(cfg_id=9, db=_FakeDB(cfg=cfg), user=None))

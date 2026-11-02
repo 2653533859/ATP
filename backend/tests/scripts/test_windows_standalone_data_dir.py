@@ -1,8 +1,11 @@
 """Exercise standalone data location and restore without touching a real profile."""
 
+import ctypes
 import shutil
 import subprocess
 import sys
+import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -11,9 +14,59 @@ from app.core.config import Settings
 
 
 SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "windows-standalone.ps1"
+REPO_ROOT = SCRIPT.parents[1]
 POWERSHELL = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32" or not POWERSHELL, reason="Windows PowerShell required")
+
+# windows-standalone.ps1 的 Assert-RequestedDataDir 要求 -DataDir 位于剩余 20GB
+# 以上的本地固定盘；pytest 的 tmp_path 可能落在空间不足的系统盘上。
+DATA_DIR_MIN_FREE_BYTES = 20 * 1024**3
+
+
+def _fixed_drive_free_bytes(drive: str) -> int:
+    """返回本地固定盘（DriveType=3）剩余空间字节数；不存在或非固定盘返回 -1。"""
+    try:
+        if not Path(drive).exists() or ctypes.windll.kernel32.GetDriveTypeW(drive) != 3:
+            return -1
+        return shutil.disk_usage(drive).free
+    except OSError:
+        return -1
+
+
+def _create_spacey_tmp_root() -> Path:
+    """在剩余 >=20GB 的本地固定盘上创建临时根目录，供需要 -DataDir 的用例使用。
+
+    优先使用仓库所在盘的 .local-run（已被 .gitignore 覆盖），否则挑选剩余空间
+    最大的固定盘根目录；没有任何合格盘时跳过用例。
+    """
+    if _fixed_drive_free_bytes(SCRIPT.drive + "\\") >= DATA_DIR_MIN_FREE_BYTES:
+        parent = REPO_ROOT / ".local-run"
+        parent.mkdir(exist_ok=True)
+        return Path(tempfile.mkdtemp(prefix="data-dir-tests-", dir=parent))
+    candidates: list[tuple[int, str]] = []
+    for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        free = _fixed_drive_free_bytes(f"{letter}:\\")
+        if free >= DATA_DIR_MIN_FREE_BYTES:
+            candidates.append((free, f"{letter}:\\"))
+    if not candidates:
+        pytest.skip("no fixed drive with at least 20 GB free for -DataDir")
+    for _free, drive in sorted(candidates, reverse=True):
+        try:
+            return Path(tempfile.mkdtemp(prefix="atp-data-dir-tests-", dir=drive))
+        except OSError:
+            continue
+    pytest.skip("cannot create temp dir on any qualifying drive")
+
+
+@pytest.fixture
+def spacey_tmp_path() -> Iterator[Path]:
+    """替代 tmp_path：位于剩余 >=20GB 固定盘上的临时目录，用例结束自动清理。"""
+    root = _create_spacey_tmp_root()
+    try:
+        yield root
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def _isolated_script(root: Path) -> Path:
@@ -42,26 +95,26 @@ def _isolate_test_settings_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(key, raising=False)
 
 
-def test_new_profile_uses_requested_data_dir_and_preserves_it(tmp_path: Path) -> None:
-    script = _isolated_script(tmp_path / "repo")
-    data_dir = tmp_path / "data root with spaces"
+def test_new_profile_uses_requested_data_dir_and_preserves_it(spacey_tmp_path: Path) -> None:
+    script = _isolated_script(spacey_tmp_path / "repo")
+    data_dir = spacey_tmp_path / "data root with spaces"
     created = _run(script, "-Action", "init", "-DataDir", str(data_dir))
     assert created.returncode == 0, created.stderr
-    profile = tmp_path / "repo" / "config" / "startup-profiles" / "local-lite.env"
+    profile = spacey_tmp_path / "repo" / "config" / "startup-profiles" / "local-lite.env"
     original = profile.read_text(encoding="utf-8")
     assert f"ATP_LOCAL_DATA_DIR={data_dir}" in original
     assert Settings(_env_file=profile).LOCAL_DATA_PATH == data_dir.resolve()
     assert data_dir.is_dir()
 
-    rejected = _run(script, "-Action", "init", "-DataDir", str(tmp_path / "other data"))
+    rejected = _run(script, "-Action", "init", "-DataDir", str(spacey_tmp_path / "other data"))
     assert rejected.returncode != 0
     assert profile.read_text(encoding="utf-8") == original
 
 
-def test_backup_and_restore_follow_profile_data_dir(tmp_path: Path) -> None:
-    source_root = tmp_path / "source repo"
+def test_backup_and_restore_follow_profile_data_dir(spacey_tmp_path: Path) -> None:
+    source_root = spacey_tmp_path / "source repo"
     source_script = _isolated_script(source_root)
-    source_data = tmp_path / "source data"
+    source_data = spacey_tmp_path / "source data"
     source_data.mkdir()
     (source_data / "result.txt").write_text("saved locally", encoding="utf-8")
     (source_root / "config" / "startup-profiles" / "local-lite.env").write_text(
@@ -69,14 +122,14 @@ def test_backup_and_restore_follow_profile_data_dir(tmp_path: Path) -> None:
         "APP_SECRET_KEY=test-only\nFIRST_ADMIN_PASSWORD=test-password\n",
         encoding="utf-8",
     )
-    archive = tmp_path / "backup archive"
+    archive = spacey_tmp_path / "backup archive"
     backed_up = _run(source_script, "-Action", "backup", "-ArchiveDir", str(archive))
     assert backed_up.returncode == 0, backed_up.stderr
     assert (archive / "data" / "result.txt").read_text(encoding="utf-8") == "saved locally"
 
-    target_root = tmp_path / "target repo"
+    target_root = spacey_tmp_path / "target repo"
     target_script = _isolated_script(target_root)
-    target_data = tmp_path / "restored data"
+    target_data = spacey_tmp_path / "restored data"
     restored = _run(target_script, "-Action", "restore", "-ArchiveDir", str(archive), "-DataDir", str(target_data))
     assert restored.returncode == 0, restored.stderr
     assert (target_data / "result.txt").read_text(encoding="utf-8") == "saved locally"
