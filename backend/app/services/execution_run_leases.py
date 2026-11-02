@@ -8,9 +8,10 @@ import threading
 import uuid
 from contextlib import AbstractContextManager
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -144,7 +145,7 @@ def heartbeat_execution_run_lease(
         .execution_options(synchronize_session=False)
     )
     session.commit()
-    return (result.rowcount or 0) == 1
+    return (cast(CursorResult[Any], result).rowcount or 0) == 1
 
 
 def release_execution_run_lease(
@@ -169,7 +170,7 @@ def release_execution_run_lease(
         .execution_options(synchronize_session=False)
     )
     session.commit()
-    return (result.rowcount or 0) == 1
+    return (cast(CursorResult[Any], result).rowcount or 0) == 1
 
 
 def _recover_run(

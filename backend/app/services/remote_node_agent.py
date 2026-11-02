@@ -80,7 +80,7 @@ async def _start_private_tunnel() -> asyncio.subprocess.Process | None:
         "ServerAliveCountMax=3",
         f"{settings.REMOTE_NODE_SSH_USER}@{settings.REMOTE_NODE_SSH_HOST}",
     )
-    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
     process = await asyncio.create_subprocess_exec(
         *args,
         stdin=asyncio.subprocess.DEVNULL,
