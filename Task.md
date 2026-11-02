@@ -7,6 +7,7 @@
 > Windows 单机数据、云端结果汇总的新方案见 [`docs/windows-desktop-cloud-result-sync-plan-2026-10-26.md`](docs/windows-desktop-cloud-result-sync-plan-2026-10-26.md)。
 
 - [x] 2026-11-02 Linux 账号保存修复与部署：绑定账号表单 model，补按钮级 E2E；恢复现场 `20261029_0083` 迁移节点，隔离 PostgreSQL 副本升级通过。源码 `cef6d59b` 已推送并发布到 Helm revision 68 与云端前端；真实临时账号的页面修改密码与新密码登录通过，账号已清理。首次 Helm 升级的字段所有权冲突及接管经过、镜像构建边界和测试结果见 [`docs/evidence/linux-account-save-release-2026-11-02.md`](docs/evidence/linux-account-save-release-2026-11-02.md)。
+- [x] 2026-11-02 D7 Windows 桌面 MSI 构建与本机安装/卸载验收：修复 Tauri v2 WiX 配置（键位为 `bundle.windows.wix`；中文 productName 配 `language: zh-CN`，否则 light 报 LGHT0311 代码页 1252），`tauri build --bundles msi` 产出 `ATP 自动化测试平台_1.0.0_x64_zh-CN.msi`（4.89 MiB，SHA-256 `5a4c55f6…`，位于 gitignored 的 `src-tauri/target/`）；本机静默安装/卸载退出码均为 0，注册表登记与 `atp-desktop.exe` 冒烟启动通过，卸载后注册表键、安装目录、进程零残留。MSI 未签名，升级与全新电脑验收未执行，仍为外部阻塞。见 [`docs/evidence/windows-desktop-msi-acceptance-2026-11-02.md`](docs/evidence/windows-desktop-msi-acceptance-2026-11-02.md)。
 
 - [x] 2026-10-26 D0 数据目录与安全启动（现场全流程闭环）：选定物理非 C 盘 D:（可用 276.20 GB >= 20 GB 约束），在 `D:\ATP_resources` 下真实建立 SQLite 数据库 `atp.sqlite3`（Schema v15）与对象存储目录；运行 API 及华为真机（5CQBB26605200808）设置截图用例，核验数据库落盘（788 KB）及 5 张真机截图物理文件（1.3MB~2.9MB）；跨目录全量安全备份至 `E:\ATP_backup_d0_verify`（生成 manifest.json）并成功还原至 `D:\ATP_resources_restored`（5张截图与数据库 SHA-256 零漂移）。实测证据见 [`docs/evidence/windows-desktop-d0-physical-path-verification-2026-10-26.md`](docs/evidence/windows-desktop-d0-physical-path-verification-2026-10-26.md)。
 - [x] 2026-10-26 D1 本地多项目生命周期与隔离（现场全流程闭环）：在 `D:\ATP_resources` 物理库中建立两个独立项目（电商主干 PROJ_ECOM 与移动端 PROJ_MOBILE），分别跨模块执行 API 订单用例（Run 1 passed 88ms）与 Android 真机用例（Run 2 passed 17687ms）；单向过滤与多项目用例隔离验证 100% 通过；Outbox 队列原子生成 2 项记录；唯一项目防删除/归档保护与单用户成员管控全部通过。实测证据见 [`docs/evidence/windows-desktop-d0-physical-path-verification-2026-10-26.md`](docs/evidence/windows-desktop-d0-physical-path-verification-2026-10-26.md)。
@@ -27,14 +28,14 @@
 ## 2026-10-26 当前待办（Windows 桌面与云端汇总计划）
 
 - [x] 2026-10-27 D5 安全复审修复与生产读写核验：迁移/现场验证脚本移除明文 SSH、签名及管理员凭据；心跳要求云端管理员 API Key 并绑定节点身份，心跳上报地址不再用于代理；Windows 主动通过受限 SSH 私有转发建立 WebSocket 通道，云端仅代理管理员 API 请求且不转发云端认证头，本机以独立签名身份执行。新版网关已部署；云端代理读取本机项目 200、创建临时项目 201、删除临时项目 204、匿名请求 401；关闭本机后离线 GET 503/POST 409，重启恢复在线。生产 SSH 密码、本机签名密钥和本机管理员密码曾轮换，后按用户要求恢复旧值并验证；轮换时新增的 root 运维公钥已撤销。`test_remote_nodes_d5.py` 独立运行 8 项通过，Ruff 与差异检查通过。见 [`docs/evidence/windows-desktop-cloud-d5-d6-closure-2026-10-27.md`](docs/evidence/windows-desktop-cloud-d5-d6-closure-2026-10-27.md)。
-- [ ] D5 剩余现场验收：2026-11-02 已现场验证 8 MiB 请求/下载边界及现有角色拒绝策略；修正后 Windows 开发节点经线上网关复测，超限下载返回 413；新版云端网关已在 revision 68 发布，Windows 正式包尚需更新复验。用户要求按用户或项目授权指定电脑、分别授予只读或读写，覆盖该电脑全部本地项目；目前仍缺授权与身份映射。revision 65 的镜像漂移已由 revision 68 显式镜像配置取代，见 [`docs/evidence/linux-account-save-release-2026-11-02.md`](docs/evidence/linux-account-save-release-2026-11-02.md)；早前测试见 [`docs/evidence/d5-field-acceptance-2026-11-02.md`](docs/evidence/d5-field-acceptance-2026-11-02.md)。
+- [ ] D5 剩余现场验收：2026-11-02 已现场验证 8 MiB 请求/下载边界及现有角色拒绝策略；修正后 Windows 开发节点经线上网关复测，超限下载返回 413；新版云端网关已在 revision 68 发布，Windows 正式包尚需更新复验。用户要求按用户或项目授权指定电脑、分别授予只读或读写，覆盖该电脑全部本地项目；该多用户/项目授权已实现（后端授权 API/模型/迁移 20261102_0084 + 桌面端节点管理页，后端 90 项与前端 4 项定向测试通过），现场验收待 Windows 正式包更新后复验。revision 65 的镜像漂移已由 revision 68 显式镜像配置取代，见 [`docs/evidence/linux-account-save-release-2026-11-02.md`](docs/evidence/linux-account-save-release-2026-11-02.md)；早前测试见 [`docs/evidence/d5-field-acceptance-2026-11-02.md`](docs/evidence/d5-field-acceptance-2026-11-02.md)。
 - [x] 2026-10-27 云端 Web 局域网入口：服务器模式前端通过 `vue-tsc && vite build` 构建，Docker Compose 在 `192.168.3.196:8080` 提供静态页面并同源代理云端 API/WebSocket；容器健康且零重启，页面、构建资源、深链接与 `/api/v1/runtime` 返回 200，未登录 `/api/v1/auth/me` 返回 401。部署方式和 HTTPS 边界见 [`docs/cloud-web-entry-2026-10-27.md`](docs/cloud-web-entry-2026-10-27.md)。
 
 - [x] 2026-10-26 D3/D4 审查修复（代码与定向验证）：汇总接口改为仅云端管理员或其 API Key 可访问；云端错误摘要不再包含自由文本；本地队列恢复到期失败项和中断项，手动同步立即重试失败项，配置云端凭据后启动后台扫描；本地大盘只展示队列状态，云端 Web 端展示跨电脑汇总；Windows 依赖清单加入 `pywebview`。相关后端测试文件分别通过（API 4、D2 4、桌面 3），Ruff、前端构建和 `git diff --check` 通过。云端部署与现场重试验收未在本轮执行。
 - [~] 2026-10-27 D5 复审纠偏：先前心跳与回环地址代理的现场记录不能证明 Windows 在线访问；代码现改为管理员 API Key 绑定的 Windows 主动 WebSocket 通道，云端不再信任节点上报地址或转发云端凭据，本地改用本机签名令牌。定向测试通过；需部署新版、配置 HTTPS/WSS 和私有节点凭据，再做真实云端到 Windows 项目读写、离线及大文件验收。原现场记录作为历史证据保留。
 - [x] 2026-10-27 D6 历史数据平滑迁入首台 Windows 电脑（现场实测全量闭环）：云端生产 PostgreSQL 631KB 与 MinIO 35.89MB 备份先行；结构化抽取 4 个既有项目、1 个模块、17 个用例、146 次运行记录与 210 条步骤，平滑导入 `D:\ATP_resources\atp.sqlite3` 并对齐本地管理员；464 个 MinIO 物理附件（截屏/录像/Trace/报告）全量同步解压至本地 `objects/` 目录；双端实体数量校验一致，云端 17 条源用例完好未受损。实测证据见 [`docs/evidence/windows-desktop-cloud-d5-d6-closure-2026-10-27.md`](docs/evidence/windows-desktop-cloud-d5-d6-closure-2026-10-27.md)。
 
-> D0～D6 已有分阶段实测记录；D5 的大文件和多用户验收仍待完成。D7 已交付含 `atp-backend.exe` 和 Python 依赖的 Windows 便携 ZIP，无需另装 Python；原生桌面窗口、MSI 安装、升级和全新电脑验收仍未完成，不能称为正式安装包。旧源码便携 ZIP 仍需用户另装 Python。
+> D0～D6 已有分阶段实测记录；D5 的多用户/项目授权已实现并通过定向测试，其现场验收（含大文件）仍待完成。D7 已交付含 `atp-backend.exe` 和 Python 依赖的 Windows 便携 ZIP，无需另装 Python；MSI 安装包已完成构建与本机安装/卸载验收（未签名），升级与全新电脑验收仍未完成，暂不能称为正式安装包。旧源码便携 ZIP 仍需用户另装 Python。
 > 基于 AutoDroid 对照的接口与 App 自动化任务见 [`docs/autodroid-learning-development-plan-2026-10-25.md`](docs/autodroid-learning-development-plan-2026-10-25.md)；A0 已完成，A1/A2/M1/M2 代码与定向验证完成，真实环境验收待补。
 - [x] 2026-10-25 AutoDroid 对照 A0：已用相同 API/App 流程核对两仓库的入口、源码和定向测试，收窄 A1/A2/M1/M2 范围；ATP 后端 30 passed、前端 15 passed，AutoDroid 对照测试因本地缺少 Python 依赖未复测，真实 API 与真机留待后续任务。见 [`docs/autodroid-atp-capability-baseline-2026-10-25.md`](docs/autodroid-atp-capability-baseline-2026-10-25.md)。
 - [x] 2026-10-25 A1 接口规格影响预览（代码与定向验证）：契约资产页可只读预览新增、修改、移除接口及关联场景步骤，跳转到用例或场景步骤；补旧版规格差异识别、完整 URL 匹配和来源用例关联保留。后端 8 passed、前端 17 passed、`vue-tsc --noEmit` 通过。首版对来源版本与局部覆盖统一提示人工确认，后续补充见下一条；真实环境验收待补。见 [`docs/evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md`](docs/evidence/autodroid-atp-api-impact-preview-a1-2026-10-25.md)。
@@ -2654,3 +2655,13 @@ N5.2 验收口径：管理员/工程师能从统一入口定位可见配置，�
 - [x] 版本 4 停机备份在独立目录恢复成功，SQLite `integrity_check=ok`、版本 4、项目数 1；服务器路径定向回归 50 项通过，Ruff 与 `git diff --check` 通过。
 - [x] Web 运行进入 `running` 后停止接口 200、最终 `cancelled`；停机预置的 SQLite 待执行任务在重启后 `passed`、1 条步骤、任务 `finished`。含一条通过运行的报告总览 200（总运行 1、通过 1、趋势 1），周趋势 200、CSV 200；修复 SQLite 日期转换导致的报告 500。
 - [x] 2026-10-15 双模式全量闭环：服务器端完成 Helm revision 63 割接与业务 Canary 验证（Run 170/171 passed）；双会话切换与 X-ATP-Client-Mode 409 拦截已闭环；便携包（2.2 MB，632 文件 SHA-256 零漂移）已归档；本地与服务器双端均处于健康运行状态。
+
+## 2026-11-02 后端覆盖率门禁收口与全量套件绿灯
+
+- [x] CI 覆盖率阻塞解除：非集成全量套件 `4082 passed, 2 skipped`（163.45s，exit 0），总覆盖率 **87.08%**（40987 语句、4283 未覆盖），超过 `--cov-fail-under=82`；此前 CI 报 `total of 78 is less than fail-under=82` 的阻塞已消除。
+- [x] 修复全量门禁最后 4 个失败（均为测试自身问题，非被测代码缺陷）：
+  - `test_notifications.py` 三处 `sys.modules["app.services.notifier"]` 裸赋值改为 `monkeypatch.setitem` 自动还原，消除对后续 worker 测试晚导入的桩泄漏污染（`test_performance_coverage_gaps_worker.py` 曾报 `send_notifications` AttributeError）。
+  - `test_windows_standalone_data_dir.py` 改用自建 `spacey_tmp_path` fixture：`windows-standalone.ps1 -DataDir` 要求剩余 ≥20GB 固定盘，本机 C: 仅 ~19GB；fixture 在合格盘（优先仓库盘 `.local-run`）建临时目录，无合格盘则 skip（生产脚本未改动）。
+- [x] 静态门禁复核（与 ci.yml 同范围）：`ruff check` 全绿、`ruff format --check` 853 文件一致、`mypy` 214 源文件 0 问题。
+- [x] standalone 逐文件扫描（CI 同款 `scripts/pytest-standalone-sweep.py --jobs 4`）：两轮均为 `437 passed, 2 failed`——`test_local_schema.py`、`test_tunnel_hub.py` 报 300s 超时。对照实验确证根因：本机仓库盘 E: 为 1TB 机械硬盘（fsync 基准 24.8ms vs C: SSD 1.0ms），sweep 的 basetemp 固定落在仓库下（E:），这两个 tmp_path 重度文件单测试被放大到 30–70s（正常 0.1–0.5s）；同一 4 并发形态改用 C: SSD basetemp 后分别 `10 passed in 4.90s`、`99 passed in 11.27s` 全绿，与并发/负载无关。CI（Linux runner，SSD）不受影响，且 Windows CI job 不含 sweep；两个文件在 CI 形态下实测全绿。
+- [x] 证据文档：[`docs/evidence/backend-coverage-gate-closeout-2026-11-02.md`](docs/evidence/backend-coverage-gate-closeout-2026-11-02.md)。
