@@ -1,5 +1,7 @@
 # 云端 Web 入口（2026-10-27）
 
+> 2026-11-02 更新：当前前端镜像为 `registry.local/atp/frontend:cef6d59b`，Compose 配置位于 `/opt/atp-release-cef6d59b-20261102/cloud-web/compose.yaml`，项目名 `atp-cloud-web-20261027`，继续使用旧目录下的私有 `.env`。实际账号修改密码的页面验证和服务端发布证据见 [现场记录](evidence/linux-account-save-release-2026-11-02.md)；下文是旧版本部署历史。
+
 云端 ATP Web 页面现部署在 `http://192.168.3.196:8080/`。该地址绑定服务器的局域网 IP，供同一网络或私有网络中的浏览器访问。页面由独立 Docker Compose 服务 `atp-cloud-web` 提供，`/api/` 和 `/ws/` 经 Nginx 转发到同机 K3s Backend `:8000`。Windows 本地页面仍为 `http://127.0.0.1:5174/`，两者对应独立的本机与云端账号和数据。
 
 部署文件位于 [`deploy/cloud-web/`](../deploy/cloud-web/)。构建前端时使用服务器模式：`VITE_ATP_LOCAL_MODE=false`，`VITE_BACKEND_ORIGIN` 为空；运行 `npm run build`（含 `vue-tsc`）后，将 `frontend/dist/`、`Dockerfile`、`nginx.conf`、`compose.yaml` 放在同一个部署目录。服务器当前目录为 `/opt/atp-cloud-web-20261027`，其私有 `.env` 设置 `ATP_WEB_BIND_IP=192.168.3.196` 和 `ATP_WEB_PORT=8080`。在该目录运行 `docker compose build`、`docker compose up -d`；回退可执行 `docker compose down`，不影响 K3s Backend。
