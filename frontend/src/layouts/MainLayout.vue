@@ -80,6 +80,7 @@
               <template #icon><SettingOutlined /></template>
               <template #title>{{ t('menu.groups.system_center') }}</template>
               <a-menu-item v-if="!localMode && canAccess(['admin', 'engineer'])" key="/system/toolbox">{{ t('menu.system_center.toolbox') }}</a-menu-item>
+              <a-menu-item v-if="!localMode && canAccess(['admin'])" key="/system/remote-nodes">{{ t('menu.system_center.remote_nodes') }}</a-menu-item>
               <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/config">{{ t('menu.system_center.config') }}</a-menu-item>
               <template v-if="localMode">
                 <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>

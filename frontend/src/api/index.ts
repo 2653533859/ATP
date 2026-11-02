@@ -1735,6 +1735,42 @@ export const remoteToolboxApi = {
   overview: () => http.get<unknown, RemoteToolboxOverview>('/remote-toolbox/overview'),
 }
 
+export interface RemoteNodeItem {
+  client_id: string
+  machine_name: string
+  local_api_origin: string | null
+  status: 'online' | 'offline'
+  last_seen_at: string
+  capabilities: string[]
+}
+
+export interface RemoteNodeGrantItem {
+  id: number
+  node_client_id: string
+  subject_type: 'user' | 'project'
+  subject_id: number
+  subject_name: string
+  access_level: 'read_only' | 'read_write'
+  created_by: string
+  created_at: string
+  revoked_at: string | null
+  revoked_by: string | null
+}
+
+export const remoteNodesApi = {
+  list: () => http.get<unknown, RemoteNodeItem[]>('/remote-nodes'),
+  grants: (clientId: string, includeRevoked = false) =>
+    http.get<unknown, RemoteNodeGrantItem[]>(`/remote-nodes/${clientId}/grants`, {
+      params: { include_revoked: includeRevoked },
+    }),
+  createGrant: (
+    clientId: string,
+    data: { subject_type: 'user' | 'project'; subject_id: number; access_level: 'read_only' | 'read_write' },
+  ) => http.post<unknown, RemoteNodeGrantItem>(`/remote-nodes/${clientId}/grants`, data),
+  revokeGrant: (clientId: string, grantId: number) =>
+    http.delete<unknown, RemoteNodeGrantItem>(`/remote-nodes/${clientId}/grants/${grantId}`),
+}
+
 export interface AdminUserItem {
   id: number
   username: string

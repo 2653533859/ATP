@@ -163,6 +163,12 @@ const router = createRouter({
           },
         },
         {
+          path: 'system/remote-nodes',
+          name: 'system-remote-nodes',
+          component: () => import('@/views/system/RemoteNodesView.vue'),
+          meta: { requireAdmin: true, roles: ADMIN_ONLY, menuTitleKey: 'menu.system_center.remote_nodes' },
+        },
+        {
           path: 'system/config',
           name: 'system-config',
           component: () => import('@/views/system/ConfigurationCenterView.vue'),

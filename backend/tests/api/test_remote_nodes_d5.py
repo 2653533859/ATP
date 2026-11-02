@@ -12,7 +12,13 @@ from httpx import ASGITransport, AsyncClient
 from starlette.testclient import TestClient
 
 from app.api.deps import require_admin, require_engineer
-from app.api.v1.remote_nodes import _NODE_CHANNELS, _NODE_REGISTRY, require_node_key, router
+from app.api.v1.remote_nodes import (
+    _NODE_CHANNELS,
+    _NODE_REGISTRY,
+    require_node_key,
+    require_node_proxy_access,
+    router,
+)
 from app.models.bootstrap import load_all_models
 from app.models.user import User, UserRole
 from app.services.remote_node_agent import _node_ws_url, _start_private_tunnel, dispatch_node_request
@@ -56,6 +62,8 @@ def node_app():
     admin = User(id=1, username="admin", email="admin@test.local", hashed_password="x", role=UserRole.admin)
     app.dependency_overrides[require_engineer] = lambda: admin
     app.dependency_overrides[require_admin] = lambda: admin
+    # 本文件验证传输层行为；授权矩阵由 test_remote_node_grants.py 覆盖。
+    app.dependency_overrides[require_node_proxy_access] = lambda: admin
     yield app
     _NODE_REGISTRY.clear()
     _NODE_CHANNELS.clear()

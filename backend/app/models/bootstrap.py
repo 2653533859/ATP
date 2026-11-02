@@ -48,6 +48,7 @@ def load_all_models() -> None:
     from app.models.device_agent import RemoteAgent, RemoteAgentDevice
     from app.models.api_key import ApiKey
     from app.models.cloud_sync import CloudRunSummaryModel
+    from app.models.remote_node_grant import RemoteNodeGrant
 
     _ = (
         User,
