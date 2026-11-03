@@ -49,6 +49,8 @@ def load_all_models() -> None:
     from app.models.api_key import ApiKey
     from app.models.cloud_sync import CloudRunSummaryModel
     from app.models.remote_node_grant import RemoteNodeGrant
+    from app.models.api_schema import ApiSchemaAsset
+    from app.models.api_contract_asset import ApiContractAsset
 
     _ = (
         User,
@@ -59,6 +61,8 @@ def load_all_models() -> None:
         RemoteAgentDevice,
         ApiKey,
         CloudRunSummaryModel,
+        ApiSchemaAsset,
+        ApiContractAsset,
         Project,
         Module,
         TestCase,

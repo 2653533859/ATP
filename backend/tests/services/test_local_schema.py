@@ -183,3 +183,23 @@ def test_version_fifteen_to_sixteen_creates_remote_node_grants_table(tmp_path) -
     assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
     with engine.connect() as connection:
         assert "remote_node_grants" in inspect(connection).get_table_names()
+
+
+def test_version_sixteen_to_seventeen_creates_api_asset_tables(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'v16.sqlite3'}")
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE api_schema_assets")
+        connection.exec_driver_sql("DROP TABLE api_contract_assets")
+        connection.exec_driver_sql("PRAGMA user_version=16")
+
+    with engine.connect() as connection:
+        table_names = inspect(connection).get_table_names()
+        assert "api_schema_assets" not in table_names
+        assert "api_contract_assets" not in table_names
+
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.connect() as connection:
+        table_names = inspect(connection).get_table_names()
+        assert "api_schema_assets" in table_names
+        assert "api_contract_assets" in table_names

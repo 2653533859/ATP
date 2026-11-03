@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 16
+CURRENT_LOCAL_SCHEMA_VERSION = 17
 
 
 def _create_sync_outbox(connection: Connection) -> None:
@@ -430,6 +430,48 @@ def _create_remote_node_grants(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[16] = _create_remote_node_grants
+
+
+def _create_api_asset_tables(connection: Connection) -> None:
+    """版本 17 补齐两张 API 资产表：与 ``ApiSchemaAsset``/``ApiContractAsset`` 模型逐字段一致。
+
+    这两张表当年只随 Alembic 0051/0052 建到云端（Postgres），本地版本链里没有对应
+    迁移：2026-08-07 之前由 ``create_all`` 建的本地库既没有它们，升级时也补不出来，
+    升到版本 16 后会被 ``_assert_current_schema`` 拒绝启动（现场库 73 表即此形态）。
+    """
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS api_schema_assets ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, "
+        "name VARCHAR(128) NOT NULL, "
+        "description TEXT, "
+        "definition JSON NOT NULL, "
+        "version INTEGER NOT NULL, "
+        "owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL, "
+        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "CONSTRAINT uq_api_schema_assets_project_name UNIQUE (project_id, name)"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS api_contract_assets ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, "
+        "name VARCHAR(128) NOT NULL, "
+        "role VARCHAR(16) NOT NULL, "
+        "format VARCHAR(16) NOT NULL, "
+        "description TEXT, "
+        "definition JSON NOT NULL, "
+        "version INTEGER NOT NULL, "
+        "owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL, "
+        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "CONSTRAINT uq_api_contract_assets_project_role_name UNIQUE (project_id, role, name)"
+        ")"
+    )
+
+
+LOCAL_MIGRATIONS[17] = _create_api_asset_tables
 
 
 def _read_version(connection: Connection) -> int:
