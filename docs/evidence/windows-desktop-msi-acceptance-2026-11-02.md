@@ -2,7 +2,7 @@
 
 ## 结论
 
-D7 MSI 安装包已完成构建，并在本机完成静默安装、启动冒烟、静默卸载与残留清零验收；安装与卸载退出码均为 0，卸载后零残留。2026-11-03 补充完成升级安装验收：0.9.0 → 1.0.0 静默升级返回 0，旧版本产品代码被移除、卸载表仅保留一条 1.0.0 条目、安装目录内可执行文件被替换为 1.0.0 包内负载，升级后启动冒烟通过，随后卸载零残留。MSI 未做代码签名；全新电脑验收未执行，仍为外部阻塞，暂不能称为可用于分发的正式安装包。
+D7 MSI 安装包已完成构建，并在本机完成静默安装、启动冒烟、静默卸载与残留清零验收；安装与卸载退出码均为 0，卸载后零残留。2026-11-03 补充完成升级安装验收：0.9.0 → 1.0.0 静默升级返回 0，旧版本产品代码被移除、卸载表仅保留一条 1.0.0 条目、安装目录内可执行文件被替换为 1.0.0 包内负载，升级后启动冒烟通过，随后卸载零残留。MSI 未做代码签名；全新电脑验收未执行，仍为外部阻塞，暂不能称为可用于分发的正式安装包。2026-11-03 因本地迁移修复（本地 SQLite 缺 `remote_node_grants` 表）重新打包，重建包 SHA-256 `16B3B76050E9C78DA98DAE00CBAD2C931FF72C7D670E13462E6F57541C577A0B`，升级链已重跑复验，见下文“重新打包复验（2026-11-03，本地迁移修复后）”。
 
 ## 构建
 
@@ -36,6 +36,16 @@ D7 MSI 安装包已完成构建，并在本机完成静默安装、启动冒烟�
 - 步骤 4 卸载 1.0.0：按新 ProductCode 执行 `msiexec /x {1B20E50F-79EB-4B7F-8DBD-BA86FCB467CC} /qn /norestart /l*v`，返回 0；卸载后 ATP 相关卸载表条目 0 条、新旧 ProductCode 键均不存在、`C:\Program Files` 下 ATP 目录 0 个、`atp-desktop` 进程 0 个。
 - 采集方法：注册表与文件系统状态在 `msiexec` 返回后才落定，直接快照会得到中间态；本轮每步都在轮询到目标卸载表状态后才采集证据，退出码以 verbose 日志的 `MainEngineThread is returning 0` 为准（该调用形态下 `$LASTEXITCODE` 为空，不可用）。
 - 旧版产物来源：与 1.0.0 使用同一构建命令（`build_msi.bat` 加载 VS 2022 Build Tools 后 `tauri build --bundles msi`），只是构建时版本号临时置为 0.9.0；验收后仓库 `frontend/src-tauri/tauri.conf.json` 与 `frontend/src-tauri/Cargo.toml` 版本均为 1.0.0，`git status` 无版本相关改动。
+
+## 重新打包复验（2026-11-03，本地迁移修复后）
+
+- 重新打包原因：D5 现场验收暴露发布级缺陷——既有 Windows 用户升级后本机后端因本地 SQLite 缺 `remote_node_grants` 表而拒启，`backend/app/core/local_schema.py` 版本推进至 16 并新增就地迁移（15→16）。为避免既有用户升级即踩缺陷，2026-11-03 重新构建便携包与 MSI。
+- 重建产物：`ATP 自动化测试平台_1.0.0_x64_zh-CN.msi`，5,124,096 字节，SHA-256 `16B3B76050E9C78DA98DAE00CBAD2C931FF72C7D670E13462E6F57541C577A0B`，构建命令与 2026-11-02 完全一致（`build_msi.bat` 加载 VS 2022 Build Tools 后 `tauri build --bundles msi`）。2026-11-02 已验收的同版本构建归档哈希为 `5A4C55F6…`，两包字节数相同但内容不同。
+- 身份变化（Windows Installer COM 读取 Property 表）：重建包 ProductCode 为 `{C7F85A3C-904E-453D-A9E9-FB3A95600948}`，与 2026-11-02 构建的 `{1B20E50F-79EB-4B7F-8DBD-BA86FCB467CC}` 不同；UpgradeCode 仍为 `{DC72F384-C6C7-54AB-AC13-23DCF5CFFD51}`，ProductVersion 仍为 1.0.0，ALLUSERS=1、ProductLanguage 2052、Manufacturer `atp`、ProductName `ATP 自动化测试平台` 均未变。即 Tauri/WiX 每次构建生成新的 ProductCode，**同版本号的重建包在 Windows Installer 中是彼此独立的产品**，不会互相升级。2026-11-02 的 1.0.0 构建从未分发（仅本机验收），实际影响为零；但后续任何重新打包必须先提升版本号。
+- 包内负载：重建包 File 表仅一条记录 `atp-desktop.exe`（12,542,976 字节，Version 1.0.0.0），与 2026-11-02 构建一致——MSI 只携带桌面外壳，不含 Python 后端，因此本次 local_schema 修复不经由 MSI 触达用户，只经便携包，见 [`windows-pyinstaller-backend.md`](../windows-pyinstaller-backend.md)。
+- 升级链复验（重建包，全流程重跑）：卸载表基线 0 条、`%ProgramFiles%` 无 ATP 目录 → 安装 0.9.0 得 1 条、键 `{E567CBD4-D5DA-4411-8F06-7D4821E48CC6}`、目录内 `atp-desktop.exe` 12,542,976 字节（时间 2026-11-03 08:54:24，SHA-256 `138d07183508c1c6845f42255a719e4cdb73e100925e9a52861407028897f88d`）→ 升级到重建 1.0.0 后卸载表仍 1 条、版本 1.0.0、键变为 `{C7F85A3C-…}`，旧键已不存在，`atp-desktop.exe` 被替换（时间 2026-11-03 09:43:32，SHA-256 `e6baf0a922f9bf48d6c648b2f7f390f551f42cccc0e990b8e64f909bfe761c4d`）→ 升级后启动冒烟存活 5 秒、结束进程无残留 → 按新 ProductCode 卸载，卸载表 0 条、`%ProgramFiles%` ATP 目录 0 个、`atp-desktop` 进程 0 个。
+- 复跑修正：`Get-FileHash` 在本会话从 Bash 启动的 powershell 子进程中不可用（`CommandNotFoundException`），首轮复验因此未执行安装链路；改用 .NET `[System.Security.Cryptography.SHA256]` 计算哈希后重跑，得到上述完整链条。原始日志 `v4b_install_090.log`/`v4b_upgrade_100.log`/`v4b_uninstall_100.log`。
+- 本节只复验本地迁移修复后的重建包；未签名、未做全新电脑验收的状态与 2026-11-02 相同。
 
 ## 未覆盖边界
 

@@ -2,7 +2,7 @@
 
 ## 结论
 
-D5 的多用户/项目授权已完成现场验收：在真实生产 release `atp-single-node` 与真实 Windows 节点上，按用户授权、按项目授权、只读/读写区分、项目成员变化、跨电脑隔离、撤销、离线屏障、重启持久性与 8 MiB 边界全部按预期执行，共 60 项断言零失败。同时发现并修复一处发布级缺陷：现有 Windows 用户升级到本版本后本机后端会因本地 SQLite 缺少 D5 授权表而拒绝启动（见下文“本地 SQLite 迁移缺陷”）。
+D5 的多用户/项目授权已完成现场验收：在真实生产 release `atp-single-node` 与真实 Windows 节点上，按用户授权、按项目授权、只读/读写区分、项目成员变化、跨电脑隔离、撤销、离线屏障、重启持久性与 8 MiB 边界全部按预期执行，共 60 项断言零失败。同时发现并修复一处发布级缺陷：现有 Windows 用户升级到本版本后本机后端会因本地 SQLite 缺少 D5 授权表而拒绝启动（见下文“本地 SQLite 迁移缺陷与修复”）。同日用现场库副本复现升级时又暴露第二处缺失来源——两张 API 资产表；两处均已修复，并以重新构建的真实便携包对现场库副本完成升级复验。
 
 ## 验收环境
 
@@ -50,10 +50,23 @@ D5 的多用户/项目授权已完成现场验收：在真实生产 release `atp
 
 ## 本地 SQLite 迁移缺陷与修复
 
-- 现象：既有 Windows 用户升级后本机后端启动失败，报 `RuntimeError: local SQLite schema is missing table remote_node_grants; restore a matching backup`。根因是 D5 新增了云端模型 `RemoteNodeGrant`，但本地 SQLite 的版本化迁移未同步推进，而启动时的完整性断言要求本地库包含全部映射表。
-- 修复：`backend/app/core/local_schema.py` 版本号推进到 16，新增 `LOCAL_MIGRATIONS[16]`，按模型逐字段创建 `remote_node_grants` 表及两个部分唯一索引（仅约束未撤销行）；`backend/tests/services/test_local_schema.py` 增加 15 至 16 的就地迁移用例。
-- 验证：定向测试 11 项通过，Ruff 检查与格式检查通过；本机节点实际升级路径复验：本地库 `user_version` 由 15 就地升至 16，`remote_node_grants` 表存在，节点重启后正常启动并重新上线（即上文重启持久性一节）。本地不写入该表（本地行数为 0，授权判定在云端）。
-- 边界：该修复仅在本机开发节点验证。现有 Windows 便携包与桌面安装包仍为修复前构建，需重新打包后既有用户才能升级启动。
+现场库 `D:\ATP_resources\atp.sqlite3`（Schema v15、73 张表）在本版本上启动失败，报 `RuntimeError: local SQLite schema is missing table ...`。缺失来源有两处，均已按真实导入路径在本机复现、修复并验证。
+
+- **缺陷 A：D5 授权表缺失。** D5 新增映射模型 `RemoteNodeGrant`，本地 SQLite 的版本化迁移未同步推进，而启动时的完整性断言要求本地库包含全部映射表。修复：`backend/app/core/local_schema.py` 版本推进到 16，新增 `LOCAL_MIGRATIONS[16]`，按模型逐字段创建 `remote_node_grants` 表及两个部分唯一索引（仅约束未撤销行）；`backend/tests/services/test_local_schema.py` 增加 15→16 就地迁移用例。本机开发节点实际升级路径复验：本地库 `user_version` 由 15 就地升至 16，节点重启后正常启动并重新上线（即上文重启持久性一节）。本地不写入该表（本地行数为 0，授权判定在云端）。
+- **缺陷 B：两张 API 资产表缺失（修掉 A 之后同一现场库仍拒启）。** 二次启动报 `missing table api_schema_assets`。根因不在迁移链而在建库路径：`api_schema_assets` 与 `api_contract_assets` 两个模型模块（2026-08-10 `5f26475a` 引入，Alembic `20260807_0051` 与 `0052` 只建到 PostgreSQL）仅被 `app.api.v1.router` 间接导入，而 `backend/app/models/bootstrap.py` 的 `load_all_models()` 漏了它们。完整应用启动时映射表齐全（`create_all` 会建出这两张表），但建库脚本走的是 `load_all_models()`，例如 D0 现场验收用的 `scripts/verify_d0_physical_data_dir.py` 就是 `load_all_models()` 加 `ensure_local_schema()`，它建的库因此只有 73 张表，随后被应用端按全量映射表校验判为不完整。修复：`load_all_models()` 补导入这两个模型模块；`local_schema` 版本推进到 17，新增 `LOCAL_MIGRATIONS[17]` 显式补建这两张表（`CREATE TABLE IF NOT EXISTS`，对已由 `create_all` 建出的新库为空操作）；`test_local_schema.py` 增加 16→17 用例。
+- **复现与验证（本机 venv，按应用启动顺序先导入 `app.api.v1.router` 再执行 `ensure_local_schema`）。** 修复前：现场库副本报 `RESULT_FAIL RuntimeError: local SQLite schema is missing table api_schema_assets`。修复后：同一副本 `RESULT_OK version=17`，表数 73 变为 76（新增 `remote_node_grants`、`api_schema_assets`、`api_contract_assets`），既有数据未改动。另取“修复前构建已升到 v16、但缺两张资产表”的库复验，同样恢复到 v17 与 76 张表，即已被卡住的库可自愈；空库首启亦为 v17 与 76 张表。定向测试 12 项通过，Ruff 检查与格式检查通过。
+- **边界与交付。** 本修复改变本地库结构，必须重新打包 Windows 便携包后才能让既有用户升级启动。桌面 MSI 的 File 表只有 `atp-desktop.exe`、不含 Python 后端，所以本次修复不经由 MSI 触达用户。重新打包与现场库副本升级复验结果见下节。
+
+## 交付物重新打包与现场库升级复验（2026-11-03）
+
+修复改变本地库结构，因此重新构建便携包并对现场库副本做了真实升级验收。桌面 MSI 不含 Python 后端（File 表只有 `atp-desktop.exe`），本次未重打，其重建与升级链复验见 [`windows-desktop-msi-acceptance-2026-11-02.md`](windows-desktop-msi-acceptance-2026-11-02.md)。
+
+- 重建产物：`atp-windows-bundled-backend-20261103-v5.zip`，110,539,032 字节，SHA-256 `a0bcec3302162be82469d240f3c4de12c9aff5b71ee5ed30f5ef9d3eeb6d40f9`（sidecar 一致），解压 2657 个文件；包内 `backend/atp-backend.exe` 28,580,469 字节，SHA-256 `a4b6695f26204b84244702b0c3f874e43a53c99d9a5e61317621d948cf542923`。构建步骤与 [`windows-pyinstaller-backend.md`](../windows-pyinstaller-backend.md) 一致：PyInstaller 重建冻结后端，再 `package-windows-standalone-bundle.ps1 -FrozenBackend -SkipFrozenBackendBuild`，前端以 `VITE_ATP_LOCAL_MODE=true` 重新构建。
+- 现场库夹具：`D:\ATP_resources\atp.sqlite3` 的原样副本（Schema v15、73 张表、6 个项目 / 1 个用户 / 19 个用例 / 148 次运行 / 215 条步骤结果，无 `remote_node_grants` 与两张资产表）；另备一份“修复前构建已升到 v16、但缺两张资产表”的副本（74 张表）。两者都是副本，现场库本体未被修改。
+- 阶段 1（空库首启）：`-Action up -Frontend static` 首启成功，`/health`、本地页面与 `/login` 均 200；库为 v17 / 76 张表，含 `remote_node_grants`、`api_schema_assets`、`api_contract_assets`、`local_jobs`、`local_sync_outbox`；停止后 8001 无监听。
+- 阶段 2（现场库 v15 就地升级）：换上 v15 副本后重启，`user_version` 15 升到 17、表数 73 增到 76，两张资产表与授权表补齐；6 个项目 / 19 个用例 / 148 次运行 / 215 条步骤结果与升级前完全一致，既有数据零改动；三个端点均 200；停止后 8001 无监听。
+- 阶段 3（已被卡住的 v16 库自愈）：换上 74 张表的 v16 副本后重启，`user_version` 16 升到 17、表数 74 增到 76，数据同样零改动，三个端点均 200，停止后无监听。
+- 结论：修复前会被拒启的两类既有库现在都能就地升级并正常启动，既有数据无一改动；本机未做人工干预。完整日志为作业目录下的 `v5-acceptance.log` 与 `verify-bundled-v5.log`（未入库）。
 
 ## 审计轨迹与清理状态
 
