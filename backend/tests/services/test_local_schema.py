@@ -168,3 +168,18 @@ def test_version_fourteen_to_fifteen_creates_sync_outbox_table(tmp_path) -> None
         table_names = inspect(connection).get_table_names()
         assert "local_sync_outbox" in table_names
         assert "cloud_run_summaries" in table_names
+
+
+def test_version_fifteen_to_sixteen_creates_remote_node_grants_table(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'v15.sqlite3'}")
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE remote_node_grants")
+        connection.exec_driver_sql("PRAGMA user_version=15")
+
+    with engine.connect() as connection:
+        assert "remote_node_grants" not in inspect(connection).get_table_names()
+
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.connect() as connection:
+        assert "remote_node_grants" in inspect(connection).get_table_names()

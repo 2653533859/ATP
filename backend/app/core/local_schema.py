@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 15
+CURRENT_LOCAL_SCHEMA_VERSION = 16
 
 
 def _create_sync_outbox(connection: Connection) -> None:
@@ -392,6 +392,44 @@ def _create_api_keys_table(connection: Connection) -> None:
 
 LOCAL_MIGRATIONS[14] = _create_api_keys_table
 LOCAL_MIGRATIONS[15] = _create_sync_outbox
+
+
+def _create_remote_node_grants(connection: Connection) -> None:
+    """D5 多用户授权表：与 ``RemoteNodeGrant`` 模型逐字段一致。
+
+    该表由云端判定、本地不写入；但本地库必须包含全部映射表，否则新版本
+    启动时会被 ``_assert_current_schema`` 拒绝。
+    """
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS remote_node_grants ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "node_client_id VARCHAR(64) NOT NULL, "
+        "user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, "
+        "project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE, "
+        "access_level VARCHAR(16) NOT NULL, "
+        "created_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, "
+        "revoked_at DATETIME, "
+        "revoked_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, "
+        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "CONSTRAINT ck_remote_node_grants_subject_exclusive "
+        "CHECK ((user_id IS NULL) <> (project_id IS NULL))"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_remote_node_grants_node_client_id ON remote_node_grants(node_client_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_remote_node_grants_active_user "
+        "ON remote_node_grants(node_client_id, user_id) WHERE revoked_at IS NULL"
+    )
+    connection.exec_driver_sql(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_remote_node_grants_active_project "
+        "ON remote_node_grants(node_client_id, project_id) WHERE revoked_at IS NULL"
+    )
+
+
+LOCAL_MIGRATIONS[16] = _create_remote_node_grants
 
 
 def _read_version(connection: Connection) -> int:
