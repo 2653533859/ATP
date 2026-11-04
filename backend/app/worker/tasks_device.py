@@ -112,7 +112,7 @@ def run_android_device_operation(operation: str, serial: str, params: dict | Non
     队列落到 Windows Worker，返回值只包含 JSON 可序列化的数据。
     """
     params = params or {}
-    if operation not in {"screenshot", "tap", "swipe", "ui_target"}:
+    if operation not in {"screenshot", "tap", "swipe", "ui_target", "keyevent", "text"}:
         return {"ok": False, "error": f"不支持的 Android 设备操作: {operation}"}
     if not serial.strip():
         return {"ok": False, "error": "设备 serial 不能为空"}
@@ -135,6 +135,8 @@ def run_android_device_operation(operation: str, serial: str, params: dict | Non
 
         if operation == "tap":
             args = ["tap", str(int(params["x"])), str(int(params["y"]))]
+        elif operation in {"keyevent", "text"}:
+            args = [operation, str(params["keycode" if operation == "keyevent" else "text"])]
         else:
             duration_ms = max(100, min(int(params.get("duration_ms", 300)), 5000))
             args = [

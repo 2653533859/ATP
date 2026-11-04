@@ -345,6 +345,7 @@
       v-model:open="previewOpen"
       :device="selectedDevice"
       :can-modify="canModify"
+      :lease-token="lease?.lease_token"
       recordable
       @close="closePreview"
       @recorded="handleMirrorRecorded"

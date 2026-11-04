@@ -45,7 +45,8 @@
           ></span>
         </div>
         <div v-if="!isScrcpyLive && !mirrorSrc" class="mirror-placeholder">
-          <a-spin tip="正在连接设备画面..." />
+          <span v-if="mirrorError" role="alert">{{ mirrorError }}</span>
+          <a-spin v-else tip="正在连接设备画面..." />
         </div>
       </div>
 
@@ -125,7 +126,7 @@
             v-if="!isScrcpyLive"
             size="small"
             :disabled="!props.device"
-            @click="() => refreshMirror()"
+            @click="retryScreenshot"
           >
             刷新截图
           </a-button>
@@ -143,8 +144,9 @@
             <span style="color: #52c41a; font-weight: bold">● scrcpy 极速实时流 ({{ currentFps }} FPS)</span> · 原生零延迟触控
           </template>
           <template v-else-if="mirrorSrc">
-            <span style="color: #faad14; font-weight: 500">● 截图降级模式</span> · 点击「重连极速流」恢复
+            <span style="color: #faad14; font-weight: 500">● 截图降级模式</span> · {{ mirrorError || '点击「重连极速流」恢复' }}
           </template>
+          <template v-else-if="mirrorError">截图获取失败，请检查连接后重试</template>
           <template v-else>
             {{ isInteracting ? '正在执行触控...' : '正在建立 scrcpy 极速流通道...' }}
           </template>
@@ -177,6 +179,7 @@ const props = withDefaults(
     device: DeviceItem | null
     canModify?: boolean
     recordable?: boolean
+    leaseToken?: string | null
   }>(),
   {
     canModify: true,
@@ -205,10 +208,11 @@ const title = computed(() => {
 const screenImgRef = ref<HTMLImageElement | null>(null)
 const scrcpyCanvasRef = ref<HTMLCanvasElement | null>(null)
 const mirrorSrc = ref<string | null>(null)
+const mirrorError = ref('')
 let mirrorObjectUrl: string | null = null
 let mirrorTimer: ReturnType<typeof setInterval> | null = null
 let mirrorSession = 0
-let mirrorRefreshing = false
+let mirrorRefreshingSession: number | null = null
 
 const realResolution = ref({ w: 0, h: 0 })
 const mirrorScaleMode = ref<'auto' | 'large' | 'max'>('large')
@@ -391,6 +395,7 @@ function closeScrcpyStream() {
 
 function handleReconnectStream() {
   if (!props.device) return
+  mirrorError.value = ''
   stopMirrorPolling()
   initScrcpyStream(props.device.serial)
 }
@@ -546,7 +551,7 @@ async function onScreenMouseUp(e: MouseEvent) {
       const target = recording.value
         ? await deviceApi.uiTarget(props.device.id, { x: realStartX, y: realStartY }).then((result) => result.target).catch(() => null)
         : null
-      await deviceApi.tap(props.device.id, { x: realStartX, y: realStartY })
+      await deviceApi.tap(props.device.id, { x: realStartX, y: realStartY }, props.leaseToken)
       appendRecordedStep('click', '镜像点击', buildAndroidRecordedClickParams({ x: realStartX, y: realStartY }, target))
     } else {
       await deviceApi.swipe(props.device.id, {
@@ -555,7 +560,7 @@ async function onScreenMouseUp(e: MouseEvent) {
         x2: realEndX,
         y2: realEndY,
         duration_ms: duration,
-      })
+      }, props.leaseToken)
       appendRecordedStep('swipe', '镜像滑动', buildAndroidRecordedSwipeParams(
         { x: realStartX, y: realStartY }, { x: realEndX, y: realEndY },
         { width: devW, height: devH }, duration,
@@ -580,7 +585,7 @@ async function sendKeyEvent(keycode: number | string) {
     return
   }
   try {
-    await deviceApi.keyevent(props.device.id, keycode)
+    await deviceApi.keyevent(props.device.id, keycode, props.leaseToken)
     recordKeyEvent(Number(keycode))
     if (!isScrcpyLive.value) {
       setTimeout(() => {
@@ -611,7 +616,7 @@ async function sendQuickText() {
     return
   }
   try {
-    await deviceApi.inputText(props.device.id, text)
+    await deviceApi.inputText(props.device.id, text, props.leaseToken)
     appendRecordedStep('input', '镜像输入文字', { text })
     quickInputText.value = ''
     if (!isScrcpyLive.value) {
@@ -647,6 +652,7 @@ function startMirror() {
 
 function cleanupMirror() {
   mirrorSession += 1
+  mirrorError.value = ''
   realResolution.value = { w: 0, h: 0 }
   closeScrcpyStream()
   stopMirrorPolling()
@@ -662,8 +668,8 @@ function revokeMirrorUrl() {
 }
 
 async function refreshMirror(session = mirrorSession) {
-  if (!props.device || mirrorRefreshing || session !== mirrorSession) return
-  mirrorRefreshing = true
+  if (!props.device || mirrorRefreshingSession === session || session !== mirrorSession) return false
+  mirrorRefreshingSession = session
   try {
     const blob = await deviceApi.screenshot(props.device.id)
     if (session !== mirrorSession) return
@@ -671,16 +677,32 @@ async function refreshMirror(session = mirrorSession) {
     const prevUrl = mirrorObjectUrl
     mirrorObjectUrl = nextUrl
     mirrorSrc.value = nextUrl
+    mirrorError.value = ''
     if (prevUrl) URL.revokeObjectURL(prevUrl)
+    return true
   } catch {
-    // 忽略 ADB 偶尔抖动
+    if (session === mirrorSession && !isScrcpyLive.value) {
+      mirrorError.value = '无法获取设备画面，请检查设备连接和 Android Worker，然后点击“刷新截图”。'
+      stopMirrorPolling()
+    }
+    return false
   } finally {
-    mirrorRefreshing = false
+    if (mirrorRefreshingSession === session) mirrorRefreshingSession = null
+  }
+}
+
+async function retryScreenshot() {
+  const session = mirrorSession
+  mirrorError.value = ''
+  if (await refreshMirror(session) && session === mirrorSession && !isScrcpyLive.value) {
+    startMirrorPolling()
   }
 }
 
 function onMirrorError() {
   revokeMirrorUrl()
+  mirrorError.value = '设备画面无法显示，请检查设备连接后点击“刷新截图”。'
+  stopMirrorPolling()
 }
 
 function startMirrorPolling() {
@@ -739,10 +761,11 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 .mirror-container {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 360px;
+  min-height: 480px;
   background: #0d0d12;
   border-radius: 10px;
   overflow: hidden;
@@ -827,11 +850,14 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 .mirror-placeholder {
+  position: absolute;
+  inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 480px;
   color: var(--c-text-tertiary);
+  padding: 24px;
+  text-align: center;
 }
 .mirror-footer {
   width: 100%;

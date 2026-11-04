@@ -154,3 +154,17 @@ def test_android_worker_device_operation_returns_json_safe_results(monkeypatch):
         "diagnostic": {"status": "found", "code": None},
     }
     assert calls == [("WIN-DEVICE", ("tap", "10", "20"))]
+
+
+def test_android_worker_forwards_mirror_key_and_text(monkeypatch):
+    from app.api.v1 import device_mirror
+    from app.worker.tasks_device import run_android_device_operation
+
+    calls = []
+    monkeypatch.setattr(device_mirror, "_adb_input", lambda serial, *args: calls.append((serial, args)) or True)
+    runner = getattr(run_android_device_operation, "run", run_android_device_operation)
+
+    assert runner("keyevent", "WIN-DEVICE", {"keycode": "3"}) == {"ok": True, "error": None}
+    assert runner("text", "WIN-DEVICE", {"text": "hello%sworld"}) == {"ok": True, "error": None}
+    assert runner("keyevent", "WIN-DEVICE", {})["ok"] is False
+    assert calls == [("WIN-DEVICE", ("keyevent", "3")), ("WIN-DEVICE", ("text", "hello%sworld"))]

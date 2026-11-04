@@ -71,7 +71,7 @@ vi.mock('@ant-design/icons-vue', () => ({
 vi.mock('@/views/device/components/DeviceMirrorModal.vue', () => ({
   default: defineComponent({
     name: 'DeviceMirrorModal',
-    props: ['open', 'device', 'canModify'],
+    props: ['open', 'device', 'canModify', 'leaseToken'],
     emits: ['update:open', 'close'],
     setup: () => () => h('div', { class: 'device-mirror-modal-stub' }),
   }),
@@ -227,6 +227,8 @@ describe('AppWorkbenchView', () => {
       caseDrawerOpen: boolean
     }
     await vm.acquireLease()
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'DeviceMirrorModal' }).props('leaseToken')).toBe('lease-token-123456789')
     await vm.handleMirrorRecorded([{ action: 'click', name: '镜像点击', params: { x: 10, y: 20 } }])
     await flushPromises()
 

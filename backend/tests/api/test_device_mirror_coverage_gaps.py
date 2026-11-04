@@ -209,8 +209,8 @@ def test_adb_ui_target_returns_only_locator(monkeypatch):
 def test_dispatch_worker_operation_success_uses_queue_setting(monkeypatch):
     calls = []
 
-    def apply_async(*, args, queue, ignore_result):
-        calls.append({"args": args, "queue": queue, "ignore_result": ignore_result})
+    def apply_async(*, args, queue, ignore_result, expires):
+        calls.append({"args": args, "queue": queue, "ignore_result": ignore_result, "expires": expires})
         return _FakeAsyncResult(result={"ok": True, "payload": 1})
 
     _install_worker_task(monkeypatch, SimpleNamespace(apply_async=apply_async))
@@ -219,13 +219,15 @@ def test_dispatch_worker_operation_success_uses_queue_setting(monkeypatch):
     result = asyncio.run(device_mirror._dispatch_worker_operation("tap", "DEV1", {"x": 1}))
 
     assert result == {"ok": True, "payload": 1}
-    assert calls == [{"args": ["tap", "DEV1", {"x": 1}], "queue": "mobile_special", "ignore_result": False}]
+    assert calls == [
+        {"args": ["tap", "DEV1", {"x": 1}], "queue": "mobile_special", "ignore_result": False, "expires": 15}
+    ]
 
 
 def test_dispatch_worker_operation_falls_back_to_default_queue(monkeypatch):
     calls = []
 
-    def apply_async(*, args, queue, ignore_result):
+    def apply_async(*, args, queue, ignore_result, expires):
         calls.append((args, queue))
         return _FakeAsyncResult(result={"ok": True})
 
@@ -239,7 +241,7 @@ def test_dispatch_worker_operation_falls_back_to_default_queue(monkeypatch):
 
 
 def test_dispatch_worker_operation_raises_503_when_worker_reports_failure(monkeypatch):
-    def apply_async(*, args, queue, ignore_result):
+    def apply_async(*, args, queue, ignore_result, expires):
         return _FakeAsyncResult(result={"ok": False, "error": "设备离线"})
 
     _install_worker_task(monkeypatch, SimpleNamespace(apply_async=apply_async))
@@ -252,7 +254,7 @@ def test_dispatch_worker_operation_raises_503_when_worker_reports_failure(monkey
 
 
 def test_dispatch_worker_operation_raises_503_on_invalid_payload(monkeypatch):
-    def apply_async(*, args, queue, ignore_result):
+    def apply_async(*, args, queue, ignore_result, expires):
         return _FakeAsyncResult(result="not-a-dict")
 
     _install_worker_task(monkeypatch, SimpleNamespace(apply_async=apply_async))
@@ -265,7 +267,7 @@ def test_dispatch_worker_operation_raises_503_on_invalid_payload(monkeypatch):
 
 
 def test_dispatch_worker_operation_raises_503_when_broker_unavailable(monkeypatch):
-    def apply_async(*, args, queue, ignore_result):
+    def apply_async(*, args, queue, ignore_result, expires):
         raise RuntimeError("celery broker down")
 
     _install_worker_task(monkeypatch, SimpleNamespace(apply_async=apply_async))

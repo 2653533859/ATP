@@ -65,7 +65,7 @@ const modalStub = defineComponent({
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
 
-function mountModal(props: { open: boolean; device: any; recordable?: boolean }) {
+function mountModal(props: { open: boolean; device: any; recordable?: boolean; leaseToken?: string }) {
   return mount(DeviceMirrorModal, {
     props,
     global: {
@@ -109,7 +109,7 @@ describe('DeviceMirrorModal', () => {
 
   it('records a successful mirror tap as an editable locator step', async () => {
     const device = { id: 1, serial: 'DEV-1', brand: 'Google', model: 'Pixel', resolution: '1080x1920', status: 'online' }
-    const wrapper = mountModal({ open: true, device, recordable: true })
+    const wrapper = mountModal({ open: true, device, recordable: true, leaseToken: 'device-lease' })
     await flushPromises()
     const vm = wrapper.vm as unknown as { refreshMirror: () => Promise<void>; startRecording: () => void; finishRecording: () => void }
     await vm.refreshMirror()
@@ -127,7 +127,7 @@ describe('DeviceMirrorModal', () => {
     vm.finishRecording()
 
     expect(uiTargetMock).toHaveBeenCalledWith(1, { x: 200, y: 400 })
-    expect(tapMock).toHaveBeenCalledWith(1, { x: 200, y: 400 })
+    expect(tapMock).toHaveBeenCalledWith(1, { x: 200, y: 400 }, 'device-lease')
     expect(wrapper.emitted('recorded')?.[0]?.[0]).toEqual([{
       action: 'click', name: '镜像点击',
       params: expect.objectContaining({ x: 200, y: 400, resourceId: 'com.example:id/login' }),
@@ -206,7 +206,7 @@ describe('DeviceMirrorModal', () => {
       status: 'online',
     }
 
-    const wrapper = mountModal({ open: true, device })
+    const wrapper = mountModal({ open: true, device, leaseToken: 'device-lease' })
     await flushPromises()
 
     const navButtons = wrapper.findAll('.nav-key-btn')
@@ -214,7 +214,7 @@ describe('DeviceMirrorModal', () => {
     await navButtons[1].trigger('click')
     await flushPromises()
 
-    expect(keyeventMock).toHaveBeenCalledWith(2, 3)
+    expect(keyeventMock).toHaveBeenCalledWith(2, 3, 'device-lease')
 
     wrapper.unmount()
   })
@@ -239,5 +239,27 @@ describe('DeviceMirrorModal', () => {
     expect(wrapper.emitted('close')).toBeTruthy()
 
     wrapper.unmount()
+  })
+
+  it('shows a failed screenshot and retries only when requested', async () => {
+    vi.useFakeTimers()
+    const device = { id: 1, serial: 'DEV-1', status: 'online' }
+    screenshotMock.mockRejectedValueOnce(new Error('unavailable'))
+    const wrapper = mountModal({ open: true, device })
+    const vm = wrapper.vm as unknown as { closeScrcpyStream: () => void; startMirrorPolling: () => void; refreshMirror: () => Promise<boolean>; retryScreenshot: () => Promise<void> }
+    vm.closeScrcpyStream()
+    vm.startMirrorPolling()
+    await vm.refreshMirror()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[role="alert"]').text()).toContain('无法获取设备画面')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(screenshotMock).toHaveBeenCalledTimes(1)
+    await vm.retryScreenshot()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.find('.mirror-img').exists()).toBe(true)
+    expect(screenshotMock).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+    vi.useRealTimers()
   })
 })

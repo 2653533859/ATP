@@ -181,6 +181,7 @@ async def _dispatch_worker_operation(operation: str, serial: str, params: dict |
             args=[operation, serial, params or {}],
             queue=queue,
             ignore_result=False,
+            expires=15,
         )
         result = await asyncio.to_thread(async_result.get, timeout=15)
     except Exception as exc:
