@@ -31,7 +31,11 @@ from app.services.ios_wda_session_healer import (
 )
 
 load_all_models()
-NOW = datetime.now(timezone.utc)
+
+# NOTE: never hoist clock reads to module scope. A full-suite pass imports this
+# file minutes before its tests run; a lease expiry baked from the import-time
+# clock then reads as already-expired to the service, which compares against
+# the real clock. Lease timestamps must be computed inside each test.
 
 
 class _Result:
@@ -95,7 +99,7 @@ class _FakeDB:
 @pytest.mark.asyncio
 async def test_acquire_available_ios_device_from_pool():
     dev1 = IosDevice(id=1, udid="dev-busy", status=IosDeviceStatus.busy)
-    lease1 = IosDeviceLease(device_id=1, expires_at=NOW + timedelta(seconds=300))
+    lease1 = IosDeviceLease(device_id=1, expires_at=datetime.now(timezone.utc) + timedelta(seconds=300))
 
     dev2 = IosDevice(id=2, udid="dev-offline", status=IosDeviceStatus.offline)
 
@@ -123,7 +127,7 @@ async def test_acquire_available_ios_device_from_pool():
 @pytest.mark.asyncio
 async def test_acquire_available_ios_device_all_busy_raises_conflict():
     dev1 = IosDevice(id=1, udid="dev-busy", status=IosDeviceStatus.busy)
-    lease1 = IosDeviceLease(device_id=1, expires_at=NOW + timedelta(seconds=500))
+    lease1 = IosDeviceLease(device_id=1, expires_at=datetime.now(timezone.utc) + timedelta(seconds=500))
 
     db: Any = _FakeDB(devices_by_id={1: dev1}, leases_by_dev_id={1: lease1})
 
