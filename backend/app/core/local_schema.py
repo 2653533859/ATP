@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 17
+CURRENT_LOCAL_SCHEMA_VERSION = 18
 
 
 def _create_sync_outbox(connection: Connection) -> None:
@@ -472,6 +472,19 @@ def _create_api_asset_tables(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[17] = _create_api_asset_tables
+
+
+def _create_system_settings(connection: Connection) -> None:
+    """补齐系统设置表，兼容升级前的本地数据库。"""
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS system_settings ("
+        "key VARCHAR(128) PRIMARY KEY NOT NULL, "
+        "value_encrypted TEXT NOT NULL"
+        ")"
+    )
+
+
+LOCAL_MIGRATIONS[18] = _create_system_settings
 
 
 def _read_version(connection: Connection) -> int:

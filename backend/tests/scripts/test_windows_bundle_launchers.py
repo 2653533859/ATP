@@ -21,6 +21,7 @@ def test_frozen_bundle_uses_readable_launcher_and_excludes_private_profile(tmp_p
     scripts.mkdir(parents=True)
     shutil.copy2(SCRIPT, scripts / SCRIPT.name)
     (scripts / "windows-standalone.ps1").write_text("# stub\n", encoding="utf-8")
+    (scripts / "install-windows-browsers.ps1").write_text("# browser installer stub\n", encoding="utf-8")
     frontend = root / "frontend" / "dist"
     frontend.mkdir(parents=True)
     (frontend / "index.html").write_text("<html></html>", encoding="utf-8")
@@ -60,3 +61,4 @@ def test_frozen_bundle_uses_readable_launcher_and_excludes_private_profile(tmp_p
         assert "Startup failed" in launcher
         assert "config/startup-profiles/local-lite.env" not in archive.namelist()
         assert "backend/atp-backend.exe" in archive.namelist()
+        assert "scripts/install-windows-browsers.ps1" in archive.namelist()

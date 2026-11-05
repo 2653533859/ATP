@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ATP 启动中</title>
+<style>body{margin:0;font:16px "Microsoft YaHei",sans-serif;background:#f5f7fb;color:#293143}main{max-width:36rem;margin:14vh auto;padding:2rem}h1{font-size:22px}p{line-height:1.8}code{word-break:break-all}</style></head>
+<body><main><h1>正在启动 ATP 本地服务</h1><p id="status">首次启动可能需要一些时间，请稍候。</p></main>
+<script>window.atpStartupFailed=function(){document.querySelector('h1').textContent='ATP 本地服务启动失败';document.getElementById('status').textContent='请检查本机 8001 端口和可用磁盘空间，然后关闭窗口重试。详细信息位于 %LOCALAPPDATA%\\ATP\\Desktop\\desktop-startup.log。'}</script></body>
+</html>

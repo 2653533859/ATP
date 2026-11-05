@@ -5,14 +5,25 @@ from __future__ import annotations
 import argparse
 import multiprocessing
 import os
+from pathlib import Path
 import runpy
 import sys
 
 import uvicorn
 
 
+def configure_playwright_browser_cache() -> None:
+    """Frozen Playwright defaults to an empty, read-only bundled browser directory."""
+    if not getattr(sys, "frozen", False) or sys.platform != "win32":
+        return
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(Path(local_app_data) / "ms-playwright"))
+
+
 def main() -> None:
     multiprocessing.freeze_support()
+    configure_playwright_browser_cache()
     if len(sys.argv) >= 3 and sys.argv[1] == "-m":
         module = sys.argv[2]
         if module not in {"pytest", "locust", "pip"}:

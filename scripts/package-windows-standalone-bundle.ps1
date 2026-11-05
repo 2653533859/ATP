@@ -155,6 +155,9 @@ backend/atp-backend.exe 与 backend/_internal/ 必须保持在同一目录。
   $targetScripts = Join-Path $stageRoot 'scripts'
   New-Item -ItemType Directory -Path $targetScripts -Force | Out-Null
   Copy-Item -LiteralPath (Join-Path $repoRoot 'scripts\windows-standalone.ps1') -Destination (Join-Path $targetScripts 'windows-standalone.ps1')
+  if (Test-Path -LiteralPath (Join-Path $repoRoot 'scripts\install-windows-browsers.ps1')) {
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'scripts\install-windows-browsers.ps1') -Destination (Join-Path $targetScripts 'install-windows-browsers.ps1')
+  }
 
   # 4. Stage Config Profiles
   $targetConfig = Join-Path $stageRoot 'config\startup-profiles'

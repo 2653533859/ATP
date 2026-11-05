@@ -150,6 +150,21 @@ def test_version_thirteen_to_fourteen_creates_api_keys_table(tmp_path) -> None:
         assert "api_keys" in inspect(connection).get_table_names()
 
 
+def test_version_seventeen_to_eighteen_preserves_data_and_creates_system_settings(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'v17.sqlite3'}")
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE system_settings")
+        connection.exec_driver_sql("PRAGMA user_version=17")
+        connection.exec_driver_sql("CREATE TABLE local_upgrade_marker (value TEXT NOT NULL)")
+        connection.exec_driver_sql("INSERT INTO local_upgrade_marker VALUES ('preserved')")
+
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.connect() as connection:
+        assert "system_settings" in inspect(connection).get_table_names()
+        assert connection.exec_driver_sql("SELECT value FROM local_upgrade_marker").scalar_one() == "preserved"
+
+
 def test_version_fourteen_to_fifteen_creates_sync_outbox_table(tmp_path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'v14.sqlite3'}")
     assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION

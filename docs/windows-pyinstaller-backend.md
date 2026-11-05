@@ -1,5 +1,20 @@
 # Windows 后端 PyInstaller 打包
 
+桌面 MSI 从 1.0.1 起包含冻结后端、本地前端和启动脚本。先运行
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-desktop-msi.ps1`；该脚本
+会先重建后端，再以本地模式构建前端并生成 MSI。安装后桌面窗口会启动或复用已验证的
+`127.0.0.1:8001` 本地服务，确认本地模式后再打开页面。配置和进程状态保存在当前用户的
+`%LOCALAPPDATA%\ATP\Desktop`，SQLite 和附件仍位于配置指定的数据目录；升级 MSI 不应覆盖这些数据。
+启动失败时可查看该目录下的 `desktop-startup.log` 及 `.local-run\standalone` 后端日志。
+
+Windows 冻结后端默认使用当前用户的 `%LOCALAPPDATA%\ms-playwright` 浏览器缓存，并保留用户显式设置的
+`PLAYWRIGHT_BROWSERS_PATH`。安装包不携带 Playwright 浏览器；新电脑可联网运行
+`powershell -NoProfile -ExecutionPolicy Bypass -File "<安装目录>\scripts\install-windows-browsers.ps1"`
+安装匹配的 Chromium。需要其他浏览器时可加 `-Browser firefox`、`-Browser webkit` 或 `-Browser all`。
+浏览器版本由安装包内的 Playwright 驱动决定，与系统中独立安装的 Chrome 版本无关。
+
+1.0.0 的旧 MSI 仅有桌面外壳，不包含上述后端；不要用它代替包含后端的新版安装包。
+
 `backend/frozen_entry.py` 是 Windows 本地模式专用入口，只允许绑定回环地址，并要求 `ATP_LOCAL_MODE=true`。`scripts/build-windows-backend.ps1` 使用 PyInstaller one-folder 模式将 FastAPI 后端与 Python 依赖打到 `.local-run/pyinstaller/dist/atp-backend/`。`scripts/windows-standalone.ps1` 在安装目录的 `backend/atp-backend.exe` 存在时优先运行它；开发环境继续使用 `backend/.venv/Scripts/python.exe`。直接双击 `atp-backend.exe` 不是启动桌面界面的方式；新版会弹出“完整解压 ZIP 并运行根目录 `start-atp.bat`”的提示。
 
 构建机需有 Python 3.12、后端依赖和 `frontend/node_modules`。先运行：

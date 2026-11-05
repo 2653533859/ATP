@@ -1,6 +1,6 @@
 [package]
 name = "atp-desktop"
-version = "1.0.0"
+version = "1.0.2"
 description = "ATP Automated Testing Platform Desktop"
 authors = ["ATP Team"]
 edition = "2021"

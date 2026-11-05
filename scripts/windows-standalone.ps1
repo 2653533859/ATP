@@ -1,19 +1,21 @@
 # Independent Windows profile: SQLite, local files, API and Vite only.
 param(
-  [ValidateSet('init', 'up', 'down', 'status', 'backup', 'restore', 'desktop')]
+  [ValidateSet('init', 'up', 'ensure', 'down', 'status', 'backup', 'restore', 'desktop')]
   [string]$Action = 'up',
   [string]$ArchiveDir = '',
   [string]$DataDir = '',
+  [string]$StateRoot = '',
   [ValidateSet('dev', 'static')]
   [string]$Frontend = 'dev'
 )
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$Profile = Join-Path $RepoRoot 'config\startup-profiles\local-lite.env'
+$StateRoot = if ([string]::IsNullOrWhiteSpace($StateRoot)) { $RepoRoot } else { [System.IO.Path]::GetFullPath($StateRoot) }
+$Profile = Join-Path $StateRoot 'config\startup-profiles\local-lite.env'
 $RequestedDataDir = $DataDir
-$LegacyDataDir = Join-Path $RepoRoot '.local-data'
-$RunDir = Join-Path $RepoRoot '.local-run\standalone'
+$LegacyDataDir = Join-Path $StateRoot '.local-data'
+$RunDir = Join-Path $StateRoot '.local-run\standalone'
 $StatePath = Join-Path $RunDir 'processes.json'
 $BackendPython = Join-Path $RepoRoot 'backend\.venv\Scripts\python.exe'
 $BackendExe = Join-Path $RepoRoot 'backend\atp-backend.exe'
@@ -33,7 +35,7 @@ function Resolve-DataDir {
   $fullPath = if ([System.IO.Path]::IsPathRooted($Value)) {
     [System.IO.Path]::GetFullPath($Value)
   } else {
-    [System.IO.Path]::GetFullPath((Join-Path $RepoRoot $Value))
+    [System.IO.Path]::GetFullPath((Join-Path $StateRoot $Value))
   }
   return $fullPath.TrimEnd('\', '/')
 }
@@ -63,7 +65,20 @@ function Select-NewAtpDataDir {
     if (-not (Test-Path -LiteralPath $candidate)) { return $candidate }
     if (-not @(Get-ChildItem -LiteralPath $candidate -Force | Select-Object -First 1).Count) { return $candidate }
   }
-  throw 'No non-C fixed drive has 20 GB free with an unused ATP_resources directory. Specify -DataDir.'
+  # Laptops with a single fixed drive have no non-C candidate. Falling back to a dedicated
+  # directory under the state root keeps the desktop app startable instead of hard failing.
+  $fallback = Join-Path $StateRoot 'ATP_resources'
+  if ((Test-Path -LiteralPath $fallback) -and @(Get-ChildItem -LiteralPath $fallback -Force | Select-Object -First 1).Count) {
+    throw 'No unused ATP_resources directory is available. Specify -DataDir.'
+  }
+  $fallbackRoot = Split-Path -Qualifier $fallback
+  $fallbackDisk = Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' |
+    Where-Object { $_.DeviceID -ieq $fallbackRoot } | Select-Object -First 1
+  if ($fallbackDisk -and $fallbackDisk.FreeSpace -lt 20GB) {
+    Write-Warning "System drive $fallbackRoot has less than 20 GB free; local data at $fallback may fill it."
+  }
+  Write-Host "No non-C fixed drive has 20 GB free; using $fallback"
+  return $fallback
 }
 
 function Get-ProfileDataDir {
@@ -287,7 +302,22 @@ if (-not $useFrozenBackend -and -not (Test-Path -LiteralPath $BackendPython -Pat
 if ($useFrozenBackend -and -not (Test-Path -LiteralPath $ViteEntry -PathType Leaf)) { $Frontend = 'static' }
 if ($Frontend -eq 'dev' -and -not (Test-Path -LiteralPath $ViteEntry)) { throw "Frontend dependencies missing: $ViteEntry" }
 if ($Frontend -eq 'static' -and -not (Test-Path -LiteralPath (Join-Path $RepoRoot 'frontend\dist\index.html'))) { throw 'Static frontend missing. Build it with VITE_ATP_LOCAL_MODE=true npm run build.' }
-if (Test-Path -LiteralPath $StatePath) { throw 'Local ATP already has process state. Run -Action status or down first.' }
+if (Test-Path -LiteralPath $StatePath) {
+  if ($Action -ne 'ensure') { throw 'Local ATP already has process state. Run -Action status or down first.' }
+  $previousState = Get-Content -LiteralPath $StatePath -Raw | ConvertFrom-Json
+  $existingBackend = if ($previousState.backend) { Get-OwnProcess -ProcessId ([int]$previousState.backend.pid) -Marker ([string]$previousState.backend.marker) } else { $null }
+  if ($existingBackend) {
+    if (-not $useFrozenBackend -or $existingBackend.ExecutablePath -ine $BackendExe) {
+      throw 'A different ATP backend owns this desktop profile; stop it before starting this version.'
+    }
+    Wait-Ready -Url 'http://127.0.0.1:8001/health'
+    $runtime = Invoke-RestMethod -Uri 'http://127.0.0.1:8001/api/v1/runtime' -TimeoutSec 5
+    if ($runtime.mode -ne 'local' -or $runtime.database -ne 'sqlite') { throw 'The existing backend is not in local mode.' }
+    Write-Host 'Existing desktop backend is ready.'
+    exit 0
+  }
+  Remove-Item -LiteralPath $StatePath -Force
+}
 Assert-FreePort -Port 8001
 if ($Frontend -eq 'dev') { Assert-FreePort -Port 5174 }
 New-Item -ItemType Directory -Path $RunDir -Force | Out-Null

@@ -111,6 +111,19 @@ def test_new_profile_uses_requested_data_dir_and_preserves_it(spacey_tmp_path: P
     assert profile.read_text(encoding="utf-8") == original
 
 
+def test_desktop_state_root_keeps_profile_outside_install_directory(spacey_tmp_path: Path) -> None:
+    install = spacey_tmp_path / "installed app"
+    script = _isolated_script(install)
+    state_root = spacey_tmp_path / "user state"
+    data_dir = spacey_tmp_path / "desktop data"
+    result = _run(script, "-Action", "init", "-StateRoot", str(state_root), "-DataDir", str(data_dir))
+    assert result.returncode == 0, result.stderr
+    profile = state_root / "config" / "startup-profiles" / "local-lite.env"
+    assert profile.exists()
+    assert Settings(_env_file=profile).LOCAL_DATA_PATH == data_dir.resolve()
+    assert not (install / "config" / "startup-profiles" / "local-lite.env").exists()
+
+
 def test_backup_and_restore_follow_profile_data_dir(spacey_tmp_path: Path) -> None:
     source_root = spacey_tmp_path / "source repo"
     source_script = _isolated_script(source_root)
@@ -152,3 +165,54 @@ def test_backup_rejects_destination_inside_configured_data_dir(tmp_path: Path) -
     result = _run(script, "-Action", "backup", "-ArchiveDir", str(archive))
     assert result.returncode != 0
     assert not archive.exists()
+
+
+def _has_qualifying_non_c_drive() -> bool:
+    """是否存在会被 Select-NewAtpDataDir 优先选中的非 C 固定盘。"""
+    return any(
+        _fixed_drive_free_bytes(f"{letter}:{chr(92)}") >= DATA_DIR_MIN_FREE_BYTES
+        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        if letter != "C"
+    )
+
+
+@pytest.mark.skipif(
+    _has_qualifying_non_c_drive(),
+    reason="machine has a spare non-C fixed drive; the state-root fallback is not exercised",
+)
+def test_desktop_init_without_data_dir_uses_state_root(spacey_tmp_path: Path) -> None:
+    """桌面端不传 -DataDir：没有可选的非 C 盘时必须回退到状态根，而不是直接失败。"""
+    install = spacey_tmp_path / "installed app"
+    script = _isolated_script(install)
+    state_root = spacey_tmp_path / "user state"
+    result = _run(script, "-Action", "init", "-StateRoot", str(state_root))
+    assert result.returncode == 0, result.stderr
+    profile = state_root / "config" / "startup-profiles" / "local-lite.env"
+    assert Settings(_env_file=profile).LOCAL_DATA_PATH == (state_root / "ATP_resources").resolve()
+
+
+def test_relative_data_dir_resolves_under_state_root(spacey_tmp_path: Path) -> None:
+    """profile 里的相对 ATP_LOCAL_DATA_DIR 必须相对 -StateRoot 解析，而不是安装目录。"""
+    install = spacey_tmp_path / "installed app"
+    script = _isolated_script(install)
+    state_root = spacey_tmp_path / "user state"
+    profile = state_root / "config" / "startup-profiles" / "local-lite.env"
+    profile.parent.mkdir(parents=True)
+    profile.write_text(
+        chr(10).join(
+            [
+                "ATP_LOCAL_MODE=true",
+                "ATP_LOCAL_DATA_DIR=relative-data",
+                "APP_ENV=local",
+                "APP_SECRET_KEY=test-only",
+                "FIRST_ADMIN_PASSWORD=test-password",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    data_dir = state_root / "relative-data"
+    data_dir.mkdir()
+    result = _run(script, "-Action", "init", "-StateRoot", str(state_root), "-DataDir", str(data_dir))
+    assert result.returncode == 0, result.stderr
+    assert "ATP_LOCAL_DATA_DIR=relative-data" in profile.read_text(encoding="utf-8")

@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/tooling/cli/schema.json",
   "productName": "ATP 自动化测试平台",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "identifier": "com.atp.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "ATP 自动化测试平台 · Windows 桌面独立端",
+        "url": "desktop-loading.html",
         "width": 1320,
         "height": 850,
         "minWidth": 1024,
@@ -28,6 +29,12 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": {
+      "../../.local-run/pyinstaller/dist/atp-backend/": "backend/",
+      "../dist/": "frontend/dist/",
+      "../../scripts/windows-standalone.ps1": "scripts/windows-standalone.ps1",
+      "../../scripts/install-windows-browsers.ps1": "scripts/install-windows-browsers.ps1"
+    },
     "windows": {
       "wix": { "language": "zh-CN" }
     },
