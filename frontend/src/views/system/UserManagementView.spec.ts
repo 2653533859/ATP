@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import UserManagementView from './UserManagementView.vue'
 
-const { userList, userCreate, userUpdate, messageError, messageSuccess, messageWarning } = vi.hoisted(() => ({
+const { userList, userCreate, userUpdate, initialPassword, updateInitialPassword, messageError, messageSuccess, messageWarning } = vi.hoisted(() => ({
   userList: vi.fn(),
   userCreate: vi.fn(),
   userUpdate: vi.fn(),
+  initialPassword: vi.fn(),
+  updateInitialPassword: vi.fn(),
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
@@ -19,7 +21,7 @@ vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
 }))
 vi.mock('@/api', () => ({
-  userApi: { list: userList, create: userCreate, update: userUpdate },
+  userApi: { list: userList, create: userCreate, update: userUpdate, initialPassword, updateInitialPassword },
 }))
 
 const passthrough = defineComponent({
@@ -46,9 +48,42 @@ beforeEach(() => {
   userList.mockResolvedValue(USERS)
   userCreate.mockResolvedValue(USERS[0])
   userUpdate.mockResolvedValue(USERS[0])
+  initialPassword.mockResolvedValue({ password: 'example-default' })
+  updateInitialPassword.mockResolvedValue({ success: true })
 })
 
 describe('UserManagementView', () => {
+  it('validates and saves a new default password', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.openDefaultPassword()
+    expect(vm.defaultPassword).toBe('example-default')
+    expect(vm.defaultPasswordVisible).toBe(true)
+    vm.defaultPassword = 'short'
+    await vm.saveDefaultPassword()
+    expect(updateInitialPassword).not.toHaveBeenCalled()
+    expect(messageWarning).toHaveBeenCalledWith('user_management.default_password_length')
+    vm.defaultPassword = 'new-default-password'
+    await vm.saveDefaultPassword()
+    expect(updateInitialPassword).toHaveBeenCalledWith('new-default-password')
+    expect(vm.defaultPasswordOpen).toBe(false)
+    expect(vm.defaultPassword).toBe('')
+    wrapper.unmount()
+  })
+  it('does not replace a manually entered default when loading finishes late', async () => {
+    let resolvePassword!: (result: { password: string }) => void
+    initialPassword.mockReturnValueOnce(new Promise((resolve) => { resolvePassword = resolve }))
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const opening = vm.openDefaultPassword()
+    vm.defaultPassword = 'custom-password'
+    resolvePassword({ password: 'example-default' })
+    await opening
+    expect(vm.defaultPassword).toBe('custom-password')
+    wrapper.unmount()
+  })
   it('loads users, maps roles and opens create/edit forms', async () => {
     const wrapper = mountPage()
     await flushPromises()
@@ -63,11 +98,12 @@ describe('UserManagementView', () => {
     await vm.loadUsers()
     expect(userList).toHaveBeenLastCalledWith('tester')
 
-    vm.openCreate()
+    await vm.openCreate()
     expect(vm.editing).toBe(null)
     expect(vm.modalOpen).toBe(true)
     expect(vm.form.role).toBe('tester')
     expect(vm.form.is_active).toBe(true)
+    expect(vm.form.password).toBe('example-default')
 
     vm.openEdit(USERS[1])
     expect(vm.editing.id).toBe(2)
@@ -99,7 +135,7 @@ describe('UserManagementView', () => {
     await flushPromises()
     const vm = wrapper.vm as any
 
-    vm.openCreate()
+    await vm.openCreate()
     vm.form.username = ' new-user '
     vm.form.email = 'new@example.com'
     vm.form.password = 'password-123'
@@ -159,5 +195,19 @@ describe('UserManagementView', () => {
     userList.mockRejectedValueOnce({ code: 'unknown' })
     await vm.loadUsers()
     expect(messageError).toHaveBeenCalledWith('user_management.save_failed')
+  })
+
+  it('does not overwrite a password entered while the default is loading', async () => {
+    let resolvePassword!: (result: { password: string }) => void
+    initialPassword.mockReturnValueOnce(new Promise((resolve) => { resolvePassword = resolve }))
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const opening = vm.openCreate()
+    vm.form.password = 'custom-password'
+    resolvePassword({ password: 'example-default' })
+    await opening
+    expect(vm.form.password).toBe('custom-password')
+    wrapper.unmount()
   })
 })

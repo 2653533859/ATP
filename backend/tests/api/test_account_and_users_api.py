@@ -6,7 +6,8 @@ import asyncio
 import types
 
 import pytest
-from fastapi import HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.testclient import TestClient
 
 from app.api.v1 import auth as auth_module
 from app.api.v1 import users as users_module
@@ -75,6 +76,26 @@ def _user(**overrides):
     }
     values.update(overrides)
     return types.SimpleNamespace(**values)
+
+
+def test_initial_password_is_admin_only_and_not_cached(monkeypatch):
+    monkeypatch.setattr(users_module.settings, "DEFAULT_USER_INITIAL_PASSWORD", "example-password")
+    app = FastAPI()
+    app.include_router(users_module.router)
+    app.dependency_overrides[users_module.get_db] = lambda: _DB()
+
+    def reject_non_admin():
+        raise HTTPException(status_code=403)
+
+    app.dependency_overrides[users_module.require_admin] = reject_non_admin
+    client = TestClient(app)
+    assert client.get("/users/initial-password").status_code == 403
+
+    app.dependency_overrides[users_module.require_admin] = lambda: _user(role=UserRole.admin)
+    response = client.get("/users/initial-password")
+    assert response.status_code == 200
+    assert response.json() == {"password": "example-password"}
+    assert response.headers["cache-control"] == "no-store"
 
 
 def test_update_me_changes_profile_and_rotates_browser_session(monkeypatch):

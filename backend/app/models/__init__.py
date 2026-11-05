@@ -1,6 +1,7 @@
 def load_all_models() -> None:
     """Import every mapped model so SQLAlchemy metadata is complete before use."""
     from app.models.user import User, UserRole
+    from app.models.system_setting import SystemSetting
     from app.models.hermes_action import HermesAction
     from app.models.execution_dispatch import ExecutionDispatch
     from app.models.group_run_child import GroupRunChild
@@ -70,6 +71,7 @@ def load_all_models() -> None:
         DefectRunLink,
         DefectExternalLink,
         ConfigurationRevision,
+        SystemSetting,
         AuditLog,
         ExecutionCommand,
         ExecutionRunLease,

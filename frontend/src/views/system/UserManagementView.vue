@@ -4,9 +4,12 @@
       <div>
         <h2 class="page-title">{{ t('user_management.title') }}</h2>
       </div>
-      <a-button type="primary" @click="openCreate">
-        <PlusOutlined /> {{ t('user_management.create') }}
-      </a-button>
+      <div class="user-management-actions">
+        <a-button @click="openDefaultPassword">{{ t('user_management.set_default_password') }}</a-button>
+        <a-button type="primary" @click="openCreate">
+          <PlusOutlined /> {{ t('user_management.create') }}
+        </a-button>
+      </div>
     </div>
 
     <div class="page-toolbar">
@@ -39,6 +42,19 @@
         </template>
       </a-table>
     </a-card>
+
+    <a-modal
+      v-model:open="defaultPasswordOpen"
+      :title="t('user_management.set_default_password')"
+      :confirm-loading="defaultPasswordSaving"
+      @ok="saveDefaultPassword"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('user_management.new_default_password')" :help="t('user_management.default_password_hint')" required>
+          <a-input-password v-model:value="defaultPassword" v-model:visible="defaultPasswordVisible" autocomplete="new-password" :minlength="8" :maxlength="128" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <a-modal
       v-model:open="modalOpen"
@@ -95,6 +111,12 @@ const loading = ref(false)
 const saving = ref(false)
 const modalOpen = ref(false)
 const editing = ref<AdminUserItem | null>(null)
+const defaultPasswordOpen = ref(false)
+const defaultPasswordSaving = ref(false)
+const defaultPassword = ref('')
+const defaultPasswordVisible = ref(true)
+let defaultPasswordRequest = 0
+let initialPasswordRequest = 0
 const keyword = ref('')
 const form = reactive({
   username: '',
@@ -116,6 +138,41 @@ function roleLabel(role: string) {
   return t(`user_management.roles.${role}`)
 }
 
+async function openDefaultPassword() {
+  const request = ++defaultPasswordRequest
+  defaultPassword.value = ''
+  defaultPasswordVisible.value = true
+  defaultPasswordOpen.value = true
+  try {
+    const { password } = await userApi.initialPassword()
+    if (request === defaultPasswordRequest && defaultPasswordOpen.value && !defaultPassword.value) {
+      defaultPassword.value = password
+    }
+  } catch {
+    if (request === defaultPasswordRequest && defaultPasswordOpen.value) {
+      message.warning(t('user_management.default_password_unavailable'))
+    }
+  }
+}
+
+async function saveDefaultPassword() {
+  if (defaultPassword.value.length < 8 || defaultPassword.value.length > 128) {
+    message.warning(t('user_management.default_password_length'))
+    return
+  }
+  defaultPasswordSaving.value = true
+  try {
+    await userApi.updateInitialPassword(defaultPassword.value)
+    defaultPassword.value = ''
+    defaultPasswordOpen.value = false
+    message.success(t('user_management.default_password_saved'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error))
+  } finally {
+    defaultPasswordSaving.value = false
+  }
+}
+
 function resetForm() {
   form.username = ''
   form.email = ''
@@ -124,13 +181,25 @@ function resetForm() {
   form.is_active = true
 }
 
-function openCreate() {
+async function openCreate() {
+  const request = ++initialPasswordRequest
   editing.value = null
   resetForm()
   modalOpen.value = true
+  try {
+    const { password } = await userApi.initialPassword()
+    if (request === initialPasswordRequest && modalOpen.value && !editing.value && !form.password) {
+      form.password = password
+    }
+  } catch {
+    if (request === initialPasswordRequest && modalOpen.value && !editing.value) {
+      message.warning(t('user_management.default_password_unavailable'))
+    }
+  }
 }
 
 function openEdit(user: AdminUserItem) {
+  initialPasswordRequest++
   editing.value = user
   form.username = user.username
   form.email = user.email
@@ -196,3 +265,11 @@ async function handleSave() {
 
 onMounted(loadUsers)
 </script>
+
+<style scoped>
+.user-management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+</style>

@@ -121,6 +121,7 @@ class Settings(BaseSettings):
     FIRST_ADMIN_USERNAME: str = "admin"
     FIRST_ADMIN_PASSWORD: str = "Admin@123456"
     FIRST_ADMIN_EMAIL: str = "admin@example.com"
+    DEFAULT_USER_INITIAL_PASSWORD: str = ""
 
     # ADB
     ADB_SCAN_ENABLED: bool = True  # 设为 False 可关闭定时扫描（纯 Web 测试环境）

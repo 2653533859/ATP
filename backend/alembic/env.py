@@ -13,6 +13,7 @@ from app.models.base import Base
 
 # 导入所有模型以确保 metadata 包含全部表
 from app.models.user import User  # noqa
+from app.models.system_setting import SystemSetting  # noqa
 from app.models.project import Project, Module  # noqa
 from app.models.case import TestCase, CaseStep, TestRun, StepResult, CaseSnapshot  # noqa
 from app.models.bug_tracker import BugTracker  # noqa

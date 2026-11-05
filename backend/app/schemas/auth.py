@@ -64,6 +64,10 @@ class UserLookupOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class InitialPasswordUpdate(BaseModel):
+    password: str = Field(min_length=8, max_length=128)
+
+
 class UserAdminCreate(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     email: str = Field(min_length=3, max_length=128)

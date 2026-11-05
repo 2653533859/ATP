@@ -1781,6 +1781,9 @@ export interface AdminUserItem {
 
 export const userApi = {
   list: (username?: string) => http.get<unknown, AdminUserItem[]>('/users', { params: { username } }),
+  initialPassword: () => http.get<unknown, { password: string }>('/users/initial-password'),
+  updateInitialPassword: (password: string) =>
+    http.put<unknown, { success: boolean }>('/users/initial-password', { password }),
   create: (data: {
     username: string
     email: string

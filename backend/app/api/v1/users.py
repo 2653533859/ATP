@@ -1,6 +1,8 @@
 """User administration and project-member lookup endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,12 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, require_admin
 from app.api.local_scope import require_server_workspace
 from app.core.database import get_db
+from app.core.config import settings
+from app.core.encryption import decrypt, encrypt
 from app.core.security import hash_password
+from app.models.system_setting import SystemSetting
 from app.models.user import User, UserRole
-from app.schemas.auth import UserAdminCreate, UserAdminUpdate, UserLookupOut, UserOut
+from app.schemas.auth import InitialPasswordUpdate, UserAdminCreate, UserAdminUpdate, UserLookupOut, UserOut
 from app.services.audit import write_audit_log
 
 router = APIRouter(prefix="/users", tags=["用户管理"])
+logger = logging.getLogger(__name__)
+_INITIAL_PASSWORD_KEY = "user_initial_password"
 
 
 def _role(value: str) -> UserRole:
@@ -81,6 +88,56 @@ async def list_users(
         query = query.where(User.username.ilike(f"%{username.strip()}%"))
     result = await db.execute(query)
     return result.scalars().all()
+
+
+@router.get("/initial-password")
+async def get_initial_password(
+    response: Response, db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)
+):
+    """仅管理员可读取新增用户默认密码。"""
+    require_server_workspace("读取新增用户默认密码")
+    response.headers["Cache-Control"] = "no-store"
+    setting = await db.get(SystemSetting, _INITIAL_PASSWORD_KEY)
+    if setting is None:
+        return {"password": settings.DEFAULT_USER_INITIAL_PASSWORD}
+    try:
+        password = decrypt(setting.value_encrypted)
+    except Exception:
+        # 密钥轮换或跨机还原会让历史密文失效，此时回退内置默认值而不是 500。
+        logger.warning("Failed to decrypt %s; falling back to the built-in default", _INITIAL_PASSWORD_KEY)
+        password = settings.DEFAULT_USER_INITIAL_PASSWORD
+    return {"password": password}
+
+
+@router.put("/initial-password")
+async def update_initial_password(
+    body: InitialPasswordUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """加密保存全局初始密码；现有用户密码不受影响。"""
+    require_server_workspace("修改用户默认初始密码")
+    setting = await db.get(SystemSetting, _INITIAL_PASSWORD_KEY)
+    if setting is None:
+        setting = SystemSetting(key=_INITIAL_PASSWORD_KEY, value_encrypted=encrypt(body.password))
+        db.add(setting)
+    else:
+        setting.value_encrypted = encrypt(body.password)
+    try:
+        await db.flush()
+        await write_audit_log(
+            db,
+            action="update_initial_password",
+            resource_type="system_setting",
+            user_id=current_user.id,
+            username=current_user.username,
+            detail="更新新增用户默认初始密码",
+        )
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="设置已被其他管理员修改，请重试") from exc
+    return {"success": True}
 
 
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
