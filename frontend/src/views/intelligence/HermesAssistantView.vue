@@ -4,7 +4,7 @@
       <div class="toolbar-left">
         <div class="toolbar-identity">
           <RobotOutlined class="toolbar-icon" />
-          <span class="toolbar-name">Hermes 智能助手</span>
+          <span class="toolbar-name">{{ t('menu.intelligence.hermes') }}</span>
         </div>
         <div class="toolbar-sep">/</div>
         <div class="toolbar-project">
@@ -21,9 +21,9 @@
           />
         </div>
         <div v-if="selectedProjectId" class="toolbar-chips">
-          <span class="toolbar-chip"><b>{{ moduleCount }}</b> 模块</span>
-          <span class="toolbar-chip"><b>{{ cases.length }}</b> 用例</span>
-          <span class="toolbar-chip chip-fail"><b>{{ failedTasks.length }}</b> 失败任务</span>
+          <span class="toolbar-chip"><b>{{ moduleCount }}</b> {{ t('hermes.context_modules') }}</span>
+          <span class="toolbar-chip"><b>{{ cases.length }}</b> {{ t('hermes.context_cases') }}</span>
+          <span class="toolbar-chip chip-fail"><b>{{ failedTasks.length }}</b> {{ t('hermes.context_failures') }}</span>
         </div>
       </div>
 
@@ -31,8 +31,8 @@
         <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
-        <a-button v-if="selectedProjectId" type="primary" size="small" class="toolbar-btn primary-btn" @click="resetConversation">
-          + 新会话
+        <a-button v-if="selectedProjectId" type="primary" size="small" class="toolbar-btn" @click="resetConversation">
+          <PlusOutlined /> {{ t('hermes.new_conversation') }}
         </a-button>
       </div>
     </header>
@@ -146,6 +146,7 @@ import { message, Modal } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  PlusOutlined,
   ReloadOutlined,
   RobotOutlined,
 } from '@ant-design/icons-vue'
@@ -1057,29 +1058,128 @@ onMounted(async () => {
 
 <style scoped>
 .hermes-page {
-  --hermes-ink: var(--c-text);
-  --hermes-violet: var(--c-ai);
-  --hermes-mint: var(--c-success);
-  --hermes-coral: var(--c-error);
-  --hermes-paper: var(--c-bg-elevated);
   display: flex;
   flex-direction: column;
   gap: 20px;
   color: var(--c-text);
 }
+
+.hermes-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.toolbar-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toolbar-icon {
+  font-size: 16px;
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  padding: 5px;
+  border-radius: 6px;
+}
+
+.toolbar-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+
+.toolbar-sep {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+
+.project-select-dropdown {
+  width: 200px;
+}
+
+.toolbar-chips {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 6px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+
+.toolbar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-chip b {
+  color: var(--c-text);
+  font-weight: 600;
+}
+
+.toolbar-chip.chip-fail,
+.toolbar-chip.chip-fail b {
+  color: var(--c-error);
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toolbar-btn {
+  border-radius: 6px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+.load-alert,
+.project-empty {
+  border-radius: var(--radius-lg);
+}
+
 .hermes-disclosure {
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   background: var(--c-bg-elevated);
   box-shadow: var(--shadow-xs);
   overflow: hidden;
-  transition: all 0.2s ease;
 }
 
 .hermes-disclosure summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 10px 16px;
   cursor: pointer;
   user-select: none;
@@ -1116,172 +1216,6 @@ onMounted(async () => {
   box-shadow: none;
 }
 
-.hermes-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  height: 48px;
-  padding: 0 16px;
-  background: var(--c-bg-elevated);
-  border: 1px solid var(--c-border);
-  border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-}
-
-.toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
-}
-
-.toolbar-identity {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.toolbar-icon {
-  font-size: 16px;
-  color: var(--c-primary);
-  background: var(--c-primary-soft);
-  padding: 5px;
-  border-radius: 6px;
-}
-
-.toolbar-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--c-text);
-}
-
-.toolbar-sep {
-  color: var(--c-text-tertiary);
-  font-size: 13px;
-}
-
-.project-select-dropdown {
-  width: 200px;
-}
-
-.toolbar-chips {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 6px;
-}
-
-.toolbar-chip {
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: var(--c-bg-subtle);
-  color: var(--c-text-secondary);
-  font-size: 11px;
-}
-
-.toolbar-chip b {
-  color: var(--c-text);
-  font-weight: 600;
-}
-
-.toolbar-chip.chip-fail {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.toolbar-chip.chip-fail b {
-  color: #b91c1c;
-}
-
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.toolbar-btn {
-  border-radius: 6px;
-}
-
-.primary-btn {
-  background: var(--c-primary);
-  border-color: var(--c-primary);
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-}
-.load-alert,
-.project-empty {
-  border-radius: var(--radius-lg);
-}
-
-.context-strip {
-  border: 1px solid var(--c-border);
-  background: var(--c-bg-elevated);
-  box-shadow: var(--shadow-sm);
-}
-
-.context-strip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 16px 20px;
-  border-radius: var(--radius-lg);
-}
-
-.context-intro,
-.context-metrics {
-  display: flex;
-  align-items: center;
-}
-
-.context-intro {
-  flex-wrap: wrap;
-  gap: 8px 12px;
-}
-
-.context-intro .section-kicker,
-.section-kicker {
-  color: var(--c-ai);
-}
-
-.context-intro strong {
-  font-size: 15px;
-  color: var(--c-text);
-}
-
-.context-intro > span:last-child {
-  color: var(--c-text-secondary);
-  font-size: 12px;
-}
-
-.context-metrics {
-  flex-wrap: wrap;
-  gap: 16px;
-  color: var(--c-text-secondary);
-  font-size: 12px;
-}
-
-.context-metrics b {
-  margin-right: 4px;
-  color: var(--c-text);
-  font-size: 16px;
-  font-family: 'JetBrains Mono', monospace;
-}
-
 .assistant-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(310px, .85fr);
@@ -1289,12 +1223,11 @@ onMounted(async () => {
   align-items: start;
 }
 
-
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 :deep(.ant-select-selector:focus-visible) {
-  outline: 2px solid var(--c-ai);
+  outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
 
@@ -1305,28 +1238,9 @@ textarea:focus-visible,
 }
 
 @media (max-width: 680px) {
-  .hermes-hero {
-    display: block;
-    padding: 22px 18px;
+  .toolbar-sep,
+  .toolbar-chips {
+    display: none;
   }
-
-  .hero-title-row,
-  .context-strip {
-    display: block;
-  }
-
-  .hero-chip {
-    display: inline-block;
-    margin-top: 10px;
-  }
-
-  .hero-controls {
-    margin-top: 20px;
-  }
-
-  .context-metrics {
-    margin-top: 12px;
-  }
-
 }
 </style>

@@ -2,12 +2,11 @@
   <section class="conversation-context-card" :aria-label="t('hermes.conversation_context_aria')">
     <div class="conversation-context-heading">
       <div>
-        <span class="section-kicker">{{ t('hermes.session_kicker') }}</span>
         <strong>{{ t('hermes.session_id', { id: shortConversationId }) }}</strong>
         <p>{{ t('hermes.session_description') }}</p>
       </div>
       <a-button size="small" @click="emit('new-conversation')">
-        <PlusOutlined /> {{ t('hermes.new_conversation') }}
+        {{ t('hermes.new_conversation') }}
       </a-button>
     </div>
     <div class="conversation-filter-grid">
@@ -46,7 +45,6 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { PlusOutlined } from '@ant-design/icons-vue'
 import type { Dayjs } from 'dayjs'
 import type { HermesSourceType } from '@/api'
 
@@ -74,13 +72,8 @@ const { t } = useI18n()
   padding: 16px 20px;
   border: 1px solid var(--c-border);
   border-radius: var(--radius-lg);
-  background:
-    linear-gradient(110deg, color-mix(in srgb, var(--c-ai) 5%, var(--c-bg-elevated)), var(--c-bg-elevated));
+  background: var(--c-bg-elevated);
   box-shadow: var(--shadow-sm);
-}
-
-.section-kicker {
-  color: var(--c-ai);
 }
 
 .conversation-context-heading,
@@ -93,7 +86,6 @@ const { t } = useI18n()
 
 .conversation-context-heading strong {
   display: block;
-  margin-top: 4px;
   color: var(--c-text);
   font-size: 13px;
   font-family: 'JetBrains Mono', monospace;
@@ -107,7 +99,6 @@ const { t } = useI18n()
 
 .conversation-context-heading :deep(.ant-btn) {
   flex: 0 0 auto;
-  border-color: var(--c-border-strong);
   border-radius: var(--radius-md);
 }
 
@@ -127,8 +118,7 @@ const { t } = useI18n()
 .conversation-filter label {
   color: var(--c-text-secondary);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .04em;
+  font-weight: 600;
 }
 
 .conversation-filter :deep(.ant-select),
@@ -146,6 +136,8 @@ const { t } = useI18n()
   flex: 0 0 auto;
   width: 6px;
   height: 6px;
+  border-radius: 50%;
+  background: var(--c-success);
 }
 
 @media (max-width: 680px) {

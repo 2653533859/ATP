@@ -2,7 +2,6 @@
   <section class="diagnosis-result">
     <div class="diagnosis-heading">
       <div>
-        <span class="section-kicker">{{ t('hermes.diagnosis_kicker') }}</span>
         <h2>{{ t('hermes.diagnosis_title') }}</h2>
       </div>
       <a-tag :color="diagnosis.result.status === 'done' ? 'green' : 'orange'">{{ diagnosis.result.source }}</a-tag>
@@ -41,23 +40,21 @@ const { t } = useI18n()
 
 <style scoped>
 .diagnosis-result {
-  padding: 22px 24px;
+  padding: 20px 24px;
   border: 1px solid var(--c-border);
-  border-left: 4px solid var(--c-error);
+  border-left: 3px solid var(--c-error);
   border-radius: var(--radius-lg);
   background: var(--c-bg-elevated);
   box-shadow: var(--shadow-sm);
 }
 
 .diagnosis-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.section-kicker { color: var(--c-ai); }
 
 h2 {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--c-text);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -.02em;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .diagnosis-summary { margin: 12px 0 0; color: var(--c-text-secondary); line-height: 1.6; font-size: 13px; }
@@ -70,7 +67,7 @@ h2 {
 .source-label { color: var(--c-text-tertiary); font-size: 11px; }
 .source-link { display: inline-flex; gap: 5px; align-items: center; padding: 0; color: var(--c-primary); font-size: 12px; font-weight: 600; border: 0; cursor: pointer; background: transparent; }
 .source-link:hover { color: var(--c-primary); }
-button:focus-visible { outline: 2px solid var(--c-ai); outline-offset: 2px; }
+button:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
 
 @media (max-width: 680px) {
   .diagnosis-result { padding-right: 16px; padding-left: 16px; }

@@ -2,13 +2,12 @@
   <section class="conversation-card" aria-live="polite">
     <header class="conversation-header">
       <div>
-        <span class="section-kicker">HERMES / PROJECT COPILOT</span>
         <h2>{{ t('hermes.conversation_title') }}</h2>
       </div>
-      <a-tag color="green"><span class="tag-dot" /> {{ t('hermes.data_bound') }}</a-tag>
+      <a-tag><span class="tag-dot" /> {{ t('hermes.data_bound') }}</a-tag>
     </header>
 
-    <div class="message-list" role="log" :aria-label="t('hermes.message_list_aria')">
+    <div ref="messageListEl" class="message-list" role="log" :aria-label="t('hermes.message_list_aria')">
       <article v-for="item in messages" :key="item.id" class="message" :class="`message-${item.role}`">
         <div class="message-avatar" aria-hidden="true">
           <span v-if="item.role === 'assistant'">H</span>
@@ -59,10 +58,15 @@
               {{ source.label }} <ArrowRightOutlined />
             </button>
           </div>
-          <a-space v-if="item.role === 'assistant' && item.backendIndex != null && item.backendMessageId" size="small">
-            <a-button type="text" size="small" @click="emit('rate-message', item, 'helpful')">{{ t('hermes.helpful') }}</a-button>
-            <a-button type="text" size="small" @click="emit('rate-message', item, 'not_helpful')">{{ t('hermes.not_helpful') }}</a-button>
-          </a-space>
+          <div v-if="item.role === 'assistant'" class="message-actions">
+            <a-space v-if="item.backendIndex != null && item.backendMessageId" size="small">
+              <a-button type="text" size="small" @click="emit('rate-message', item, 'helpful')">{{ t('hermes.helpful') }}</a-button>
+              <a-button type="text" size="small" @click="emit('rate-message', item, 'not_helpful')">{{ t('hermes.not_helpful') }}</a-button>
+            </a-space>
+            <button type="button" class="copy-action" @click="copyMessage(item)">
+              {{ copiedId === item.id ? t('hermes.copied') : t('hermes.copy') }}
+            </button>
+          </div>
         </div>
       </article>
       <div v-if="diagnosing" class="thinking-row">
@@ -76,7 +80,6 @@
     </div>
 
     <div class="prompt-stations">
-      <span class="section-kicker">{{ t('hermes.prompt_kicker') }}</span>
       <div class="prompt-grid">
         <button
           v-for="prompt in promptOptions"
@@ -86,8 +89,7 @@
           :disabled="busy"
           @click="emit('ask-prompt', prompt.key)"
         >
-          <span class="prompt-icon" :class="`prompt-icon-${prompt.key}`">{{ prompt.mark }}</span>
-          <span>
+          <span class="prompt-copy">
             <strong>{{ prompt.title }}</strong>
             <small>{{ prompt.description }}</small>
           </span>
@@ -112,14 +114,14 @@
         </a-button>
       </div>
     </form>
-    <p class="composer-note"><BulbOutlined /> {{ t('hermes.composer_note') }}</p>
+    <p class="composer-note">{{ t('hermes.composer_note') }}</p>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowRightOutlined, BulbOutlined } from '@ant-design/icons-vue'
+import { ArrowRightOutlined } from '@ant-design/icons-vue'
 import type { HermesMessage, HermesPromptKey, HermesPromptOption, HermesSource } from './hermesPanelTypes'
 import { renderMarkdown } from '@/utils/markdown'
 
@@ -142,6 +144,71 @@ const emit = defineEmits<{
 const inputText = defineModel<string>('inputText', { required: true })
 const { t } = useI18n()
 const busy = computed(() => props.loading || props.diagnosing || props.querying)
+const messageListEl = ref<HTMLElement | null>(null)
+const copiedId = ref<HermesMessage['id'] | null>(null)
+let copiedTimer: number | undefined
+
+async function copyMessage(item: HermesMessage) {
+  const text = item.text
+  let ok = false
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      ok = true
+    } catch {
+      ok = false
+    }
+  }
+  if (!ok) ok = copyViaFallback(text)
+  if (copiedTimer) window.clearTimeout(copiedTimer)
+  if (!ok) {
+    copiedId.value = null
+    return
+  }
+  copiedId.value = item.id
+  copiedTimer = window.setTimeout(() => {
+    copiedId.value = null
+  }, 1500)
+}
+
+function copyViaFallback(text: string) {
+  const area = document.createElement('textarea')
+  area.value = text
+  area.setAttribute('readonly', '')
+  area.style.position = 'fixed'
+  area.style.top = '-9999px'
+  document.body.appendChild(area)
+  area.select()
+  let ok = false
+  try {
+    ok = document.execCommand('copy')
+  } catch {
+    ok = false
+  }
+  document.body.removeChild(area)
+  return ok
+}
+
+function scrollToBottom() {
+  if (messageListEl.value) messageListEl.value.scrollTop = messageListEl.value.scrollHeight
+}
+
+watch(
+  () => [props.messages.length, props.diagnosing, props.querying],
+  async () => {
+    await nextTick()
+    scrollToBottom()
+  },
+)
+
+onMounted(async () => {
+  await nextTick()
+  scrollToBottom()
+})
+
+onBeforeUnmount(() => {
+  if (copiedTimer) window.clearTimeout(copiedTimer)
+})
 
 function submitMessage() {
   if (!busy.value && inputText.value.trim()) emit('submit')
@@ -182,15 +249,11 @@ function formatTime(value?: string | null) {
   border-bottom: 1px solid var(--c-border);
 }
 
-
-.section-kicker { color: var(--c-ai); }
-
 h2 {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--c-text);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -.02em;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .conversation-header :deep(.ant-tag) {
@@ -199,39 +262,45 @@ h2 {
   gap: 7px;
   margin: 0;
   border-radius: var(--radius-full);
+  color: var(--c-text-secondary);
+}
+
+.tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-success);
 }
 
 .message-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: clamp(220px, 34vh, 400px);
-  min-height: 220px;
+  height: clamp(320px, 46vh, 560px);
+  min-height: 280px;
   padding: 18px 20px;
   overflow: auto;
   background: var(--c-bg-subtle);
 }
 
-.message { display: flex; gap: 12px; max-width: 90%; }
+.message { display: flex; gap: 12px; max-width: 92%; }
 .message-user { align-self: flex-end; flex-direction: row-reverse; }
 
 .message-avatar {
   display: grid;
-  flex: 0 0 32px;
+  flex: 0 0 30px;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  color: #fff;
+  width: 30px;
+  height: 30px;
+  color: var(--c-primary);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #40ebe3 0%, #4a51ff 100%);
-  box-shadow: 0 2px 8px rgba(127, 105, 255, .35);
+  background: var(--c-primary-soft);
 }
-
 .message-user .message-avatar {
-  background: linear-gradient(135deg, #5a4bfe, #897eff);
-  box-shadow: 0 2px 8px rgba(90, 75, 254, .35);
+  color: var(--c-text-secondary);
+  background: var(--c-bg-muted);
 }
 
 .message-body { min-width: 0; }
@@ -250,14 +319,13 @@ h2 {
 .message-text,
 .markdown-body {
   margin-bottom: 0;
-  padding: 12px 16px;
+  padding: 10px 14px;
   color: var(--c-text);
   line-height: 1.65;
   font-size: 13px;
   border: 1px solid var(--c-border);
-  border-radius: 4px 16px 16px 16px;
+  border-radius: var(--radius-md);
   background: var(--c-bg-elevated);
-  box-shadow: var(--shadow-xs);
   word-break: break-word;
 }
 
@@ -315,7 +383,6 @@ h2 {
 
 .message-user .message-text {
   border-color: var(--c-primary-glow);
-  border-radius: 16px 4px 16px 16px;
   background: var(--c-primary-soft);
 }
 
@@ -332,8 +399,8 @@ h2 {
   background: var(--c-primary-soft);
 }
 
-.message-tool-chain { margin-top: 9px; color: var(--c-text-tertiary); font-size: 10px; }
-.tool-chain-label { color: var(--c-ai); font-family: 'JetBrains Mono', monospace; letter-spacing: .04em; text-transform: uppercase; }
+.message-tool-chain { margin-top: 9px; color: var(--c-text-tertiary); font-size: 11px; }
+.tool-chain-label { color: var(--c-text-tertiary); font-family: 'JetBrains Mono', monospace; }
 .tool-chain-step { display: inline-block; margin: 4px 4px 0 0; padding: 3px 7px; border: 1px solid var(--c-border); border-radius: var(--radius-full); background: var(--c-bg-subtle); }
 .tool-chain-step small { display: block; max-width: 360px; margin-top: 2px; color: var(--c-text-secondary); font-size: 10px; white-space: normal; }
 .message-task-list { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
@@ -352,7 +419,7 @@ h2 {
   border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
   background: var(--c-bg-elevated);
-  transition: all .15s ease;
+  transition: border-color .15s ease;
 }
 
 .message-task:hover,
@@ -362,42 +429,43 @@ h2 {
 .source-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .source-label { color: var(--c-text-tertiary); font-size: 11px; }
 .source-link { display: inline-flex; gap: 5px; align-items: center; padding: 0; color: var(--c-primary); font-size: 12px; font-weight: 600; }
-.thinking-row { display: flex; align-items: center; gap: 9px; margin-left: 44px; color: var(--c-text-secondary); font-size: 12px; }
+.message-actions { display: flex; align-items: center; gap: 4px; margin-top: 4px; margin-left: -8px; }
+.copy-action { padding: 4px 8px; color: var(--c-text-tertiary); font-size: 12px; border: 0; border-radius: var(--radius-sm); cursor: pointer; background: transparent; }
+.copy-action:hover { color: var(--c-primary); }
+.thinking-row { display: flex; align-items: center; gap: 9px; margin-left: 42px; color: var(--c-text-secondary); font-size: 12px; }
 
 .thinking-pulse {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--c-ai);
+  background: var(--c-primary);
   animation: pulse 1.1s ease-in-out infinite;
 }
 
-.prompt-stations { border-top: 1px solid var(--c-border); padding: 12px 22px; }
-.prompt-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0; }
+.prompt-stations { border-top: 1px solid var(--c-border); }
+.prompt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
 .prompt-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 10px 12px;
   color: var(--c-text);
   text-align: left;
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   cursor: pointer;
   background: var(--c-bg-elevated);
-  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  transition: border-color .15s ease, background .15s ease;
 }
 
-.prompt-card:hover:not(:disabled) { border-color: var(--c-ai); background: var(--c-bg-subtle); }
+.prompt-card:hover:not(:disabled) { border-color: var(--c-primary); background: var(--c-bg-subtle); }
 .prompt-card:disabled { cursor: wait; opacity: .55; }
-.prompt-icon { display: grid; place-items: center; width: 20px; height: 20px; color: var(--c-text-secondary); font-size: 11px; font-weight: 600; border-radius: 4px; background: var(--c-bg-subtle); }
-.prompt-icon-explain_failure, .prompt-icon-test_plan, .prompt-icon-quality { background: var(--c-bg-subtle); }
-.prompt-card strong, .prompt-card small { display: block; }
-.prompt-card strong { font-size: 12px; font-weight: 600; }
-.prompt-card small { display: none; }
+.prompt-copy strong { display: block; font-size: 12px; font-weight: 600; }
+.prompt-copy small { display: block; margin-top: 2px; color: var(--c-text-tertiary); font-size: 11px; line-height: 1.4; }
 .prompt-card > .anticon { color: var(--c-text-tertiary); }
+
 .composer { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--c-border); }
 
 .composer :deep(textarea) {
@@ -412,15 +480,15 @@ h2 {
   border-radius: var(--radius-md);
   outline: none;
   background: var(--c-bg-elevated);
-  transition: border-color .18s ease, box-shadow .18s ease;
+  transition: border-color .18s ease;
 }
 
-.composer :deep(textarea:focus) { border-color: var(--c-ai); box-shadow: 0 0 0 3px var(--c-ai-soft); }
+.composer :deep(textarea:focus) { border-color: var(--c-primary); }
 .composer-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
 .composer-actions > span { font-size: 11px; color: var(--c-text-tertiary); }
 .composer .ant-btn { flex-shrink: 0; border-radius: var(--radius-md); }
-.composer-note { margin: -6px 24px 16px; color: var(--c-text-tertiary); font-size: 11px; }
-button:focus-visible, :deep(textarea:focus-visible), summary:focus-visible { outline: 2px solid var(--c-ai); outline-offset: 2px; }
+.composer-note { margin: -2px 20px 14px; color: var(--c-text-tertiary); font-size: 11px; }
+button:focus-visible, :deep(textarea:focus-visible), summary:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
 .message-tool-chain > summary { cursor: pointer; font-size: 11px; color: var(--c-text-tertiary); }
 .message-tool-chain[open] > summary { margin-bottom: 6px; }
 
