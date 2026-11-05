@@ -4,7 +4,10 @@
       <div class="toolbar-left">
         <div class="toolbar-identity">
           <RobotOutlined class="toolbar-icon" />
-          <span class="toolbar-name">{{ t('ai_workbench.title') }}</span>
+          <div class="toolbar-copy">
+            <span class="toolbar-name">{{ t('ai_workbench.title') }}</span>
+            <span class="toolbar-subtitle">{{ t('ai_workbench.subtitle') }}</span>
+          </div>
         </div>
         <div class="toolbar-project">
           <label class="sr-only">{{ t('ai_workbench.project_label') }}</label>
@@ -17,19 +20,18 @@
             :placeholder="t('ai_workbench.project_placeholder')"
             @change="handleProjectChange"
           />
-        </div>
-        <div class="toolbar-status">
-          <span class="live-dot" :class="{ muted: modelState === 'unconfigured' }" />
-          <span>{{ modelStatusLabel }}</span>
-          <span v-if="selectedProjectName" class="project-pill-tag">{{ selectedProjectName }}</span>
+          <span class="model-status">
+            <span class="status-dot" :class="`state-${modelState}`" />
+            <span>{{ modelStatusLabel }}</span>
+          </span>
         </div>
       </div>
 
       <div class="toolbar-right">
-        <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshWorkbench">
+        <a-button size="small" :loading="loading" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
-        <a-button v-if="isAdmin" size="small" class="toolbar-btn" @click="openModelConfig">
+        <a-button v-if="isAdmin" size="small" @click="openModelConfig">
           <SettingOutlined /> {{ t('ai_workbench.model_config') }}
         </a-button>
       </div>
@@ -52,195 +54,160 @@
       :description="loadError"
     />
     <a-empty v-if="!selectedProjectId" class="project-empty" :description="t('ai_workbench.select_project_hint')" />
-
     <template v-else>
-      <section class="signal-grid" :aria-label="t('ai_workbench.summary_aria')">
-        <div class="signal-card signal-card-violet">
-          <span class="signal-label">{{ t('ai_workbench.signals.context_assets') }}</span>
-          <strong>{{ contextAssetCount }}</strong>
-          <span class="signal-note">{{ t('ai_workbench.signals.context_note', { datasets: datasets.length, mocks: mockRules.length }) }}</span>
+      <section class="stat-strip" :aria-label="t('ai_workbench.summary_aria')">
+        <div class="stat-card">
+          <span class="stat-label">{{ t('ai_workbench.signals.context_assets') }}</span>
+          <strong class="stat-value">{{ contextAssetCount }}</strong>
+          <span class="stat-note">{{ t('ai_workbench.signals.context_note', { datasets: datasets.length, mocks: mockRules.length }) }}</span>
         </div>
-        <div class="signal-card signal-card-blue">
-          <span class="signal-label">{{ t('ai_workbench.signals.generated_drafts') }}</span>
-          <strong>{{ generatedDraftLabel }}</strong>
-          <span class="signal-note">{{ generationNote }}</span>
+        <div class="stat-card">
+          <span class="stat-label">{{ t('ai_workbench.signals.generated_drafts') }}</span>
+          <strong class="stat-value">{{ generatedDraftLabel }}</strong>
+          <span class="stat-note">{{ generationNote }}</span>
         </div>
-        <div class="signal-card signal-card-amber">
-          <span class="signal-label">{{ t('ai_workbench.signals.coverage_gaps') }}</span>
-          <strong>{{ coverageGapCount }}</strong>
-          <span class="signal-note">{{ t('ai_workbench.signals.coverage_note') }}</span>
+        <div class="stat-card">
+          <span class="stat-label">{{ t('ai_workbench.signals.coverage_gaps') }}</span>
+          <strong class="stat-value">{{ coverageGapCount }}</strong>
+          <span class="stat-note">{{ t('ai_workbench.signals.coverage_note') }}</span>
         </div>
-        <div class="signal-card signal-card-green">
-          <span class="signal-label">{{ t('ai_workbench.signals.run_quality') }}</span>
-          <strong>{{ passRate }}%</strong>
-          <span class="signal-note">{{ t('ai_workbench.signals.run_quality_note', { count: overview?.total_runs ?? 0 }) }}</span>
-        </div>
-      </section>
-
-      <section class="context-rail panel">
-        <div class="context-rail-heading">
-          <div>
-            <div class="panel-kicker">{{ t('ai_workbench.context_kicker') }}</div>
-            <h2>{{ t('ai_workbench.context_title') }}</h2>
-          </div>
-          <span class="context-rail-note"><SafetyCertificateOutlined /> {{ t('ai_workbench.context_note') }}</span>
-        </div>
-        <div class="context-chip-row">
-          <span class="context-chip" :class="{ empty: modelState === 'unconfigured' }"><BulbOutlined /> {{ modelStatusLabel }}</span>
-          <span class="context-chip"><DatabaseOutlined /> {{ t('ai_workbench.dataset_chip', { count: datasets.length }) }}</span>
-          <span class="context-chip"><BranchesOutlined /> {{ t('ai_workbench.mock_chip', { count: mockRules.length }) }}</span>
-          <span class="context-chip"><AppstoreOutlined /> {{ t('ai_workbench.module_chip', { count: flatModules.length }) }}</span>
+        <div class="stat-card">
+          <span class="stat-label">{{ t('ai_workbench.signals.run_quality') }}</span>
+          <strong class="stat-value">{{ passRate }}%</strong>
+          <span class="stat-note">{{ t('ai_workbench.signals.run_quality_note', { count: overview?.total_runs ?? 0 }) }}</span>
         </div>
       </section>
 
-      <section class="ai-grid">
-        <aside class="prompt-panel panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-kicker">{{ t('ai_workbench.generation_kicker') }}</div>
+      <section class="workbench-grid">
+        <div class="workbench-main">
+          <section class="panel generation-panel">
+            <div class="panel-head">
               <h2>{{ t('ai_workbench.generation_title') }}</h2>
             </div>
-            <span class="panel-index">01</span>
-          </div>
-          <p class="panel-description">{{ t('ai_workbench.generation_description') }}</p>
-          <div class="generation-list">
-            <button
-              type="button"
-              class="generation-card generation-card-violet"
-              :disabled="!canGenerate || !firstModuleId"
-              @click="openCaseGeneration"
-            >
-              <span class="generation-icon"><FileSearchOutlined /></span>
-              <span class="generation-copy">
+            <div class="generation-list">
+              <button
+                type="button"
+                class="generation-card"
+                :disabled="!canGenerate || !firstModuleId"
+                @click="openCaseGeneration"
+              >
+                <span class="generation-top">
+                  <span class="generation-icon"><FileSearchOutlined /></span>
+                  <ArrowRightOutlined class="generation-arrow" />
+                </span>
                 <strong>{{ t('ai_workbench.generate_cases') }}</strong>
                 <small>{{ firstModuleId ? t('ai_workbench.generate_cases_hint') : t('ai_workbench.no_module_hint') }}</small>
-              </span>
-              <ArrowRightOutlined class="generation-arrow" />
-            </button>
-            <button
-              type="button"
-              class="generation-card generation-card-blue"
-              :disabled="!canGenerate"
-              @click="openDatasetGeneration"
-            >
-              <span class="generation-icon"><DatabaseOutlined /></span>
-              <span class="generation-copy">
+              </button>
+              <button type="button" class="generation-card" :disabled="!canGenerate" @click="openDatasetGeneration">
+                <span class="generation-top">
+                  <span class="generation-icon"><DatabaseOutlined /></span>
+                  <ArrowRightOutlined class="generation-arrow" />
+                </span>
                 <strong>{{ t('ai_workbench.generate_dataset') }}</strong>
                 <small>{{ t('ai_workbench.generate_dataset_hint') }}</small>
-              </span>
-              <ArrowRightOutlined class="generation-arrow" />
-            </button>
-            <button
-              type="button"
-              class="generation-card generation-card-green"
-              :disabled="!canGenerate"
-              @click="openMockGeneration"
-            >
-              <span class="generation-icon"><BranchesOutlined /></span>
-              <span class="generation-copy">
+              </button>
+              <button type="button" class="generation-card" :disabled="!canGenerate" @click="openMockGeneration">
+                <span class="generation-top">
+                  <span class="generation-icon"><BranchesOutlined /></span>
+                  <ArrowRightOutlined class="generation-arrow" />
+                </span>
                 <strong>{{ t('ai_workbench.generate_mock') }}</strong>
                 <small>{{ t('ai_workbench.generate_mock_hint') }}</small>
-              </span>
-              <ArrowRightOutlined class="generation-arrow" />
-            </button>
-          </div>
-          <div class="draft-note"><CheckCircleOutlined /> {{ t('ai_workbench.draft_note') }}</div>
-        </aside>
-
-        <main class="signal-panel panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-kicker">{{ t('ai_workbench.signal_kicker') }}</div>
-              <h2>{{ t('ai_workbench.signal_title') }}</h2>
+              </button>
             </div>
-            <span class="period-chip">{{ t('ai_workbench.last_30_days') }}</span>
-          </div>
-          <p class="panel-description">{{ t('ai_workbench.signal_description') }}</p>
-          <div v-if="funnel" class="funnel-grid">
-            <div v-for="item in funnelItems" :key="item.key" class="funnel-item">
-              <div class="funnel-item-head"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div>
-              <div class="funnel-track"><span :style="{ width: `${funnelWidth(item.value)}%` }" /></div>
+            <div class="context-meta">
+              <span>{{ t('ai_workbench.dataset_chip', { count: datasets.length }) }}</span>
+              <span>{{ t('ai_workbench.mock_chip', { count: mockRules.length }) }}</span>
+              <span>{{ t('ai_workbench.module_chip', { count: flatModules.length }) }}</span>
             </div>
-          </div>
-          <div v-else class="restricted-panel">
-            <LockOutlined />
-            <span>{{ isAdmin ? t('ai_workbench.signal_unavailable') : t('ai_workbench.admin_signal_hint') }}</span>
-          </div>
-          <div class="hotspot-heading">
-            <span>{{ t('ai_workbench.hotspot_title') }}</span>
-            <a-button type="link" size="small" @click="openRuns">{{ t('ai_workbench.view_runs') }} →</a-button>
-          </div>
-          <div v-if="failureTop.length" class="hotspot-list">
-            <button v-for="item in failureTop.slice(0, 4)" :key="`${item.case_id}-${item.case_type}`" type="button" class="hotspot-row" @click="openCases">
-              <span class="hotspot-rank">{{ item.failure_count }}</span>
-              <span class="hotspot-copy"><strong>{{ item.case_name }}</strong><small>{{ item.case_type }} · {{ t('ai_workbench.failure_count', { count: item.failure_count }) }}</small></span>
-              <ArrowRightOutlined />
-            </button>
-          </div>
-          <a-empty v-else :description="t('ai_workbench.no_hotspots')" />
-        </main>
+            <div class="draft-note"><CheckCircleOutlined /> {{ t('ai_workbench.draft_note') }}</div>
+          </section>
 
-        <aside class="context-panel panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-kicker">{{ t('ai_workbench.model_kicker') }}</div>
-              <h2>{{ t('ai_workbench.model_title') }}</h2>
-            </div>
-            <span class="model-state-dot" :class="`state-${modelState}`" />
-          </div>
-          <div class="model-card" :class="`model-${modelState}`">
-            <span class="model-label">{{ t('ai_workbench.project_model') }}</span>
-            <strong>{{ modelName }}</strong>
-            <small>{{ modelDescription }}</small>
-          </div>
-          <div class="context-stat-list">
-            <div><span>{{ t('ai_workbench.context_dataset') }}</span><strong>{{ datasets.length }}</strong></div>
-            <div><span>{{ t('ai_workbench.context_mock') }}</span><strong>{{ mockRules.length }}</strong></div>
-            <div><span>{{ t('ai_workbench.context_modules') }}</span><strong>{{ flatModules.length }}</strong></div>
-          </div>
-          <a-button v-if="isAdmin" type="link" class="context-action" @click="openModelConfig">{{ t('ai_workbench.manage_model') }} →</a-button>
-          <p class="context-footnote">{{ t('ai_workbench.model_scope_note') }}</p>
-        </aside>
-      </section>
-
-      <section class="lower-grid">
-        <main class="failure-panel panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-kicker">{{ t('ai_workbench.diagnosis_kicker') }}</div>
+          <section class="panel failure-panel">
+            <div class="panel-head">
               <h2>{{ t('ai_workbench.diagnosis_title') }}</h2>
+              <a-button type="link" size="small" class="panel-link" @click="openRuns">{{ t('ai_workbench.open_task_center') }} →</a-button>
             </div>
-            <a-button type="link" size="small" @click="openRuns">{{ t('ai_workbench.open_task_center') }} →</a-button>
-          </div>
-          <p class="panel-description">{{ t('ai_workbench.diagnosis_description') }}</p>
-          <div v-if="failedTasks.length" class="failure-list">
-            <div v-for="task in failedTasks.slice(0, 6)" :key="task.id" class="failure-row">
-              <span class="failure-icon"><WarningOutlined /></span>
-              <div class="failure-copy"><strong>{{ task.name }}</strong><small>{{ task.task_type }} · {{ formatTime(task.created_at) }}</small></div>
-              <span class="failure-message">{{ task.error_message || t('ai_workbench.failure_without_message') }}</span>
-              <a-button size="small" @click="openTask(task)">{{ t('ai_workbench.open_diagnosis') }}</a-button>
+            <div v-if="failedTasks.length" class="failure-list">
+              <div v-for="task in failedTasks.slice(0, 6)" :key="task.id" class="failure-row">
+                <WarningOutlined class="failure-icon" />
+                <div class="failure-copy">
+                  <strong>{{ task.name }}</strong>
+                  <small>{{ task.task_type }} · {{ formatTime(task.created_at) }}</small>
+                </div>
+                <span class="failure-message">{{ task.error_message || t('ai_workbench.failure_without_message') }}</span>
+                <a-button size="small" @click="openTask(task)">{{ t('ai_workbench.open_diagnosis') }}</a-button>
+              </div>
             </div>
-          </div>
-          <a-empty v-else :description="t('ai_workbench.no_failures')" />
-        </main>
+            <a-empty v-else :description="t('ai_workbench.no_failures')" />
+          </section>
+        </div>
 
-        <aside class="healing-panel panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-kicker">{{ t('ai_workbench.healing_kicker') }}</div>
+        <aside class="workbench-side">
+          <section class="panel model-panel">
+            <div class="panel-head">
+              <h2>{{ t('ai_workbench.model_title') }}</h2>
+              <span class="status-dot" :class="`state-${modelState}`" />
+            </div>
+            <div class="model-card">
+              <span class="model-label">{{ t('ai_workbench.project_model') }}</span>
+              <strong>{{ modelName }}</strong>
+              <small>{{ modelDescription }}</small>
+            </div>
+            <a-button v-if="isAdmin" type="link" size="small" class="panel-link" @click="openModelConfig">{{ t('ai_workbench.manage_model') }} →</a-button>
+            <p class="panel-footnote">{{ t('ai_workbench.model_scope_note') }}</p>
+          </section>
+
+          <section class="panel signal-panel">
+            <div class="panel-head">
+              <h2>{{ t('ai_workbench.signal_title') }}</h2>
+              <span class="period-note">{{ t('ai_workbench.last_30_days') }}</span>
+            </div>
+            <div v-if="funnel" class="funnel-grid">
+              <div v-for="item in funnelItems" :key="item.key" class="funnel-item">
+                <div class="funnel-item-head"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div>
+                <div class="funnel-track"><span :style="{ width: `${funnelWidth(item.value)}%` }" /></div>
+              </div>
+            </div>
+            <div v-else class="restricted-panel">
+              <LockOutlined />
+              <span>{{ isAdmin ? t('ai_workbench.signal_unavailable') : t('ai_workbench.admin_signal_hint') }}</span>
+            </div>
+            <div class="hotspot-heading">
+              <span>{{ t('ai_workbench.hotspot_title') }}</span>
+              <a-button type="link" size="small" class="panel-link" @click="openRuns">{{ t('ai_workbench.view_runs') }} →</a-button>
+            </div>
+            <div v-if="failureTop.length" class="hotspot-list">
+              <button v-for="item in failureTop.slice(0, 4)" :key="`${item.case_id}-${item.case_type}`" type="button" class="hotspot-row" @click="openCases">
+                <span class="hotspot-rank">{{ item.failure_count }}</span>
+                <span class="hotspot-copy"><strong>{{ item.case_name }}</strong><small>{{ item.case_type }}</small></span>
+                <ArrowRightOutlined />
+              </button>
+            </div>
+            <a-empty v-else :description="t('ai_workbench.no_hotspots')" />
+          </section>
+
+          <section class="panel healing-panel">
+            <div class="panel-head">
               <h2>{{ t('ai_workbench.healing_title') }}</h2>
             </div>
-            <ExperimentOutlined />
-          </div>
-          <p class="panel-description">{{ t('ai_workbench.healing_description') }}</p>
-          <template v-if="healingStats">
-            <div class="healing-rate"><strong>{{ healingStats.adopted_rate }}%</strong><span>{{ t('ai_workbench.adopted_rate') }}</span></div>
-            <div class="healing-meter"><span :style="{ width: `${Math.min(100, Math.max(0, healingStats.adopted_rate))}%` }" /></div>
-            <div class="healing-counts"><span>{{ t('ai_workbench.adopted_count', { count: healingStats.adopted_count }) }}</span><span>{{ t('ai_workbench.example_count', { count: healingStats.high_quality_example_count }) }}</span></div>
-            <a-button v-if="isAdmin" type="link" class="context-action" @click="openHealingStats">{{ t('ai_workbench.open_healing_stats') }} →</a-button>
-            <a-button v-if="isAdmin" type="link" class="context-action" @click="openHealingExamples">{{ t('ai_workbench.open_healing_examples') }} →</a-button>
-          </template>
-          <div v-else class="restricted-panel healing-restricted"><LockOutlined /><span>{{ isAdmin ? t('ai_workbench.healing_unavailable') : t('ai_workbench.admin_signal_hint') }}</span></div>
+            <template v-if="healingStats">
+              <div class="healing-rate"><strong>{{ healingStats.adopted_rate }}%</strong><span>{{ t('ai_workbench.adopted_rate') }}</span></div>
+              <div class="healing-meter"><span :style="{ width: `${Math.min(100, Math.max(0, healingStats.adopted_rate))}%` }" /></div>
+              <div class="healing-counts">
+                <span>{{ t('ai_workbench.adopted_count', { count: healingStats.adopted_count }) }}</span>
+                <span>{{ t('ai_workbench.example_count', { count: healingStats.high_quality_example_count }) }}</span>
+              </div>
+              <div v-if="isAdmin" class="healing-links">
+                <a-button type="link" size="small" class="panel-link" @click="openHealingStats">{{ t('ai_workbench.open_healing_stats') }} →</a-button>
+                <a-button type="link" size="small" class="panel-link" @click="openHealingExamples">{{ t('ai_workbench.open_healing_examples') }} →</a-button>
+              </div>
+            </template>
+            <div v-else class="restricted-panel">
+              <LockOutlined />
+              <span>{{ isAdmin ? t('ai_workbench.healing_unavailable') : t('ai_workbench.admin_signal_hint') }}</span>
+            </div>
+          </section>
         </aside>
       </section>
     </template>
@@ -251,18 +218,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
-  AppstoreOutlined,
   ArrowRightOutlined,
   BranchesOutlined,
-  BulbOutlined,
   CheckCircleOutlined,
   DatabaseOutlined,
-  ExperimentOutlined,
   FileSearchOutlined,
   LockOutlined,
   ReloadOutlined,
   RobotOutlined,
-  SafetyCertificateOutlined,
   SettingOutlined,
   WarningOutlined,
 } from '@ant-design/icons-vue'
@@ -328,7 +291,6 @@ let projectsLoadSequence = 0
 
 const projectOptions = computed(() => projects.value.map((project) => ({ label: project.name, value: project.id })))
 const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
-const selectedProjectName = computed(() => selectedProject.value?.name || '')
 const isAdmin = computed(() => auth.user?.role === 'admin')
 const canModify = computed(() => canEditProjectByRole(auth.user?.role, selectedProject.value?.current_user_role))
 const canGenerate = computed(() => canModify.value && !['unconfigured', 'disabled'].includes(modelState.value))
@@ -546,25 +508,30 @@ onMounted(() => { void loadProjects() })
 </script>
 
 <style scoped>
-.ai-workbench { --ai-ink: var(--c-text); --ai-muted: var(--c-text-secondary); --ai-line: var(--c-border); --ai-panel: var(--c-bg-elevated); --ai-violet: var(--c-primary); --ai-blue: var(--c-info); --ai-green: var(--c-success); --ai-amber: var(--c-warning); --ai-red: var(--c-error); color: var(--ai-ink); }
+.ai-workbench {
+  color: var(--c-text);
+}
+
+/* 工具栏 */
 .ai-toolbar {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  height: 48px;
-  padding: 0 16px;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: 12px 16px;
   background: var(--c-bg-elevated);
-  border: 1px solid var(--ai-line);
-  border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  margin-bottom: 14px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
 }
 
 .toolbar-left {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   min-width: 0;
   flex: 1;
 }
@@ -572,40 +539,77 @@ onMounted(() => { void loadProjects() })
 .toolbar-identity {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 10px;
 }
 
 .toolbar-icon {
-  font-size: 16px;
+  padding: 7px;
+  font-size: 17px;
   color: var(--c-primary);
   background: var(--c-primary-soft);
-  padding: 5px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
+}
+
+.toolbar-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 
 .toolbar-name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
+  line-height: 1.3;
   color: var(--c-text);
 }
 
-.toolbar-sep {
+.toolbar-subtitle {
+  max-width: 560px;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--c-text-tertiary);
-  font-size: 13px;
+}
+
+.toolbar-project {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .project-select-dropdown {
   width: 200px;
 }
 
-.toolbar-status {
-  display: flex;
+.model-status {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   color: var(--c-text-secondary);
-  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-text-tertiary);
+}
+
+.status-dot.state-ready {
+  background: var(--c-success);
+}
+
+.status-dot.state-disabled,
+.status-dot.state-unconfigured {
+  background: var(--c-error);
+}
+
+.status-dot.state-unknown {
+  background: var(--c-warning);
 }
 
 .toolbar-right {
@@ -613,13 +617,6 @@ onMounted(() => { void loadProjects() })
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.toolbar-btn {
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .sr-only {
@@ -633,37 +630,537 @@ onMounted(() => { void loadProjects() })
   border: 0;
 }
 
-.live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 4px rgba(34, 197, 94, .14); }
-.live-dot.muted { background: #ef9a62; box-shadow: 0 0 0 4px rgba(239, 154, 98, .12); }
-.readonly-alert, .load-alert { margin-top: 14px; }.signal-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }.signal-card { min-height: 106px; padding: 17px 18px; border: 1px solid var(--ai-line); border-radius: 10px; background: var(--ai-panel); box-shadow: 0 7px 18px rgba(49, 46, 64, .045); }.signal-card-violet { border-top: 3px solid var(--ai-violet); }.signal-card-blue { border-top: 3px solid var(--ai-blue); }.signal-card-amber { border-top: 3px solid var(--ai-amber); }.signal-card-green { border-top: 3px solid var(--ai-green); }.signal-label { display: block; color: var(--ai-muted); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }.signal-card strong { display: block; margin-top: 8px; font-size: 28px; letter-spacing: -.05em; }.signal-note { display: block; margin-top: 5px; color: #9b9da7; font-size: 11px; }
-.panel { min-width: 0; border: 1px solid var(--ai-line); border-radius: 12px; background: var(--ai-panel); box-shadow: 0 8px 20px rgba(49, 46, 64, .045); }.context-rail { margin-bottom: 14px; padding: 16px 19px; }.context-rail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; }.panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.panel h2 { margin: 5px 0 7px; font-size: 18px; letter-spacing: -.035em; }.panel-description { margin: 0 0 14px; color: var(--ai-muted); font-size: 11px; line-height: 1.65; }.context-rail-note { color: #8f879f; font-size: 10px; }.context-chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }.context-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid #d8d2ec; border-radius: 5px; background: #faf9ff; color: #65558d; font-size: 10px; }.context-chip.empty { border-color: #ebc7c9; background: #fff8f8; color: #b05e64; }.ai-grid { display: grid; grid-template-columns: 285px minmax(0, 1fr) 258px; gap: 14px; align-items: start; }.prompt-panel, .signal-panel, .context-panel, .failure-panel, .healing-panel { padding: 19px; }.panel-index, .period-chip { color: #9a91ad; font-family: ui-monospace, monospace; font-size: 10px; }.generation-list { display: grid; gap: 7px; }.generation-card { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 65px; padding: 10px; border: 1px solid #e8e5ed; border-radius: 8px; background: #faf9fb; color: var(--ai-ink); cursor: pointer; text-align: left; transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease; }.generation-card:hover:not(:disabled), .generation-card:focus-visible:not(:disabled) { transform: translateX(2px); box-shadow: 0 7px 14px rgba(73, 59, 105, .08); }.generation-card:disabled { cursor: not-allowed; opacity: .47; }.generation-card-violet:hover:not(:disabled), .generation-card-violet:focus-visible:not(:disabled) { border-color: #ad9ae2; }.generation-card-blue:hover:not(:disabled), .generation-card-blue:focus-visible:not(:disabled) { border-color: #91bee5; }.generation-card-green:hover:not(:disabled), .generation-card-green:focus-visible:not(:disabled) { border-color: #8acdbd; }.generation-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 27px; height: 27px; border-radius: 6px; background: #eeeafd; color: var(--ai-violet); }.generation-card-blue .generation-icon { background: #eaf4fd; color: var(--ai-blue); }.generation-card-green .generation-icon { background: #e8f7f2; color: var(--ai-green); }.generation-copy { min-width: 0; flex: 1; }.generation-copy strong, .generation-copy small { display: block; }.generation-copy strong { font-size: 12px; }.generation-copy small { margin-top: 3px; color: var(--ai-muted); font-size: 10px; line-height: 1.4; }.generation-arrow { color: #aaa3b3; font-size: 11px; }.draft-note { display: flex; gap: 6px; margin-top: 14px; padding-top: 11px; border-top: 1px solid #efedf1; color: #7e738f; font-size: 10px; line-height: 1.5; }
-.funnel-grid { display: grid; gap: 13px; margin-top: 20px; }
-.funnel-item-head { display: flex; justify-content: space-between; gap: 10px; color: var(--ai-muted); font-size: 11px; }
-.funnel-item-head strong { color: var(--ai-ink); font-family: ui-monospace, monospace; }
-.funnel-track { height: 8px; margin-top: 6px; overflow: hidden; border-radius: 4px; background: var(--c-bg-subtle); }
-.funnel-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--ai-violet), #af96e7); }
-.funnel-item:nth-child(2) .funnel-track span { background: linear-gradient(90deg, var(--ai-blue), #9ed0f1); }
-.funnel-item:nth-child(3) .funnel-track span { background: linear-gradient(90deg, var(--ai-green), #94d8c7); }
-.restricted-panel { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--c-border); border-radius: 8px; background: var(--c-bg-subtle); }
-.model-state-dot { width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: #b6b1bc; }
-.state-ready { background: var(--ai-green); box-shadow: 0 0 0 4px rgba(69, 170, 150, .12); }
-.state-disabled, .state-unconfigured { background: var(--ai-red); }
-.state-unknown { background: var(--ai-amber); }
-.model-card { display: grid; gap: 5px; margin-top: 12px; padding: 13px; border: 1px solid var(--c-border); border-radius: 8px; background: var(--c-bg-subtle); }
-.model-card.model-ready { border-color: rgba(69, 170, 150, .35); background: var(--c-success-soft); }
-.model-card.model-disabled, .model-card.model-unconfigured { border-color: rgba(206, 108, 114, .35); background: var(--c-error-soft); }
-.model-label { color: var(--ai-muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
-.model-card strong { font-size: 13px; color: var(--c-text); }
-.lower-grid { display: grid; grid-template-columns: minmax(0, 1fr) 285px; gap: 14px; margin-top: 14px; }
-.failure-list { display: grid; gap: 4px; }
-.failure-row { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 9px 0; border-bottom: 1px solid var(--c-border); }
-.failure-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 25px; height: 25px; border-radius: 6px; background: var(--c-warning-soft); color: var(--ai-amber); }
-.failure-copy { min-width: 135px; max-width: 220px; }
-.failure-copy strong, .failure-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.failure-copy strong { font-size: 11px; color: var(--c-text); }
-.failure-copy small { margin-top: 2px; color: var(--ai-muted); font-size: 9px; }
-@media (max-width: 1180px) { .ai-grid { grid-template-columns: 250px minmax(0, 1fr); }.context-panel { grid-column: 1 / -1; }.context-panel .context-stat-list { grid-template-columns: repeat(3, 1fr); }.context-panel .context-footnote { max-width: 660px; } }
-@media (max-width: 840px) { .ai-hero { display: block; }.hero-controls { width: auto; margin-top: 24px; }.hero-control-row { justify-content: flex-start; gap: 18px; }.signal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.ai-grid, .lower-grid { grid-template-columns: 1fr; }.context-panel { grid-column: auto; }.failure-copy { min-width: 110px; max-width: 180px; } }
-@media (max-width: 520px) { .ai-hero { padding: 24px 20px; }.ai-hero h1 { font-size: 26px; }.signal-grid { grid-template-columns: 1fr; }.context-rail-heading { display: block; }.context-rail-note { display: block; margin-top: 7px; }.context-panel .context-stat-list { grid-template-columns: 1fr; }.failure-message { display: none; }.failure-row { flex-wrap: wrap; }.failure-row .ant-btn { margin-left: 34px; } }
-@media (prefers-reduced-motion: reduce) { .generation-card { transition: none; }.generation-card:hover:not(:disabled), .generation-card:focus-visible:not(:disabled) { transform: none; } }
+.readonly-alert,
+.load-alert {
+  margin: 0 0 var(--space-3);
+}
+
+.project-empty {
+  margin: 60px 0;
+}
+
+/* 指标带 */
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.stat-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text-secondary);
+}
+
+.stat-value {
+  display: block;
+  margin-top: 8px;
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--c-text);
+}
+
+.stat-note {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--c-text-tertiary);
+}
+
+/* 双栏工作区 */
+.workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.workbench-main,
+.workbench-side {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.panel {
+  min-width: 0;
+  padding: 18px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.panel-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--c-text);
+}
+
+.panel-link {
+  height: auto;
+  padding: 0;
+  font-size: 12px;
+}
+
+.panel-footnote {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--c-text-tertiary);
+}
+
+.period-note {
+  font-size: 12px;
+  color: var(--c-text-tertiary);
+  white-space: nowrap;
+}
+
+/* 生成通道 */
+.generation-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.generation-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 112px;
+  padding: 14px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  color: var(--c-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.generation-card:hover:not(:disabled),
+.generation-card:focus-visible:not(:disabled) {
+  border-color: var(--c-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.generation-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.generation-card:focus-visible,
+.hotspot-row:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+}
+
+.generation-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.generation-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-size: 15px;
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  border-radius: var(--radius-sm);
+}
+
+.generation-arrow {
+  font-size: 12px;
+  color: var(--c-text-tertiary);
+}
+
+.generation-card strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.generation-card small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-text-tertiary);
+}
+
+.context-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--c-border-subtle);
+  font-size: 12px;
+  color: var(--c-text-secondary);
+}
+
+.draft-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-text-tertiary);
+}
+
+.draft-note .anticon {
+  margin-top: 2px;
+  color: var(--c-success);
+}
+
+/* 信号面板 */
+.funnel-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.funnel-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--c-text-secondary);
+}
+
+.funnel-item-head strong {
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.funnel-track {
+  height: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+  background: var(--c-bg-muted);
+  border-radius: 999px;
+}
+
+.funnel-track span {
+  display: block;
+  height: 100%;
+  background: var(--c-primary);
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.restricted-panel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--c-bg-subtle);
+  border: 1px dashed var(--c-border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-text-secondary);
+}
+
+.restricted-panel .anticon {
+  flex: none;
+  color: var(--c-text-tertiary);
+}
+
+.hotspot-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 16px 0 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--c-border-subtle);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.hotspot-list {
+  display: grid;
+  gap: 6px;
+}
+
+.hotspot-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--c-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.hotspot-row:hover,
+.hotspot-row:focus-visible {
+  border-color: var(--c-border-strong);
+  background: var(--c-bg-elevated);
+}
+
+.hotspot-rank {
+  flex: none;
+  min-width: 20px;
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--c-text-secondary);
+}
+
+.hotspot-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.hotspot-copy strong,
+.hotspot-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hotspot-copy strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.hotspot-copy small {
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+}
+
+.hotspot-row > .anticon {
+  flex: none;
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+}
+
+/* 项目模型 */
+.model-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+}
+
+.model-label {
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+}
+
+.model-card strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  overflow-wrap: anywhere;
+}
+
+.model-card small {
+  font-size: 12px;
+  color: var(--c-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.model-panel .panel-link {
+  margin-top: 10px;
+}
+
+/* 失败诊断 */
+.failure-list {
+  display: grid;
+}
+
+.failure-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--c-border-subtle);
+}
+
+.failure-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.failure-icon {
+  flex: none;
+  font-size: 14px;
+  color: var(--c-warning);
+}
+
+.failure-copy {
+  flex: 0 1 230px;
+  min-width: 0;
+}
+
+.failure-copy strong,
+.failure-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.failure-copy strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.failure-copy small {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--c-text-tertiary);
+}
+
+.failure-message {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--c-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.failure-row .ant-btn {
+  flex: none;
+}
+
+/* 自愈反馈 */
+.healing-rate {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.healing-rate strong {
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--c-text);
+}
+
+.healing-rate span {
+  font-size: 12px;
+  color: var(--c-text-secondary);
+}
+
+.healing-meter {
+  height: 6px;
+  margin-top: 10px;
+  overflow: hidden;
+  background: var(--c-bg-muted);
+  border-radius: 999px;
+}
+
+.healing-meter span {
+  display: block;
+  height: 100%;
+  background: var(--c-success);
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.healing-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--c-text-tertiary);
+}
+
+.healing-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 10px;
+}
+
+/* 响应式 */
+@media (max-width: 1180px) {
+  .workbench-grid {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .workbench-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 840px) {
+  .stat-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .toolbar-right {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .failure-message {
+    display: none;
+  }
+  .failure-row {
+    flex-wrap: wrap;
+  }
+  .failure-copy {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .stat-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .project-select-dropdown {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .generation-card,
+  .hotspot-row,
+  .funnel-track span,
+  .healing-meter span {
+    transition: none;
+  }
+}
 </style>
