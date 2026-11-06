@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, ref } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DeviceMirrorModal from './DeviceMirrorModal.vue'
 
@@ -105,6 +105,11 @@ describe('DeviceMirrorModal', () => {
     screenshotMock.mockResolvedValue(new Blob(['img'], { type: 'image/jpeg' }))
     tapMock.mockResolvedValue({})
     uiTargetMock.mockResolvedValue({ target: { resourceId: 'com.example:id/login' } })
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
   })
 
   it('records a successful mirror tap as an editable locator step', async () => {

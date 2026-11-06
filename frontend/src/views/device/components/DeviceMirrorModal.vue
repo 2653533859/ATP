@@ -286,6 +286,20 @@ let fpsTimer: ReturnType<typeof setInterval> | null = null
 let scrcpyFallbackTimer: ReturnType<typeof setTimeout> | null = null
 let scrcpyInitTimer: ReturnType<typeof setTimeout> | null = null
 let rippleTimer: ReturnType<typeof setTimeout> | null = null
+let actionRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleActionRefresh(delay = 150) {
+  if (actionRefreshTimer) {
+    clearTimeout(actionRefreshTimer)
+    actionRefreshTimer = null
+  }
+  const session = mirrorSession
+  actionRefreshTimer = setTimeout(() => {
+    actionRefreshTimer = null
+    if (!props.open || session !== mirrorSession || !props.device) return
+    refreshMirror(session)
+  }, delay)
+}
 
 function triggerScreenshotFallback(session: number) {
   if (!props.open || session !== mirrorSession || isScrcpyLive.value) return
@@ -566,9 +580,7 @@ async function onScreenMouseUp(e: MouseEvent) {
         { width: devW, height: devH }, duration,
       ))
     }
-    setTimeout(() => {
-      refreshMirror(mirrorSession)
-    }, 150)
+    scheduleActionRefresh(150)
   } catch (err: unknown) {
     const messageText = err && typeof err === 'object' && 'message' in err ? String(err.message) : '请检查设备'
     message.warning(`操作未生效: ${messageText}`)
@@ -588,9 +600,7 @@ async function sendKeyEvent(keycode: number | string) {
     await deviceApi.keyevent(props.device.id, keycode, props.leaseToken)
     recordKeyEvent(Number(keycode))
     if (!isScrcpyLive.value) {
-      setTimeout(() => {
-        refreshMirror(mirrorSession)
-      }, 150)
+      scheduleActionRefresh(150)
     }
   } catch (err: unknown) {
     const msg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err)
@@ -620,9 +630,7 @@ async function sendQuickText() {
     appendRecordedStep('input', '镜像输入文字', { text })
     quickInputText.value = ''
     if (!isScrcpyLive.value) {
-      setTimeout(() => {
-        refreshMirror(mirrorSession)
-      }, 200)
+      scheduleActionRefresh(200)
     }
   } catch (err: unknown) {
     const msg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err)
@@ -654,6 +662,14 @@ function cleanupMirror() {
   mirrorSession += 1
   mirrorError.value = ''
   realResolution.value = { w: 0, h: 0 }
+  if (actionRefreshTimer) {
+    clearTimeout(actionRefreshTimer)
+    actionRefreshTimer = null
+  }
+  if (rippleTimer) {
+    clearTimeout(rippleTimer)
+    rippleTimer = null
+  }
   closeScrcpyStream()
   stopMirrorPolling()
   revokeMirrorUrl()
