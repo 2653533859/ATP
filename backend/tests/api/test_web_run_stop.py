@@ -61,3 +61,42 @@ def test_stop_web_run_rejects_terminal_run_without_signal(monkeypatch):
         asyncio.run(runs.stop_web_run(9, db, SimpleNamespace(id=3)))
 
     assert caught.value.status_code == 409
+
+
+def test_stop_android_lowcode_run_sends_signal(monkeypatch):
+    run = SimpleNamespace(id=11, case_id=4, status=RunStatus.running, error_message=None)
+
+    async def get_run(*_args, **_kwargs):
+        return run
+
+    monkeypatch.setattr(runs, "_get_run_with_access", get_run)
+    requested = []
+    monkeypatch.setattr(runs, "request_cancel", requested.append)
+    db = _DB(SimpleNamespace(case_type=CaseType.android, config={"steps": [{"action": "click"}]}))
+
+    result = asyncio.run(runs.stop_web_run(11, db, SimpleNamespace(id=3)))
+
+    assert result is run and requested == [11] and run.status == RunStatus.running
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        SimpleNamespace(case_type=CaseType.android, config={"script": "x.py"}),
+        SimpleNamespace(case_type=CaseType.api, config={"steps": []}),
+        None,
+    ],
+)
+def test_stop_rejects_runs_without_cooperative_cancel(monkeypatch, case):
+    run = SimpleNamespace(id=9, case_id=4, status=RunStatus.running, error_message=None)
+
+    async def get_run(*_args, **_kwargs):
+        return run
+
+    monkeypatch.setattr(runs, "_get_run_with_access", get_run)
+    monkeypatch.setattr(runs, "request_cancel", lambda _run_id: pytest.fail("must not send a signal"))
+
+    with pytest.raises(HTTPException) as caught:
+        asyncio.run(runs.stop_web_run(9, _DB(case), SimpleNamespace(id=3)))
+
+    assert caught.value.status_code == 409

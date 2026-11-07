@@ -30,6 +30,18 @@ sys.modules.setdefault(
 from app.worker.executors import android_lowcode_executor as executor
 
 
+@pytest.fixture(autouse=True)
+def _offline_run_control(monkeypatch):
+    """执行控制默认离线：不访问 Redis 取消信号，租约心跳直接成功。"""
+
+    async def heartbeat(_db, _device_id, lease_token, **_kwargs):
+        return types.SimpleNamespace(lease_token=lease_token)
+
+    monkeypatch.setattr(executor, "is_cancel_requested", lambda _run_id: False)
+    monkeypatch.setattr(executor, "clear_cancel_request", lambda _run_id: None)
+    monkeypatch.setattr(executor, "heartbeat_device_lease", heartbeat)
+
+
 def test_input_clear_sends_repeated_delete_keyevents(monkeypatch):
     calls: list[tuple] = []
 
@@ -610,7 +622,10 @@ def test_android_device_matrix_variant_acquires_and_releases_own_lease(monkeypat
         releases.append((device_id, token))
         return True
 
-    async def fake_run(_db, child_run, _case, _extra_vars):
+    controls = []
+
+    async def fake_run(_db, child_run, _case, _extra_vars, *, control):
+        controls.append(control)
         child_run.status = RunStatus.passed
 
     monkeypatch.setattr(executor, "acquire_device_lease", acquire)
@@ -632,6 +647,8 @@ def test_android_device_matrix_variant_acquires_and_releases_own_lease(monkeypat
     assert result["status"] == "passed"
     assert leases == [(41, "case-run:701")]
     assert releases == [(41, "lease-1")]
+    assert controls[0].lease_token == "lease-1" and controls[0].device_id == 41
+    assert controls[0].ttl_seconds == 901
 
 
 def test_run_android_lowcode_no_steps_marks_error(run_env):

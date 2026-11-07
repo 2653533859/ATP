@@ -19,6 +19,18 @@ from app.services.mobile_special.preflight import AndroidPreflightError  # noqa:
 from app.worker.executors import android_lowcode_executor as ale  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _offline_run_control(monkeypatch):
+    """执行控制默认离线：不访问 Redis 取消信号，租约心跳直接成功。"""
+
+    async def heartbeat(_db, _device_id, lease_token, **_kwargs):
+        return types.SimpleNamespace(lease_token=lease_token)
+
+    monkeypatch.setattr(ale, "is_cancel_requested", lambda _run_id: False)
+    monkeypatch.setattr(ale, "clear_cancel_request", lambda _run_id: None)
+    monkeypatch.setattr(ale, "heartbeat_device_lease", heartbeat)
+
+
 class _AdbRecorder:
     def __init__(self, result=(True, "ok")):
         self.calls = []
@@ -387,7 +399,8 @@ def test_execute_step_sync_assertions_visual_misc(monkeypatch):
     result = ale._execute_step_sync("S1", "assert_visual_element", {"image_template": {"a": 1}})
     assert result["success"] is False and result["error"] == "差异过大"
 
-    assert ale._execute_step_sync("S1", "assert_visual_element", {}) == {"success": True}
+    result = ale._execute_step_sync("S1", "assert_visual_element", {})
+    assert result["success"] is False and "缺少预期文本或图像模板" in result["error"]
 
     assert ale._execute_step_sync("S1", "wait", {"ms": 1})["success"] is True
     assert ale._execute_step_sync("S1", "screenshot", {})["data"] == {"manual_screenshot": True}
@@ -492,7 +505,7 @@ def _install_android_run_env(
     async def _precheck(database, **kwargs):
         return precheck
 
-    async def _steps(database, run_arg, case_arg, extra):
+    async def _steps(database, run_arg, case_arg, extra, **_kwargs):
         events.steps_calls.append(run_arg)
         if steps_recorder is not None:
             steps_recorder(run_arg)
@@ -1077,7 +1090,7 @@ def test_run_android_device_matrix_variant_success_config(monkeypatch):
         seen["lease"] = (device_id, owner_id, owner_label, ttl_seconds)
         return types.SimpleNamespace(lease_token="tok")
 
-    async def _steps(db_arg, child_run, child_case, extra):
+    async def _steps(db_arg, child_run, child_case, extra, **_kwargs):
         seen["case"] = child_case
         child_run.status = RunStatus.passed
         child_run.duration_ms = 12

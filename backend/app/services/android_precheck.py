@@ -32,6 +32,8 @@ from app.schemas.android_precheck import (
     PrecheckStatus,
 )
 from app.core.encryption import decrypt_env_vars
+from app.services.android_agent.strict_replay import StrictStepError, validate_strict_step
+from app.services.device_leases import lease_is_active
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,7 @@ _SUPPORTED_ACTIONS = {
     "assert_element",
     "assert_visual_element",
     "wait",
+    "wait_until",
     "start_app",
     "stop_app",
     "rotate",
@@ -71,6 +74,16 @@ def _extract_variables_from_value(value: Any) -> set[str]:
         for item in value:
             found.update(_extract_variables_from_value(item))
     return found
+
+
+def _strip_unresolved_input(action: str, params: dict[str, Any]) -> dict[str, Any]:
+    """预检不解析变量：输入值里的占位符不应被判为“未解析”。"""
+    if action != "input":
+        return params
+    value = params.get("text", params.get("value", ""))
+    if isinstance(value, str) and VAR_PATTERN.search(value):
+        return {**params, "text": VAR_PATTERN.sub("x", value), "value": None}
+    return params
 
 
 def _check_adb_environment_state(serial: str) -> tuple[bool, str | None]:
@@ -207,7 +220,7 @@ async def precheck_android_execution(
             lease_res = await db.execute(select(DeviceLease).where(DeviceLease.device_id == device.id))
             lease = lease_res.scalar_one_or_none()
             now = datetime.now(timezone.utc)
-            if lease is not None and lease.expires_at > now:
+            if lease is not None and lease_is_active(lease, now):
                 is_mine = False
                 if ignore_lease_token and lease.lease_token == ignore_lease_token:
                     is_mine = True
@@ -358,6 +371,7 @@ async def precheck_android_execution(
             )
         )
 
+    strict_replay = merged_cfg.get("strict_replay") is True
     for idx, step in enumerate(resolved_steps, start=1):
         step_id = str(step.get("id") or idx)
         action_raw = step.get("action")
@@ -378,6 +392,39 @@ async def precheck_android_execution(
                     step_action=action or "unknown",
                     message=f"步骤 {idx} [{name}] 使用了不支持的操作类型: {action_raw}",
                     suggestion="请修改步骤操作类型为系统支持的操作（如 click, swipe, input, press_key, wait, assert_text 等）",
+                )
+            )
+            continue
+
+        if strict_replay:
+            # 严格回放：步骤参数按执行器同一套规则校验（占位符在执行时才解析，这里只看结构）。
+            try:
+                validate_strict_step(action, _strip_unresolved_input(action, params))
+            except StrictStepError as exc:
+                items.append(
+                    PrecheckItem(
+                        scope=PrecheckScope.step,
+                        status=PrecheckStatus.FAIL,
+                        code=f"STRICT_{exc.code.upper()}",
+                        step_index=idx,
+                        step_id=step_id,
+                        step_action=action,
+                        message=f"步骤 {idx} [{name}] 不满足严格回放要求：{exc.message}",
+                        suggestion="严格回放只接受唯一精确定位、无坐标兜底的步骤；请补全定位条件或关闭严格回放",
+                    )
+                )
+                continue
+        elif action == "wait_until":
+            items.append(
+                PrecheckItem(
+                    scope=PrecheckScope.step,
+                    status=PrecheckStatus.FAIL,
+                    code="WAIT_UNTIL_REQUIRES_STRICT",
+                    step_index=idx,
+                    step_id=step_id,
+                    step_action=action,
+                    message=f"步骤 {idx} [{name}] 条件等待仅在严格回放模式下可用",
+                    suggestion="请在用例配置中开启严格回放，或改用固定时长等待",
                 )
             )
             continue

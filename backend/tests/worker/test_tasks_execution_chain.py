@@ -389,12 +389,16 @@ def test_run_test_case_happy_path_publishes_running_event(monkeypatch):
     assert TestRun and TestCase  # 真模型可导入（防 stub 泄漏）
 
 
-def test_run_test_case_honors_web_cancel_before_dispatch(monkeypatch):
+@pytest.mark.parametrize(
+    ("case_type", "config"),
+    [("web", None), ("android", {"steps": [{"action": "click"}]})],
+)
+def test_run_test_case_honors_cancel_before_dispatch(monkeypatch, case_type, config):
     from app.models.case import CaseType, RunStatus
     from app.services import web_run_control
 
     run = _Obj(id=5, case_id=10, trace_id="t", parent_run_id=None, status=RunStatus.pending, error_message=None)
-    case = _Obj(id=10, dataset_id=None, case_type=CaseType.web)
+    case = _Obj(id=10, dataset_id=None, case_type=CaseType(case_type), config=config)
     db = _FakeDB({("TestRun", 5): run, ("TestCase", 10): case})
     _install_session(monkeypatch, db)
     events = _publish_recorder(monkeypatch)

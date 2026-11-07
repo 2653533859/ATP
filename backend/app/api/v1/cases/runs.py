@@ -234,6 +234,17 @@ async def get_run(
     return await _get_run_with_access(db, _, run_id)
 
 
+def _stoppable_run_label(case: TestCase | None) -> str | None:
+    """返回支持协作式停止的用例类型标签；Android 仅低代码执行器会轮询取消信号。"""
+    if case is None:
+        return None
+    if case.case_type == _cases.CaseType.web:
+        return "Web "
+    if case.case_type == _cases.CaseType.android and isinstance(case.config, dict) and "steps" in case.config:
+        return "Android "
+    return None
+
+
 @router.post("/runs/{run_id}/stop", response_model=TestRunOut)
 async def stop_web_run(
     run_id: int,
@@ -242,14 +253,15 @@ async def stop_web_run(
 ):
     run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
     case = await db.get(TestCase, run.case_id)
-    if case is None or case.case_type != _cases.CaseType.web:
-        raise HTTPException(status_code=409, detail="仅 Web 用例运行支持此停止入口")
+    label = _stoppable_run_label(case)
+    if label is None:
+        raise HTTPException(status_code=409, detail="仅 Web 用例与 Android 低代码用例运行支持此停止入口")
     if run.status not in {RunStatus.pending, RunStatus.running}:
-        raise HTTPException(status_code=409, detail=f"Web 运行当前状态为 {run.status.value}，无法停止")
+        raise HTTPException(status_code=409, detail=f"{label}运行当前状态为 {run.status.value}，无法停止")
     try:
         await asyncio.to_thread(request_cancel, run.id)
     except Exception as exc:
-        raise HTTPException(status_code=503, detail="无法发送 Web 运行停止信号") from exc
+        raise HTTPException(status_code=503, detail=f"无法发送{label}运行停止信号") from exc
     if run.status == RunStatus.pending:
         run.status = RunStatus.cancelled
         run.error_message = "用户在执行开始前取消"

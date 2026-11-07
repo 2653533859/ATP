@@ -564,3 +564,60 @@ async def test_api_precheck_android_draft_route():
         assert res.ok is True
         assert res.summary.passed_steps == 1
         assert res.summary.failed_steps == 0
+
+
+@pytest.mark.asyncio
+async def test_precheck_strict_replay_rules():
+    dev = Device(id=1, serial="android-online-1", status=DeviceStatus.online)
+    db = _FakePrecheckDB(devices=[dev])
+    steps = [
+        {"action": "start_app", "params": {"package": "com.luna.music"}},
+        {"action": "wait_until", "params": {"resourceId": "com.luna.music:id/cz=", "timeout_ms": 15000}},
+        {"action": "click", "params": {"resourceId": "com.luna.music:id/cz="}},
+        {"action": "input", "params": {"resourceId": "com.luna.music:id/df9", "text": "{{keyword}}"}},
+        {"action": "assert_element", "params": {"text": "歌曲", "resourceId": "com.luna.music:id/de8"}},
+        {"action": "assert_element", "params": {"resourceId": "com.luna.music:id/dge", "expect": "absent"}},
+    ]
+
+    ok = await precheck_android_execution(
+        db,
+        device_serial=dev.serial,
+        config={"strict_replay": True},
+        steps=steps,
+        extra_vars={"keyword": "晴天"},
+        check_adb_environment=False,
+    )
+    assert ok.ok is True, [item.code for item in ok.items]
+
+    blocked = await precheck_android_execution(
+        db,
+        device_serial=dev.serial,
+        config={"strict_replay": True},
+        steps=[
+            {"action": "click", "params": {"x": 1, "y": 2}},
+            {"action": "long_click", "params": {"resourceId": "a:id/b"}},
+            {"action": "input", "params": {"text": "x"}},
+            {"action": "wait_until", "params": {"resourceId": "a:id/b", "timeout_ms": 50}},
+        ],
+        check_adb_environment=False,
+    )
+    codes = [item.code for item in blocked.items if item.status == PrecheckStatus.FAIL]
+    assert codes == [
+        "STRICT_SELECTOR_MISSING",
+        "STRICT_UNSUPPORTED_ACTION",
+        "STRICT_INPUT_TARGET_REQUIRED",
+        "STRICT_TIMEOUT_INVALID",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_precheck_wait_until_needs_strict_mode():
+    dev = Device(id=1, serial="android-online-1", status=DeviceStatus.online)
+    db = _FakePrecheckDB(devices=[dev])
+    res = await precheck_android_execution(
+        db,
+        device_serial=dev.serial,
+        steps=[{"action": "wait_until", "params": {"resourceId": "a:id/b"}}],
+        check_adb_environment=False,
+    )
+    assert [item.code for item in res.items if item.status == PrecheckStatus.FAIL] == ["WAIT_UNTIL_REQUIRES_STRICT"]

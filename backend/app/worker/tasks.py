@@ -145,8 +145,12 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
                 case = await db.get(TestCase, run.case_id)
                 case_type = getattr(case, "case_type", None)
                 case_type_value = getattr(case_type, "value", case_type)
-                web_cancel_requested = case_type_value == "web" and await asyncio.to_thread(is_cancel_requested, run_id)
-                if run.status == RunStatus.cancelled or web_cancel_requested:
+                # Web 与 Android 低代码共用协作式停止信号；开跑前已请求停止则不再占用设备/浏览器。
+                stoppable = case_type_value == "web" or (
+                    case_type_value == "android" and isinstance(getattr(case, "config", None), dict)
+                )
+                cancel_requested = stoppable and await asyncio.to_thread(is_cancel_requested, run_id)
+                if run.status == RunStatus.cancelled or cancel_requested:
                     run.status = RunStatus.cancelled
                     run.error_message = run.error_message or "用户取消执行"
                     await db.commit()

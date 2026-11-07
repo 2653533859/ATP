@@ -49,16 +49,119 @@ from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.models.device import Device
 from app.models.project import Module
 from app.schemas.android_precheck import PrecheckStatus
+from app.services.android_agent.strict_replay import (
+    STRICT_ACTIONS,
+    STRICT_PASSTHROUGH_ACTIONS,
+    StrictReplayEngine,
+    connect_strict_engine,
+)
 from app.services.android_precheck import precheck_android_execution
 from app.services.device_compatibility import DeviceCompatibilityError, build_android_device_matrix
-from app.services.device_leases import DeviceLeaseConflict, acquire_device_lease, release_device_lease
+from app.services.device_leases import (
+    DeviceLeaseConflict,
+    acquire_device_lease,
+    heartbeat_device_lease,
+    release_device_lease,
+)
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.mobile_special.preflight import AndroidPreflightError, run_android_preflight
 from app.services.step_result_collector import StepResultBatchCollector
+from app.services.web_run_control import clear_cancel_request, is_cancel_requested
 
 logger = logging.getLogger(__name__)
 
 VAR_PATTERN = re.compile(r"\{\{(\w+)\}\}")
+# 租约本地期限的安全余量：心跳之后在 TTL 到期前预留这段时间，避免边界上发出写操作。
+LEASE_SAFETY_MARGIN_SECONDS = 30
+CANCEL_POLL_INTERVAL_SECONDS = 0.5
+# 不写设备的步骤：执行前只检查取消，不要求租约本地期限。
+_NON_WRITE_ACTIONS = frozenset({"assert_text", "assert_element", "assert_visual_element", "wait", "screenshot"})
+
+
+class AndroidRunCancelled(Exception):
+    """用户请求取消当前 Android 低代码运行。"""
+
+
+class AndroidLeaseLost(Exception):
+    """设备租约失效（被回收、设备掉线或续期失败），不得继续写设备。"""
+
+
+class AndroidRunControl:
+    """单次运行的执行控制：协作式取消 + 设备租约续期与写前复核。
+
+    ``refresh`` 在事件循环中按步骤调用，负责续期并记录本地期限；
+    ``assert_write_allowed`` 在执行线程内、每次写设备前调用，只做本地判断，不访问数据库。
+    """
+
+    def __init__(
+        self,
+        run_id: int,
+        *,
+        cancel_run_ids: tuple[int, ...] = (),
+        device_id: int | None = None,
+        lease_token: str | None = None,
+        ttl_seconds: int = 900,
+    ):
+        self.run_id = run_id
+        self.cancel_run_ids = tuple(dict.fromkeys((run_id, *cancel_run_ids)))
+        self.device_id = device_id
+        self.lease_token = lease_token
+        self.ttl_seconds = ttl_seconds
+        self.heartbeats = 0
+        self._cancel_checked_at: float | None = None
+        self._deadline: float | None = (
+            time.monotonic() + max(1, ttl_seconds - LEASE_SAFETY_MARGIN_SECONDS) if lease_token else None
+        )
+
+    @property
+    def holds_lease(self) -> bool:
+        return bool(self.lease_token and self.device_id is not None)
+
+    def check_cancel(self) -> None:
+        # 服务器模式下每次检查都会访问 Redis；短时间内重复检查复用上次的“未取消”结论。
+        now = time.monotonic()
+        if self._cancel_checked_at is not None and now - self._cancel_checked_at < CANCEL_POLL_INTERVAL_SECONDS:
+            return
+        if any(is_cancel_requested(run_id) for run_id in self.cancel_run_ids):
+            raise AndroidRunCancelled("用户取消执行")
+        self._cancel_checked_at = now
+
+    def assert_write_allowed(self) -> None:
+        self.check_cancel()
+        if self._deadline is not None and time.monotonic() >= self._deadline:
+            raise AndroidLeaseLost("设备租约已到期，未续期前禁止继续操作设备")
+
+    async def refresh(self, db: AsyncSession) -> None:
+        if self.device_id is None or not self.lease_token:
+            return
+        try:
+            await heartbeat_device_lease(db, self.device_id, self.lease_token, ttl_seconds=self.ttl_seconds)
+            await db.commit()
+        except DeviceLeaseConflict as exc:
+            self._deadline = time.monotonic()
+            raise AndroidLeaseLost(f"设备租约已失效: {exc}") from exc
+        self.heartbeats += 1
+        self._deadline = time.monotonic() + max(1, self.ttl_seconds - LEASE_SAFETY_MARGIN_SECONDS)
+
+
+def _lease_ttl(cfg: dict[str, Any]) -> int:
+    try:
+        return max(900, int(cfg.get("device_lease_ttl_seconds", 900)))
+    except (TypeError, ValueError):
+        return 900
+
+
+def _strict_replay_package(cfg: dict[str, Any], steps: list[dict[str, Any]], apk_package: str | None) -> str | None:
+    """严格回放的目标包名：用例配置 > 绑定 APK > 第一个 start_app 步骤。"""
+    for candidate in (cfg.get("app_package"), apk_package):
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    for step in steps:
+        if isinstance(step, dict) and step.get("action") == "start_app":
+            package = (step.get("params") or {}).get("package")
+            if isinstance(package, str) and package.strip() and "{{" not in package:
+                return package.strip()
+    return None
 
 
 def _replace_vars(text: str, context: dict[str, str]) -> str:
@@ -581,6 +684,8 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
 
     elif action == "assert_text":
         text = params.get("text", "")
+        if not isinstance(text, str) or not text.strip():
+            return {"success": False, "error": "文本断言缺少预期文本"}
         ok, dump = _uiautomator_dump(serial, timeout=10)
         if ok and text in dump:
             return {"success": True}
@@ -588,6 +693,8 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
 
     elif action == "assert_element":
         resource_id = params.get("resourceId") or params.get("resource_id", "")
+        if not isinstance(resource_id, str) or not resource_id.strip():
+            return {"success": False, "error": "元素断言缺少 resourceId"}
         ok, dump = _uiautomator_dump(serial, timeout=10)
         if ok and resource_id in dump:
             return {"success": True}
@@ -613,7 +720,9 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
                 return {"success": False, "error": err, "data": {"similarity": similarity, "threshold": threshold}}
             return {"success": True, "data": {"similarity": similarity, "threshold": threshold}}
 
-        return {"success": True}
+        if expected_text:
+            return {"success": True}
+        return {"success": False, "error": "视觉断言缺少预期文本或图像模板"}
 
     elif action == "wait":
         ms = int(params.get("ms", 1000))
@@ -675,6 +784,21 @@ async def run_android_lowcode(
     extra_vars: dict,
 ) -> None:
     """Acquire a device lease, then execute one Android low-code case."""
+    try:
+        await _run_android_lowcode_with_lease(db, run, case, extra_vars)
+    finally:
+        try:
+            await asyncio.to_thread(clear_cancel_request, run.id)
+        except Exception:
+            logger.warning("Failed to clear cancel request for Android run %s", run.id, exc_info=True)
+
+
+async def _run_android_lowcode_with_lease(
+    db: AsyncSession,
+    run: TestRun,
+    case: TestCase,
+    extra_vars: dict,
+) -> None:
     cfg = case.config or {}
     steps = cfg.get("steps", [])
     device_serial = cfg.get("device_serial")
@@ -691,10 +815,7 @@ async def run_android_lowcode(
 
     lease_token: str | None = None
     try:
-        try:
-            lease_ttl = max(900, int(cfg.get("device_lease_ttl_seconds", 900)))
-        except (TypeError, ValueError):
-            lease_ttl = 900
+        lease_ttl = _lease_ttl(cfg)
         lease = await acquire_device_lease(
             db,
             int(device.id),
@@ -737,7 +858,13 @@ async def run_android_lowcode(
             await _mark_run_error(db, run, err_msg)
             return
 
-        await _run_android_lowcode_steps(db, run, case, extra_vars)
+        control = AndroidRunControl(
+            run.id,
+            device_id=int(device.id),
+            lease_token=lease_token,
+            ttl_seconds=lease_ttl,
+        )
+        await _run_android_lowcode_steps(db, run, case, extra_vars, control=control)
     except (DeviceLeaseConflict, LookupError) as exc:
         await _mark_run_error(db, run, f"设备租约冲突: {exc}")
     finally:
@@ -749,11 +876,39 @@ async def run_android_lowcode(
                 logger.exception("Failed to release Android lease for run %s", run.id)
 
 
+WAIT_SLICE_MS = 1000
+
+
+def _cancellable_wait(serial: str, params: dict, control: AndroidRunControl) -> dict[str, Any]:
+    """把长等待切成不超过 1 秒的片段，片段之间检查取消。"""
+    remaining = int(params.get("ms", 1000))
+    while True:
+        chunk = min(WAIT_SLICE_MS, max(0, remaining))
+        result = _execute_step_sync(serial, "wait", {**params, "ms": chunk})
+        remaining -= chunk
+        if not result.get("success") or remaining <= 0:
+            return result
+        control.check_cancel()
+
+
+def _run_controlled_step(serial: str, action: str, params: dict, control: AndroidRunControl) -> dict[str, Any]:
+    """旧 ADB 路径的步骤：写设备前复核取消与租约，等待可被取消。"""
+    if action in _NON_WRITE_ACTIONS:
+        control.check_cancel()
+    else:
+        control.assert_write_allowed()
+    if action == "wait":
+        return _cancellable_wait(serial, params, control)
+    return _execute_step_sync(serial, action, params)
+
+
 async def _run_android_lowcode_steps(
     db: AsyncSession,
     run: TestRun,
     case: TestCase,
     extra_vars: dict,
+    *,
+    control: AndroidRunControl | None = None,
 ) -> None:
     """Android 低代码模式执行入口"""
     cfg = case.config or {}
@@ -770,6 +925,10 @@ async def _run_android_lowcode_steps(
     if not device_serial:
         await _mark_run_error(db, run, "未选择执行设备")
         return
+
+    if control is None:
+        control = AndroidRunControl(run.id)
+    strict_replay = cfg.get("strict_replay") is True
 
     # 变量上下文
     context_vars: dict[str, str] = {**extra_vars, "DEVICE_SERIAL": device_serial}
@@ -808,6 +967,22 @@ async def _run_android_lowcode_steps(
             },
         )
 
+    strict_engine: StrictReplayEngine | None = None
+    strict_package: str | None = None
+    if strict_replay:
+        strict_package = _strict_replay_package(cfg, steps, apk_package)
+        if not strict_package:
+            await _mark_run_error(
+                db, run, "严格回放需要目标应用包名：请配置 app_package、绑定 APK 或添加 start_app 步骤"
+            )
+            return
+        try:
+            strict_engine = await asyncio.to_thread(connect_strict_engine, str(device_serial), strict_package)
+        except Exception as exc:
+            logger.warning("Strict replay connection failed for run %s: %s", run.id, type(exc).__name__)
+            await _mark_run_error(db, run, f"严格回放无法连接设备 UIAutomator 服务（{type(exc).__name__}）")
+            return
+
     if cfg.get("record_video"):
         recording_process = _start_screen_recording(
             device_serial,
@@ -817,9 +992,24 @@ async def _run_android_lowcode_steps(
         if recording_process is None:
             recording_error = "设备不支持或无法启动录屏"
 
+    cancelled_at_step: int | None = None
+    lease_lost_message: str | None = None
+    executed_steps = 0
     step_collector = StepResultBatchCollector(db)
     try:
         for idx, step_def in enumerate(steps):
+            # 每步开始前：先看取消，再续期租约；续期失败即视为失去设备控制权。
+            try:
+                await asyncio.to_thread(control.check_cancel)
+                await control.refresh(db)
+            except AndroidRunCancelled:
+                cancelled_at_step = idx
+                break
+            except AndroidLeaseLost as exc:
+                lease_lost_message = str(exc)
+                all_passed = False
+                break
+
             step_start = time.monotonic()
             action = step_def.get("action", "")
             step_name = step_def.get("name", f"{action}_{idx}")
@@ -831,18 +1021,39 @@ async def _run_android_lowcode_steps(
             response_data: dict | None = None
 
             try:
-                result = await asyncio.get_event_loop().run_in_executor(
-                    None, _execute_step_sync, device_serial, action, params
-                )
+                if strict_engine is not None and action in STRICT_ACTIONS:
+                    result = await asyncio.to_thread(
+                        strict_engine.execute,
+                        action,
+                        params,
+                        assert_write_allowed=control.assert_write_allowed,
+                        check_cancel=control.check_cancel,
+                    )
+                elif strict_engine is not None and action not in STRICT_PASSTHROUGH_ACTIONS:
+                    result = {"success": False, "error": f"严格回放不支持步骤类型: {action}"}
+                elif action == "wait_until":
+                    result = {"success": False, "error": "wait_until 仅在严格回放模式下可用"}
+                else:
+                    result = await asyncio.to_thread(_run_controlled_step, device_serial, action, params, control)
                 if not result.get("success"):
                     status = RunStatus.failed
                     error_message = result.get("error")
                     all_passed = False
                 response_data = result.get("data")
+            except AndroidRunCancelled:
+                status = RunStatus.cancelled
+                error_message = "用户取消执行，本步骤未完成"
+                cancelled_at_step = idx
+            except AndroidLeaseLost as exc:
+                status = RunStatus.error
+                error_message = str(exc)
+                lease_lost_message = str(exc)
+                all_passed = False
             except Exception as e:
                 status = RunStatus.failed
                 error_message = str(e)[:2000]
                 all_passed = False
+            executed_steps += 1
 
             # 每步截图
             screenshot_url = await _take_screenshot(device_serial, run.id, idx)
@@ -884,8 +1095,8 @@ async def _run_android_lowcode_steps(
                 },
             )
 
-            # 失败后停止后续步骤
-            if status == RunStatus.failed:
+            # 取消、失租或失败后停止后续步骤
+            if status != RunStatus.passed:
                 break
 
     except Exception as e:
@@ -922,12 +1133,29 @@ async def _run_android_lowcode_steps(
         artifact_urls["screen_recording_error"] = recording_error
 
     total_ms = int((time.monotonic() - total_start) * 1000)
-    run.status = RunStatus.passed if all_passed else RunStatus.failed
+    if cancelled_at_step is not None:
+        run.status = RunStatus.cancelled
+        run.error_message = f"用户取消执行（共 {len(steps)} 步，停止于第 {cancelled_at_step + 1} 步）"
+    elif lease_lost_message:
+        run.status = RunStatus.error
+        run.error_message = lease_lost_message[:500]
+    else:
+        run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
     run.result_summary = {
         **(getattr(run, "result_summary", None) or {}),
         "android_artifacts": artifact_urls,
         "device_serial": device_serial,
+        "execution_control": {
+            "strict_replay": strict_replay,
+            "strict_package": strict_package,
+            "lease_held": control.holds_lease,
+            "lease_heartbeats": control.heartbeats,
+            "cancelled": cancelled_at_step is not None,
+            "lease_lost": lease_lost_message is not None,
+            "executed_steps": executed_steps,
+            "total_steps": len(steps),
+        },
     }
     await db.commit()
 
@@ -1021,17 +1249,24 @@ async def _run_android_device_matrix(
             for child_id, index, variant in child_specs
         )
     )
-    counts = {"passed": 0, "failed": 0, "error": 0}
+    counts = {"passed": 0, "failed": 0, "error": 0, "cancelled": 0}
     for item in matrix_results:
         status_value = item["status"]
         counts[status_value if status_value in counts else "error"] += 1
 
-    parent_run.status = RunStatus.passed if counts["failed"] == 0 and counts["error"] == 0 else RunStatus.failed
+    if counts["cancelled"]:
+        parent_run.status = RunStatus.cancelled
+        parent_run.error_message = parent_run.error_message or "用户取消执行"
+    elif counts["failed"] == 0 and counts["error"] == 0:
+        parent_run.status = RunStatus.passed
+    else:
+        parent_run.status = RunStatus.failed
     parent_run.result_summary = {
         **(parent_run.result_summary or {}),
         "device_matrix_passed": counts["passed"],
         "device_matrix_failed": counts["failed"],
         "device_matrix_error": counts["error"],
+        "device_matrix_cancelled": counts["cancelled"],
         "device_matrix_results": matrix_results,
     }
     await db.commit()
@@ -1081,16 +1316,26 @@ async def _run_android_device_matrix_variant(
             device_id = variant.get("device_id")
             if device_id is None:
                 raise LookupError(f"设备 {variant['serial']} 缺少注册 ID")
+            lease_ttl = _lease_ttl(base_config)
             lease = await acquire_device_lease(
                 child_db,
                 int(device_id),
                 owner_id=owner_id,
                 owner_label=f"case-run:{child.id}",
-                ttl_seconds=max(900, int(base_config.get("device_lease_ttl_seconds", 900))),
+                ttl_seconds=lease_ttl,
             )
             lease_token = lease.lease_token
             await child_db.commit()
-            await _run_android_lowcode_steps(child_db, child, child_case, extra_vars)
+            # 子运行既响应自身取消，也响应父运行（矩阵整体）的取消。
+            parent_ids = (child.parent_run_id,) if getattr(child, "parent_run_id", None) else ()
+            control = AndroidRunControl(
+                child.id,
+                cancel_run_ids=parent_ids,
+                device_id=int(device_id),
+                lease_token=lease_token,
+                ttl_seconds=lease_ttl,
+            )
+            await _run_android_lowcode_steps(child_db, child, child_case, extra_vars, control=control)
         except (DeviceLeaseConflict, LookupError) as exc:
             child.status = RunStatus.error
             child.error_message = f"设备租约冲突: {exc}"
@@ -1107,6 +1352,10 @@ async def _run_android_device_matrix_variant(
                     await child_db.commit()
                 except Exception:
                     logger.exception("Failed to release Android lease for run %s", child.id)
+            try:
+                await asyncio.to_thread(clear_cancel_request, child.id)
+            except Exception:
+                logger.warning("Failed to clear cancel request for Android run %s", child.id, exc_info=True)
 
         result["status"] = child.status.value if hasattr(child.status, "value") else str(child.status)
         result["duration_ms"] = child.duration_ms
