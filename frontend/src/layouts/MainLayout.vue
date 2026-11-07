@@ -557,17 +557,16 @@ function onLocaleChange(value: unknown) {
   justify-content: center;
 }
 .brand-logo {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--c-primary);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 17px;
+  font-size: 15px;
   flex-shrink: 0;
-  box-shadow: 0 4px 14px var(--c-primary-glow);
 }
 .brand-text {
   display: flex;
@@ -583,12 +582,12 @@ function onLocaleChange(value: unknown) {
 }
 .brand-tag {
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 1px 4px;
   border-radius: 4px;
   background: var(--c-primary-soft);
   color: var(--c-primary);
-  border: 1px solid var(--c-primary-glow);
+  border: 1px solid var(--c-border);
 }
 
 .app-menu {
@@ -668,23 +667,18 @@ function onLocaleChange(value: unknown) {
   height: 6px;
   border-radius: 9999px;
   background: var(--c-success);
-  box-shadow: 0 0 6px rgba(74, 225, 145, 0.6);
 }
 .status-dot-checking {
   background: var(--c-warning);
-  box-shadow: 0 0 6px var(--c-warning-soft);
 }
 .status-dot-degraded {
   background: var(--c-warning);
-  box-shadow: 0 0 6px var(--c-warning-soft);
 }
 .status-dot-unavailable {
   background: var(--c-error);
-  box-shadow: 0 0 6px var(--c-error-soft);
 }
 .status-dot-local {
   background: var(--c-info);
-  box-shadow: 0 0 6px var(--c-info-soft);
 }
 .worker-badge {
   font-size: 9px;
@@ -716,7 +710,7 @@ function onLocaleChange(value: unknown) {
 }
 .worker-progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, #6366f1, #06b6d4);
+  background: var(--c-primary);
   border-radius: 999px;
 }
 .worker-meta {
@@ -762,7 +756,7 @@ function onLocaleChange(value: unknown) {
   padding: 4px 10px;
   color: var(--c-primary);
   background: var(--c-primary-soft);
-  border: 1px solid var(--c-primary-glow);
+  border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
   font-size: 12px;
   line-height: 1.2;
@@ -882,9 +876,9 @@ function onLocaleChange(value: unknown) {
   border-color: var(--c-border-strong);
 }
 .user-avatar {
-  background: linear-gradient(135deg, #1677ff, #13c2c2);
+  background: var(--c-primary);
   color: #fff;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 12px;
 }
 .user-details {
@@ -953,11 +947,9 @@ function onLocaleChange(value: unknown) {
 }
 .quick-nav-title {
   font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-weight: 600;
   color: var(--c-text-tertiary);
-  letter-spacing: 0.05em;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .quick-nav-list {
   display: flex;

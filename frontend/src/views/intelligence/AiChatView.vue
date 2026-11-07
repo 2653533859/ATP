@@ -85,13 +85,13 @@
             <div class="welcome-avatar">
               <RobotOutlined />
             </div>
-            <h2>欢迎体验 ATP 自由 AI 助手</h2>
+            <h2>ATP 测试问答助手</h2>
             <p class="welcome-desc">
-              当前处于自由闲聊模式：无需检索特定项目测试资产，不设严谨引用门禁。您可以咨询任何自动化测试框架设计、Python/TypeScript 编程、接口调试思路或进行日常轻松闲聊，对话记录将自动实时保存。
+              聚焦自动化测试架构、脚本编写、接口断言设计与缺陷排查。您可以咨询测试框架最佳实践、Python/TypeScript 脚本范例或微服务调试建议。
             </p>
 
             <div class="quick-prompts">
-              <span class="prompts-title">您可以试试这样提问：</span>
+              <span class="prompts-title">推荐探索方向：</span>
               <div class="prompts-grid">
                 <button
                   v-for="(prompt, idx) in quickPrompts"
@@ -101,7 +101,7 @@
                   :disabled="loading"
                   @click="sendPrompt(prompt.text)"
                 >
-                  <span class="prompt-chip-icon">{{ prompt.icon }}</span>
+                  <component :is="prompt.icon" class="prompt-chip-icon" />
                   <span class="prompt-chip-content">
                     <strong>{{ prompt.title }}</strong>
                     <small>{{ prompt.text }}</small>
@@ -209,11 +209,15 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   ArrowRightOutlined,
+  CodeOutlined,
+  CompassOutlined,
   DeleteOutlined,
+  ExperimentOutlined,
   HistoryOutlined,
   MessageOutlined,
   PlusOutlined,
   RobotOutlined,
+  SearchOutlined,
   SendOutlined,
   StopOutlined,
 } from '@ant-design/icons-vue'
@@ -256,22 +260,22 @@ function formatSessionTime(iso: string): string {
 
 const quickPrompts = [
   {
-    icon: '💡',
+    icon: CodeOutlined,
     title: '接口测试签名算法',
     text: '帮我用 Python 写一个通用的接口测试签名算法',
   },
   {
-    icon: '🧪',
+    icon: ExperimentOutlined,
     title: '用例设计方法论',
     text: '如何设计高覆盖率、低维护成本的自动化测试用例？',
   },
   {
-    icon: '🔍',
+    icon: SearchOutlined,
     title: '网络报错排障',
     text: '解释一下微服务中常见的 HTTP 502/504 错误与排查步骤',
   },
   {
-    icon: '🚀',
+    icon: CompassOutlined,
     title: '测试框架横向对比',
     text: '对比一下 Pytest、Playwright 与 Cypress 的优劣势和适用场景',
   },
@@ -548,7 +552,7 @@ onMounted(() => {
 
 .history-item.active {
   background: var(--c-primary-soft);
-  border-color: var(--c-primary-glow);
+  border-color: var(--c-primary);
   color: var(--c-primary);
 }
 

@@ -25,25 +25,25 @@
           <a-menu @click="handleApplyRequestTemplate">
             <a-menu-item key="rest_json_get">
               <div class="preset-menu-item">
-                <span class="preset-label">📋 标准 REST 查询 (GET + Accept JSON)</span>
+                <span class="preset-label">标准 REST 查询 (GET + Accept JSON)</span>
                 <small class="preset-code">仅配置 GET 方式、Accept 请求头与分页参数</small>
               </div>
             </a-menu-item>
             <a-menu-item key="jwt_form_login">
               <div class="preset-menu-item">
-                <span class="preset-label">🔑 表单登录获取 Token (POST + urlencoded)</span>
+                <span class="preset-label">表单登录获取 Token (POST + urlencoded)</span>
                 <small class="preset-code">仅配置 POST、urlencoded 头与表单凭据</small>
               </div>
             </a-menu-item>
             <a-menu-item key="auth_json_post">
               <div class="preset-menu-item">
-                <span class="preset-label">🛡️ 鉴权业务调用 (POST + Bearer Token)</span>
+                <span class="preset-label">鉴权业务调用 (POST + Bearer Token)</span>
                 <small class="preset-code">仅配置 POST、JSON 头、Authorization 头与 Body</small>
               </div>
             </a-menu-item>
             <a-menu-item key="healthcheck_get">
               <div class="preset-menu-item">
-                <span class="preset-label">🩺 服务探活配置 (GET)</span>
+                <span class="preset-label">服务探活配置 (GET)</span>
                 <small class="preset-code">仅配置 GET 方式</small>
               </div>
             </a-menu-item>
@@ -565,7 +565,7 @@ const formattedHeaders = computed(() =>
 .diagnosis { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; padding: 10px 12px; border-radius: var(--radius-xs); line-height: 1.55; }
 .diagnosis-error { background: var(--c-error-soft); color: var(--c-error); }
 .diagnosis-notice { background: var(--c-primary-soft); color: var(--c-primary); }
-.path-suggestion { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px; border: 1px solid var(--c-primary-glow); border-radius: var(--radius-sm); background: var(--c-primary-soft); color: var(--c-text); }
+.path-suggestion { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px; border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: var(--c-primary-soft); color: var(--c-text); }
 .path-suggestion > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .path-suggestion code { overflow-wrap: anywhere; font: 12px/1.5 'JetBrains Mono', Consolas, monospace; }
 .path-suggestion small { color: var(--c-text-secondary); line-height: 1.5; }

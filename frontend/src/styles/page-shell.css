@@ -100,49 +100,44 @@
   font-size: 12px;
 }
 
-/* 状态微点 */
+/* 状态微点：平整实心，无发光扩散外圈 */
 .live-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 9999px;
   background: var(--c-success);
   display: inline-block;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
-/* 通用统计卡：现代 SaaS 质感，供各页 summary 复用 */
+/* 通用统计卡：平整工程质感 */
 .stat-card {
   background: var(--c-bg-elevated);
   border: 1px solid var(--c-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   padding: var(--space-4) var(--space-5);
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  box-shadow: var(--shadow-xs);
+  transition: border-color 0.15s ease;
 }
 
 .stat-card:hover {
-  box-shadow: var(--shadow-md);
   border-color: var(--c-border-strong);
-  transform: translateY(-2px);
 }
 
-/* 通用 KPI 卡：图标 + 数值 + 标签，供 Dashboard 等数据页复用 */
+/* 通用 KPI 卡：图标 + 数值 + 标签 */
 .kpi-card {
   display: flex;
   align-items: center;
   gap: 14px;
   background: var(--c-bg-elevated);
   border: 1px solid var(--c-border);
-  border-radius: var(--radius-lg);
-  padding: 18px 20px;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-xs);
+  transition: border-color 0.15s ease;
 }
 
 .kpi-card:hover {
-  box-shadow: var(--shadow-md);
   border-color: var(--c-border-strong);
-  transform: translateY(-2px);
 }
 .kpi-icon {
   width: 46px;

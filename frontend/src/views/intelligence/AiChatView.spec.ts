@@ -38,12 +38,16 @@ vi.mock('@ant-design/icons-vue', () => {
   const iconStub = { setup: () => () => null }
   return {
     ArrowRightOutlined: iconStub,
+    CodeOutlined: iconStub,
+    CompassOutlined: iconStub,
     DeleteOutlined: iconStub,
+    ExperimentOutlined: iconStub,
     HistoryOutlined: iconStub,
     MessageOutlined: iconStub,
     PlusOutlined: iconStub,
     ReloadOutlined: iconStub,
     RobotOutlined: iconStub,
+    SearchOutlined: iconStub,
     SendOutlined: iconStub,
     StopOutlined: iconStub,
   }
@@ -88,7 +92,7 @@ describe('AiChatView', () => {
     await flushPromises()
 
     expect(projectList).toHaveBeenCalled()
-    expect(wrapper.text()).toContain('欢迎体验 ATP 自由 AI 助手')
+    expect(wrapper.text()).toContain('ATP 测试问答助手')
 
     // Find and click a quick prompt
     const quickButtons = wrapper.findAll('.prompt-chip')

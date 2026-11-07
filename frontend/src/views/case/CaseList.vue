@@ -383,7 +383,7 @@
                       <ThunderboltOutlined /> 自动化
                     </span>
                     <span v-if="record.ai_generated" class="ai-chip">
-                      ✨ AI
+                      {{ t('case.ai_generated') }}
                     </span>
                     <span v-if="cleanSummary(record)" class="summary-text" :title="cleanSummary(record)">
                       {{ cleanSummary(record) }}
@@ -1881,15 +1881,13 @@ onMounted(async () => {
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   padding: 14px 16px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   display: flex;
   flex-direction: column;
   gap: 4px;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  transition: border-color 0.15s ease;
 }
 .case-bento-tile:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
   border-color: var(--c-border-strong);
 }
 .tile-header {
@@ -1901,13 +1899,12 @@ onMounted(async () => {
   font-size: 11px;
   font-weight: 600;
   color: var(--c-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .tile-value {
   font-size: 26px;
   font-weight: 700;
   font-family: 'JetBrains Mono', var(--font-sans);
+  font-variant-numeric: tabular-nums;
   color: var(--c-text);
   line-height: 1.15;
   margin: 2px 0;
@@ -2356,9 +2353,9 @@ onMounted(async () => {
 
 .ai-chip {
   font-size: 10px;
-  font-weight: 600;
-  color: #722ed1;
-  background: #f9f0ff;
+  font-weight: 500;
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
   padding: 1px 5px;
   border-radius: 3px;
   flex-shrink: 0;

@@ -898,7 +898,7 @@ onMounted(async () => {
 
 .defect-note {
   margin: 14px 0;
-  border: 1px solid var(--c-primary-glow);
+  border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
   background: var(--c-primary-soft);
   color: var(--c-text);

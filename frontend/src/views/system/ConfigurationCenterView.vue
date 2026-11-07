@@ -709,8 +709,8 @@ select:focus, input:focus, button:focus-visible { border-color: var(--teal); box
 .metric-strip { display: grid; grid-template-columns: repeat(4, 1fr); max-width: 1600px; margin: 0 auto 18px; overflow: hidden; border: 1px solid var(--c-border); border-radius: 12px; background: var(--c-bg-elevated); }
 .metric-cell { min-height: 98px; border-right: 1px solid var(--c-border); padding: 16px 18px; }
 .metric-cell:last-child { border-right: 0; }
-.metric-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; font-weight: 700; letter-spacing: .04em; }
-.metric-cell strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 24px; letter-spacing: -.03em; }
+.metric-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; font-weight: 500; }
+.metric-cell strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 24px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .metric-cell small { color: var(--muted); font-size: 11px; }
 .metric-accent strong { color: var(--teal); font-size: 18px; }
 .loading-state { display: grid; place-items: center; gap: 13px; min-height: 360px; color: var(--muted); }

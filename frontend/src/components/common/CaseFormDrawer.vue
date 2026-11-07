@@ -156,25 +156,25 @@
                 <a-menu @click="handleApplyRequestTemplate">
                   <a-menu-item key="rest_json_get">
                     <div class="preset-menu-item">
-                      <span class="preset-label">📋 标准 REST 查询 (GET + Accept JSON)</span>
+                      <span class="preset-label">标准 REST 查询 (GET + Accept JSON)</span>
                       <small class="preset-code">配置 GET 方式、Accept 请求头与分页参数</small>
                     </div>
                   </a-menu-item>
                   <a-menu-item key="jwt_form_login">
                     <div class="preset-menu-item">
-                      <span class="preset-label">🔑 表单登录获取 Token (POST + urlencoded)</span>
+                      <span class="preset-label">表单登录获取 Token (POST + urlencoded)</span>
                       <small class="preset-code">配置 POST、urlencoded 头与表单凭据</small>
                     </div>
                   </a-menu-item>
                   <a-menu-item key="auth_json_post">
                     <div class="preset-menu-item">
-                      <span class="preset-label">🛡️ 鉴权业务调用 (POST + Bearer Token)</span>
+                      <span class="preset-label">鉴权业务调用 (POST + Bearer Token)</span>
                       <small class="preset-code">配置 POST、JSON 头、Authorization 头与 Body</small>
                     </div>
                   </a-menu-item>
                   <a-menu-item key="healthcheck_get">
                     <div class="preset-menu-item">
-                      <span class="preset-label">🩺 服务探活配置 (GET)</span>
+                      <span class="preset-label">服务探活配置 (GET)</span>
                       <small class="preset-code">配置 GET 方式</small>
                     </div>
                   </a-menu-item>
@@ -408,7 +408,7 @@
 
         <div class="scenario-pipeline-quick-banner">
           <div class="banner-text">
-            <strong>🔗 {{ t('api_scenario.pipeline_title') }} ({{ apiScenarioSteps.length }})</strong>
+            <strong>{{ t('api_scenario.pipeline_title') }} ({{ apiScenarioSteps.length }})</strong>
             <span>{{ t('api_scenario.pipeline_desc') }}</span>
           </div>
           <a-space>
@@ -423,7 +423,7 @@
       </a-tab-pane>
 
       <!-- Tab 2: 场景自动化流水线 -->
-      <a-tab-pane key="scenario" :tab="`⚡ 场景流水线 (${apiScenarioSteps.length})`">
+      <a-tab-pane key="scenario" :tab="`场景流水线 (${apiScenarioSteps.length})`">
         <ApiScenarioPipeline
           v-model:steps="apiScenarioSteps"
           :project-id="projectId"

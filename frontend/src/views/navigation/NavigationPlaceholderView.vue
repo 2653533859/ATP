@@ -77,10 +77,9 @@ const existingLinks = computed<NavigationLink[]>(() => {
 .placeholder-rail {
   position: absolute;
   inset: 0 0 auto;
-  height: 156px;
-  background:
-    radial-gradient(circle at 80% 0%, color-mix(in srgb, var(--c-primary) 18%, transparent), transparent 42%),
-    linear-gradient(120deg, color-mix(in srgb, var(--c-primary) 12%, var(--c-bg-elevated)), var(--c-bg-elevated) 68%);
+  height: 120px;
+  background: var(--c-bg-subtle);
+  border-bottom: 1px solid var(--c-border);
 }
 
 .placeholder-content {
@@ -91,12 +90,10 @@ const existingLinks = computed<NavigationLink[]>(() => {
 }
 
 .placeholder-eyebrow {
-  margin: 0 0 16px;
+  margin: 0 0 12px;
   color: var(--c-primary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .placeholder-heading,

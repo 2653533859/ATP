@@ -382,7 +382,8 @@ h2 {
 .markdown-body :deep(hr) { margin: 12px 0; border: 0; border-top: 1px solid var(--c-border); }
 
 .message-user .message-text {
-  border-color: var(--c-primary-glow);
+  border-color: var(--c-border);
+  border-radius: 16px 4px 16px 16px;
   background: var(--c-primary-soft);
 }
 
@@ -394,13 +395,13 @@ h2 {
   font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
-  border: 1px solid var(--c-primary-glow);
+  border: 1px solid var(--c-border);
   border-radius: var(--radius-full);
   background: var(--c-primary-soft);
 }
 
-.message-tool-chain { margin-top: 9px; color: var(--c-text-tertiary); font-size: 11px; }
-.tool-chain-label { color: var(--c-text-tertiary); font-family: 'JetBrains Mono', monospace; }
+.message-tool-chain { margin-top: 9px; color: var(--c-text-tertiary); font-size: 10px; }
+.tool-chain-label { color: var(--c-primary); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; font-weight: 600; }
 .tool-chain-step { display: inline-block; margin: 4px 4px 0 0; padding: 3px 7px; border: 1px solid var(--c-border); border-radius: var(--radius-full); background: var(--c-bg-subtle); }
 .tool-chain-step small { display: block; max-width: 360px; margin-top: 2px; color: var(--c-text-secondary); font-size: 10px; white-space: normal; }
 .message-task-list { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }

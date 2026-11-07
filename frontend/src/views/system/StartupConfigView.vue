@@ -797,10 +797,8 @@ onMounted(loadDraft)
   align-items: center;
   gap: 7px;
   color: #c7d2fe;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .config-hero h1 {
@@ -919,9 +917,7 @@ onMounted(loadDraft)
   margin-bottom: 8px;
   color: var(--c-text-secondary);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 600;
 }
 
 .readiness-strip {
@@ -977,7 +973,7 @@ onMounted(loadDraft)
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--c-warning), var(--c-primary));
+  background: var(--c-primary);
   transition: width 0.3s ease;
 }
 

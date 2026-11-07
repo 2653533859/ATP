@@ -551,12 +551,12 @@ onMounted(loadProjects)
 .toolbar-icon { color: var(--c-primary); font-size: 16px; }
 .toolbar-title { margin: 0; font-size: 16px; font-weight: 700; color: var(--c-text); }
 .toolbar-right { display: flex; align-items: center; gap: 8px; }
-.card-kicker { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; }
+.card-kicker { font-size: 11px; font-weight: 600; color: #8a96a6; }
 .page-notice { margin: 16px 0; }
 .summary-row { margin: 16px 0; }
-.summary-card { min-height: 100px; padding: 16px 18px; border: 1px solid var(--c-border); border-radius: var(--radius-lg); background: var(--c-bg-elevated); box-shadow: var(--shadow-xs); display: flex; flex-direction: column; }
-.summary-card strong { margin: 4px 0; color: var(--c-text); font-size: 26px; line-height: 1; }
-.summary-label { color: var(--c-text-secondary); font-size: 12px; font-weight: 600; }
+.summary-card { min-height: 100px; padding: 16px 18px; border: 1px solid var(--c-border); border-radius: var(--radius-md); background: var(--c-bg-elevated); box-shadow: var(--shadow-xs); display: flex; flex-direction: column; }
+.summary-card strong { margin: 4px 0; color: var(--c-text); font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
+.summary-label { color: var(--c-text-secondary); font-size: 12px; font-weight: 500; }
 .summary-foot { color: var(--c-text-tertiary); font-size: 11px; }
 .provider-summary { border-top: 3px solid #42c6be; }
 .consumer-summary { border-top: 3px solid #9672d8; }
@@ -574,7 +574,7 @@ onMounted(loadProjects)
 .compare-side { padding: 12px; border-radius: 10px; }
 .baseline-side { background: #f2f7fb; }
 .current-side { background: #f6f2fb; }
-.compare-step { display: block; margin-bottom: 7px; color: #68798d; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.compare-step { display: block; margin-bottom: 7px; color: #68798d; font-size: 11px; font-weight: 600; }
 .compare-connector { display: grid; place-items: center; height: 38px; color: #7991aa; font-size: 20px; }
 .compare-button { height: 40px; margin-bottom: 18px; }
 .comparison-result { border-top: 1px solid #edf0f3; padding-top: 16px; }

@@ -170,7 +170,7 @@
 
           <!-- API 自动化场景步骤流水线 -->
           <a-col v-if="apiScenarioSteps.length" :span="24">
-            <a-card class="detail-card table-card" :title="`⚡ 自动化场景执行流 (${apiScenarioSteps.length} 步骤)`" :bordered="false">
+            <a-card class="detail-card table-card" :title="`自动化场景执行流 (${apiScenarioSteps.length} 步骤)`" :bordered="false">
               <div class="api-steps-flow">
                 <div v-for="(step, idx) in apiScenarioSteps" :key="idx" class="api-step-row">
                   <div class="step-badge-col">
@@ -188,10 +188,10 @@
                       依赖: {{ step.depends_on.map((d: unknown) => `Step ${Number(d) + 1}`).join(', ') }}
                     </a-tag>
                     <a-tag v-for="ext in (Array.isArray(step.extractions) ? step.extractions : [])" :key="String(ext.variable)" color="green">
-                      📤 {{ String(ext.variable) }}
+                      导出: {{ String(ext.variable) }}
                     </a-tag>
                     <a-tag v-if="Array.isArray(step.assertions) && step.assertions.length" color="blue">
-                      ✓ {{ step.assertions.length }} 条断言
+                      {{ step.assertions.length }} 条断言
                     </a-tag>
                   </div>
                 </div>

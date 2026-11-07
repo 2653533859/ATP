@@ -149,7 +149,7 @@
                       class="var-badge var-extract"
                       :title="t('api_scenario.extract_var_title', { name: v })"
                     >
-                      📤 {{ v }}
+                      out: {{ v }}
                     </span>
                   </template>
 
@@ -161,13 +161,13 @@
                       class="var-badge var-ref"
                       :title="t('api_scenario.ref_var_title', { name: v })"
                     >
-                      📥 &#123;&#123;{{ v }}&#125;&#125;
+                      in: &#123;&#123;{{ v }}&#125;&#125;
                     </span>
                   </template>
 
                   <!-- 断言计数 -->
                   <span class="assertion-count-chip">
-                    ✓ {{ (element.assertions || []).length }} {{ t('api_scenario.assertions_unit') }}
+                    {{ (element.assertions || []).length }} {{ t('api_scenario.assertions_unit') }}
                   </span>
                 </div>
               </div>

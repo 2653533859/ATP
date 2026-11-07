@@ -614,12 +614,10 @@ onBeforeUnmount(() => {
   color: var(--c-primary);
 }
 .eyebrow {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   color: var(--c-primary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 h1 {

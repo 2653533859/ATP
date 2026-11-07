@@ -1132,7 +1132,7 @@ onUnmounted(() => {
   content: '';
 }
 .signal-card-primary {
-  border-color: var(--c-primary-glow);
+  border-color: var(--c-primary);
   background: var(--c-primary-soft);
 }
 .signal-card-primary::after {
@@ -1141,8 +1141,8 @@ onUnmounted(() => {
 .signal-card-run::after {
   background: var(--app-copper);
 }
-.signal-label { display: block; color: var(--app-muted); font-size: 11px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
-.signal-card strong { display: block; margin-top: 10px; color: var(--c-text); font-size: 28px; letter-spacing: -.05em; }.signal-card strong small { margin-left: 3px; color: #8d9da5; font-size: 14px; font-weight: 600; letter-spacing: 0; }
+.signal-label { display: block; color: var(--app-muted); font-size: 11px; font-weight: 500; }
+.signal-card strong { display: block; margin-top: 10px; color: var(--c-text); font-size: 28px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }.signal-card strong small { margin-left: 3px; color: #8d9da5; font-size: 14px; font-weight: 600; letter-spacing: 0; }
 .signal-note { display: block; margin-top: 6px; color: #8997a4; font-size: 11px; }
 
 .workspace-grid { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); gap: 16px; }
@@ -1267,7 +1267,7 @@ onUnmounted(() => {
   margin-top: 13px;
 }
 
-.launch-panel { min-width: 0; }.launch-head p { max-width: 630px; margin: 7px 0 0; color: #84919f; font-size: 12px; line-height: 1.6; }.launch-signal { display: flex; align-items: center; gap: 7px; color: #78909a; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }.signal-line { width: 20px; height: 2px; background: var(--app-copper); box-shadow: 7px 0 0 rgba(238, 117, 87, .35), 14px 0 0 rgba(238, 117, 87, .16); }
+.launch-panel { min-width: 0; }.launch-head p { max-width: 630px; margin: 7px 0 0; color: #84919f; font-size: 12px; line-height: 1.6; }.launch-signal { display: flex; align-items: center; gap: 7px; color: #78909a; font-size: 10px; font-weight: 600; white-space: nowrap; }.signal-line { width: 20px; height: 2px; background: var(--app-copper); }
 .mode-switch {
   display: inline-flex;
   gap: 4px;
@@ -1478,7 +1478,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.apk-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #eef2f3; }.apk-row:last-child { border-bottom: 0; }.apk-mark { background: #edf2ff; color: #6875c5; }.apk-code { color: #a0abb1; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; }.compatibility-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; padding-top: 13px; border-top: 1px solid #edf1f2; }.strip-label { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; color: #71828c; font-size: 10px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }.compatibility-chip { padding: 4px 7px; border-radius: 5px; background: #f1f5f6; color: #72858f; font-size: 10px; }.compatibility-empty { color: #9ba8af; font-size: 10px; }
+.apk-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #eef2f3; }.apk-row:last-child { border-bottom: 0; }.apk-mark { background: #edf2ff; color: #6875c5; }.apk-code { color: #a0abb1; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; }.compatibility-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; padding-top: 13px; border-top: 1px solid #edf1f2; }.strip-label { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; color: #71828c; font-size: 10px; font-weight: 600; }.compatibility-chip { padding: 4px 7px; border-radius: 5px; background: #f1f5f6; color: #72858f; font-size: 10px; }.compatibility-empty { color: #9ba8af; font-size: 10px; }
 
 
 @media (max-width: 1050px) { .app-hero { flex-direction: column; }.hero-controls { flex-basis: auto; width: min(100%, 360px); }.signal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.lower-grid { grid-template-columns: 1fr; } }

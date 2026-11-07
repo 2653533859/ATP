@@ -377,7 +377,7 @@
               color="purple"
               style="margin-left: 4px"
             >
-              ⚡ {{ t('run.healing.cache_hit') }}
+              {{ t('run.healing.cache_hit') }}
             </a-tag>
           </a-divider>
           <div v-if="runHealing.status === 'pending'" class="healing-pending">
@@ -496,7 +496,7 @@
                       color="purple"
                       style="margin-left: 4px"
                     >
-                      ⚡ {{ t('run.healing.cache_hit') }}
+                      {{ t('run.healing.cache_hit') }}
                     </a-tag>
                   </span>
                 </template>

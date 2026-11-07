@@ -21,37 +21,19 @@
       </div>
 
       <div class="card-body">
-        <div class="phone-mockup" :class="`phone-${device.status}`">
-          <div class="phone-top-notch">
-            <div class="phone-camera-dot"></div>
-            <div class="phone-speaker-bar"></div>
+        <div class="device-telemetry-badge" :class="`telemetry-${device.status}`">
+          <div class="device-telemetry-icon">
+            <MobileOutlined />
           </div>
-          <div class="phone-screen">
-            <div v-if="device.status === 'online'" class="screen-live">
-              <div class="screen-status-bar">
-                <span class="status-time">ADB</span>
-                <div class="status-icons"><span class="status-wifi">●</span></div>
-              </div>
-              <div class="screen-app-grid">
-                <div v-for="index in 6" :key="index" class="mini-app" :class="`app-${index}`"></div>
-              </div>
-              <div class="screen-dock">
-                <div class="dock-app dock-phone"></div>
-                <div class="dock-app dock-msg"></div>
-                <div class="dock-app dock-web"></div>
-              </div>
-            </div>
-            <div v-else class="screen-offline">
-              <div class="offline-icon-wrap"><MobileOutlined class="offline-phone-icon" /></div>
-              <span class="offline-text">设备离线</span>
-            </div>
+          <div class="device-telemetry-status">
+            <span class="telemetry-dot" />
+            <span class="telemetry-state-text">{{ device.status === 'online' ? '连接活跃' : (device.status === 'busy' ? '正在执行' : '设备离线') }}</span>
           </div>
-          <div class="phone-bottom-bar"></div>
+          <span class="telemetry-serial-code" :title="device.serial">{{ device.serial || '--' }}</span>
         </div>
 
         <div class="device-specs-sheet">
           <div class="spec-row"><span class="spec-label">系统</span><span class="spec-val">Android {{ device.os_version || '--' }}</span></div>
-          <div class="spec-row"><span class="spec-label">电量</span><span class="spec-val">--</span></div>
           <div class="spec-row"><span class="spec-label">分辨率</span><span class="spec-val">{{ device.resolution || '--' }}</span></div>
           <div class="spec-row"><span class="spec-label">最后使用人</span><span class="spec-val user-val">--</span></div>
           <div class="spec-row"><span class="spec-label">Agent</span><span class="spec-val agent-val">--</span></div>
@@ -114,41 +96,28 @@ function statusText(status: DeviceStatus) {
 </script>
 
 <style scoped>
-.device-matrix-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px; }
-.device-card-item { display: flex; flex-direction: column; justify-content: space-between; padding: 16px; border: 1px solid var(--c-border); border-radius: 12px; background: var(--c-bg-elevated); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03); transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
-.device-card-item:hover { transform: translateY(-2px); border-color: var(--c-border-strong); box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08); }
+.device-matrix-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.device-card-item { display: flex; flex-direction: column; justify-content: space-between; padding: 16px; border: 1px solid var(--c-border); border-radius: var(--radius-md); background: var(--c-bg-elevated); box-shadow: var(--shadow-xs); transition: border-color 0.15s ease; }
+.device-card-item:hover { border-color: var(--c-border-strong); }
 .card-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
 .device-naming { flex: 1; min-width: 0; }
-.device-model-title { margin: 0; overflow: hidden; color: var(--c-text); font-size: 16px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.device-model-title { margin: 0; overflow: hidden; color: var(--c-text); font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .device-brand-subtitle { display: block; margin-top: 2px; color: var(--c-text-tertiary); font-size: 11px; }
 .card-tags { display: flex; flex-shrink: 0; align-items: center; gap: 6px; }
-.protocol-tag { padding: 1px 6px; border-radius: 4px; background: var(--c-bg-subtle); color: var(--c-text-secondary); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; font-weight: 600; }
-.status-chip { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-.chip-online { background: #dcfce7; color: #15803d; }
-.chip-busy { background: #ffedd5; color: #c2410c; }
-.chip-offline { background: #fee2e2; color: #b91c1c; }
-.card-body { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
-.phone-mockup { position: relative; display: flex; flex-shrink: 0; flex-direction: column; justify-content: space-between; width: 106px; height: 182px; overflow: hidden; border: 3px solid #334155; border-radius: 20px; background: #0f172a; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); }
-.phone-top-notch { z-index: 2; display: flex; align-items: center; justify-content: center; height: 10px; gap: 4px; background: #0f172a; }
-.phone-camera-dot { width: 4px; height: 4px; border-radius: 50%; background: #475569; }
-.phone-speaker-bar { width: 14px; height: 2px; border-radius: 2px; background: #475569; }
-.phone-bottom-bar { display: flex; align-items: center; justify-content: center; height: 6px; background: #0f172a; }
-.phone-bottom-bar::after { width: 24px; height: 2px; border-radius: 2px; background: #475569; content: ''; }
-.phone-screen { position: relative; flex: 1; overflow: hidden; }
-.screen-live { display: flex; flex-direction: column; justify-content: space-between; width: 100%; height: 100%; padding: 4px; background: linear-gradient(135deg, #1e3a8a, #0d9488 70%, #059669); }
-.screen-status-bar { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; color: #f8fafc; font-size: 8px; }
-.status-icons { display: flex; gap: 3px; font-size: 7px; }
-.screen-app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 6px 3px; }
-.mini-app { height: 16px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
-.app-1 { background: #38bdf8; } .app-2 { background: #fb7185; } .app-3 { background: #facc15; }
-.app-4 { background: #4ade80; } .app-5 { background: #c084fc; } .app-6 { background: #fb923c; }
-.screen-dock { display: flex; justify-content: space-around; margin-top: auto; padding: 3px; border-radius: 6px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(4px); }
-.dock-app { width: 14px; height: 14px; border-radius: 3px; }
-.dock-phone { background: #22c55e; } .dock-msg { background: #3b82f6; } .dock-web { background: #eab308; }
-.screen-offline { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; gap: 6px; background: #1e293b; color: var(--c-text-secondary); }
-.offline-icon-wrap { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #0f172a; }
-.offline-phone-icon { color: var(--c-text-secondary); font-size: 14px; }
-.offline-text { color: var(--c-text-tertiary); font-size: 10px; }
+.protocol-tag { padding: 1px 6px; border-radius: 4px; background: var(--c-bg-subtle); color: var(--c-text-secondary); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; font-weight: 500; }
+.status-chip { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+.chip-online { background: var(--c-success-soft); color: var(--c-success); }
+.chip-busy { background: var(--c-warning-soft); color: var(--c-warning); }
+.chip-offline { background: var(--c-bg-muted); color: var(--c-text-secondary); }
+.card-body { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.device-telemetry-badge { width: 100px; height: 116px; border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: var(--c-bg-subtle); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 8px 6px; flex-shrink: 0; }
+.device-telemetry-icon { font-size: 26px; color: var(--c-text-secondary); line-height: 1; }
+.device-telemetry-status { display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500; }
+.telemetry-dot { width: 6px; height: 6px; border-radius: 50%; }
+.telemetry-online .telemetry-dot { background: var(--c-success); }
+.telemetry-busy .telemetry-dot { background: var(--c-warning); }
+.telemetry-offline .telemetry-dot { background: var(--c-text-tertiary); }
+.telemetry-serial-code { font-size: 10px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--c-text-tertiary); max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .device-specs-sheet { display: flex; flex: 1; flex-direction: column; gap: 6px; font-size: 12px; }
 .spec-row { display: flex; align-items: center; line-height: 1.4; }
 .spec-label { flex-shrink: 0; width: 68px; color: var(--c-text-secondary); }
@@ -158,8 +127,8 @@ function statusText(status: DeviceStatus) {
 .minor-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .footer-link { padding: 0 4px; color: var(--c-text-secondary); font-size: 12px; }
 .footer-link:hover { color: var(--c-primary); }
-.cta-use-btn { display: flex; align-items: center; justify-content: center; width: 100%; height: 34px; border: none; border-radius: 6px; background: var(--c-primary); box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-.cta-use-btn:hover:not(.disabled) { background: #1d4ed8; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
-.cta-use-btn.disabled { background: var(--c-bg-muted); box-shadow: none; color: var(--c-text-tertiary); cursor: not-allowed; }
-.empty-matrix-card { grid-column: 1 / -1; padding: 60px 0; border: 1px dashed var(--c-border); border-radius: 12px; background: var(--c-bg-elevated); }
+.cta-use-btn { display: flex; align-items: center; justify-content: center; width: 100%; height: 32px; border: none; border-radius: var(--radius-sm); background: var(--c-primary); color: #fff; font-size: 12px; font-weight: 500; cursor: pointer; transition: background-color 0.15s; }
+.cta-use-btn:hover:not(.disabled) { background: var(--c-primary-hover); }
+.cta-use-btn.disabled { background: var(--c-bg-muted); color: var(--c-text-secondary); cursor: not-allowed; }
+.empty-matrix-card { grid-column: 1 / -1; padding: 60px 0; border: 1px dashed var(--c-border); border-radius: var(--radius-md); background: var(--c-bg-elevated); }
 </style>

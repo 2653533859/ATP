@@ -588,11 +588,10 @@ onMounted(async () => {
 }
 
 .pulse-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0 14px; }
-.pulse-card { position: relative; min-height: 124px; padding: 18px; overflow: hidden; border: 1px solid var(--review-line); border-radius: 14px; color: var(--review-ink); background: var(--c-bg-elevated); text-align: left; cursor: pointer; transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease; }
-.pulse-card::after { position: absolute; right: -20px; bottom: -42px; width: 112px; height: 112px; content: ''; border: 1px solid currentColor; border-radius: 50%; opacity: .11; }
-.pulse-card:hover, .pulse-card.is-selected { border-color: currentColor; box-shadow: 0 11px 24px rgba(31, 43, 80, .08); transform: translateY(-2px); }
+.pulse-card { position: relative; min-height: 110px; padding: 16px; overflow: hidden; border: 1px solid var(--review-line); border-radius: var(--radius-md); color: var(--review-ink); background: var(--c-bg-elevated); text-align: left; cursor: pointer; transition: border-color .15s ease; box-shadow: var(--shadow-xs); }
+.pulse-card:hover, .pulse-card.is-selected { border-color: currentColor; }
 .pulse-label, .pulse-tail { display: block; color: var(--review-muted); font-size: 12px; }
-.pulse-card strong { display: block; margin: 14px 0 4px; font-size: 32px; letter-spacing: -.06em; }
+.pulse-card strong { display: block; margin: 12px 0 4px; font-size: 28px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .pulse-pending { color: #b76e13; }
 .pulse-approved { color: #148a68; }
 .pulse-rejected { color: #cf5946; }

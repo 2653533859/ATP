@@ -95,43 +95,39 @@ async function onFinish() {
   align-items: center;
   min-height: 100vh;
   padding: 24px;
-  background:
-    radial-gradient(1200px 600px at 18% -12%, var(--c-primary-soft), transparent 60%),
-    radial-gradient(1000px 520px at 100% 112%, var(--c-primary-soft), transparent 55%),
-    var(--c-bg-body);
+  background: var(--c-bg-body);
 }
 .login-card {
   width: 100%;
-  max-width: 408px;
+  max-width: 390px;
   background: var(--c-bg-elevated);
   border: 1px solid var(--c-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  padding: 40px 36px 28px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 36px 32px 24px;
 }
 .login-brand {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 .brand-logo {
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 16px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 14px;
+  border-radius: var(--radius-sm);
+  background: var(--c-primary);
   color: #fff;
-  font-size: 28px;
+  font-size: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.4);
 }
 .brand-title {
   margin: 0;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 600;
   color: var(--c-text);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 .brand-subtitle {
   margin: 6px 0 0;

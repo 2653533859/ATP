@@ -1596,7 +1596,6 @@ function formatAlertTime(value?: string | null) {
 }
 .service-dot-ok {
   background: var(--c-success);
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
 }
 .service-dot-warning {
   background: var(--c-warning);
@@ -1636,13 +1635,11 @@ function formatAlertTime(value?: string | null) {
   color: inherit;
   cursor: pointer;
   text-align: left;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 .workbench-card:hover {
   border-color: var(--c-primary);
   background: var(--c-bg-elevated);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
 }
 .workbench-card-icon {
   width: 44px;
@@ -1688,6 +1685,7 @@ function formatAlertTime(value?: string | null) {
   font-weight: 700;
   line-height: 1.1;
   font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-variant-numeric: tabular-nums;
   color: var(--c-text);
 }
 .workbench-card-label {
@@ -1717,13 +1715,11 @@ function formatAlertTime(value?: string | null) {
   background: var(--c-bg-subtle);
   cursor: pointer;
   text-align: left;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 .recent-run-item:hover {
   border-color: var(--c-primary);
   background: var(--c-bg-elevated);
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
 }
 .recent-run-main {
   min-width: 0;
