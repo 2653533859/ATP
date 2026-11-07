@@ -61,4 +61,18 @@ describe('buildAndroidStandardSteps', () => {
     expect(result[1].test_data).toContain('目标文本：账号')
     expect(result[1].test_data).toContain('无障碍描述：账号输入框')
   })
+
+  it('summarises strict-replay waits and exact element assertions', () => {
+    const result = buildAndroidStandardSteps([
+      { action: 'wait_until', params: { resourceId: 'com.luna.music:id/df9', condition: 'visible', timeout_ms: 15000 } },
+      { action: 'assert_element', params: { resourceId: 'com.luna.music:id/dge', expect: 'absent' } },
+      { action: 'assert_element', params: { text: '晴天', className: 'android.widget.TextView', count: 1 } },
+    ], translate)
+
+    expect(result[0].test_data).toContain('资源 ID：com.luna.music:id/df9')
+    expect(result[0].test_data).toContain('超时（毫秒）：15000')
+    expect(result[1].test_data).toContain('期望：不存在')
+    expect(result[2].test_data).toContain('控件类名：android.widget.TextView')
+    expect(result[2].test_data).toContain('匹配数量：1')
+  })
 })

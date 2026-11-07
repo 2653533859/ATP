@@ -46,6 +46,10 @@
         <a-switch v-model:checked="cfg.record_video" />
         <span class="mode-hint">{{ t('case.drawer.android.record_video_hint') }}</span>
       </a-form-item>
+      <a-form-item v-if="editMode === 'lowcode'" :label="t('case.drawer.android.strict_replay')">
+        <a-switch v-model:checked="cfg.strict_replay" data-testid="android-strict-replay" />
+        <span class="mode-hint">{{ t('case.drawer.android.strict_replay_hint') }}</span>
+      </a-form-item>
 
       <a-form-item :label="t('case.drawer.scenario_summary')">
         <a-textarea v-model:value="form.summary" :rows="2" :placeholder="t('case.drawer.scenario_summary_placeholder')" />
@@ -209,6 +213,7 @@
           :device-id="selectedDeviceId"
           :lease-token="editorLease?.lease_token"
           :apk-options="apks"
+          :strict-replay="cfg.strict_replay"
         />
       </template>
 
@@ -411,6 +416,7 @@ const cfg = reactive({
   device_group_id: undefined as number | undefined,
   device_matrix: [] as Array<{ serial: string }>,
   record_video: false,
+  strict_replay: false,
 })
 const deviceMatrixEnabled = ref(false)
 
@@ -484,6 +490,7 @@ function resetDrawerState() {
   cfg.device_matrix = []
   deviceMatrixEnabled.value = false
   cfg.record_video = false
+  cfg.strict_replay = false
   lowcodeSteps.value = []
   managementSteps.value = []
   standardStepsDirty.value = false
@@ -689,6 +696,7 @@ watch(
       cfg.apk_id = typeof config.apk_id === 'number' ? config.apk_id : undefined
       cfg.timeout = typeof config.timeout === 'number' ? config.timeout : 120
       cfg.record_video = config.record_video === true
+      cfg.strict_replay = config.strict_replay === true
       cfg.device_matrix = Array.isArray(config.device_matrix)
         ? config.device_matrix
           .filter((item): item is { serial: string } => Boolean(item && typeof item === 'object' && typeof (item as Record<string, unknown>).serial === 'string'))
@@ -842,6 +850,7 @@ function buildConfig() {
   }
   if (editMode.value === 'lowcode') {
     config.steps = lowcodeSteps.value
+    if (cfg.strict_replay) config.strict_replay = true
     if (scriptPath.value) {
       config.script_path = scriptPath.value
     }

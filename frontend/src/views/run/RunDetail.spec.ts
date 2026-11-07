@@ -4,13 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import RunDetail from './RunDetail.vue'
 
-const { createRunWebSocket, messageError, routerBack, runExportHtml, runExportJunit, runGet, tracingGetConfig } = vi.hoisted(() => ({
+const { createRunWebSocket, messageError, routerBack, runExportHtml, runExportJunit, runGet, runStop, tracingGetConfig } = vi.hoisted(() => ({
   createRunWebSocket: vi.fn(),
   messageError: vi.fn(),
   routerBack: vi.fn(),
   runExportHtml: vi.fn(),
   runExportJunit: vi.fn(),
   runGet: vi.fn(),
+  runStop: vi.fn(),
   tracingGetConfig: vi.fn(),
 }))
 
@@ -25,7 +26,7 @@ vi.mock('@/utils/websocket', () => ({ createRunWebSocket }))
 vi.mock('@/api', () => ({
   aiHealingPatchApi: { apply: vi.fn(), preview: vi.fn() },
   bugTrackerApi: { createBug: vi.fn(), list: vi.fn().mockResolvedValue([]), linkBug: vi.fn(), refreshStatus: vi.fn() },
-  runApi: { exportHtml: runExportHtml, exportPdf: vi.fn(), exportJunit: runExportJunit, get: runGet },
+  runApi: { exportHtml: runExportHtml, exportPdf: vi.fn(), exportJunit: runExportJunit, get: runGet, stop: runStop },
   tracingApi: { getConfig: tracingGetConfig },
 }))
 
@@ -51,6 +52,7 @@ function mountRunDetail() {
         AImage: passthrough('AImage'),
         AInput: passthrough('AInput'),
         AModal: passthrough('AModal'),
+        APopconfirm: defineComponent({ name: 'APopconfirm', emits: ['confirm'], setup: (_p, { slots, emit }) => () => h('div', { 'data-test': 'popconfirm', onClick: () => emit('confirm') }, slots.default?.()) }),
         APageHeader: defineComponent({ name: 'APageHeader', emits: ['back'], setup: (_p, { slots, emit }) => () => h('header', [h('button', { 'data-test': 'back', onClick: () => emit('back') }, 'back'), slots.extra?.(), slots.default?.()]) }),
         ARow: passthrough('ARow'),
         ASelect: passthrough('ASelect'),
@@ -70,6 +72,7 @@ function mountRunDetail() {
         LoadingOutlined: true,
         VideoCameraOutlined: true,
         WarningOutlined: true,
+        StopOutlined: true,
       },
     },
   })
@@ -100,6 +103,40 @@ beforeEach(() => {
 })
 
 describe('RunDetail mount', () => {
+  it('offers stop for a running Android low-code run and reflects the new status', async () => {
+    runGet.mockResolvedValueOnce({
+      id: 42,
+      case_id: 100,
+      case_type: 'android',
+      status: 'running',
+      created_at: '2026-11-06T01:00:00Z',
+      result_summary: {},
+      steps: [],
+    })
+    runStop.mockResolvedValueOnce({ id: 42, status: 'cancelled' })
+    const wrapper = mountRunDetail()
+    await flushPromises()
+
+    const stop = wrapper.find('[data-testid="run-stop"]')
+    expect(stop.exists()).toBe(true)
+    await wrapper.find('[data-test="popconfirm"]').trigger('click')
+    await flushPromises()
+
+    expect(runStop).toHaveBeenCalledWith(42)
+    expect(wrapper.find('[data-testid="run-stop"]').exists()).toBe(false)
+  })
+
+  it('hides stop for finished runs and unsupported case types', async () => {
+    const wrapper = mountRunDetail()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="run-stop"]').exists()).toBe(false)
+
+    runGet.mockResolvedValueOnce({ id: 42, case_id: 1, case_type: 'api', status: 'running', created_at: '', result_summary: {}, steps: [] })
+    const apiWrapper = mountRunDetail()
+    await flushPromises()
+    expect(apiWrapper.find('[data-testid="run-stop"]').exists()).toBe(false)
+  })
+
   it('loads tracing config and run detail on mount', async () => {
     const wrapper = mountRunDetail()
     await flushPromises()

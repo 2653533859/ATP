@@ -3,6 +3,15 @@
     <a-page-header :title="t('run.detail_title')" @back="router.back()">
       <template #extra>
         <a-space>
+          <a-popconfirm
+            v-if="canStopRun"
+            :title="t('run.stop_confirm')"
+            @confirm="handleStopRun"
+          >
+            <a-button size="small" danger :loading="stoppingRun" data-testid="run-stop">
+              <StopOutlined /> {{ t('run.stop_run') }}
+            </a-button>
+          </a-popconfirm>
           <a-button size="small" :loading="exportingHtml" @click="handleExportHtml">
             <FileTextOutlined /> {{ exportingHtml ? t('run.generating') : t('run.export_html') }}
           </a-button>
@@ -713,7 +722,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
-import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined, CloudSyncOutlined, SyncOutlined } from '@ant-design/icons-vue'
+import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined, CloudSyncOutlined, SyncOutlined, StopOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, cloudSyncApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem, type RunSyncStatus } from '@/api'
 import { getRuntimeMode } from '@/runtimeMode'
@@ -855,6 +864,9 @@ const fallbackImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ
 
 const isRunning = computed(() => run.value?.status === 'running' || run.value?.status === 'pending')
 const canCreateBug = computed(() => ['admin', 'engineer'].includes(auth.user?.role ?? ''))
+// 仅 Web 与 Android 低代码执行器会轮询停止信号；项目权限与 Android 脚本用例由后端校验并返回原因。
+const canStopRun = computed(() => isRunning.value && ['web', 'android'].includes(run.value?.case_type ?? ''))
+const stoppingRun = ref(false)
 const canApplyHealingPatch = computed(() => ['admin', 'engineer'].includes(auth.user?.role ?? ''))
 
 const isParameterizedParent = computed(() =>
@@ -1157,6 +1169,19 @@ function downloadBlob(blob: Blob, filename: string) {
   a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+async function handleStopRun() {
+  stoppingRun.value = true
+  try {
+    const data = await runApi.stop(runId)
+    if (run.value && data?.status) run.value.status = data.status
+    message.success(t('run.msg.stop_requested'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('run.msg.stop_failed')))
+  } finally {
+    stoppingRun.value = false
+  }
 }
 
 async function handleExportHtml() {

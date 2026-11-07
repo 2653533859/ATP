@@ -2141,6 +2141,7 @@ export const runApi = {
   list: (params?: { case_id?: number; project_id?: number; page?: number; page_size?: number }) =>
     http.get<unknown, { items: RunDetailItem[]; total: number; page: number; page_size: number }>('/runs', { params }),
   get: (id: number) => http.get<unknown, RunDetailItem>(`/runs/${id}`),
+  stop: (id: number) => http.post<unknown, RunDetailItem>(`/runs/${id}/stop`),
   generateFailureDiagnosis: (id: number) =>
     http.post<unknown, FailureDiagnosisResult>(`/runs/${id}/failure-diagnosis`),
   exportHtml: (id: number) =>

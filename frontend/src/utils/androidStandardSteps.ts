@@ -38,6 +38,7 @@ function paramsSummary(step: AndroidLowcodeStep, t: AndroidStepTranslator) {
       addValue(parts, label('text', '文本'), params.text)
       addValue(parts, label('resource_id', '资源 ID'), params.resourceId ?? params.resource_id)
       addValue(parts, label('content_desc', '无障碍描述'), params.contentDesc ?? params.content_desc)
+      addValue(parts, label('class_name', '控件类名'), params.className ?? params.class_name)
       if (params.x !== undefined && params.y !== undefined) {
         addValue(parts, label('coordinates', '坐标'), `(${params.x}, ${params.y})`)
       }
@@ -89,9 +90,24 @@ function paramsSummary(step: AndroidLowcodeStep, t: AndroidStepTranslator) {
       break
     case 'assert_element':
       addValue(parts, label('resource_id', '资源 ID'), params.resourceId ?? params.resource_id)
+      addValue(parts, label('text', '文本'), params.text)
+      addValue(parts, label('class_name', '控件类名'), params.className ?? params.class_name)
+      if (params.expect === 'absent') addValue(parts, label('expect', '期望'), translateOr(t, 'case.android_editor.expect_absent', '不存在'))
+      addValue(parts, label('count', '匹配数量'), params.count)
       break
     case 'wait':
       addValue(parts, label('duration', '等待时间（毫秒）'), params.ms)
+      break
+    case 'wait_until':
+      addValue(parts, label('resource_id', '资源 ID'), params.resourceId ?? params.resource_id)
+      addValue(parts, label('text', '文本'), params.text)
+      addValue(parts, label('class_name', '控件类名'), params.className ?? params.class_name)
+      addValue(
+        parts,
+        label('condition', '条件'),
+        translateOr(t, `case.android_editor.condition_${params.condition === 'absent' ? 'absent' : 'visible'}`, params.condition === 'absent' ? '消失' : '出现'),
+      )
+      addValue(parts, label('timeout', '超时（毫秒）'), params.timeout_ms)
       break
     default:
       for (const [key, value] of Object.entries(params)) {

@@ -102,6 +102,11 @@
                   <a-input v-model:value="step.params.contentDesc" placeholder="content-desc" @input="emitUpdate" />
                 </a-form-item>
               </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.class_name')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.className" placeholder="android.widget.TextView" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
               <a-col :span="4">
                 <a-form-item label="X" :label-col="{ span: 8 }">
                   <a-input-number v-model:value="step.params.x" style="width:100%" @change="emitUpdate" />
@@ -113,6 +118,7 @@
                 </a-form-item>
               </a-col>
             </a-row>
+            <div v-if="strictReplay" class="strict-hint">{{ t('case.android_editor.strict_locator_hint') }}</div>
           </template>
 
           <!-- long_click -->
@@ -269,9 +275,86 @@
 
           <!-- assert_element -->
           <template v-else-if="step.action === 'assert_element'">
-            <a-form-item :label="t('case.android_editor.resource_id')" :label-col="{ span: 3 }">
+            <a-form-item v-if="!strictReplay" :label="t('case.android_editor.resource_id')" :label-col="{ span: 3 }">
               <a-input v-model:value="step.params.resourceId" placeholder="com.app:id/element" @input="emitUpdate" />
             </a-form-item>
+            <template v-else>
+            <a-row :gutter="12">
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.resource_id')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.resourceId" placeholder="com.app:id/element" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.text')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.text" :placeholder="t('case.android_editor.expected_text_placeholder')" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.class_name')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.className" placeholder="android.widget.TextView" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+            </a-row>
+            <a-row :gutter="12">
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.expect')" :label-col="{ span: 8 }">
+                  <a-select v-model:value="step.params.expect" @change="emitUpdate">
+                    <a-select-option value="present">{{ t('case.android_editor.expect_present') }}</a-select-option>
+                    <a-select-option value="absent">{{ t('case.android_editor.expect_absent') }}</a-select-option>
+                  </a-select>
+                </a-form-item>
+              </a-col>
+              <a-col v-if="step.params.expect !== 'absent'" :span="8">
+                <a-form-item :label="t('case.android_editor.exact_count')" :label-col="{ span: 8 }">
+                  <a-input-number v-model:value="step.params.count" :min="0" :precision="0" :placeholder="t('case.android_editor.exact_count_placeholder')" style="width:100%" @change="emitUpdate" />
+                </a-form-item>
+              </a-col>
+            </a-row>
+            <div class="strict-hint">{{ t('case.android_editor.strict_locator_hint') }}</div>
+            </template>
+          </template>
+
+          <!-- wait_until -->
+          <template v-else-if="step.action === 'wait_until'">
+            <a-row :gutter="12">
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.resource_id')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.resourceId" placeholder="com.app:id/element" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.text')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.text" :placeholder="t('case.android_editor.expected_text_placeholder')" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.class_name')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.className" placeholder="android.widget.TextView" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+            </a-row>
+            <a-row :gutter="12">
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.condition')" :label-col="{ span: 8 }">
+                  <a-select v-model:value="step.params.condition" @change="emitUpdate">
+                    <a-select-option value="visible">{{ t('case.android_editor.condition_visible') }}</a-select-option>
+                    <a-select-option value="absent">{{ t('case.android_editor.condition_absent') }}</a-select-option>
+                  </a-select>
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.timeout_ms')" :label-col="{ span: 8 }">
+                  <a-input-number v-model:value="step.params.timeout_ms" :min="100" :max="60000" :step="1000" :precision="0" style="width:100%" @change="emitUpdate" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.interval_ms')" :label-col="{ span: 8 }">
+                  <a-input-number v-model:value="step.params.interval_ms" :min="200" :max="5000" :step="100" :precision="0" style="width:100%" @change="emitUpdate" />
+                </a-form-item>
+              </a-col>
+            </a-row>
+            <div class="strict-hint">{{ t('case.android_editor.wait_until_hint') }}</div>
           </template>
 
           <!-- wait -->
@@ -346,6 +429,8 @@ const props = defineProps<{
   modelValue: ExternalStep[]
   deviceId?: number | null
   leaseToken?: string | null
+  /** 用例开启严格回放时展示精确定位与条件断言字段 */
+  strictReplay?: boolean
   apkOptions?: Array<{
     filename: string
     package_name?: string | null
@@ -356,6 +441,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: ExternalStep[]]
 }>()
 const { t } = useI18n()
+const strictReplay = computed(() => props.strictReplay === true)
 
 let keyCounter = 0
 
@@ -370,6 +456,7 @@ const actionOptions = computed(() => [
   { label: t('case.android_editor.actions.assert_text'), value: 'assert_text' },
   { label: t('case.android_editor.actions.assert_element'), value: 'assert_element' },
   { label: t('case.android_editor.actions.wait'), value: 'wait' },
+  { label: t('case.android_editor.actions.wait_until'), value: 'wait_until' },
   { label: t('case.android_editor.actions.screenshot'), value: 'screenshot' },
   { label: t('case.android_editor.actions.rotate'), value: 'rotate' },
   { label: t('case.android_editor.actions.grant_permission'), value: 'grant_permission' },
@@ -399,6 +486,7 @@ const defaultParams: Record<string, () => StepParams> = {
   assert_text: () => ({ text: '' }),
   assert_element: () => ({ resourceId: '' }),
   wait: () => ({ ms: 1000 }),
+  wait_until: () => ({ resourceId: '', text: '', className: '', condition: 'visible', timeout_ms: 10000, interval_ms: 500 }),
   screenshot: () => ({}),
   rotate: () => ({ orientation: 'portrait' }),
   grant_permission: () => ({ package: '', permission: '' }),
@@ -630,6 +718,12 @@ onBeforeUnmount(revokeScreenshotUrl)
 </script>
 
 <style scoped>
+.strict-hint {
+  margin-top: -4px;
+  color: var(--c-text-tertiary, rgba(0, 0, 0, 0.45));
+  font-size: 12px;
+}
+
 .step-editor {
   display: flex;
   flex-direction: column;
