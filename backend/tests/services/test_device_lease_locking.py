@@ -23,6 +23,14 @@ class _Result:
         return self.value
 
 
+class _Savepoint:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        return False
+
+
 class _DB:
     def __init__(self, device):
         self.results = iter([device, None])
@@ -31,6 +39,8 @@ class _DB:
 
     async def execute(self, stmt):
         self.statements.append(stmt)
+        if getattr(stmt, "is_update", False):
+            return SimpleNamespace(rowcount=1)
         return _Result(next(self.results))
 
     def add(self, value):
@@ -38,6 +48,9 @@ class _DB:
 
     async def flush(self):
         return None
+
+    def begin_nested(self):
+        return _Savepoint()
 
 
 def _postgres_sql(stmt) -> str:
@@ -79,15 +92,28 @@ def test_android_active_lease_lookup_rejects_expired_token():
 
 
 class _LifecycleDB:
-    def __init__(self, results, device=None, expired=None):
+    def __init__(self, results, device=None, expired=None, delete_rowcount=1):
         self.results = iter(results)
         self.device = device
         self.expired = expired or []
         self.deleted = []
         self.added = []
         self.flushes = 0
+        self.conditional_deletes = 0
+        self.delete_rowcount = delete_rowcount
 
-    async def execute(self, _statement):
+    def expunge(self, _value):
+        return None
+
+    def begin_nested(self):
+        return _Savepoint()
+
+    async def execute(self, statement):
+        if getattr(statement, "is_update", False):
+            return SimpleNamespace(rowcount=1)
+        if getattr(statement, "is_delete", False):
+            self.conditional_deletes += 1
+            return SimpleNamespace(rowcount=self.delete_rowcount)
         value = next(self.results)
         if isinstance(value, list):
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: value))
@@ -121,10 +147,11 @@ def test_lease_lifecycle_heartbeats_releases_and_reclaims(service, status, devic
     reclaim = getattr(service, f"reclaim_expired_{prefix}device_leases")
     device = SimpleNamespace(id=device_id, status=status.online)
     now = datetime.now(timezone.utc)
-    expired_lease = SimpleNamespace(expires_at=now - timedelta(seconds=1))
+    expired_lease = SimpleNamespace(id=9, lease_token="old", expires_at=now - timedelta(seconds=1))
     acquire_db = _LifecycleDB([device, expired_lease], device=device)
     lease = asyncio.run(acquire(acquire_db, device_id, owner_id=1, owner_label="test", ttl_seconds=30))
-    assert acquire_db.deleted == [expired_lease]
+    # Android 用条件删除防止 SQLite 复用 id 时误删新租约；iOS 仍是 ORM 删除。
+    assert acquire_db.conditional_deletes == 1 if service is device_leases else acquire_db.deleted == [expired_lease]
     assert device.status is status.busy
     assert lease.expires_at > now
 
@@ -135,13 +162,15 @@ def test_lease_lifecycle_heartbeats_releases_and_reclaims(service, status, devic
     release_db = _LifecycleDB([lease], device=device)
     assert asyncio.run(release(release_db, device_id, lease.lease_token)) is True
     assert device.status is status.online
-    assert release_db.deleted == [lease]
+    # Android 的 release 是一条按令牌的 DELETE，iOS 仍是先读再 ORM 删除。
+    assert release_db.conditional_deletes == 1 if service is device_leases else release_db.deleted == [lease]
 
-    missing_db = _LifecycleDB([None], device=device)
+    missing_db = _LifecycleDB([None], device=device, delete_rowcount=0)
     assert asyncio.run(release(missing_db, device_id, "missing")) is False
 
     device.status = status.busy
-    reclaim_db = _LifecycleDB([[SimpleNamespace(device_id=device_id)]], device=device)
+    reclaimable = SimpleNamespace(id=9, device_id=device_id, lease_token="old")
+    reclaim_db = _LifecycleDB([[reclaimable]], device=device)
     assert asyncio.run(reclaim(reclaim_db)) == 1
     assert device.status is status.online
 

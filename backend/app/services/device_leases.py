@@ -6,8 +6,10 @@ from typing import Any
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models.device import Device, DeviceLease, DeviceStatus
 
@@ -18,6 +20,29 @@ class DeviceLeaseConflict(RuntimeError):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def lease_is_active(lease: DeviceLease, now: datetime | None = None) -> bool:
+    """SQLite 读回的是无时区时间（实际为 UTC），比较前统一，否则会抛 TypeError。"""
+    expires_at = lease.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at > (now or _now())
+
+
+async def _device_has_lease(db: AsyncSession, device_id: int) -> bool:
+    found = await db.execute(select(DeviceLease.id).where(DeviceLease.device_id == device_id))
+    return found.scalar_one_or_none() is not None
+
+
+async def _delete_expired_lease(db: AsyncSession, lease_id: int, lease_token: str, now: datetime) -> bool:
+    """调用方须先 expunge 该租约；过期条件无法在内存中对无时区时间求值，因此不同步会话。"""
+    removed = await db.execute(
+        delete(DeviceLease)
+        .where(DeviceLease.id == lease_id, DeviceLease.lease_token == lease_token, DeviceLease.expires_at <= now)
+        .execution_options(synchronize_session=False)
+    )
+    return removed.rowcount == 1
 
 
 async def acquire_device_lease(
@@ -37,11 +62,30 @@ async def acquire_device_lease(
 
     current = (await db.execute(select(DeviceLease).where(DeviceLease.device_id == device_id))).scalar_one_or_none()
     if current is not None:
-        if current.expires_at > now:
+        if lease_is_active(current, now):
             raise DeviceLeaseConflict("设备已被其他任务占用")
-        await db.delete(current)
-        await db.flush()
+        # SQLite 会复用 id，须带令牌；带过期条件则不会删掉持有者刚续期的租约。
+        current_id, current_token = current.id, current.lease_token
+        db.expunge(current)
+        if not await _delete_expired_lease(db, current_id, current_token, now):
+            # 没删到有两种可能：别人已接管或续期（冲突），或已被回收（设备空闲，继续）。
+            if await _device_has_lease(db, device_id):
+                raise DeviceLeaseConflict("设备已被其他任务占用")
 
+    # 本地 SQLite（pysqlite 旧式事务）只在 DML 前隐式 BEGIN。先写设备状态，让下面的
+    # SAVEPOINT 嵌套在调用方事务里；否则它成为最外层事务，RELEASE 时就提前提交了租约。
+    # SQLite 下 FOR UPDATE 不生效，设备可能在读取后被置为离线或删除，这里要再判断一次。
+    marked = await db.execute(
+        update(Device)
+        .where(Device.id == device_id, Device.status != DeviceStatus.offline)
+        .values(status=DeviceStatus.busy)
+    )
+    if marked.rowcount != 1:
+        status = (await db.execute(select(Device.status).where(Device.id == device_id))).scalar_one_or_none()
+        if status is None:
+            raise LookupError("设备不存在")
+        raise DeviceLeaseConflict("设备当前离线，无法占用")
+    device.status = DeviceStatus.busy
     lease = DeviceLease(
         device_id=device_id,
         lease_token=secrets.token_urlsafe(48),
@@ -51,9 +95,16 @@ async def acquire_device_lease(
         heartbeat_at=now,
         expires_at=now + timedelta(seconds=ttl_seconds),
     )
-    db.add(lease)
-    device.status = DeviceStatus.busy
-    await db.flush()
+    try:
+        # SQLite 没有行锁，互斥由 device_id 唯一约束兜底；保存点让冲突后调用方事务仍可用。
+        async with db.begin_nested():
+            db.add(lease)
+            await db.flush()
+    except IntegrityError:
+        # 只有设备确实已有租约才算占用冲突；其他完整性错误（如 owner_id 外键）原样抛出。
+        if await _device_has_lease(db, device_id):
+            raise DeviceLeaseConflict("设备已被其他任务占用") from None
+        raise
     return lease
 
 
@@ -69,12 +120,21 @@ async def heartbeat_device_lease(
             select(DeviceLease).where(DeviceLease.device_id == device_id, DeviceLease.lease_token == lease_token)
         )
     ).scalar_one_or_none()
-    if lease is None or lease.expires_at <= _now():
-        raise DeviceLeaseConflict("设备租约不存在或已过期")
     now = _now()
-    lease.heartbeat_at = now
-    lease.expires_at = now + timedelta(seconds=ttl_seconds)
-    await db.flush()
+    if lease is None or not lease_is_active(lease, now):
+        raise DeviceLeaseConflict("设备租约不存在或已过期")
+    expires_at = now + timedelta(seconds=ttl_seconds)
+    # 读取之后租约可能到期并被接管；SQLite 还会复用 id，所以令牌和过期条件都要写进 UPDATE。
+    renewed = await db.execute(
+        update(DeviceLease)
+        .where(DeviceLease.id == lease.id, DeviceLease.lease_token == lease_token, DeviceLease.expires_at > now)
+        .values(heartbeat_at=now, expires_at=expires_at)
+        .execution_options(synchronize_session=False)
+    )
+    if renewed.rowcount != 1:
+        raise DeviceLeaseConflict("设备租约不存在或已过期")
+    set_committed_value(lease, "heartbeat_at", now)
+    set_committed_value(lease, "expires_at", expires_at)
     return lease
 
 
@@ -89,21 +149,19 @@ async def get_active_device_lease(
             select(DeviceLease).where(DeviceLease.device_id == device_id, DeviceLease.lease_token == lease_token)
         )
     ).scalar_one_or_none()
-    if lease is None or lease.expires_at <= _now():
+    if lease is None or not lease_is_active(lease):
         return None
     return lease
 
 
 async def release_device_lease(db: AsyncSession, device_id: int, lease_token: str) -> bool:
-    lease = (
-        await db.execute(
-            select(DeviceLease).where(DeviceLease.device_id == device_id, DeviceLease.lease_token == lease_token)
-        )
-    ).scalar_one_or_none()
-    if lease is None:
+    # 一条语句按令牌删除：先读再按 id 删除时，SQLite 复用 id 会删掉接管者的新租约。
+    removed = await db.execute(
+        delete(DeviceLease).where(DeviceLease.device_id == device_id, DeviceLease.lease_token == lease_token)
+    )
+    if removed.rowcount != 1:
         return False
     device = await db.get(Device, device_id)
-    await db.delete(lease)
     if device is not None and device.status != DeviceStatus.offline:
         device.status = DeviceStatus.online
     await db.flush()
@@ -115,8 +173,12 @@ async def reclaim_expired_device_leases(db: AsyncSession) -> int:
     expired = (await db.execute(select(DeviceLease).where(DeviceLease.expires_at <= now))).scalars().all()
     count = 0
     for lease in expired:
-        device = await db.get(Device, lease.device_id)
-        await db.delete(lease)
+        device_id, lease_id, lease_token = lease.device_id, lease.id, lease.lease_token
+        db.expunge(lease)
+        # 已被接管或续期的租约不算过期，也不能把设备改回 online。
+        if not await _delete_expired_lease(db, lease_id, lease_token, now):
+            continue
+        device = await db.get(Device, device_id)
         if device is not None and device.status == DeviceStatus.busy:
             device.status = DeviceStatus.online
         count += 1
