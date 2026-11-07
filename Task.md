@@ -1,5 +1,17 @@
 # ATP 项目任务跟踪
 
+## Android 自然语言自动化（2026-11-06 细化，待开发）
+
+实施依据：[实施清单与接口契约](docs/plans/2026-11-06-android-agent-implementation-backlog.md)。本节仅登记计划，不代表功能已实现或设备验收通过。
+
+- [ ] M0 / A00–A03（进行中）：已实现协议/上下文校验、UI 树解析、环境预检、模型探测和受监督 UIAutomator 适配层；87 项相关回归通过。OPPO R11 重连后，直接中文输入“晴天”与两轮无模型搜索回放现场通过，31 次显式观察返回有效节点。该回放是独立实验脚本，尚未接入正式低代码执行器/TestRun；生产租约、持久协调器、模拟器及多场景矩阵仍待验收，未冻结 v1。见[最新现场证据](docs/evidence/android-agent-m0-uiautomator-replay-20261106.md)、[适配层实现记录](docs/evidence/android-agent-m0-adapter-20261106.md)。此前 ADB 输入与单步回放失败保留在[历史验证](docs/evidence/android-agent-m0-qishui-search-20261106.md)。
+  - 正式链路接入（2026-11-06）：Android 低代码执行器已每步续期设备租约、写前复核取消/租约，`POST /runs/{id}/stop` 支持 Android 低代码运行；新增用例级 `strict_replay`（精确唯一定位、直接中文输入回读、`wait_until`、精确断言，无坐标兜底）并修复空断言误通过。自动化回归 4248 项通过、前端 439 项通过，隔离本地后端无设备冒烟通过；真机正式 TestRun 因设备断开待重连后补验。见[正式回放接入记录](docs/evidence/android-agent-m0-formal-replay-20261106.md)。
+  - 写门禁与租约（2026-11-06）：新增写前复核门禁和模型单步闭环（仅替身测试，未调用真实模型）；修复 SQLite 下设备租约的时区报错、id 复用误删、提前提交等竞态，经独立审查和变异验证。PostgreSQL 行为仅靠读代码推断。见[记录](docs/evidence/android-agent-m0-control-20261106.md)。
+- [ ] M1 / A10–A13：设备适配、统一写门禁、结构化断言、条件等待及受保护定位。
+- [ ] M2 / A20–A23：双数据库迁移、持久协调器、模型循环、暂停接管与最小控制页面。
+- [ ] M3 / A30–A33：轨迹编译、草稿版本、独立回放与幂等保存正式用例。
+- [ ] M4 / A40–A42：完整工作台、真机/模拟器试点、Windows 打包升级及回退演练。
+
 > 当前概况见 [`docs/project-status-2026-10-26.md`](docs/project-status-2026-10-26.md)。本文件保留 v2.7.0、v2.6.0 与历史任务的勾选和交付记录；早期 N0–N6 计划见 [`docs/development-task-plan-2026-10-07.md`](docs/development-task-plan-2026-10-07.md)。每个模块均须完成实现、测试、代码审查、修复和文档同步后再进入下一项，提交推送按用户要求执行。
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
