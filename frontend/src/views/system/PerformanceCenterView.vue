@@ -2313,9 +2313,9 @@ onBeforeUnmount(stopRunPolling)
 .target-metrics-editor {
   margin-top: 18px;
   padding: 14px;
-  border: 1px solid #d6e4ff;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #f7fbff 0%, #f0f5ff 100%);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-subtle);
 }
 
 .target-metrics-header {

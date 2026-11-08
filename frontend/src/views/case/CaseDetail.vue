@@ -838,7 +838,7 @@ onMounted(async () => {
 
 .step-num-pill {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: #fa8c16;
   background: #fff7e6;
   padding: 2px 6px;
@@ -883,7 +883,7 @@ onMounted(async () => {
   display: inline-block;
   padding: 2px 6px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: 4px;
   text-align: center;
   min-width: 44px;

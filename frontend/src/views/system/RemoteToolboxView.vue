@@ -240,8 +240,7 @@ onMounted(loadOverview)
   --toolbox-ink: var(--c-text);
   --toolbox-muted: var(--c-text-secondary);
   --toolbox-line: var(--c-border);
-  --toolbox-aqua: #1c9a9a;
-  --toolbox-navy: #123747;
+  --toolbox-aqua: var(--c-primary);
   padding-bottom: 40px;
 }
 
@@ -284,7 +283,7 @@ onMounted(loadOverview)
 
 .toolbar-name {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
 }
 
@@ -307,7 +306,7 @@ onMounted(loadOverview)
 .safe-tag {
   background: var(--c-primary-soft);
   color: var(--c-primary);
-  border: 1px solid #dbeafe;
+  border: 1px solid var(--c-border);
   padding: 1px 6px;
   border-radius: 4px;
   font-size: 10px;
@@ -338,32 +337,11 @@ onMounted(loadOverview)
   border-color: var(--c-primary);
   color: #ffffff;
 }
-.toolbox-refresh {
-  align-self: flex-start;
-  color: var(--toolbox-navy);
-  border: 0;
-  background: #b9f1e3;
-  box-shadow: none;
-}
-
 .toolbox-refresh:hover,
 .toolbox-refresh:focus-visible {
-  color: var(--toolbox-navy);
-  background: #d8fff4;
-}
-
-.toolbox-export {
-  color: #d8efee;
-  border-color: rgb(216 239 238 / 38%);
-  background: rgb(255 255 255 / 8%);
-  box-shadow: none;
-}
-
-.toolbox-export:hover,
-.toolbox-export:focus-visible {
-  color: #fff;
-  border-color: rgb(216 239 238 / 72%);
-  background: rgb(255 255 255 / 15%);
+  background: var(--c-primary-hover);
+  border-color: var(--c-primary-hover);
+  color: #ffffff;
 }
 
 .toolbox-safe-note {
@@ -396,13 +374,13 @@ onMounted(loadOverview)
 }
 
 .toolbox-overall.is-ok {
-  border-color: #bce7dc;
-  background: linear-gradient(90deg, #f4fffc, #fff);
+  border-color: var(--c-success);
+  background: var(--c-success-soft);
 }
 
 .toolbox-overall.is-error {
-  border-color: #f0caca;
-  background: #fffafa;
+  border-color: var(--c-error);
+  background: var(--c-error-soft);
 }
 
 .overall-mark,
@@ -518,12 +496,12 @@ onMounted(loadOverview)
   border-top: 3px solid #aadbd4;
   border-radius: 13px;
   background: var(--c-bg-elevated);
-  transition: transform 180ms ease, box-shadow 180ms ease;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .toolbox-check-card:hover {
-  box-shadow: 0 10px 25px rgb(12 58 70 / 8%);
-  transform: translateY(-2px);
+  border-color: var(--c-border-strong);
+  box-shadow: var(--shadow-xs);
 }
 
 .toolbox-check-card.status-warning { border-top-color: #edbd68; }

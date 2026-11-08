@@ -534,8 +534,6 @@ onMounted(() => {
   border-top: 1px solid var(--c-border);
 }
 .project-bento-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-md);
   border-color: var(--c-border-strong);
 }
 @media (max-width: 768px) {

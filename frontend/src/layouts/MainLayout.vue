@@ -575,7 +575,7 @@ function onLocaleChange(value: unknown) {
 }
 .brand-name {
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   color: var(--c-text);
   letter-spacing: -0.02em;
@@ -682,7 +682,7 @@ function onLocaleChange(value: unknown) {
 }
 .worker-badge {
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 1px 5px;
   border-radius: 999px;
   background: var(--c-success-soft);

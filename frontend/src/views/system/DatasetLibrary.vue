@@ -1026,7 +1026,7 @@ onMounted(loadProjects)
 .impact-stat-value {
   color: var(--c-text, #262626);
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
 }
 

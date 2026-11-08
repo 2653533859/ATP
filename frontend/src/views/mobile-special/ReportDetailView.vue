@@ -1032,8 +1032,8 @@ watch(chartTheme, () => {
 
 .live-panel {
   margin-bottom: 16px;
-  border-color: #dce4ff;
-  background: linear-gradient(135deg, #f6f8ff 0%, #ffffff 72%);
+  border-color: var(--c-border);
+  background: var(--c-bg-subtle);
 }
 
 .live-header {
@@ -1060,18 +1060,7 @@ watch(chartTheme, () => {
 }
 
 .pulse-dot.connected {
-  background: #52c41a;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .pulse-dot.connected {
-    animation: live-pulse 1.8s ease-in-out infinite;
-  }
-}
-
-@keyframes live-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.35); }
-  50% { box-shadow: 0 0 0 5px rgba(82, 196, 26, 0); }
+  background: var(--c-success);
 }
 
 .live-progress-row {

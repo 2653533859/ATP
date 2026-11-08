@@ -456,7 +456,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 15px;
   color: var(--c-text);
 }
@@ -520,7 +520,7 @@ onMounted(() => {
   padding: 12px 14px;
   border-bottom: 1px solid var(--c-border);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
 }
 
@@ -542,7 +542,7 @@ onMounted(() => {
   cursor: pointer;
   border: 1px solid transparent;
   color: var(--c-text);
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .history-item:hover {
@@ -636,7 +636,7 @@ onMounted(() => {
 .welcome-box h2 {
   margin: 0 0 8px;
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
 }
 
@@ -676,13 +676,12 @@ onMounted(() => {
   color: var(--c-text);
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .prompt-chip:hover {
   border-color: var(--c-primary);
   background: var(--c-primary-soft);
-  transform: translateY(-1px);
 }
 
 .prompt-chip-icon {
@@ -741,7 +740,7 @@ onMounted(() => {
   height: 32px;
   border-radius: 50%;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   flex-shrink: 0;
   background: var(--c-primary-soft);
   color: var(--c-primary);
@@ -810,7 +809,7 @@ onMounted(() => {
 .markdown-body :deep(h3),
 .markdown-body :deep(h4) {
   margin: 14px 0 8px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
   line-height: 1.35;
 }

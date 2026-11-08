@@ -365,7 +365,7 @@ function getReferences(step: ApiScenarioStep): string[] {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text, #1e293b);
 }
 
@@ -382,7 +382,7 @@ function getReferences(step: ApiScenarioStep): string[] {
   height: 20px;
   padding: 0 6px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: 10px;
   background: var(--c-primary-soft, #e6f4ff);
   color: var(--c-primary, #1677ff);
@@ -514,7 +514,7 @@ function getReferences(step: ApiScenarioStep): string[] {
 
 .step-index-chip {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: #fa8c16;
   background: #fff7e6;
   padding: 2px 6px;
@@ -550,7 +550,7 @@ function getReferences(step: ApiScenarioStep): string[] {
   display: inline-block;
   padding: 2px 6px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: 4px;
   text-align: center;
   min-width: 44px;
@@ -663,7 +663,7 @@ function getReferences(step: ApiScenarioStep): string[] {
 
 .config-kicker {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text-secondary, #64748b);
 }
 

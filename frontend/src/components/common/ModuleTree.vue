@@ -176,7 +176,7 @@ defineExpose({ reload: loadModules })
   align-items: center;
   gap: 8px;
   padding: 0 4px 10px;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 13px;
   color: var(--c-text);
   border-bottom: 1px solid var(--c-border-subtle);
@@ -184,7 +184,7 @@ defineExpose({ reload: loadModules })
 }
 .tree-title {
   color: var(--c-text);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 13px;
 }
 .tree-header-actions {

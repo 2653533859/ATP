@@ -12,9 +12,9 @@ use([CanvasRenderer, LineChart, BarChart, PieChart, TitleComponent, TooltipCompo
 export const ATP_CHART_LIGHT = 'atp-light'
 export const ATP_CHART_DARK = 'atp-dark'
 
-// 调色板：与设计系统 Indigo 强调色协调，浅/深各一套
-const LIGHT_PALETTE = ['#4f46e5', '#16a34a', '#d97706', '#dc2626', '#0891b2', '#7c3aed', '#db2777', '#0d9488']
-const DARK_PALETTE = ['#818cf8', '#22c55e', '#f59e0b', '#f87171', '#22d3ee', '#a78bfa', '#f472b6', '#2dd4bf']
+// 调色板：以单一工程蓝为主导，辅以石墨中性色阶与克制的语义色
+const LIGHT_PALETTE = ['#2563eb', '#64748b', '#059669', '#d97706', '#dc2626', '#475569', '#0284c7', '#94a3b8']
+const DARK_PALETTE = ['#3b82f6', '#94a3b8', '#10b981', '#f59e0b', '#ef4444', '#64748b', '#38bdf8', '#475569']
 
 interface ThemeColors {
   palette: string[]
@@ -31,7 +31,7 @@ function buildTheme(c: ThemeColors) {
   const axisCommon = {
     axisLine: { lineStyle: { color: c.axis } },
     axisTick: { lineStyle: { color: c.axis } },
-    axisLabel: { color: c.label },
+    axisLabel: { color: c.label, fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace", fontSize: 11 },
     splitLine: { lineStyle: { color: c.split } },
   }
   return {

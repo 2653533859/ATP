@@ -994,7 +994,7 @@ onUnmounted(() => {
 
 .main-title {
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
   margin: 0;
   letter-spacing: -0.02em;
@@ -1022,7 +1022,6 @@ onUnmounted(() => {
 
 .add-btn {
   background: var(--c-primary);
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
 }
 
 .view-mode-toggle {
@@ -1132,7 +1131,7 @@ onUnmounted(() => {
 }
 
 .pill-count {
-  font-weight: 700;
+  font-weight: 600;
   font-size: 11px;
   opacity: 0.85;
 }

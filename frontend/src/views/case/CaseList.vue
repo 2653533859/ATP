@@ -1902,7 +1902,7 @@ onMounted(async () => {
 }
 .tile-value {
   font-size: 26px;
-  font-weight: 700;
+  font-weight: 600;
   font-family: 'JetBrains Mono', var(--font-sans);
   font-variant-numeric: tabular-nums;
   color: var(--c-text);
@@ -2184,7 +2184,7 @@ onMounted(async () => {
   padding: 0 4px;
   border-radius: 8px;
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 600;
   background: var(--c-border, #e2e8f0);
   color: var(--c-text-tertiary, #94a3b8);
 }
@@ -2236,7 +2236,7 @@ onMounted(async () => {
   gap: 3px;
   padding: 1px 5px;
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: 3px;
   border: 1px solid transparent;
   flex-shrink: 0;
@@ -2263,7 +2263,7 @@ onMounted(async () => {
 
 .case-link-title {
   font-size: 13.5px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text, #1e293b);
   cursor: pointer;
   transition: color 0.15s ease;
@@ -2305,7 +2305,7 @@ onMounted(async () => {
   display: inline-block;
   padding: 1px 5px;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: 3px;
   flex-shrink: 0;
   white-space: nowrap;
@@ -2418,7 +2418,7 @@ onMounted(async () => {
 
 .case-link-title {
   font-size: 13.5px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text, #1e293b);
   cursor: pointer;
   transition: color 0.15s ease;
@@ -2445,7 +2445,7 @@ onMounted(async () => {
 .priority-tag {
   margin: 0;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 18px;
   padding: 0 6px;
 }

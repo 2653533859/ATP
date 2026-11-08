@@ -2605,7 +2605,7 @@ async function handleSave() {
 
 .section-header-title {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
   white-space: nowrap;
 }
@@ -2729,7 +2729,7 @@ async function handleSave() {
   border-radius: 4px;
   background: var(--c-primary-soft, #f0f7ff);
   color: var(--c-primary, #1677ff);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 11px;
 }
 
@@ -2784,7 +2784,7 @@ async function handleSave() {
 
 .sub-tab-heading {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
 }
 

@@ -212,7 +212,7 @@ h2 { margin: 0; color: var(--c-text); font-size: 16px; font-weight: 600; }
 .draft-impact-grid strong { color: var(--c-text); font-size: 18px; font-family: 'JetBrains Mono', monospace; }
 .draft-structure-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .draft-block { min-width: 0; padding: 14px; border: 1px solid var(--c-border); border-radius: var(--radius-md); background: var(--c-bg-subtle); }
-.draft-block-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: var(--c-text-secondary); font-size: 12px; font-weight: 700; }
+.draft-block-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: var(--c-text-secondary); font-size: 12px; font-weight: 600; }
 .draft-block-heading small { font-weight: 400; text-align: right; }
 .draft-check-row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 0; color: var(--c-text-secondary); font-size: 12px; cursor: pointer; }
 .draft-check-row input, .draft-regression-row > input { flex: 0 0 auto; width: 14px; height: 14px; accent-color: var(--c-primary); }
@@ -244,7 +244,7 @@ h2 { margin: 0; color: var(--c-text); font-size: 16px; font-weight: 600; }
 .source-link:hover, .text-action:hover { color: var(--c-primary); border-color: var(--c-primary); }
 .points-heading { justify-content: space-between; margin-bottom: 8px; color: var(--c-text-secondary); font-size: 12px; font-weight: 600; }
 .point-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
-.point-row > span { width: 24px; color: var(--c-text-tertiary); font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.point-row > span { width: 24px; color: var(--c-text-tertiary); font-size: 11px; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
 .icon-action { flex: 0 0 26px; width: 26px; height: 26px; color: var(--c-text-tertiary); border-radius: var(--radius-sm); }
 .icon-action:hover { color: var(--c-error); background: var(--c-error-soft); }
 .draft-note { margin: 14px 0 0; color: var(--c-text-tertiary); font-size: 11px; }

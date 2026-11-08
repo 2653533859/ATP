@@ -1012,7 +1012,7 @@ onBeforeUnmount(stopPolling)
 
 .toolbar-name {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
 }
 
@@ -1060,10 +1060,10 @@ onBeforeUnmount(stopPolling)
   border: 0;
 }
 
-.live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 4px rgba(34, 197, 94, .14); }
-.live-dot.muted { background: #ef9a62; box-shadow: 0 0 0 4px rgba(239, 154, 98, .12); }
-.quick-create-title { font-weight: 700; }
-:deep(.ant-btn:focus-visible), .scenario-row:focus-visible, .run-row:focus-visible { outline: 2px solid #4a91d9; outline-offset: 2px; }
+.live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c-success); }
+.live-dot.muted { background: var(--c-warning); }
+.quick-create-title { font-weight: 600; }
+:deep(.ant-btn:focus-visible), .scenario-row:focus-visible, .run-row:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
 @media (max-width: 1180px) { .control-grid { grid-template-columns: 225px minmax(0, 1fr); }.observe-panel { grid-column: 1 / -1; }.run-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 15px; }.evidence-grid { grid-template-columns: minmax(0, 1fr) 225px; } }
 @media (max-width: 800px) { .perf-hero { flex-direction: column; padding: 23px 20px; }.hero-controls { width: 100%; flex-basis: auto; }.signal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.runway { overflow-x: auto; }.control-grid, .evidence-grid { grid-template-columns: 1fr; }.observe-panel { grid-column: auto; }.launch-form-grid, .metric-grid, .evidence-status-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }.evidence-actions { grid-column: 1 / -1; flex-direction: row; }.run-list { grid-template-columns: 1fr; } }
 @media (max-width: 480px) { .perf-hero h1 { font-size: 25px; }.signal-grid { gap: 8px; }.signal-card { padding: 13px; }.runway { padding: 11px; }.runway-step small { display: none; }.launch-form-grid, .metric-grid, .evidence-status-row { grid-template-columns: 1fr; }.evidence-actions { grid-column: auto; flex-direction: row; }.resource-head { align-items: flex-start; flex-direction: column; } }

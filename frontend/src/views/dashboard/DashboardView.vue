@@ -577,15 +577,15 @@ function buildPassRateOption(data: PassRateTrendItem[] = []) {
         type: 'line' as const,
         smooth: true,
         data: data.map(item => item.rate),
-        itemStyle: { color: '#1890ff' },
-        areaStyle: { color: 'rgba(24,144,255,0.15)' },
+        itemStyle: { color: '#2563eb' },
+        areaStyle: { color: 'rgba(37, 99, 235, 0.08)' },
       },
       {
         name: t('dashboard.charts.run_count'),
         type: 'bar' as const,
         yAxisIndex: 1,
         data: data.map(item => item.total),
-        itemStyle: { color: 'rgba(24,144,255,0.35)' },
+        itemStyle: { color: 'rgba(148, 163, 184, 0.45)' },
       },
     ],
   }
@@ -602,14 +602,14 @@ function buildDurationOption(data: DurationTrendItem[] = []) {
         name: t('dashboard.charts.avg_duration'),
         type: 'bar' as const,
         data: data.map(item => item.avg_duration_ms),
-        itemStyle: { color: '#52c41a' },
+        itemStyle: { color: '#64748b' },
       },
       {
         name: t('dashboard.charts.max_duration'),
         type: 'line' as const,
         smooth: true,
         data: data.map(item => item.max_duration_ms),
-        itemStyle: { color: '#faad14' },
+        itemStyle: { color: '#d97706' },
       },
     ],
   }
@@ -636,7 +636,7 @@ function buildFailureTopOption(data: FailureTopItem[] = []) {
           _projectId: item.project_id,
           _moduleId: item.module_id,
         })),
-        itemStyle: { color: '#ff4d4f' },
+        itemStyle: { color: '#dc2626' },
         cursor: 'pointer',
       },
     ],
@@ -657,7 +657,7 @@ function buildExecutorTopOption(data: ExecutorTopItem[] = []) {
       {
         type: 'bar' as const,
         data: sorted.map(item => item.run_count),
-        itemStyle: { color: '#1677ff' },
+        itemStyle: { color: '#2563eb' },
       },
     ],
   }
@@ -729,15 +729,15 @@ function buildAggregateTrendOption(data: AggregateTrendItem[] = [], label: strin
         type: 'line' as const,
         smooth: true,
         data: data.map(item => item.rate),
-        itemStyle: { color: '#722ed1' },
-        areaStyle: { color: 'rgba(114,46,209,0.15)' },
+        itemStyle: { color: '#2563eb' },
+        areaStyle: { color: 'rgba(37, 99, 235, 0.08)' },
       },
       {
         name: `${label} ${t('dashboard.charts.run_count_suffix')}`,
         type: 'bar' as const,
         yAxisIndex: 1,
         data: data.map(item => item.total),
-        itemStyle: { color: 'rgba(114,46,209,0.3)' },
+        itemStyle: { color: 'rgba(148, 163, 184, 0.45)' },
       },
     ],
   }
@@ -1519,7 +1519,7 @@ function formatAlertTime(value?: string | null) {
 }
 .section-title {
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--c-text);
 }
@@ -1650,10 +1650,6 @@ function formatAlertTime(value?: string | null) {
   border-radius: var(--radius-md);
   font-size: 20px;
   flex-shrink: 0;
-  transition: transform 0.2s ease;
-}
-.workbench-card:hover .workbench-card-icon {
-  transform: scale(1.06);
 }
 .workbench-card-icon-primary {
   color: var(--c-primary);
@@ -1682,7 +1678,7 @@ function formatAlertTime(value?: string | null) {
 }
 .workbench-card-value {
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.1;
   font-family: 'JetBrains Mono', monospace, sans-serif;
   font-variant-numeric: tabular-nums;

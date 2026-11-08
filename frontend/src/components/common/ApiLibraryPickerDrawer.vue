@@ -481,7 +481,7 @@ async function confirmImport() {
   height: 20px;
   padding: 0 6px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: 10px;
   background: var(--c-border, #e2e8f0);
   color: var(--c-text-secondary, #64748b);
@@ -529,20 +529,19 @@ async function confirmImport() {
   border-radius: 6px;
   background: var(--c-bg-elevated, #fff);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .case-item-card:hover {
   border-color: var(--c-primary, #1677ff);
   background: var(--c-primary-soft, #f0f7ff);
-  transform: translateY(-1px);
 }
 
 .case-method-tag {
   display: inline-block;
   padding: 2px 6px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: 4px;
   text-align: center;
   min-width: 44px;
@@ -638,7 +637,7 @@ async function confirmImport() {
 
 .step-badge {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: #fa8c16;
   background: #fff7e6;
   padding: 2px 6px;

@@ -559,7 +559,7 @@ onMounted(() => { void loadProjects() })
 
 .toolbar-name {
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
   color: var(--c-text);
 }
@@ -659,7 +659,7 @@ onMounted(() => { void loadProjects() })
   margin-top: 8px;
   font-family: 'JetBrains Mono', monospace, sans-serif;
   font-size: 26px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.1;
   letter-spacing: -0.02em;
   color: var(--c-text);
@@ -707,7 +707,7 @@ onMounted(() => { void loadProjects() })
 .panel-head h2 {
   margin: 0;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--c-text);
 }
@@ -928,7 +928,7 @@ onMounted(() => { void loadProjects() })
   min-width: 20px;
   font-family: 'JetBrains Mono', monospace, sans-serif;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   text-align: center;
   color: var(--c-text-secondary);
 }
@@ -1070,7 +1070,7 @@ onMounted(() => { void loadProjects() })
 .healing-rate strong {
   font-family: 'JetBrains Mono', monospace, sans-serif;
   font-size: 28px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--c-text);
 }

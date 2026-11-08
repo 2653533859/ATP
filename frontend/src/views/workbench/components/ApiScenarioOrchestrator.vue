@@ -1986,7 +1986,7 @@ function handleMoreMenu({ key }: { key: string | number }) {
 
 .flow-title {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
 }
 
@@ -2007,7 +2007,7 @@ function handleMoreMenu({ key }: { key: string | number }) {
   border: 1px solid var(--c-border);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 .step-card:hover {
   border-color: var(--c-primary);
@@ -2015,7 +2015,6 @@ function handleMoreMenu({ key }: { key: string | number }) {
 .step-card.is-selected {
   border-color: var(--c-primary);
   background: var(--c-primary-soft);
-  box-shadow: 0 2px 8px rgba(88, 80, 236, 0.08);
 }
 
 .step-card-top {
@@ -2050,7 +2049,7 @@ function handleMoreMenu({ key }: { key: string | number }) {
   color: var(--c-text-tertiary);
   cursor: pointer;
   padding: 0 4px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .step-card-meta {
@@ -2352,7 +2351,7 @@ function handleMoreMenu({ key }: { key: string | number }) {
   background: var(--c-error-soft);
 }
 .ar-badge {
-  font-weight: 700;
+  font-weight: 600;
   font-size: 11px;
 }
 

@@ -20,7 +20,7 @@
 .page-title {
   margin: 0;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--c-text);
 }
@@ -178,7 +178,7 @@
 }
 .kpi-value {
   font-size: 26px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
   font-family: 'JetBrains Mono', monospace, sans-serif;
   color: var(--c-text);
@@ -223,7 +223,7 @@
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   background: var(--c-bg-subtle);
-  transition: all 0.2s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .aggregate-report-card:hover {
@@ -241,7 +241,7 @@
   margin-top: 2px;
   color: var(--c-text);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 600;
   font-family: 'JetBrains Mono', monospace, sans-serif;
 }
 

@@ -105,7 +105,7 @@ h2 {
 }
 
 .quality-score { display: flex; align-items: baseline; gap: 4px; margin-top: 16px; }
-.quality-score strong { color: var(--c-text); font-size: 30px; font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: -.03em; }
+.quality-score strong { color: var(--c-text); font-size: 28px; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .quality-score span { color: var(--c-text-tertiary); font-size: 13px; }
 .quality-bar { height: 6px; margin: 8px 0 16px; overflow: hidden; border-radius: 99px; background: var(--c-bg-muted); }
 .quality-bar span { display: block; height: 100%; border-radius: inherit; background: var(--c-primary); transition: width .35s ease; }

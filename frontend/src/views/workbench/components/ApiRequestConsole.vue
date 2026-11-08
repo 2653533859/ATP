@@ -163,7 +163,7 @@
     </a-tabs>
 
     <div class="response-divider">
-      <div style="font-weight: 700; font-size: 13px; color: var(--c-text)">
+      <div style="font-weight: 600; font-size: 13px; color: var(--c-text)">
         {{ t('api_workbench.console.response') }}
       </div>
       <div v-if="result" class="response-metrics">
@@ -532,16 +532,16 @@ const formattedHeaders = computed(() =>
 .request-console { min-width: 0; display: flex; flex-direction: column; background: var(--c-bg-elevated); color: var(--c-text); }
 .console-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px 14px; border-bottom: 1px solid var(--c-border); }
 .request-identity { min-width: 0; }
-.request-identity h2 { display: inline-block; margin: 0 9px 0 0; color: var(--c-text); font-size: 16px; font-weight: 700; }
+.request-identity h2 { display: inline-block; margin: 0 9px 0 0; color: var(--c-text); font-size: 16px; font-weight: 600; }
 .request-code { color: var(--c-text-tertiary); font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace; }
 .heading-actions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
 .request-line { display: flex; gap: 0; padding: 16px 20px; }
 .method-select { width: 120px; flex-shrink: 0; }
-.method-select :deep(.ant-select-selector) { height: 38px !important; align-items: center; border-radius: var(--radius-sm) 0 0 var(--radius-sm) !important; background: var(--c-bg-subtle) !important; color: var(--c-text) !important; border-color: var(--c-border) !important; font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; }
+.method-select :deep(.ant-select-selector) { height: 38px !important; align-items: center; border-radius: var(--radius-sm) 0 0 var(--radius-sm) !important; background: var(--c-bg-subtle) !important; color: var(--c-text) !important; border-color: var(--c-border) !important; font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 600; }
 .url-input { min-width: 0; height: 38px; border-radius: 0; background: var(--c-bg-elevated); color: var(--c-text); border-color: var(--c-border); font-family: 'JetBrains Mono', Consolas, monospace; font-size: 13px; }
-.send-button { width: 100px; height: 38px; flex-shrink: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-weight: 700; }
+.send-button { width: 100px; height: 38px; flex-shrink: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-weight: 600; }
 .cancel-button { height: 38px; border-radius: 0; }
-.request-section-heading { display: flex; justify-content: space-between; gap: 12px; padding: 0 20px; color: var(--c-text); font-size: 12px; font-weight: 650; }
+.request-section-heading { display: flex; justify-content: space-between; gap: 12px; padding: 0 20px; color: var(--c-text); font-size: 12px; font-weight: 600; }
 .request-tabs { min-height: 195px; padding: 0 20px 14px; }
 .request-tabs :deep(.ant-tabs-content-holder) { min-height: 126px; }
 .body-header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -553,7 +553,7 @@ const formattedHeaders = computed(() =>
 .auth-grid :deep(.ant-alert) { grid-column: 1 / -1; }
 .response-divider { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 14px 20px 10px; border-top: 1px solid var(--c-border); }
 .response-metrics { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; color: var(--c-text-secondary); font-size: 12px; font-family: 'JetBrains Mono', Consolas, monospace; }
-.status-pill { padding: 2px 8px; border-radius: var(--radius-xs); font-weight: 700; }
+.status-pill { padding: 2px 8px; border-radius: var(--radius-xs); font-weight: 600; }
 .status-ok { background: var(--c-success-soft); color: var(--c-success); }
 .status-error { background: var(--c-error-soft); color: var(--c-error); }
 .request-error { margin: 0 20px 16px; }

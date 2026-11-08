@@ -870,16 +870,16 @@ onMounted(async () => {
 
 .hero-kicker {
   margin-bottom: 8px;
-  color: #315efb;
+  color: var(--c-primary);
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .16em;
+  font-weight: 600;
 }
 
 .hero-copy h1 {
   margin: 0;
-  font-size: clamp(26px, 3vw, 38px);
-  letter-spacing: -.04em;
+  font-size: clamp(24px, 2.5vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .hero-copy p {
@@ -919,13 +919,11 @@ onMounted(async () => {
   border: 1px solid var(--c-border);
   border-radius: var(--radius-lg);
   background: var(--c-bg-elevated);
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  box-shadow: var(--shadow-xs);
+  transition: border-color 0.15s ease;
 }
 
 .summary-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
   border-color: var(--c-border-strong);
 }
 
@@ -956,13 +954,15 @@ onMounted(async () => {
   display: block;
   margin: 7px 0 4px;
   color: var(--defect-ink);
-  font-size: 28px;
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
 .defect-panel {
   border: 1px solid var(--defect-line);
-  box-shadow: 0 10px 32px rgba(27, 38, 72, .04);
+  box-shadow: var(--shadow-xs);
 }
 
 .filter-row {
@@ -977,8 +977,7 @@ onMounted(async () => {
   margin-right: 5px;
   color: var(--defect-muted);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .04em;
+  font-weight: 600;
 }
 
 .filter-row :deep(.ant-select) {
@@ -986,10 +985,10 @@ onMounted(async () => {
 }
 
 .defect-id {
-  color: #315efb;
+  color: var(--c-primary);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .title-button {
@@ -1005,7 +1004,7 @@ onMounted(async () => {
 }
 
 .title-button:hover {
-  color: #315efb;
+  color: var(--c-primary);
 }
 
 .title-button small {
@@ -1022,7 +1021,7 @@ onMounted(async () => {
   border-radius: 5px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .priority-p0 { color: #a8071a; background: #fff1f0; }
@@ -1055,7 +1054,7 @@ onMounted(async () => {
 .detail-heading h2 { margin: 0; font-size: 21px; }
 
 .detail-section { margin-top: 24px; }
-.detail-section-title { margin-bottom: 9px; font-weight: 700; }
+.detail-section-title { margin-bottom: 9px; font-weight: 600; }
 .detail-description { white-space: pre-wrap; color: var(--defect-muted); line-height: 1.7; }
 .external-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .external-actions { display: flex; flex-wrap: wrap; gap: 6px; }

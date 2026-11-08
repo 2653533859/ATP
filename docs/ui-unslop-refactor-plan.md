@@ -96,3 +96,16 @@
 - [x] **`ApiWorkbenchView.vue`、`TaskCenterView.vue`、`WorkbenchTodosView.vue`**：收敛 `.column-kicker`、`.eyebrow`、`.detail-block-title`，规范等宽数字与间距。
 - [x] **`NavigationPlaceholderView.vue` & `KnowledgeHubView.vue`**：移除顶部径向渐变光晕斑块，收敛占位页与知识库标签排版。
 - [x] **`StartupConfigView.vue`、`ApiContractAssetsView.vue`、`ConfigurationCenterView.vue`**：移除渐变进度条与宽字距大写标签，规范配置中心与契约比对面板。
+
+### Phase 8: 深度精修——图表色阶、子工作台私有色板归口与全站字重收敛 (Deep Polish Mode)
+- [x] **全局图表主题与看板主次节奏 (`chartTheme.ts` & `DashboardView.vue`)**
+  - 重构 `LIGHT_PALETTE` 与 `DARK_PALETTE`，移除旧版 Indigo 紫粉彩虹 8 色，确立以单一工程蓝（`#2563eb` / `#3b82f6`）为主导、石墨中性色阶（`#64748b` / `#94a3b8`）与克制语义色为辅的工业级图表配色，坐标轴刻度统一为 `11px` `JetBrains Mono` 等宽字体。
+  - 遵循“单图单主色（One accent per chart）”原则：Dashboard 通过率与汇总趋势图中主折线采用工程蓝，次级执行量柱状图收敛为半透明石墨灰 `rgba(148, 163, 184, 0.45)`（兼顾深浅双模式 WCAG 1.4.11 图形对比度）；移除快捷卡片图标 Hover `scale(1.06)` 缩放。
+- [x] **子工作台私有色板清理与深色模式适配 (`KnowledgeHubView.vue`, `RequirementTraceabilityView.vue`, `ConfigurationCenterView.vue`, `CaseReviewWorkbench.vue` 等)**
+  - 清除各子页面孤立定义的 `--aqua`、`--copper`、`--olive`、`--coral`、`--teal`、`--violet` 等私有色板与仅适配浅色模式的马卡龙硬编码底色（`#eef0f8`、`#fff4e8`、`#fcfaff` 等），全量归口至 `--c-bg-subtle`、`--c-primary-soft` 与语义软底色 Token。
+  - 移除 `PerformanceCenterView.vue`、`RemoteToolboxView.vue`、`ReportDetailView.vue` 中最后 3 处 `linear-gradient` 背景，以及 `AppWorkbenchView.vue`、`PerformanceWorkbenchView.vue`、`ReportDetailView.vue` 中状态圆点的 `box-shadow` 光晕与 `live-pulse` 呼吸动画。
+  - 修复 `RemoteToolboxView.vue` 历史遗留重复按钮样式与 `ConfigurationCenterView.vue` 差异徽章语义文字颜色对齐。
+- [x] **全站字重封顶 600、圆角统一与零悬浮位移**
+  - 将全站 35 个组件中残余的 90+ 处 `font-weight: 700` / `750` / `800` / `900` 统一收敛至 `600`（正文与常规标签保持 `400`/`500`）。
+  - 将知识库、需求追踪、评审工作台、测试报告中残留的 `14px`–`18px` 大圆角面板统一收敛为 `var(--radius-lg)` (`8px`)。
+  - 清除 `ProjectList.vue`、`DefectListView.vue`、`RemoteToolboxView.vue`、`ApiLibraryPickerDrawer.vue`、`AiChatView.vue` 中残余的 Hover `translateY` 位移。

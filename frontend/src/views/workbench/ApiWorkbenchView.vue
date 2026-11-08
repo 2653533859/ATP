@@ -1146,7 +1146,7 @@ onMounted(() => {
 
 .toolbar-name {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
 }
 
@@ -1189,12 +1189,12 @@ onMounted(() => {
 .workspace-frame { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 710px; overflow: hidden; border: 1px solid var(--c-border); border-radius: var(--radius-lg); background: var(--c-bg-elevated); box-shadow: var(--shadow-sm); }
 .collections-pane { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--c-border); background: var(--c-bg-subtle); }
 .collections-heading { display: flex; align-items: center; justify-content: space-between; padding: 17px 16px 12px; }
-.collections-heading h2 { margin: 3px 0 0; color: var(--c-text); font-size: 15px; font-weight: 700; }
-.collection-plus-btn { color: var(--c-text-secondary); border-radius: 6px; transition: all 0.2s ease; }
+.collections-heading h2 { margin: 3px 0 0; color: var(--c-text); font-size: 15px; font-weight: 600; }
+.collection-plus-btn { color: var(--c-text-secondary); border-radius: 6px; transition: color 0.15s ease, background-color 0.15s ease; }
 .collection-plus-btn:hover { color: var(--c-primary); background: var(--c-bg-hover, rgba(0, 0, 0, 0.04)); }
 .column-kicker { color: var(--c-text-tertiary); font-size: 11px; font-weight: 600; }
 .collections-pane :deep(.module-tree) { padding: 0 12px; }
-.collection-separator { display: flex; justify-content: space-between; padding: 15px 16px 8px; color: var(--c-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.collection-separator { display: flex; justify-content: space-between; padding: 15px 16px 8px; color: var(--c-text-secondary); font-size: 11px; font-weight: 600; }
 .collection-filters { display: grid; gap: 8px; padding: 0 12px 12px; }
 .collection-filters :deep(.ant-select) { width: 100%; }
 .request-list { min-height: 220px; max-height: 48vh; flex: 1; overflow: auto; border-top: 1px solid var(--c-border-subtle); }
@@ -1218,12 +1218,12 @@ onMounted(() => {
 .run-passed { color: var(--c-success); }.run-passed .state-dot { background: var(--c-success); }.run-failed, .run-error { color: var(--c-error); }.run-failed .state-dot, .run-error .state-dot { background: var(--c-error); }.run-running, .run-pending { color: var(--c-warning); }.run-running .state-dot, .run-pending .state-dot { background: var(--c-warning); }
 
 .detail-headline { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.detail-headline h2 { margin: 4px 0 0; color: var(--c-text); font-size: 20px; font-weight: 700; }
+.detail-headline h2 { margin: 4px 0 0; color: var(--c-text); font-size: 20px; font-weight: 600; }
 .detail-actions { display: flex; gap: 8px; margin: 18px 0 24px; }
 .detail-block { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--c-border); }
 .detail-block-title { margin-bottom: 11px; color: var(--c-text-secondary); font-size: 12px; font-weight: 600; }
 .request-snapshot { display: flex; align-items: center; gap: 11px; padding: 13px; border: 1px solid var(--c-border); border-radius: var(--radius-md); background: var(--c-bg-subtle); }
-.request-method { color: var(--c-info); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 800; }
+.request-method { color: var(--c-info); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
 .request-snapshot code { overflow: hidden; color: var(--c-text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; font-family: 'JetBrains Mono', monospace; }
 .request-meta { display: flex; flex-wrap: wrap; gap: 8px 15px; margin-top: 9px; color: var(--c-text-tertiary); font-size: 11px; }
 .run-history-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--c-border-subtle); }
@@ -1303,10 +1303,9 @@ onMounted(() => {
 }
 
 .mode-pill-item.mode-pill-automation.is-active {
-  background: var(--c-primary-soft, #e6f4ff);
-  color: var(--c-primary, #1677ff);
-  border: 1px solid var(--c-primary-soft, #bae0ff);
-  box-shadow: 0 1px 3px rgba(22, 119, 255, 0.12);
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  border: 1px solid var(--c-primary);
 }
 
 .mode-pill-icon {
@@ -1319,7 +1318,7 @@ onMounted(() => {
 
 .automation-badge-indicator {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-primary, #1677ff);
   background: var(--c-primary-soft, #e6f4ff);
   padding: 2px 6px;
@@ -1352,7 +1351,7 @@ onMounted(() => {
 }
 
 .automation-selected-count {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-primary);
 }
 

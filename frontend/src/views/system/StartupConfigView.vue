@@ -783,7 +783,7 @@ onMounted(loadDraft)
 .toolbar-title {
   margin: 0;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
 }
 .hero-copy,
@@ -982,7 +982,7 @@ onMounted(loadDraft)
   color: var(--c-primary);
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   text-align: right;
 }
 

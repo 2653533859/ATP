@@ -294,7 +294,7 @@ h2 {
   height: 30px;
   color: var(--c-primary);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: var(--radius-md);
   background: var(--c-primary-soft);
 }
@@ -334,7 +334,7 @@ h2 {
 .markdown-body :deep(h3),
 .markdown-body :deep(h4) {
   margin: 12px 0 6px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--c-text);
   line-height: 1.35;
 }
