@@ -1,6 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, ref } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppWorkbenchView from './AppWorkbenchView.vue'
 
@@ -163,6 +163,9 @@ const specialTask = {
   created_at: '2026-08-24T08:00:00Z',
   updated_at: '2026-08-24T09:00:00Z',
 }
+
+// 设备页会挂可见性监听和轮询定时器，每个用例结束都卸载，避免残留实例串扰后续用例
+enableAutoUnmount(afterEach)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -419,5 +422,51 @@ describe('AppWorkbenchView', () => {
     expect(wrapper.find('.case-empty-card').text()).toContain('app_workbench.create_first_case')
 
     wrapper.unmount()
+  })
+})
+
+describe('AppWorkbenchView device status polling', () => {
+  let visibility: DocumentVisibilityState = 'visible'
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    visibility = 'visible'
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility })
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+    delete (document as unknown as Record<string, unknown>).visibilityState
+  })
+
+  it('refreshes device status every 15 seconds while visible and stops after unmount', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    expect(deviceList).toHaveBeenCalledTimes(1)
+    expect(wrapper.findAll('.device-status-dot').map((dot) => dot.classes())).toEqual([
+      expect.arrayContaining(['status-online']),
+      expect.arrayContaining(['status-offline']),
+    ])
+
+    deviceList.mockResolvedValue([
+      { id: 10, serial: 'emulator-5554', name: 'Pixel 7', model: 'Pixel 7', brand: 'Google', os_version: '14', sdk_version: '34', resolution: '1080x2400', status: 'offline', created_at: '', updated_at: '' },
+      { id: 11, serial: 'offline-01', name: '备用机', model: 'Mi 12', brand: 'Xiaomi', os_version: '13', sdk_version: '33', status: 'offline', created_at: '', updated_at: '' },
+    ])
+    await vi.advanceTimersByTimeAsync(15000)
+    await flushPromises()
+    expect(deviceList).toHaveBeenCalledTimes(2)
+    expect(wrapper.findAll('.device-status-dot.status-offline')).toHaveLength(2)
+
+    visibility = 'hidden'
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(deviceList).toHaveBeenCalledTimes(2)
+
+    wrapper.unmount()
+    visibility = 'visible'
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(deviceList).toHaveBeenCalledTimes(2)
   })
 })

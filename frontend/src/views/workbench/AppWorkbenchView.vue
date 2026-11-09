@@ -402,6 +402,7 @@ import {
   type RunDetailItem,
   type TaskType,
 } from '@/api'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { canEditProjectByRole } from '@/utils/permissions'
 import { useAuthStore } from '@/stores/auth'
 import { getRuntimeMode } from '@/runtimeMode'
@@ -668,6 +669,19 @@ async function loadDevices(projectId: number, sequence: number) {
     if (isCurrentProjectData(sequence, projectId)) devices.value = []
   }
 }
+
+// 后台已定时扫描 ADB，页面可见期间静默重读设备列表；失败时保留当前列表等下一轮
+const DEVICE_POLL_INTERVAL_MS = 15000
+
+async function refreshDevicesSilently() {
+  const projectId = selectedProjectId.value
+  const sequence = projectDataSequence
+  if (!projectId || loading.value || scanning.value) return
+  const result = await deviceApi.list()
+  if (isCurrentProjectData(sequence, projectId) && !scanning.value) devices.value = result
+}
+
+const devicePolling = useVisiblePolling(refreshDevicesSilently, DEVICE_POLL_INTERVAL_MS)
 
 async function loadWorkers(projectId: number, sequence: number) {
   if (localMode) {
@@ -1011,7 +1025,10 @@ function closePreview() {
   previewOpen.value = false
 }
 
-onMounted(() => { void loadProjects() })
+onMounted(() => {
+  void loadProjects()
+  devicePolling.start()
+})
 onUnmounted(() => {
   closePreview()
   stopLeaseHeartbeat()

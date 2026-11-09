@@ -439,6 +439,7 @@ import {
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { deviceApi } from '@/api'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import type { AndroidWorkerItem, DeviceGroupItem, DeviceItem, DeviceStatus, RemoteAgentItem } from '@/api'
 import DeviceMatrixPanel from './components/DeviceMatrixPanel.vue'
 import DeviceMirrorModal from './components/DeviceMirrorModal.vue'
@@ -655,16 +656,26 @@ function formatTime(t: string) {
   return t?.slice(0, 19).replace('T', ' ')
 }
 
+// 后台已定时扫描 ADB 并更新数据库，页面可见期间定时重读列表让状态跟上
+const DEVICE_POLL_INTERVAL_MS = 15000
+let deviceLoadSequence = 0
+
+function deviceListParams() {
+  return statusFilter.value ? { status_filter: statusFilter.value } : undefined
+}
+
 async function loadDevices() {
+  const sequence = ++deviceLoadSequence
   loading.value = true
   try {
-    devices.value = await deviceApi.list(
-      statusFilter.value ? { status_filter: statusFilter.value } : undefined,
-    )
+    const result = await deviceApi.list(deviceListParams())
+    if (sequence !== deviceLoadSequence) return
+    devices.value = result
     if (devices.value.length === 0 && import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
       devices.value = getPrototypeMockDevices()
     }
   } catch (e: unknown) {
+    if (sequence !== deviceLoadSequence) return
     if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA !== 'true') {
       message.error(errorMessage(e, t('device.msg.load_failed')))
     }
@@ -672,9 +683,21 @@ async function loadDevices() {
       devices.value = getPrototypeMockDevices()
     }
   } finally {
-    loading.value = false
+    if (sequence === deviceLoadSequence) loading.value = false
   }
 }
+
+// 静默刷新：不显示加载态、不弹错误，失败时保留当前列表等下一轮
+async function refreshDevicesSilently() {
+  if (loading.value || scanning.value) return
+  const sequence = ++deviceLoadSequence
+  const result = await deviceApi.list(deviceListParams())
+  if (sequence !== deviceLoadSequence || scanning.value) return
+  if (result.length === 0 && import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') return
+  devices.value = result
+}
+
+const devicePolling = useVisiblePolling(refreshDevicesSilently, DEVICE_POLL_INTERVAL_MS)
 function getPrototypeMockDevices(): DeviceItem[] {
   return [
     {
@@ -772,6 +795,7 @@ async function saveGroup() {
 async function deleteGroup(id: number) { await deviceApi.deleteGroup(id); await loadGroups() }
 
 async function handleScan() {
+  ++deviceLoadSequence
   scanning.value = true
   try {
     const result = await deviceApi.scan()
@@ -867,6 +891,7 @@ function closeMirror() {
 
 onMounted(() => {
   loadDevices()
+  devicePolling.start()
   loadWorkers()
   loadGroups()
   fetchRemoteAgents()
