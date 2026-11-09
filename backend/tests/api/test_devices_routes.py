@@ -13,6 +13,7 @@ from app.api.v1 import devices
 from app.models.device import DeviceStatus
 from app.schemas.device import DeviceUpdate
 from app.schemas.device_lease import DeviceLeaseAcquireIn, DeviceLeaseTokenIn
+from app.services.device_sync import device_scan_lock
 
 
 class _Result:
@@ -118,6 +119,72 @@ def test_scan_devices_syncs_and_returns_latest_rows(monkeypatch):
     assert [device.id for device in result.devices] == [latest.id]
     assert calls == {"db": db, "scanned": [{"serial": "serial-2", "status": "online"}]}
     assert db.commits == 1
+
+
+def test_scan_devices_waits_for_a_scan_already_in_progress(monkeypatch):
+    # 手动扫描与本地后台巡检共用扫描锁，先开始的扫描不能晚提交、覆盖本次结果。
+    events = []
+
+    async def fake_scan():
+        events.append("endpoint-scan")
+        return []
+
+    async def fake_sync(_db, _scanned):
+        events.append("endpoint-sync")
+
+    monkeypatch.setattr(devices, "async_scan_devices", fake_scan)
+    monkeypatch.setattr(devices, "sync_devices_to_db_async", fake_sync)
+
+    async def scenario():
+        async with device_scan_lock():
+            task = asyncio.create_task(devices.scan_devices(db=_DB(rows=[[]]), _=None))
+            await asyncio.sleep(0.05)
+            events.append("monitor-commit")
+        await task
+
+    asyncio.run(scenario())
+    assert events == ["monitor-commit", "endpoint-scan", "endpoint-sync"]
+
+
+def test_scan_devices_holds_the_scan_lock_until_its_commit(monkeypatch):
+    # 只锁 adb 调用不够：后到的扫描若在本次提交前开始写库，会用旧结果覆盖本次结果。
+    events = []
+
+    class _RecordingDB(_DB):
+        async def commit(self):
+            events.append("endpoint-commit")
+            await super().commit()
+
+    async def scenario():
+        scanning = asyncio.Event()
+        release_scan = asyncio.Event()
+
+        async def fake_scan():
+            events.append("endpoint-scan")
+            scanning.set()
+            await release_scan.wait()
+            return []
+
+        async def fake_sync(_db, _scanned):
+            # 真实写库一定会让出事件循环；替身不让出时，锁提前释放也测不出来。
+            await asyncio.sleep(0)
+            events.append("endpoint-sync")
+
+        async def contender():
+            async with device_scan_lock():
+                events.append("contender")
+
+        monkeypatch.setattr(devices, "async_scan_devices", fake_scan)
+        monkeypatch.setattr(devices, "sync_devices_to_db_async", fake_sync)
+        endpoint = asyncio.create_task(devices.scan_devices(db=_RecordingDB(rows=[[]]), _=None))
+        await scanning.wait()
+        other = asyncio.create_task(contender())
+        await asyncio.sleep(0.01)
+        release_scan.set()
+        await asyncio.gather(endpoint, other)
+
+    asyncio.run(scenario())
+    assert events == ["endpoint-scan", "endpoint-sync", "endpoint-commit", "contender"]
 
 
 def test_scan_devices_dispatches_to_worker_queue(monkeypatch):

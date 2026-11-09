@@ -27,6 +27,7 @@ _LOCAL_PROFILE_KEYS = frozenset(
         "FIRST_ADMIN_EMAIL",
         "ENCRYPTION_KEY",
         "ADB_SCAN_ENABLED",
+        "LOCAL_DEVICE_MONITOR_ENABLED",
         "PERFORMANCE_NODE_ENABLED",
         "PERFORMANCE_EXECUTORS",
         "WEB_BROWSER_POOLING_ENABLED",
@@ -127,6 +128,9 @@ class Settings(BaseSettings):
     ADB_SCAN_ENABLED: bool = True  # 设为 False 可关闭定时扫描（纯 Web 测试环境）
     ADB_SCAN_INTERVAL: int = 15  # 设备扫描间隔（秒）
     ADB_SCAN_MODE: str = "local"  # local=当前进程扫描；worker=投递到 mobile_special 队列
+    # Windows 本地模式没有 Celery Beat：后端进程内定期扫描 ADB、刷新设备状态并回收过期租约。
+    # 与 ADB_SCAN_ENABLED 分开，因为已有本地档案里写的是 ADB_SCAN_ENABLED=false（当时本地模式不扫描）。
+    LOCAL_DEVICE_MONITOR_ENABLED: bool = True
     # Windows Android Worker 注册信息；留空时普通 Worker 不会伪装成 Android Agent
     ANDROID_WORKER_ID: str = ""
     ANDROID_WORKER_QUEUE: str = "mobile_special"

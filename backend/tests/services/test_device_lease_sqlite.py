@@ -10,9 +10,10 @@ from pathlib import Path
 import sqlite3
 
 import pytest
-from sqlalchemy import event, select
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session
 
 from app.models.base import Base
 from app.models.bootstrap import load_all_models
@@ -23,6 +24,7 @@ from app.services.device_leases import (
     get_active_device_lease,
     heartbeat_device_lease,
     reclaim_expired_device_leases,
+    reclaim_expired_device_leases_sync,
     release_device_lease,
 )
 
@@ -415,3 +417,52 @@ def test_sqlite_status_drift_acquire_still_rolls_back(tmp_path):
             await engine.dispose()
 
     assert asyncio.run(scenario()) == ([], DeviceStatus.busy)
+
+
+def _seed_expired_busy_lease(path: Path) -> None:
+    async def seed():
+        engine, factory = await _sqlite(path)
+        try:
+            await _seed_lease(factory)
+        finally:
+            await engine.dispose()
+
+    asyncio.run(seed())
+
+
+def _rows(path: Path):
+    con = sqlite3.connect(path)
+    try:
+        tokens = [row[0] for row in con.execute("SELECT lease_token FROM device_leases")]
+        status = con.execute("SELECT status FROM devices WHERE id = 1").fetchone()[0]
+    finally:
+        con.close()
+    return tokens, status
+
+
+@pytest.mark.parametrize("renewed_before_delete", [False, True])
+def test_sqlite_sync_reclaim_matches_the_async_rules(tmp_path, renewed_before_delete):
+    # 本地设备巡检在工作线程里用同步版回收：过期才删、删掉才改在线；删除前被续期的租约要保留。
+    path = tmp_path / "sync-reclaim.sqlite3"
+    _seed_expired_busy_lease(path)
+    engine = create_engine(f"sqlite:///{path.as_posix()}", connect_args={"timeout": 5})
+    fired = []
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def _renew(_conn, _cursor, statement, *_):
+        if renewed_before_delete and statement.startswith("DELETE FROM device_leases") and not fired:
+            fired.append(True)
+            _other_connection(path, "UPDATE device_leases SET expires_at = ?", _sqlite_time(600))
+
+    try:
+        with Session(engine) as session:
+            reclaimed = reclaim_expired_device_leases_sync(session)
+            session.commit()
+    finally:
+        engine.dispose()
+
+    if renewed_before_delete:
+        assert fired == [True]
+        assert (reclaimed, _rows(path)) == (0, (["old"], DeviceStatus.busy.value))
+    else:
+        assert (reclaimed, _rows(path)) == (1, ([], DeviceStatus.online.value))

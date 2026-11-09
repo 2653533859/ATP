@@ -7,6 +7,7 @@
 4. POST /devices/disconnect 远程断开连接与状态收敛。
 """
 
+import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
@@ -17,7 +18,7 @@ from app.models.bootstrap import load_all_models
 from app.models.device import Device, DeviceStatus
 from app.models.user import User
 from app.schemas.device import RemoteDeviceConnectIn, RemoteDeviceDisconnectIn
-from app.services.adb_service import connect_remote_device, disconnect_remote_device
+from app.services.adb_service import AdbDeviceInfo, connect_remote_device, disconnect_remote_device
 
 load_all_models()
 
@@ -175,3 +176,87 @@ async def test_api_disconnect_remote_device(monkeypatch):
     assert res["success"] is True
     assert res["serial"] == "192.168.3.150:5555"
     assert mock_device.status == DeviceStatus.offline
+
+
+# ==================== 3. 与本地后台巡检共用扫描锁 ====================
+
+
+class _RecordingDB:
+    def __init__(self, events, device=None):
+        self.events = events
+        self.device = device
+
+    async def commit(self):
+        self.events.append("endpoint-commit")
+
+    async def scalar(self, _stmt):
+        return self.device
+
+
+async def _assert_holds_scan_lock_until_commit(monkeypatch, call_endpoint, scanned):
+    """接口拿到扫描锁后，后到的扫描要等它提交才能开始，否则旧结果会覆盖本次结果。"""
+    from app.api.v1 import devices
+    from app.services.device_sync import device_scan_lock
+
+    events = []
+    scanning = asyncio.Event()
+    release_scan = asyncio.Event()
+
+    async def fake_scan():
+        events.append("endpoint-scan")
+        scanning.set()
+        await release_scan.wait()
+        return scanned
+
+    async def fake_sync(_db, _scanned):
+        # 真实写库一定会让出事件循环；替身不让出时，锁提前释放也测不出来。
+        await asyncio.sleep(0)
+        events.append("endpoint-sync")
+
+    async def contender():
+        async with device_scan_lock():
+            events.append("contender")
+
+    monkeypatch.setattr(devices, "async_scan_devices", fake_scan)
+    monkeypatch.setattr(devices, "sync_devices_to_db_async", fake_sync)
+    endpoint = asyncio.create_task(call_endpoint(events))
+    await scanning.wait()
+    other = asyncio.create_task(contender())
+    await asyncio.sleep(0.01)
+    release_scan.set()
+    await asyncio.gather(endpoint, other)
+    assert events == ["endpoint-scan", "endpoint-sync", "endpoint-commit", "contender"]
+
+
+@pytest.mark.asyncio
+async def test_api_connect_holds_the_scan_lock_until_commit(monkeypatch):
+    from app.api.v1 import devices
+
+    monkeypatch.setattr(devices, "async_connect_remote_device", AsyncMock(return_value=(True, "connected")))
+    now = datetime.now(timezone.utc)
+    device = Device(id=99, serial="192.168.3.150:5555", status=DeviceStatus.online, created_at=now, updated_at=now)
+
+    async def call(events):
+        body = RemoteDeviceConnectIn(host="192.168.3.150", port=5555)
+        return await devices.connect_remote_adb_device(
+            body=body, db=_RecordingDB(events, device), _=User(id=1, username="engineer")
+        )
+
+    await _assert_holds_scan_lock_until_commit(
+        monkeypatch, call, [AdbDeviceInfo(serial="192.168.3.150:5555", status="device")]
+    )
+
+
+@pytest.mark.asyncio
+async def test_api_disconnect_holds_the_scan_lock_until_commit(monkeypatch):
+    from app.api.v1 import devices
+
+    monkeypatch.setattr(devices, "async_disconnect_remote_device", AsyncMock(return_value=(True, "disconnected")))
+
+    async def call(events):
+        body = RemoteDeviceDisconnectIn(serial="192.168.3.150:5555")
+        return await devices.disconnect_remote_adb_device(
+            body=body, db=_RecordingDB(events), _=User(id=1, username="engineer")
+        )
+
+    await _assert_holds_scan_lock_until_commit(monkeypatch, call, [])

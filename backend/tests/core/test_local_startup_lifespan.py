@@ -1,5 +1,6 @@
 """Startup selects the local schema and queue only for the local profile."""
 
+import asyncio
 import sys
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -43,6 +44,23 @@ async def test_local_lifespan_starts_schema_workspace_and_queue(monkeypatch):
     )
     monkeypatch.setattr(local_jobs, "start_local_runner", lambda: events.append("start"))
     monkeypatch.setattr(local_jobs, "stop_local_runner", lambda: events.append("stop"))
+    from app.services import local_device_monitor
+
+    async def _monitor(stop_event: asyncio.Event) -> None:
+        events.append("monitor_start")
+        try:
+            await stop_event.wait()
+        finally:
+            events.append("monitor_stop")
+
+    # 本地模式没有 Celery Beat，设备巡检随 lifespan 启动，并在投递器停止前收尾。
+    monkeypatch.setattr(local_device_monitor, "local_device_monitor_enabled", lambda: True)
+    monkeypatch.setattr(local_device_monitor, "run_local_device_monitor", _monitor)
+    # 下面要让出事件循环等巡检启动；真实 adb_keeper 会借机拉起 adb 子进程，这里替身掉。
+    from app.device_agents.adb_keeper import adb_keeper
+
+    monkeypatch.setattr(adb_keeper, "start_in_loop", lambda: None)
+    monkeypatch.setattr(adb_keeper, "stop", lambda: None)
     from app.api.v1 import web_recordings
     from app.services import execution_dispatch
 
@@ -64,7 +82,10 @@ async def test_local_lifespan_starts_schema_workspace_and_queue(monkeypatch):
     async with main.lifespan(main.app):
         assert ("schema", sync_engine) in events
         assert events.index("workspace") < events.index("start") < events.index("dispatch_start")
+        await asyncio.sleep(0)
+        assert events.index("start") < events.index("monitor_start")
 
+    assert events.index("monitor_stop") < events.index("dispatch_stop")
     assert events[-6:] == ["dispatch_stop", "stop", "recordings", "browsers", "dispose", "shutdown"]
 
 

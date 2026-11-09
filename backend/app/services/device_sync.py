@@ -1,10 +1,12 @@
 """
 设备同步服务 — 将 ADB 扫描结果同步到数据库
 
-提供 sync（Celery 任务）和 async（API 端点）两个版本，
+提供 sync（Celery 任务、本地设备巡检的工作线程）和 async（API 端点）两个版本，
 共享同一套 upsert + offline 标记逻辑。
 """
 
+import asyncio
+import weakref
 from datetime import datetime, timezone
 from typing import Any
 
@@ -16,6 +18,21 @@ from sqlalchemy.orm import Session
 
 from app.models.device import Device, DeviceLease, DeviceStatus
 from app.services.adb_service import AdbDeviceInfo
+
+_scan_locks: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock]" = weakref.WeakKeyDictionary()
+
+
+def device_scan_lock() -> asyncio.Lock:
+    """串行化同一进程内的“扫描 → 同步 → 提交”。
+
+    本地模式下后台巡检与手动扫描、连接、断开共用一个事件循环；不串行化时，先开始的扫描
+    可能后提交，用旧结果覆盖刚写入的新状态。按事件循环各建一把锁，避免锁绑定到别的循环。
+    """
+    loop = asyncio.get_running_loop()
+    lock = _scan_locks.get(loop)
+    if lock is None:
+        lock = _scan_locks[loop] = asyncio.Lock()
+    return lock
 
 
 def _build_upsert_stmt(info: AdbDeviceInfo, now: datetime, dialect_name: str = "postgresql"):
@@ -92,7 +109,7 @@ def _online_serials(scanned: list[AdbDeviceInfo]) -> set[str]:
 
 
 def sync_devices_to_db_sync(session: Session, scanned: list[AdbDeviceInfo]) -> None:
-    """同步版本（供 Celery 任务使用）"""
+    """同步版本（供 Celery 任务与本地设备巡检的工作线程使用）"""
     now = datetime.now(timezone.utc)
     scanned_serials = {info.serial for info in scanned}
 

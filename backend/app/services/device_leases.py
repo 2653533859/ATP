@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models.device import Device, DeviceLease, DeviceStatus
@@ -37,12 +38,16 @@ async def _device_has_lease(db: AsyncSession, device_id: int) -> bool:
 
 async def _delete_expired_lease(db: AsyncSession, lease_id: int, lease_token: str, now: datetime) -> bool:
     """调用方须先 expunge 该租约；过期条件无法在内存中对无时区时间求值，因此不同步会话。"""
-    removed = await db.execute(
+    removed = await db.execute(_delete_expired_lease_stmt(lease_id, lease_token, now))
+    return removed.rowcount == 1
+
+
+def _delete_expired_lease_stmt(lease_id: int, lease_token: str, now: datetime):
+    return (
         delete(DeviceLease)
         .where(DeviceLease.id == lease_id, DeviceLease.lease_token == lease_token, DeviceLease.expires_at <= now)
         .execution_options(synchronize_session=False)
     )
-    return removed.rowcount == 1
 
 
 async def acquire_device_lease(
@@ -183,6 +188,28 @@ async def reclaim_expired_device_leases(db: AsyncSession) -> int:
             device.status = DeviceStatus.online
         count += 1
     await db.flush()
+    return count
+
+
+def reclaim_expired_device_leases_sync(session: Session) -> int:
+    """同步版本，逻辑与 reclaim_expired_device_leases 相同。
+
+    供本地设备巡检在工作线程里使用：持有 SQLite 写锁的一方不能依赖主事件循环才能提交。
+    """
+    now = _now()
+    expired = session.execute(select(DeviceLease).where(DeviceLease.expires_at <= now)).scalars().all()
+    count = 0
+    for lease in expired:
+        device_id, lease_id, lease_token = lease.device_id, lease.id, lease.lease_token
+        session.expunge(lease)
+        # 已被接管或续期的租约不算过期，也不能把设备改回 online。
+        if session.execute(_delete_expired_lease_stmt(lease_id, lease_token, now)).rowcount != 1:
+            continue
+        device = session.get(Device, device_id)
+        if device is not None and device.status == DeviceStatus.busy:
+            device.status = DeviceStatus.online
+        count += 1
+    session.flush()
     return count
 
 

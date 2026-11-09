@@ -29,7 +29,7 @@ from app.services.adb_service import (
     async_disconnect_remote_device,
 )
 from app.services.android_worker_registry import AndroidWorkerRegistryError, list_android_workers
-from app.services.device_sync import sync_devices_to_db_async
+from app.services.device_sync import device_scan_lock, sync_devices_to_db_async
 from app.services.device_leases import (
     DeviceLeaseConflict,
     acquire_device_lease,
@@ -172,14 +172,16 @@ async def scan_devices(
             devices=await _list_device_rows(db),
         )
 
-    scanned = await async_scan_devices()
-    if scanned is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="ADB 扫描失败，请检查 ADB 服务后重试",
-        )
-    await sync_devices_to_db_async(db, scanned)
-    await db.commit()
+    # 与本地后台巡检共用扫描锁：先开始的扫描不能晚提交、覆盖本次结果。
+    async with device_scan_lock():
+        scanned = await async_scan_devices()
+        if scanned is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="ADB 扫描失败，请检查 ADB 服务后重试",
+            )
+        await sync_devices_to_db_async(db, scanned)
+        await db.commit()
 
     return DeviceScanOut(status="completed", devices=await _list_device_rows(db))
 
@@ -208,10 +210,11 @@ async def connect_remote_adb_device(
             detail=f"远程设备连接失败: {message}",
         )
 
-    scanned = await async_scan_devices()
-    if scanned:
-        await sync_devices_to_db_async(db, scanned)
-        await db.commit()
+    async with device_scan_lock():
+        scanned = await async_scan_devices()
+        if scanned:
+            await sync_devices_to_db_async(db, scanned)
+            await db.commit()
 
     device = await db.scalar(select(Device).where(Device.serial == serial))
     return RemoteDeviceConnectOut(
@@ -231,17 +234,18 @@ async def disconnect_remote_adb_device(
     """通过 adb disconnect 断开远程设备的网络连接。"""
     serial = body.serial.strip()
     success, message = await async_disconnect_remote_device(serial)
-    scanned = await async_scan_devices()
-    if scanned is not None:
-        await sync_devices_to_db_async(db, scanned)
-        await db.commit()
-    else:
-        device = await db.scalar(select(Device).where(Device.serial == serial))
-        if device:
-            from app.services.device_leases import handle_device_disconnection_recovery
-
-            await handle_device_disconnection_recovery(db, device.id, reason="manual_disconnect")
+    async with device_scan_lock():
+        scanned = await async_scan_devices()
+        if scanned is not None:
+            await sync_devices_to_db_async(db, scanned)
             await db.commit()
+        else:
+            device = await db.scalar(select(Device).where(Device.serial == serial))
+            if device:
+                from app.services.device_leases import handle_device_disconnection_recovery
+
+                await handle_device_disconnection_recovery(db, device.id, reason="manual_disconnect")
+                await db.commit()
     return {"success": success, "message": message, "serial": serial}
 
 

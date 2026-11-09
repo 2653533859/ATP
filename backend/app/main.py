@@ -92,6 +92,8 @@ async def lifespan(app: FastAPI):
     sync_task: asyncio.Task[None] | None = None
     node_stop_event = asyncio.Event()
     node_task: asyncio.Task[None] | None = None
+    device_monitor_stop_event = asyncio.Event()
+    device_monitor_task: asyncio.Task[None] | None = None
     if settings.ATP_LOCAL_MODE:
         from app.core.database import sync_engine
         from app.core.local_schema import ensure_local_schema
@@ -121,6 +123,11 @@ async def lifespan(app: FastAPI):
 
         await ensure_local_workspace()
         start_local_runner()
+        # 本地模式没有 Celery Beat：由后台巡检定期扫描 ADB、刷新设备状态并回收过期租约。
+        from app.services.local_device_monitor import local_device_monitor_enabled, run_local_device_monitor
+
+        if local_device_monitor_enabled():
+            device_monitor_task = asyncio.create_task(run_local_device_monitor(device_monitor_stop_event))
         if settings.CLOUD_SYNC_ENABLED and settings.CLOUD_SYNC_URL and settings.CLOUD_SYNC_API_KEY:
             sync_task = asyncio.create_task(_sync_local_outbox_loop(sync_stop_event))
             from app.services.remote_node_agent import run_local_node_agent
@@ -142,6 +149,10 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        if device_monitor_task is not None:
+            device_monitor_stop_event.set()
+            device_monitor_task.cancel()
+            await asyncio.gather(device_monitor_task, return_exceptions=True)
         if node_task is not None:
             node_stop_event.set()
             node_task.cancel()
