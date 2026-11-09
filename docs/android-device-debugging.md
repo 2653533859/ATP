@@ -113,6 +113,19 @@ POST /api/v1/devices/scan
 - 状态为 `online`
 - serial 为 TCP 地址，如 `192.168.x.x:5555`
 
+设备状态的自动刷新：
+
+- 服务器模式：Celery Beat 每 `ADB_SCAN_INTERVAL` 秒（默认 15）投递一次 `scan_adb_devices`，过期租约由 `reclaim_expired_device_leases` 定时回收。
+- Windows 本地模式：不运行 Celery，由后端进程内的设备巡检（`backend/app/services/local_device_monitor.py`）在启动时立即扫描一次，之后每 15 秒扫描并回收过期租约。本地档案只读取白名单里的配置，`ADB_SCAN_INTERVAL`、`ADB_SCAN_MODE` 不生效；开关是 `LOCAL_DEVICE_MONITOR_ENABLED`（默认开启），档案里原有的 `ADB_SCAN_ENABLED=false` 不影响巡检。ADB 不可用时不改任何状态，并按 15、30、60、120 秒退避重试；巡检自身每轮失败只告警一次，adb 每次调用失败仍由 `adb_service` 记录一条。写库在工作线程里进行，不占用主事件循环。
+- 设备页不会自动轮询，需要刷新页面或点“扫描”才能看到最新状态。
+
+状态判定规则（两种模式相同）：
+
+- adb 报告的状态不是 `device`（如 `offline`、`unauthorized`），或设备已不在 `adb devices` 列表中，一律记为离线；占用中的设备也一样。
+- 在线且持有未过期租约才算占用中。租约过期或被删除后残留的占用中，在下一次扫描时恢复为在线。
+- 扫描本身不删除租约，也不终止进行中的运行。设备掉线时由执行器自行失败并释放租约；持有方已退出的租约到期后被回收。
+- 专项测试运行期间不续租，因此租约时长取 `duration_seconds` 加 600 秒余量（不少于 900 秒），避免长时间任务中途被回收、显示为空闲。
+
 ### 3. 创建 Android 用例
 
 确保用例配置中已选择：

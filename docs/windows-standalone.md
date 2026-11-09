@@ -46,7 +46,7 @@ API 用例编辑器可在保存前点击“发送请求”，按当前方法、U
 
 对 `GET /v1/model` 返回 404 的请求，工作台会提示 OpenAI 兼容模型列表通常使用 `/v1/models`，并提供填入建议地址按钮；不会自动重发请求。此提示是路径建议，不能代替目标服务的接口文档或证明认证配置正确。
 
-Android 本地模式使用 Windows 本机 ADB。安装 Android SDK Platform Tools 并把 `adb` 加入 `PATH`，连接设备后在 APP 工作台手动扫描，再选设备、APK、Android 用例或专项任务执行。APP 工作台就地集成了 `AndroidCaseDrawer`，支持直接在工作台新建或编辑 Android 用例，包含设备矩阵、录屏、APK 资产绑定、低代码动作步骤与 UiAutomator2 脚本，并自动解析绑定合法项目根模块（彻底解决 Pydantic `module_id=null` 导致的 HTTP 422 校验失败）；针对 0 用例项目提供标准冷启动引导卡片（Empty State CTA）。同时支持 Scrcpy 60FPS WebCodecs 硬件直解实时流与毫秒级全双工触控控制，鼠标按键强制过滤非左键点击防触控死锁，降级超时具备流资源显式清理机制。
+Android 本地模式使用 Windows 本机 ADB。安装 Android SDK Platform Tools 并把 `adb` 加入 `PATH`，连接设备后在 APP 工作台手动扫描，再选设备、APK、Android 用例或专项任务执行。后端也会在启动时及之后每 15 秒自动扫描一次并回收过期设备租约，拔掉的设备会在下一次扫描后显示离线；页面本身不轮询，需刷新查看。可在 `local-lite.env` 写 `LOCAL_DEVICE_MONITOR_ENABLED=false` 关闭，档案里原有的 `ADB_SCAN_ENABLED=false` 不影响它。规则见 [`android-device-debugging.md`](android-device-debugging.md)。APP 工作台就地集成了 `AndroidCaseDrawer`，支持直接在工作台新建或编辑 Android 用例，包含设备矩阵、录屏、APK 资产绑定、低代码动作步骤与 UiAutomator2 脚本，并自动解析绑定合法项目根模块（彻底解决 Pydantic `module_id=null` 导致的 HTTP 422 校验失败）；针对 0 用例项目提供标准冷启动引导卡片（Empty State CTA）。同时支持 Scrcpy 60FPS WebCodecs 硬件直解实时流与毫秒级全双工触控控制，鼠标按键强制过滤非左键点击防触控死锁，降级超时具备流资源显式清理机制。
 
 本地启动只从独立 `local-lite.env` 中读取允许的配置，不加载仓库根目录 `.env`。本地认证 Cookie 采用专属名称（`atp_local_access_token` / `atp_local_refresh_token`），登出时仅定向清除本地会话，绝不影响服务器模式会话；WebSocket 仅按激活模式校验专属令牌。前端请求拦截器自动注入 `X-ATP-Client-Mode`，后端全局中间件核对若发现客户端与服务端模式不一致立即熔断返回 HTTP 409 Conflict，防止向错误后端写入脏数据。双模式切换使用 `scripts/windows-mode.ps1`，支持无缝独立切换，两套数据与浏览器状态完全隔离。
 
