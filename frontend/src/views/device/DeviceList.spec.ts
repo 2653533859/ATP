@@ -1,6 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DeviceList from './DeviceList.vue'
 
@@ -98,6 +98,9 @@ const DEVICES = [
   { id: 2, name: 'Galaxy-S23', brand: 'Samsung', model: 'S23', serial: 'SGS23X', os_version: 'Android 13', resolution: '1080x2340', status: 'offline', last_seen: '2026-07-09T08:00:00Z' },
   { id: 3, name: 'Mi-13', brand: 'Xiaomi', model: 'Mi13', serial: 'MI13YZ', os_version: 'Android 13', resolution: '1440x3200', status: 'busy', last_seen: '2026-07-08T07:00:00Z' },
 ]
+
+// 设备页会挂可见性监听和轮询定时器，每个用例结束都卸载，避免残留实例串扰后续用例
+enableAutoUnmount(afterEach)
 
 beforeEach(() => {
   vi.unstubAllEnvs()
@@ -217,5 +220,75 @@ describe('DeviceList mount', () => {
     mountDeviceList()
     await flushPromises()
     expect(messageError).toHaveBeenCalled()
+  })
+})
+
+describe('DeviceList status polling', () => {
+  let visibility: DocumentVisibilityState = 'visible'
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    visibility = 'visible'
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility })
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+    delete (document as unknown as Record<string, unknown>).visibilityState
+  })
+
+  it('re-reads the device list every 15 seconds so an unplugged device shows offline', async () => {
+    const wrapper = mountDeviceList()
+    await flushPromises()
+    expect(deviceList).toHaveBeenCalledTimes(1)
+
+    deviceList.mockResolvedValue([{ ...DEVICES[0], status: 'offline' }, DEVICES[1], DEVICES[2]])
+    await vi.advanceTimersByTimeAsync(15000)
+    await flushPromises()
+
+    expect(deviceList).toHaveBeenCalledTimes(2)
+    expect(deviceList).toHaveBeenLastCalledWith(undefined)
+    expect(deviceScan).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.pill-count').map((item) => item.text())).toEqual(['3', '0', '1', '2'])
+    wrapper.unmount()
+  })
+
+  it('keeps the current list without an error toast when a background refresh fails', async () => {
+    const wrapper = mountDeviceList()
+    await flushPromises()
+
+    deviceList.mockRejectedValueOnce(new Error('network'))
+    await vi.advanceTimersByTimeAsync(15000)
+    await flushPromises()
+
+    expect(messageError).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.pill-count').map((item) => item.text())).toEqual(['3', '1', '1', '1'])
+    wrapper.unmount()
+  })
+
+  it('pauses while the page is hidden and resumes when it becomes visible', async () => {
+    const wrapper = mountDeviceList()
+    await flushPromises()
+
+    visibility = 'hidden'
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(deviceList).toHaveBeenCalledTimes(1)
+
+    visibility = 'visible'
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+    expect(deviceList).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('stops polling after unmount', async () => {
+    const wrapper = mountDeviceList()
+    await flushPromises()
+    wrapper.unmount()
+
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(deviceList).toHaveBeenCalledTimes(1)
   })
 })
