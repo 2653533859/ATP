@@ -108,7 +108,7 @@ def run_mobile_special_task(self, run_id: int):
                         run.device_id,
                         owner_id=run.triggered_by,
                         owner_label=f"mobile-run:{run_id}",
-                        ttl_seconds=max(900, int(run.config_snapshot.get("device_lease_ttl_seconds", 900))),
+                        ttl_seconds=_mobile_special_lease_ttl(run.config_snapshot or {}),
                     )
                     lease_token = lease.lease_token
                     await db.commit()
@@ -351,6 +351,29 @@ def _merge_run_config(task_config: dict[str, Any] | None, run_config: dict[str, 
     merged = dict(task_config or {})
     merged.update(run_config or {})
     return merged
+
+
+# 计划时长之外留给安装、启动、收尾的余量。
+MOBILE_SPECIAL_LEASE_MARGIN_SECONDS = 600
+
+
+def _mobile_special_lease_ttl(config: dict[str, Any]) -> int:
+    """专项运行期间不续租，租约须覆盖计划时长。
+
+    否则租约中途过期，被定时回收后，运行中的设备会显示为空闲、可以再次触发。
+    进程异常退出时，执行租约回收和本地重启恢复会释放这把设备租约，不必等它到期。
+    """
+
+    def seconds(key: str) -> int:
+        try:
+            return max(0, int(config.get(key) or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    # 性能与稳定性任务按 duration_seconds 持续运行；流畅度任务按阶段执行，没有总时长配置。
+    planned = seconds("duration_seconds")
+    configured = seconds("device_lease_ttl_seconds") or 900
+    return max(900, configured, (planned + MOBILE_SPECIAL_LEASE_MARGIN_SECONDS) if planned else 0)
 
 
 def _resolve_run_device_id(run, task) -> int | None:

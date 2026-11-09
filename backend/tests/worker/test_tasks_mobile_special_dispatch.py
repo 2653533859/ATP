@@ -256,6 +256,40 @@ def test_run_task_fails_when_task_missing(monkeypatch):
 
 
 @pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({}, 900),
+        ({"device_lease_ttl_seconds": 1200}, 1200),
+        ({"duration_seconds": 60}, 900),
+        ({"duration_seconds": 3600}, 3600 + tms.MOBILE_SPECIAL_LEASE_MARGIN_SECONDS),
+        ({"duration_seconds": 3600, "device_lease_ttl_seconds": 7200}, 7200),
+        ({"duration_seconds": "bad", "device_lease_ttl_seconds": None}, 900),
+    ],
+)
+def test_mobile_special_lease_ttl_covers_the_planned_duration(config, expected):
+    assert tms._mobile_special_lease_ttl(config) == expected
+
+
+def test_run_task_leases_the_device_for_the_planned_duration(monkeypatch):
+    # 专项运行期间不续租：租约不覆盖计划时长时会中途被回收，设备显示空闲、可再次触发。
+    run = _run(device_id=77)
+    task = _task(config_json={"interval_seconds": 5, "duration_seconds": 3600})
+    db = _FakeDB({("MobileSpecialRun", 10): run, ("MobileSpecialTask", 1): task})
+    _install_session(monkeypatch, db)
+    _events(monkeypatch)
+    captured = {}
+
+    async def acquire(*_args, **kwargs):
+        captured.update(kwargs)
+        raise tms.DeviceLeaseConflict("stop right after the lease request")
+
+    monkeypatch.setattr(tms, "acquire_device_lease", acquire)
+    tms.run_mobile_special_task(None, 10)
+
+    assert captured["ttl_seconds"] == 3600 + tms.MOBILE_SPECIAL_LEASE_MARGIN_SECONDS
+
+
+@pytest.mark.parametrize(
     ("task_type", "executor_name"),
     [
         (TaskType.performance, "run_mobile_special_perf"),
