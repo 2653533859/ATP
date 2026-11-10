@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 19
+CURRENT_LOCAL_SCHEMA_VERSION = 20
 
 
 def _create_sync_outbox(connection: Connection) -> None:
@@ -569,6 +569,55 @@ def _create_android_agent_tables(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[19] = _create_android_agent_tables
+
+
+def _create_workbench_tables(connection: Connection) -> None:
+    """创建工作台待办暂缓与任务归档表 (v20)。"""
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS workbench_todo_snoozes ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "todo_id VARCHAR(128) NOT NULL, "
+        "user_id INTEGER NOT NULL, "
+        "project_id INTEGER, "
+        "reason TEXT, "
+        "snoozed_until DATETIME, "
+        "created_at DATETIME NOT NULL, "
+        "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
+        "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE, "
+        "CONSTRAINT uq_workbench_todo_snoozes_user_todo UNIQUE (user_id, todo_id)"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_workbench_todo_snoozes_todo_id ON workbench_todo_snoozes(todo_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_workbench_todo_snoozes_user_id ON workbench_todo_snoozes(user_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_workbench_todo_snoozes_project_id ON workbench_todo_snoozes(project_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_workbench_todo_snoozes_snoozed_until ON workbench_todo_snoozes(snoozed_until)"
+    )
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS workbench_archived_tasks ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "task_type VARCHAR(32) NOT NULL, "
+        "run_id INTEGER NOT NULL, "
+        "project_id INTEGER, "
+        "archived_by INTEGER NOT NULL, "
+        "archived_at DATETIME NOT NULL, "
+        "FOREIGN KEY (archived_by) REFERENCES users(id) ON DELETE CASCADE, "
+        "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE, "
+        "CONSTRAINT uq_workbench_archived_tasks_type_run UNIQUE (task_type, run_id)"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_workbench_archived_tasks_project_id ON workbench_archived_tasks(project_id)"
+    )
+
+
+LOCAL_MIGRATIONS[20] = _create_workbench_tables
 
 
 def _read_version(connection: Connection) -> int:

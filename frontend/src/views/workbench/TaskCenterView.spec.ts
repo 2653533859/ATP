@@ -94,8 +94,13 @@ function mountPage() {
         ASpin: passthrough('ASpin'),
         ATable: tableStub,
         ATag: passthrough('ATag'),
+        ARadioGroup: passthrough('ARadioGroup'),
+        ARadioButton: passthrough('ARadioButton'),
+        AForm: passthrough('AForm'),
+        AFormItem: passthrough('AFormItem'),
         ReloadOutlined: true,
         ScheduleOutlined: true,
+        PlusOutlined: true,
       },
     },
   })

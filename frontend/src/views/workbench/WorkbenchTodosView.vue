@@ -42,9 +42,17 @@
     <a-card :bordered="false" class="todo-card">
       <template #title>
         <div class="card-title-row">
-          <span>{{ t('workbench.todo_list_title') }}</span>
-          <a-tag v-if="overview" color="blue">{{ t('workbench.todo_count', { count: count('total_todos') }) }}</a-tag>
-          <span v-if="overview?.has_more_todos" class="list-hint">{{ t('workbench.todo_has_more') }}</span>
+          <div class="title-left">
+            <span>{{ t('workbench.todo_list_title') }}</span>
+            <a-tag v-if="overview" color="blue">{{ t('workbench.todo_count', { count: currentTotalTodos }) }}</a-tag>
+            <span v-if="overview?.has_more_todos" class="list-hint">{{ t('workbench.todo_has_more') }}</span>
+          </div>
+          <div class="card-title-actions">
+            <a-radio-group v-model:value="snoozeFilter" size="small" @change="handleSnoozeFilterChange">
+              <a-radio-button value="exclude">{{ t('workbench.filter_active') }} ({{ count('total_todos') }})</a-radio-button>
+              <a-radio-button value="only">{{ t('workbench.filter_snoozed') }} ({{ count('snoozed_todos') }})</a-radio-button>
+            </a-radio-group>
+          </div>
         </div>
       </template>
       <a-table
@@ -60,8 +68,19 @@
             <a-tag :color="priorityColor(record.priority)">{{ t(`workbench.priority.${record.priority}`) }}</a-tag>
           </template>
           <template v-else-if="column.key === 'item'">
-            <div class="todo-title">{{ record.title }}</div>
+            <div class="todo-title-row">
+              <span class="todo-title">{{ record.title }}</span>
+              <a-tag v-if="record.is_snoozed" color="default">{{ t('workbench.snoozed_badge') }}</a-tag>
+            </div>
             <div class="todo-description">{{ record.description || '-' }}</div>
+            <div v-if="record.is_snoozed && (record.snooze_reason || record.snoozed_until)" class="snooze-info">
+              <span v-if="record.snooze_reason" class="snooze-reason">
+                {{ record.snooze_reason }}
+              </span>
+              <span v-if="record.snoozed_until" class="snooze-until">
+                {{ t('workbench.snoozed_until_prefix') }}{{ formatTime(record.snoozed_until) }}
+              </span>
+            </div>
           </template>
           <template v-else-if="column.key === 'project'">
             {{ record.project_name || t('workbench.global_scope') }}
@@ -70,7 +89,33 @@
             {{ formatTime(record.created_at) }}
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="link" @click="router.push(record.path)">{{ t('workbench.open_item') }}</a-button>
+            <a-space size="small">
+              <a-button
+                v-if="record.kind === 'case_review' && !record.is_snoozed"
+                type="link"
+                size="small"
+                @click="openQuickReview(asTodo(record))"
+              >
+                {{ t('workbench.quick_review') }}
+              </a-button>
+              <a-button type="link" size="small" @click="router.push(record.path)">{{ t('workbench.open_item') }}</a-button>
+              <a-button
+                v-if="!record.is_snoozed"
+                type="link"
+                size="small"
+                @click="openSnoozeModal(asTodo(record))"
+              >
+                {{ t('workbench.snooze') }}
+              </a-button>
+              <a-button
+                v-else
+                type="link"
+                size="small"
+                @click="handleUnsnooze(asTodo(record))"
+              >
+                {{ t('workbench.unsnooze') }}
+              </a-button>
+            </a-space>
           </template>
         </template>
       </a-table>
@@ -91,6 +136,100 @@
       </span>
       {{ t('workbench.last_sync', { time: formatTime(overview?.generated_at) }) }}
     </div>
+
+    <!-- 暂缓处理弹窗 -->
+    <a-modal
+      v-model:open="snoozeModalVisible"
+      :title="t('workbench.snooze_modal_title')"
+      :confirm-loading="snoozeSubmitting"
+      destroy-on-close
+      @ok="handleSnoozeSubmit"
+      @cancel="closeSnoozeModal"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('workbench.snooze_duration')">
+          <a-select v-model:value="snoozeDuration">
+            <a-select-option :value="4">{{ t('workbench.snooze_duration_4h') }}</a-select-option>
+            <a-select-option :value="24">{{ t('workbench.snooze_duration_24h') }}</a-select-option>
+            <a-select-option :value="72">{{ t('workbench.snooze_duration_3d') }}</a-select-option>
+            <a-select-option :value="-1">{{ t('workbench.snooze_duration_forever') }}</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item :label="t('workbench.snooze_reason')">
+          <a-textarea
+            v-model:value="snoozeReason"
+            :rows="3"
+            :maxlength="500"
+            :placeholder="t('workbench.snooze_reason_placeholder')"
+            show-count
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 用例快捷评审抽屉 -->
+    <a-drawer
+      v-model:open="reviewDrawerVisible"
+      :title="t('workbench.quick_review_title')"
+      :width="540"
+      destroy-on-close
+      @close="closeReviewDrawer"
+    >
+      <a-spin :spinning="reviewLoading">
+        <div v-if="reviewCase" class="quick-review-content">
+          <a-descriptions :column="1" size="small" bordered>
+            <a-descriptions-item :label="t('case.name', '用例名称')">
+              <strong>{{ reviewCase.name }}</strong>
+            </a-descriptions-item>
+            <a-descriptions-item :label="t('case.level', '用例等级')">
+              <a-tag color="blue">{{ reviewCase.case_level || 'regression' }}</a-tag>
+            </a-descriptions-item>
+            <a-descriptions-item v-if="reviewCase.description" :label="t('case.description', '用例描述')">
+              {{ reviewCase.description }}
+            </a-descriptions-item>
+            <a-descriptions-item v-if="reviewCase.preconditions?.length" :label="t('case.preconditions', '前置条件')">
+              <div v-for="(p, i) in reviewCase.preconditions" :key="i">• {{ p }}</div>
+            </a-descriptions-item>
+          </a-descriptions>
+
+          <a-divider style="margin: 16px 0" />
+
+          <a-form layout="vertical">
+            <a-form-item :label="t('workbench.quick_review_action')" required>
+              <a-radio-group v-model:value="reviewAction">
+                <a-radio value="approve">{{ t('workbench.quick_review_approve') }}</a-radio>
+                <a-radio value="reject">{{ t('workbench.quick_review_reject') }}</a-radio>
+              </a-radio-group>
+            </a-form-item>
+            <a-form-item
+              :label="t('workbench.quick_review_comment')"
+              :required="reviewAction === 'reject'"
+            >
+              <a-textarea
+                v-model:value="reviewComment"
+                :rows="4"
+                :maxlength="1000"
+                :placeholder="t('workbench.quick_review_comment_placeholder')"
+                show-count
+              />
+            </a-form-item>
+            <a-form-item>
+              <a-space>
+                <a-button
+                  type="primary"
+                  :danger="reviewAction === 'reject'"
+                  :loading="reviewSubmitting"
+                  @click="handleReviewSubmit"
+                >
+                  {{ reviewAction === 'approve' ? t('workbench.quick_review_approve') : t('workbench.quick_review_reject') }}
+                </a-button>
+                <a-button @click="closeReviewDrawer">{{ t('common.cancel', '取消') }}</a-button>
+              </a-space>
+            </a-form-item>
+          </a-form>
+        </div>
+      </a-spin>
+    </a-drawer>
   </section>
 </template>
 
@@ -100,22 +239,46 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { CheckSquareOutlined, ReloadOutlined } from '@ant-design/icons-vue'
-import { projectApi, workbenchApi, type ProjectItem, type WorkbenchOverviewItem } from '@/api'
+import { caseApi, projectApi, workbenchApi, type CaseDetailItem, type ProjectItem, type WorkbenchOverviewItem, type WorkbenchTodoItem } from '@/api'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const projects = ref<ProjectItem[]>([])
 const projectId = ref<number | undefined>(toProjectId(route.query.project_id))
+const snoozeFilter = ref<'exclude' | 'only'>('exclude')
 const todoPageSize = 50
 const maxTodoOffset = 1000
 const maxTodoPage = Math.floor(maxTodoOffset / todoPageSize) + 1
 const todoPage = ref(toPage(route.query.todo_page, maxTodoPage))
 const overview = ref<WorkbenchOverviewItem | null>(null)
-const todoPaginationTotal = computed(() => Math.min(count('total_todos'), maxTodoOffset + todoPageSize))
+const currentTotalTodos = computed(() => {
+  if (snoozeFilter.value === 'only') return count('snoozed_todos')
+  return count('total_todos')
+})
+const todoPaginationTotal = computed(() => Math.min(currentTotalTodos.value, maxTodoOffset + todoPageSize))
 const loading = ref(false)
 let refreshTimer: number | undefined
 let loadSequence = 0
+
+// Snooze dialog state
+const snoozeModalVisible = ref(false)
+const snoozeSubmitting = ref(false)
+const selectedTodo = ref<WorkbenchTodoItem | null>(null)
+const snoozeDuration = ref(24)
+const snoozeReason = ref('')
+
+// Quick Review drawer state
+const reviewDrawerVisible = ref(false)
+const reviewLoading = ref(false)
+const reviewSubmitting = ref(false)
+const reviewCase = ref<CaseDetailItem | null>(null)
+const reviewAction = ref<'approve' | 'reject'>('approve')
+const reviewComment = ref('')
+
+function asTodo(record: unknown): WorkbenchTodoItem {
+  return record as WorkbenchTodoItem
+}
 
 const metrics = [
   { key: 'pending_reviews', labelKey: 'workbench.metrics.pending_reviews', captionKey: 'workbench.metrics.pending_reviews_caption' },
@@ -129,7 +292,7 @@ const columns = computed(() => [
   { title: t('workbench.columns.item'), key: 'item', width: 420 },
   { title: t('workbench.columns.project'), key: 'project', width: 180 },
   { title: t('workbench.columns.created_at'), key: 'created_at', width: 180 },
-  { title: t('workbench.columns.action'), key: 'action', width: 110 },
+  { title: t('workbench.columns.action'), key: 'action', width: 180 },
 ])
 
 function toProjectId(value: unknown) {
@@ -189,12 +352,22 @@ async function loadOverview() {
     if (queryChanged) {
       await router.replace({ query: nextQuery })
     }
-    const result = await workbenchApi.overview({
+    const params: {
+      project_id?: number
+      todo_limit: number
+      todo_offset: number
+      task_limit: number
+      snooze_filter?: string
+    } = {
       project_id: projectId.value,
       todo_limit: todoPageSize,
       todo_offset: Math.min((todoPage.value - 1) * todoPageSize, maxTodoOffset),
       task_limit: 100,
-    })
+    }
+    if (snoozeFilter.value !== 'exclude') {
+      params.snooze_filter = snoozeFilter.value
+    }
+    const result = await workbenchApi.overview(params)
     if (requestSequence === loadSequence) overview.value = result
   } catch {
     if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
@@ -257,6 +430,97 @@ function handleProjectChange() {
 function handleTodoPageChange(nextPage: number) {
   todoPage.value = Math.min(Math.max(nextPage, 1), maxTodoPage)
   loadOverview()
+}
+
+function handleSnoozeFilterChange() {
+  todoPage.value = 1
+  loadOverview()
+}
+
+function openSnoozeModal(todo: WorkbenchTodoItem) {
+  selectedTodo.value = todo
+  snoozeDuration.value = 24
+  snoozeReason.value = ''
+  snoozeModalVisible.value = true
+}
+
+function closeSnoozeModal() {
+  snoozeModalVisible.value = false
+  selectedTodo.value = null
+}
+
+async function handleSnoozeSubmit() {
+  if (!selectedTodo.value) return
+  snoozeSubmitting.value = true
+  try {
+    await workbenchApi.snoozeTodo(selectedTodo.value.id, {
+      duration_hours: snoozeDuration.value,
+      reason: snoozeReason.value.trim() || undefined,
+    })
+    message.success(t('workbench.snooze_success'))
+    closeSnoozeModal()
+    await loadOverview()
+  } catch {
+    message.error(t('workbench.action_failed', '操作失败'))
+  } finally {
+    snoozeSubmitting.value = false
+  }
+}
+
+async function handleUnsnooze(todo: WorkbenchTodoItem) {
+  try {
+    await workbenchApi.unsnoozeTodo(todo.id)
+    message.success(t('workbench.unsnooze_success'))
+    await loadOverview()
+  } catch {
+    message.error(t('workbench.action_failed', '操作失败'))
+  }
+}
+
+async function openQuickReview(todo: WorkbenchTodoItem) {
+  const caseId = Number(todo.metadata?.case_id)
+  if (!caseId) return
+  reviewDrawerVisible.value = true
+  reviewLoading.value = true
+  reviewCase.value = null
+  reviewAction.value = 'approve'
+  reviewComment.value = ''
+  try {
+    reviewCase.value = await caseApi.get(caseId)
+  } catch {
+    message.error(t('case.load_failed', '用例加载失败'))
+    closeReviewDrawer()
+  } finally {
+    reviewLoading.value = false
+  }
+}
+
+function closeReviewDrawer() {
+  reviewDrawerVisible.value = false
+  reviewCase.value = null
+}
+
+async function handleReviewSubmit() {
+  if (!reviewCase.value) return
+  if (reviewAction.value === 'reject' && !reviewComment.value.trim()) {
+    message.warning(t('workbench.quick_review_comment_placeholder'))
+    return
+  }
+  reviewSubmitting.value = true
+  try {
+    if (reviewAction.value === 'approve') {
+      await caseApi.approve(reviewCase.value.id, { comment: reviewComment.value.trim() || undefined })
+    } else {
+      await caseApi.reject(reviewCase.value.id, { comment: reviewComment.value.trim() || undefined })
+    }
+    message.success(t('workbench.quick_review_success'))
+    closeReviewDrawer()
+    await loadOverview()
+  } catch {
+    message.error(t('workbench.action_failed', '操作失败'))
+  } finally {
+    reviewSubmitting.value = false
+  }
 }
 
 onMounted(async () => {
@@ -412,6 +676,41 @@ h1 {
 .sync-note {
   font-size: 12px;
   text-align: right;
+}
+
+.title-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-title-actions {
+  margin-left: auto;
+}
+
+.todo-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.snooze-info {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8c8c8c;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.snooze-reason {
+  background: #f5f5f5;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.quick-review-content {
+  padding: 8px 0;
 }
 
 @media (max-width: 760px) {

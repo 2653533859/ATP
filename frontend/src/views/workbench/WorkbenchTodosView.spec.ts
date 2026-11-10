@@ -42,7 +42,7 @@ vi.mock('ant-design-vue', () => ({
   message: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
   Modal: { confirm: modalConfirm },
 }))
-vi.mock('@ant-design/icons-vue', () => ({ ReloadOutlined: true, CheckSquareOutlined: true, ScheduleOutlined: true }))
+vi.mock('@ant-design/icons-vue', () => ({ ReloadOutlined: true, CheckSquareOutlined: true, ScheduleOutlined: true, PlusOutlined: true }))
 vi.mock('@/api', () => ({
   projectApi: { list: projectList },
   runApi: { generateFailureDiagnosis },
@@ -100,7 +100,18 @@ const globalStubs = {
   ATag: passthrough('ATag'),
   AEmpty: passthrough('AEmpty'),
   APagination: passthrough('APagination'),
+  ARadioGroup: passthrough('ARadioGroup'),
+  ARadioButton: passthrough('ARadioButton'),
+  ARadio: passthrough('ARadio'),
+  ADrawer: passthrough('ADrawer'),
+  ADivider: passthrough('ADivider'),
+  ADescriptions: passthrough('ADescriptions'),
+  ADescriptionsItem: passthrough('ADescriptionsItem'),
+  AForm: passthrough('AForm'),
+  AFormItem: passthrough('AFormItem'),
+  ATextarea: passthrough('ATextarea'),
   ReloadOutlined: true,
+  PlusOutlined: true,
 }
 
 beforeEach(() => {

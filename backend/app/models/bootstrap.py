@@ -53,6 +53,7 @@ def load_all_models() -> None:
     from app.models.api_schema import ApiSchemaAsset
     from app.models.api_contract_asset import ApiContractAsset
     from app.models.android_agent import AndroidAgentSession, AndroidAgentEvent, AndroidAgentCommand
+    from app.models.workbench import WorkbenchTodoSnooze, WorkbenchArchivedTask
 
     _ = (
         User,
@@ -132,4 +133,6 @@ def load_all_models() -> None:
         AndroidAgentSession,
         AndroidAgentEvent,
         AndroidAgentCommand,
+        WorkbenchTodoSnooze,
+        WorkbenchArchivedTask,
     )

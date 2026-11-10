@@ -9,10 +9,10 @@ endpoints, so their project-role and executor checks remain authoritative.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from sqlalchemy import false, func, select
+from sqlalchemy import and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
@@ -26,6 +26,7 @@ from app.models.project import Module, Project
 from app.models.suite import SuiteRun, SuiteRunStatus, TestSuite
 from app.models.user import User, UserRole
 from app.models.user_project import ProjectRole, UserProject
+from app.models.workbench import WorkbenchArchivedTask, WorkbenchTodoSnooze
 from app.schemas.case import FailureDiagnosisOut, RunTriggerRequest
 from app.schemas.mobile_special import RunTriggerRequest as MobileRunTriggerRequest
 from app.schemas.performance import PerformanceRunTrigger
@@ -37,11 +38,15 @@ from app.schemas.workbench import (
     WorkbenchBatchActionOut,
     WorkbenchOverviewOut,
     WorkbenchTaskActionOut,
+    WorkbenchTaskArchiveIn,
+    WorkbenchTaskArchiveOut,
     WorkbenchTaskItem,
     WorkbenchTaskPageOut,
     WorkbenchTaskRef,
     WorkbenchTaskType,
     WorkbenchTodoItem,
+    WorkbenchTodoSnoozeIn,
+    WorkbenchTodoSnoozeOut,
 )
 from app.services.execution_state import (
     EXECUTION_STATE_POLICIES,
@@ -103,6 +108,16 @@ def _status_filter_for_type(status_filter: StatusFilter, task_type: str) -> Stat
     return status_filter if status_filter in allowed else set()
 
 
+def _apply_archived_filter(stmt: Any, run_id_column: Any, task_type: str, archived_filter: str | None) -> Any:
+    if archived_filter == "exclude":
+        archived_subq = select(WorkbenchArchivedTask.run_id).where(WorkbenchArchivedTask.task_type == task_type)
+        return stmt.where(run_id_column.not_in(archived_subq))
+    if archived_filter == "only":
+        archived_subq = select(WorkbenchArchivedTask.run_id).where(WorkbenchArchivedTask.task_type == task_type)
+        return stmt.where(run_id_column.in_(archived_subq))
+    return stmt
+
+
 def _task_item(
     *,
     task_type: WorkbenchTaskType,
@@ -151,7 +166,12 @@ async def _collect_case_tasks(
     project_id: int | None,
     status_filter: StatusFilter,
     limit: int,
+    archived_filter: str | None = None,
+    exclude_run_ids: set[int] | None = None,
+    only_run_ids: set[int] | None = None,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
+    if only_run_ids is not None and not only_run_ids:
+        return [], False
     stmt = (
         select(TestRun, TestCase.name, Module.project_id, Project.name)
         .join(TestCase, TestRun.case_id == TestCase.id)
@@ -160,6 +180,11 @@ async def _collect_case_tasks(
     )
     stmt = _project_filter(stmt, Module.project_id, user, project_id)
     stmt = _apply_status_filter(stmt, TestRun.status, status_filter)
+    stmt = _apply_archived_filter(stmt, TestRun.id, "case", archived_filter)
+    if exclude_run_ids:
+        stmt = stmt.where(TestRun.id.not_in(exclude_run_ids))
+    if only_run_ids is not None:
+        stmt = stmt.where(TestRun.id.in_(only_run_ids))
     rows = (await db.execute(stmt.order_by(TestRun.created_at.desc(), TestRun.id.desc()).limit(limit + 1))).all()
     has_more = len(rows) > limit
     items = [
@@ -188,7 +213,12 @@ async def _collect_suite_tasks(
     project_id: int | None,
     status_filter: StatusFilter,
     limit: int,
+    archived_filter: str | None = None,
+    exclude_run_ids: set[int] | None = None,
+    only_run_ids: set[int] | None = None,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
+    if only_run_ids is not None and not only_run_ids:
+        return [], False
     stmt = (
         select(SuiteRun, TestSuite.name, TestSuite.project_id, Project.name)
         .join(TestSuite, SuiteRun.suite_id == TestSuite.id)
@@ -196,6 +226,11 @@ async def _collect_suite_tasks(
     )
     stmt = _project_filter(stmt, TestSuite.project_id, user, project_id)
     stmt = _apply_status_filter(stmt, SuiteRun.status, status_filter)
+    stmt = _apply_archived_filter(stmt, SuiteRun.id, "suite", archived_filter)
+    if exclude_run_ids:
+        stmt = stmt.where(SuiteRun.id.not_in(exclude_run_ids))
+    if only_run_ids is not None:
+        stmt = stmt.where(SuiteRun.id.in_(only_run_ids))
     rows = (await db.execute(stmt.order_by(SuiteRun.created_at.desc(), SuiteRun.id.desc()).limit(limit + 1))).all()
     has_more = len(rows) > limit
     items = [
@@ -224,7 +259,12 @@ async def _collect_plan_tasks(
     project_id: int | None,
     status_filter: StatusFilter,
     limit: int,
+    archived_filter: str | None = None,
+    exclude_run_ids: set[int] | None = None,
+    only_run_ids: set[int] | None = None,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
+    if only_run_ids is not None and not only_run_ids:
+        return [], False
     stmt = (
         select(PlanRun, TestPlan.name, TestPlan.project_id, Project.name)
         .join(TestPlan, PlanRun.plan_id == TestPlan.id)
@@ -232,6 +272,11 @@ async def _collect_plan_tasks(
     )
     stmt = _project_filter(stmt, TestPlan.project_id, user, project_id)
     stmt = _apply_status_filter(stmt, PlanRun.status, status_filter)
+    stmt = _apply_archived_filter(stmt, PlanRun.id, "plan", archived_filter)
+    if exclude_run_ids:
+        stmt = stmt.where(PlanRun.id.not_in(exclude_run_ids))
+    if only_run_ids is not None:
+        stmt = stmt.where(PlanRun.id.in_(only_run_ids))
     rows = (await db.execute(stmt.order_by(PlanRun.created_at.desc(), PlanRun.id.desc()).limit(limit + 1))).all()
     has_more = len(rows) > limit
     items = [
@@ -260,7 +305,12 @@ async def _collect_android_tasks(
     project_id: int | None,
     status_filter: StatusFilter,
     limit: int,
+    archived_filter: str | None = None,
+    exclude_run_ids: set[int] | None = None,
+    only_run_ids: set[int] | None = None,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
+    if only_run_ids is not None and not only_run_ids:
+        return [], False
     stmt = (
         select(MobileSpecialRun, MobileSpecialTask.name, MobileSpecialTask.project_id, Project.name)
         .join(MobileSpecialTask, MobileSpecialRun.task_id == MobileSpecialTask.id)
@@ -268,6 +318,11 @@ async def _collect_android_tasks(
     )
     stmt = _project_filter(stmt, MobileSpecialTask.project_id, user, project_id)
     stmt = _apply_status_filter(stmt, MobileSpecialRun.status, status_filter)
+    stmt = _apply_archived_filter(stmt, MobileSpecialRun.id, "android", archived_filter)
+    if exclude_run_ids:
+        stmt = stmt.where(MobileSpecialRun.id.not_in(exclude_run_ids))
+    if only_run_ids is not None:
+        stmt = stmt.where(MobileSpecialRun.id.in_(only_run_ids))
     rows = (
         await db.execute(stmt.order_by(MobileSpecialRun.created_at.desc(), MobileSpecialRun.id.desc()).limit(limit + 1))
     ).all()
@@ -300,7 +355,12 @@ async def _collect_performance_tasks(
     project_id: int | None,
     status_filter: StatusFilter,
     limit: int,
+    archived_filter: str | None = None,
+    exclude_run_ids: set[int] | None = None,
+    only_run_ids: set[int] | None = None,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
+    if only_run_ids is not None and not only_run_ids:
+        return [], False
     stmt = (
         select(
             PerformanceRun,
@@ -314,6 +374,11 @@ async def _collect_performance_tasks(
     )
     stmt = _project_filter(stmt, PerformanceRun.project_id, user, project_id)
     stmt = _apply_status_filter(stmt, PerformanceRun.status, status_filter)
+    stmt = _apply_archived_filter(stmt, PerformanceRun.id, "performance", archived_filter)
+    if exclude_run_ids:
+        stmt = stmt.where(PerformanceRun.id.not_in(exclude_run_ids))
+    if only_run_ids is not None:
+        stmt = stmt.where(PerformanceRun.id.in_(only_run_ids))
     rows = (
         await db.execute(stmt.order_by(PerformanceRun.created_at.desc(), PerformanceRun.id.desc()).limit(limit + 1))
     ).all()
@@ -348,6 +413,9 @@ async def _collect_tasks(
     task_type: str | None,
     limit: int,
     offset: int = 0,
+    archived_filter: str | None = None,
+    exclude_run_ids: dict[str, set[int]] | None = None,
+    only_run_ids: dict[str, set[int]] | None = None,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
     collectors = {
         "case": _collect_case_tasks,
@@ -359,19 +427,63 @@ async def _collect_tasks(
     selected = [task_type] if task_type else list(collectors)
     collected: list[WorkbenchTaskItem] = []
     has_more = False
-    # Query each domain before applying the global offset because the final
-    # order is assembled across all five run tables.
     per_type_limit = min(limit + offset, 1200)
     for selected_type in selected:
-        items, source_has_more = await collectors[selected_type](
-            db,
-            user,
-            project_id,
-            _status_filter_for_type(status_filter, selected_type),
-            per_type_limit,
-        )
+        if only_run_ids is not None and not only_run_ids.get(selected_type):
+            continue
+        kwargs: dict[str, Any] = {}
+        if archived_filter is not None:
+            kwargs["archived_filter"] = archived_filter
+        if exclude_run_ids and exclude_run_ids.get(selected_type):
+            kwargs["exclude_run_ids"] = exclude_run_ids[selected_type]
+        if only_run_ids and only_run_ids.get(selected_type):
+            kwargs["only_run_ids"] = only_run_ids[selected_type]
+
+        collector_fn = collectors[selected_type]
+        try:
+            items, source_has_more = await collector_fn(
+                db,
+                user,
+                project_id,
+                _status_filter_for_type(status_filter, selected_type),
+                per_type_limit,
+                **kwargs,
+            )
+        except TypeError:
+            items, source_has_more = await collector_fn(
+                db,
+                user,
+                project_id,
+                _status_filter_for_type(status_filter, selected_type),
+                per_type_limit,
+            )
         collected.extend(items)
         has_more = has_more or source_has_more
+
+    if archived_filter in {"only", "all"}:
+        task_keys = [(item.task_type, item.run_id) for item in collected]
+        if task_keys:
+            archived_stmt = select(
+                WorkbenchArchivedTask.task_type,
+                WorkbenchArchivedTask.run_id,
+                WorkbenchArchivedTask.archived_at,
+            ).where(
+                or_(
+                    *(
+                        and_(WorkbenchArchivedTask.task_type == t_type, WorkbenchArchivedTask.run_id == r_id)
+                        for t_type, r_id in set(task_keys)
+                    )
+                )
+            )
+            archived_rows = (await db.execute(archived_stmt)).all()
+            archived_map = {(row[0], row[1]): row[2] for row in archived_rows}
+
+            for item in collected:
+                key = (item.task_type, item.run_id)
+                if key in archived_map:
+                    item.is_archived = True
+                    item.archived_at = archived_map[key]
+
     collected.sort(key=lambda item: item.created_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     page_end = offset + limit
     if len(collected) > page_end:
@@ -422,93 +534,165 @@ async def _count_tasks(
     project_id: int | None,
     status_filter: StatusFilter,
     task_type: str | None,
+    archived_filter: str | None = None,
+    exclude_run_ids: dict[str, set[int]] | None = None,
+    only_run_ids: dict[str, set[int]] | None = None,
 ) -> int:
     selected = [task_type] if task_type else ["case", "suite", "plan", "android", "performance"]
     total = 0
-    if "case" in selected:
+    if "case" in selected and (only_run_ids is None or only_run_ids.get("case")):
         stmt = (
             select(func.count(TestRun.id))
             .join(TestCase, TestRun.case_id == TestCase.id)
             .join(Module, TestCase.module_id == Module.id)
         )
         stmt = _project_filter(stmt, Module.project_id, user, project_id)
-        total += int(
-            (
-                await db.execute(
-                    _apply_status_filter(stmt, TestRun.status, _status_filter_for_type(status_filter, "case"))
-                )
-            ).scalar_one()
-            or 0
-        )
-    if "suite" in selected:
+        stmt = _apply_status_filter(stmt, TestRun.status, _status_filter_for_type(status_filter, "case"))
+        stmt = _apply_archived_filter(stmt, TestRun.id, "case", archived_filter)
+        if exclude_run_ids and exclude_run_ids.get("case"):
+            stmt = stmt.where(TestRun.id.not_in(exclude_run_ids["case"]))
+        if only_run_ids and only_run_ids.get("case"):
+            stmt = stmt.where(TestRun.id.in_(only_run_ids["case"]))
+        total += int((await db.execute(stmt)).scalar_one() or 0)
+    if "suite" in selected and (only_run_ids is None or only_run_ids.get("suite")):
         stmt = select(func.count(SuiteRun.id)).join(TestSuite, SuiteRun.suite_id == TestSuite.id)
         stmt = _project_filter(stmt, TestSuite.project_id, user, project_id)
-        total += int(
-            (
-                await db.execute(
-                    _apply_status_filter(stmt, SuiteRun.status, _status_filter_for_type(status_filter, "suite"))
-                )
-            ).scalar_one()
-            or 0
-        )
-    if "plan" in selected:
+        stmt = _apply_status_filter(stmt, SuiteRun.status, _status_filter_for_type(status_filter, "suite"))
+        stmt = _apply_archived_filter(stmt, SuiteRun.id, "suite", archived_filter)
+        if exclude_run_ids and exclude_run_ids.get("suite"):
+            stmt = stmt.where(SuiteRun.id.not_in(exclude_run_ids["suite"]))
+        if only_run_ids and only_run_ids.get("suite"):
+            stmt = stmt.where(SuiteRun.id.in_(only_run_ids["suite"]))
+        total += int((await db.execute(stmt)).scalar_one() or 0)
+    if "plan" in selected and (only_run_ids is None or only_run_ids.get("plan")):
         stmt = select(func.count(PlanRun.id)).join(TestPlan, PlanRun.plan_id == TestPlan.id)
         stmt = _project_filter(stmt, TestPlan.project_id, user, project_id)
-        total += int(
-            (
-                await db.execute(
-                    _apply_status_filter(stmt, PlanRun.status, _status_filter_for_type(status_filter, "plan"))
-                )
-            ).scalar_one()
-            or 0
-        )
-    if "android" in selected:
+        stmt = _apply_status_filter(stmt, PlanRun.status, _status_filter_for_type(status_filter, "plan"))
+        stmt = _apply_archived_filter(stmt, PlanRun.id, "plan", archived_filter)
+        if exclude_run_ids and exclude_run_ids.get("plan"):
+            stmt = stmt.where(PlanRun.id.not_in(exclude_run_ids["plan"]))
+        if only_run_ids and only_run_ids.get("plan"):
+            stmt = stmt.where(PlanRun.id.in_(only_run_ids["plan"]))
+        total += int((await db.execute(stmt)).scalar_one() or 0)
+    if "android" in selected and (only_run_ids is None or only_run_ids.get("android")):
         stmt = select(func.count(MobileSpecialRun.id)).join(
             MobileSpecialTask, MobileSpecialRun.task_id == MobileSpecialTask.id
         )
         stmt = _project_filter(stmt, MobileSpecialTask.project_id, user, project_id)
-        total += int(
-            (
-                await db.execute(
-                    _apply_status_filter(
-                        stmt,
-                        MobileSpecialRun.status,
-                        _status_filter_for_type(status_filter, "android"),
-                    )
-                )
-            ).scalar_one()
-            or 0
+        stmt = _apply_status_filter(
+            stmt,
+            MobileSpecialRun.status,
+            _status_filter_for_type(status_filter, "android"),
         )
-    if "performance" in selected:
+        stmt = _apply_archived_filter(stmt, MobileSpecialRun.id, "android", archived_filter)
+        if exclude_run_ids and exclude_run_ids.get("android"):
+            stmt = stmt.where(MobileSpecialRun.id.not_in(exclude_run_ids["android"]))
+        if only_run_ids and only_run_ids.get("android"):
+            stmt = stmt.where(MobileSpecialRun.id.in_(only_run_ids["android"]))
+        total += int((await db.execute(stmt)).scalar_one() or 0)
+    if "performance" in selected and (only_run_ids is None or only_run_ids.get("performance")):
         stmt = select(func.count(PerformanceRun.id)).join(
             PerformanceTest, PerformanceRun.performance_test_id == PerformanceTest.id
         )
         stmt = _project_filter(stmt, PerformanceRun.project_id, user, project_id)
-        total += int(
-            (
-                await db.execute(
-                    _apply_status_filter(
-                        stmt,
-                        PerformanceRun.status,
-                        _status_filter_for_type(status_filter, "performance"),
-                    )
-                )
-            ).scalar_one()
-            or 0
+        stmt = _apply_status_filter(
+            stmt,
+            PerformanceRun.status,
+            _status_filter_for_type(status_filter, "performance"),
         )
+        stmt = _apply_archived_filter(stmt, PerformanceRun.id, "performance", archived_filter)
+        if exclude_run_ids and exclude_run_ids.get("performance"):
+            stmt = stmt.where(PerformanceRun.id.not_in(exclude_run_ids["performance"]))
+        if only_run_ids and only_run_ids.get("performance"):
+            stmt = stmt.where(PerformanceRun.id.in_(only_run_ids["performance"]))
+        total += int((await db.execute(stmt)).scalar_one() or 0)
     return total
 
 
-async def _count_todos(db: AsyncSession, user: User, project_id: int | None) -> dict[str, int]:
+async def _get_active_snooze_map(
+    db: AsyncSession,
+    user: User,
+    project_id: int | None,
+) -> dict[str, WorkbenchTodoSnooze]:
+    now_utc = datetime.now(timezone.utc)
+    snooze_stmt = select(WorkbenchTodoSnooze).where(
+        WorkbenchTodoSnooze.user_id == user.id,
+        or_(WorkbenchTodoSnooze.snoozed_until.is_(None), WorkbenchTodoSnooze.snoozed_until > now_utc),
+    )
+    if project_id is not None:
+        snooze_stmt = snooze_stmt.where(
+            or_(WorkbenchTodoSnooze.project_id.is_(None), WorkbenchTodoSnooze.project_id == project_id)
+        )
+    rows = (await db.execute(snooze_stmt)).scalars().all()
+    return {row.todo_id: row for row in rows}
+
+
+def _parse_snoozed_targets(active_ids: set[str]) -> dict[str, Any]:
+    reviews = {int(x.split(":")[1]) for x in active_ids if x.startswith("review:") and x.split(":")[1].isdigit()}
+    plans = {int(x.split(":")[1]) for x in active_ids if x.startswith("overdue-plan:") and x.split(":")[1].isdigit()}
+    devices = {int(x.split(":")[1]) for x in active_ids if x.startswith("device:") and x.split(":")[1].isdigit()}
+    failed_by_type: dict[str, set[int]] = {}
+    for x in active_ids:
+        if x.startswith("failed-run:"):
+            parts = x.split(":")
+            if len(parts) == 3 and parts[2].isdigit():
+                failed_by_type.setdefault(parts[1], set()).add(int(parts[2]))
+    return {
+        "reviews": reviews,
+        "plans": plans,
+        "devices": devices,
+        "failed_by_type": failed_by_type,
+    }
+
+
+async def _count_todos(
+    db: AsyncSession,
+    user: User,
+    project_id: int | None,
+    snooze_filter: str | None = None,
+) -> dict[str, int]:
+    active_snooze_map: dict[str, WorkbenchTodoSnooze] = {}
+    targets: dict[str, Any] = {"reviews": set(), "plans": set(), "devices": set(), "failed_by_type": {}}
+    if snooze_filter in {"only", "exclude", "all"}:
+        active_snooze_map = await _get_active_snooze_map(db, user, project_id)
+        targets = _parse_snoozed_targets(set(active_snooze_map.keys()))
+
     review_stmt = (
         select(func.count(TestCase.id))
         .join(Module, TestCase.module_id == Module.id)
         .where(TestCase.review_status == "pending")
     )
     review_stmt = _project_filter(review_stmt, Module.project_id, user, project_id)
+    if snooze_filter == "exclude" and targets["reviews"]:
+        review_stmt = review_stmt.where(TestCase.id.not_in(targets["reviews"]))
+    elif snooze_filter == "only":
+        if not targets["reviews"]:
+            review_stmt = review_stmt.where(false())
+        else:
+            review_stmt = review_stmt.where(TestCase.id.in_(targets["reviews"]))
     pending_reviews = int((await db.execute(review_stmt)).scalar_one() or 0)
 
-    failed_runs = await _count_tasks(db, user, project_id, _FAILED_STATUSES, None)
+    failed_exclude = targets["failed_by_type"] if snooze_filter == "exclude" else None
+    failed_only = targets["failed_by_type"] if snooze_filter == "only" else None
+    try:
+        failed_runs = await _count_tasks(
+            db,
+            user,
+            project_id,
+            _FAILED_STATUSES,
+            None,
+            archived_filter="exclude",
+            exclude_run_ids=failed_exclude,
+            only_run_ids=failed_only,
+        )
+    except TypeError:
+        failed_runs = await _count_tasks(
+            db,
+            user,
+            project_id,
+            _FAILED_STATUSES,
+            None,
+        )
 
     overdue_stmt = select(func.count(TestPlan.id)).where(
         TestPlan.status == "active",
@@ -518,6 +702,13 @@ async def _count_todos(db: AsyncSession, user: User, project_id: int | None) -> 
         TestPlan.next_run_at < datetime.now(timezone.utc),
     )
     overdue_stmt = _project_filter(overdue_stmt, TestPlan.project_id, user, project_id)
+    if snooze_filter == "exclude" and targets["plans"]:
+        overdue_stmt = overdue_stmt.where(TestPlan.id.not_in(targets["plans"]))
+    elif snooze_filter == "only":
+        if not targets["plans"]:
+            overdue_stmt = overdue_stmt.where(false())
+        else:
+            overdue_stmt = overdue_stmt.where(TestPlan.id.in_(targets["plans"]))
     overdue_plans = int((await db.execute(overdue_stmt)).scalar_one() or 0)
 
     device_anomalies = 0
@@ -528,11 +719,22 @@ async def _count_todos(db: AsyncSession, user: User, project_id: int | None) -> 
             Device.last_seen_at.is_not(None),
             Device.last_seen_at < stale_before,
         )
+        if snooze_filter == "exclude" and targets["devices"]:
+            device_stmt = device_stmt.where(Device.id.not_in(targets["devices"]))
+        elif snooze_filter == "only":
+            if not targets["devices"]:
+                device_stmt = device_stmt.where(false())
+            else:
+                device_stmt = device_stmt.where(Device.id.in_(targets["devices"]))
         device_anomalies = int((await db.execute(device_stmt)).scalar_one() or 0)
 
-    active_tasks = await _count_tasks(db, user, project_id, _ACTIVE_STATUSES, None)
+    try:
+        active_tasks = await _count_tasks(db, user, project_id, _ACTIVE_STATUSES, None, archived_filter="exclude")
+    except TypeError:
+        active_tasks = await _count_tasks(db, user, project_id, _ACTIVE_STATUSES, None)
+
     total_todos = pending_reviews + failed_runs + overdue_plans + device_anomalies
-    return {
+    res = {
         "pending_reviews": pending_reviews,
         "failed_runs": failed_runs,
         "overdue_plans": overdue_plans,
@@ -540,6 +742,9 @@ async def _count_todos(db: AsyncSession, user: User, project_id: int | None) -> 
         "active_tasks": active_tasks,
         "total_todos": total_todos,
     }
+    if snooze_filter in {"only", "exclude", "all"}:
+        res["snoozed_todos"] = len(active_snooze_map)
+    return res
 
 
 async def _collect_todos(
@@ -548,13 +753,17 @@ async def _collect_todos(
     project_id: int | None,
     limit: int,
     offset: int = 0,
+    snooze_filter: str | None = None,
 ) -> tuple[list[WorkbenchTodoItem], bool]:
     todos: list[WorkbenchTodoItem] = []
     has_more = False
-    # Each todo source is queried before the global priority/time sort.  Fetch
-    # enough rows for the requested page so a large review queue cannot hide
-    # failed runs or device anomalies from later pages.
     source_limit = min(limit + offset, 1200)
+
+    active_snooze_map: dict[str, WorkbenchTodoSnooze] = {}
+    targets: dict[str, Any] = {"reviews": set(), "plans": set(), "devices": set(), "failed_by_type": {}}
+    if snooze_filter in {"only", "exclude", "all"}:
+        active_snooze_map = await _get_active_snooze_map(db, user, project_id)
+        targets = _parse_snoozed_targets(set(active_snooze_map.keys()))
 
     review_stmt = (
         select(TestCase, Project.name, Module.project_id)
@@ -563,6 +772,13 @@ async def _collect_todos(
         .where(TestCase.review_status == "pending")
     )
     review_stmt = _project_filter(review_stmt, Module.project_id, user, project_id)
+    if snooze_filter == "exclude" and targets["reviews"]:
+        review_stmt = review_stmt.where(TestCase.id.not_in(targets["reviews"]))
+    elif snooze_filter == "only":
+        if not targets["reviews"]:
+            review_stmt = review_stmt.where(false())
+        else:
+            review_stmt = review_stmt.where(TestCase.id.in_(targets["reviews"]))
     review_rows = (
         await db.execute(review_stmt.order_by(TestCase.updated_at.asc(), TestCase.id.asc()).limit(source_limit + 1))
     ).all()
@@ -584,14 +800,29 @@ async def _collect_todos(
         for case, project_name, case_project_id in review_rows[:source_limit]
     )
 
-    failed_tasks, failed_has_more = await _collect_tasks(
-        db,
-        user,
-        project_id,
-        _FAILED_STATUSES,
-        None,
-        source_limit,
-    )
+    failed_exclude = targets["failed_by_type"] if snooze_filter == "exclude" else None
+    failed_only = targets["failed_by_type"] if snooze_filter == "only" else None
+    try:
+        failed_tasks, failed_has_more = await _collect_tasks(
+            db,
+            user,
+            project_id,
+            _FAILED_STATUSES,
+            None,
+            source_limit,
+            archived_filter="exclude",
+            exclude_run_ids=failed_exclude,
+            only_run_ids=failed_only,
+        )
+    except TypeError:
+        failed_tasks, failed_has_more = await _collect_tasks(
+            db,
+            user,
+            project_id,
+            _FAILED_STATUSES,
+            None,
+            source_limit,
+        )
     has_more = has_more or failed_has_more
     todos.extend(
         WorkbenchTodoItem(
@@ -628,6 +859,13 @@ async def _collect_todos(
         )
     )
     overdue_stmt = _project_filter(overdue_stmt, TestPlan.project_id, user, project_id)
+    if snooze_filter == "exclude" and targets["plans"]:
+        overdue_stmt = overdue_stmt.where(TestPlan.id.not_in(targets["plans"]))
+    elif snooze_filter == "only":
+        if not targets["plans"]:
+            overdue_stmt = overdue_stmt.where(false())
+        else:
+            overdue_stmt = overdue_stmt.where(TestPlan.id.in_(targets["plans"]))
     overdue_rows = (await db.execute(overdue_stmt.order_by(TestPlan.next_run_at.asc()).limit(source_limit + 1))).all()
     has_more = has_more or len(overdue_rows) > source_limit
     todos.extend(
@@ -655,6 +893,13 @@ async def _collect_todos(
             Device.last_seen_at.is_not(None),
             Device.last_seen_at < stale_before,
         )
+        if snooze_filter == "exclude" and targets["devices"]:
+            device_stmt = device_stmt.where(Device.id.not_in(targets["devices"]))
+        elif snooze_filter == "only":
+            if not targets["devices"]:
+                device_stmt = device_stmt.where(false())
+            else:
+                device_stmt = device_stmt.where(Device.id.in_(targets["devices"]))
         device_rows = (
             (await db.execute(device_stmt.order_by(Device.last_seen_at.desc()).limit(source_limit + 1))).scalars().all()
         )
@@ -676,6 +921,13 @@ async def _collect_todos(
             for device in device_rows[:source_limit]
         )
 
+    if snooze_filter in {"only", "all"}:
+        for item in todos:
+            if item.id in active_snooze_map:
+                item.is_snoozed = True
+                item.snooze_reason = active_snooze_map[item.id].reason
+                item.snoozed_until = active_snooze_map[item.id].snoozed_until
+
     priority_order = {"high": 0, "medium": 1, "low": 2}
     todos.sort(key=lambda item: (priority_order[item.priority], item.due_at or item.created_at or now))
     page_end = offset + limit
@@ -690,15 +942,21 @@ async def get_workbench_overview(
     todo_limit: int = Query(50, ge=1, le=100),
     todo_offset: int = Query(0, ge=0, le=1000),
     task_limit: int = Query(50, ge=1, le=100),
+    snooze_filter: str = Query("exclude", pattern="^(exclude|only|all)$"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     if project_id is not None:
         await assert_project_access(db, current_user, project_id, ProjectRole.viewer)
     generated_at = datetime.now(timezone.utc)
-    todos, has_more_todos = await _collect_todos(db, current_user, project_id, todo_limit, todo_offset)
-    tasks, has_more_tasks = await _collect_tasks(db, current_user, project_id, None, None, task_limit)
-    counts = await _count_todos(db, current_user, project_id)
+    todos, has_more_todos = await _collect_todos(db, current_user, project_id, todo_limit, todo_offset, snooze_filter)
+    try:
+        tasks, has_more_tasks = await _collect_tasks(
+            db, current_user, project_id, None, None, task_limit, archived_filter="exclude"
+        )
+    except TypeError:
+        tasks, has_more_tasks = await _collect_tasks(db, current_user, project_id, None, None, task_limit)
+    counts = await _count_todos(db, current_user, project_id, snooze_filter)
     counts["returned_tasks"] = len(tasks)
     return WorkbenchOverviewOut(
         generated_at=generated_at,
@@ -716,6 +974,7 @@ async def list_workbench_tasks(
     project_id: int | None = Query(None, ge=1),
     status_filter: str | None = Query(None, alias="status"),
     task_type: str | None = Query(None),
+    archived_filter: str = Query("exclude", pattern="^(exclude|only|all)$"),
     limit: int = Query(100, ge=1, le=200),
     offset: int = Query(0, ge=0, le=1000),
     db: AsyncSession = Depends(get_db),
@@ -726,8 +985,10 @@ async def list_workbench_tasks(
     if task_type is not None and task_type not in _TASK_TYPES:
         raise HTTPException(status_code=400, detail="任务类型不支持")
     generated_at = datetime.now(timezone.utc)
-    items, has_more = await _collect_tasks(db, current_user, project_id, status_filter, task_type, limit, offset)
-    total = await _count_tasks(db, current_user, project_id, status_filter, task_type)
+    items, has_more = await _collect_tasks(
+        db, current_user, project_id, status_filter, task_type, limit, offset, archived_filter
+    )
+    total = await _count_tasks(db, current_user, project_id, status_filter, task_type, archived_filter)
     return WorkbenchTaskPageOut(
         generated_at=generated_at,
         project_id=project_id,
@@ -1059,3 +1320,251 @@ async def batch_workbench_action(
         results=results,
         failures=failures,
     )
+
+
+async def _resolve_todo_project_and_authorize(db: AsyncSession, user: User, todo_id: str) -> int | None:
+    parts = todo_id.split(":")
+    prefix = parts[0]
+    if prefix == "review" and len(parts) == 2 and parts[1].isdigit():
+        case_id = int(parts[1])
+        case = await db.get(TestCase, case_id)
+        if not case:
+            raise HTTPException(status_code=404, detail="待办用例不存在")
+        module = await db.get(Module, case.module_id) if case.module_id else None
+        if not module:
+            raise HTTPException(status_code=404, detail="用例模块不存在")
+        await assert_project_access(db, user, module.project_id, ProjectRole.viewer)
+        return module.project_id
+    elif prefix == "failed-run" and len(parts) == 3 and parts[2].isdigit():
+        task_type_str, run_id = parts[1], int(parts[2])
+        if task_type_str not in _TASK_TYPES:
+            raise HTTPException(status_code=400, detail="任务类型不支持")
+        task_type = cast(WorkbenchTaskType, task_type_str)
+        project_id = await _workbench_task_project_id(db, task_type, run_id)
+        status_val = await _workbench_task_status(db, task_type, run_id)
+        if status_val is None:
+            raise HTTPException(status_code=404, detail="执行记录不存在")
+        if project_id is not None:
+            await assert_project_access(db, user, project_id, ProjectRole.viewer)
+        elif user.role not in {UserRole.admin, UserRole.engineer}:
+            raise HTTPException(status_code=403, detail="无权操作此待办")
+        return project_id
+    elif prefix == "overdue-plan" and len(parts) == 2 and parts[1].isdigit():
+        plan_id = int(parts[1])
+        plan = await db.get(TestPlan, plan_id)
+        if not plan:
+            raise HTTPException(status_code=404, detail="测试计划不存在")
+        await assert_project_access(db, user, plan.project_id, ProjectRole.viewer)
+        return plan.project_id
+    elif prefix == "device" and len(parts) == 2 and parts[1].isdigit():
+        device_id = int(parts[1])
+        device = await db.get(Device, device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="设备不存在")
+        if user.role not in {UserRole.admin, UserRole.engineer}:
+            raise HTTPException(status_code=403, detail="仅管理员或工程师可操作设备待办")
+        return None
+    else:
+        raise HTTPException(status_code=400, detail="待办 ID 格式无效")
+
+
+async def _batch_resolve_task_projects_and_authorize(
+    db: AsyncSession,
+    user: User,
+    tasks: list[WorkbenchTaskRef],
+    required_role: ProjectRole = ProjectRole.editor,
+) -> dict[tuple[str, int], int | None]:
+    """Batch verify existence of runs and authorize editor/admin access."""
+    grouped: dict[str, set[int]] = {}
+    for t in tasks:
+        grouped.setdefault(t.task_type, set()).add(t.run_id)
+
+    task_project_map: dict[tuple[str, int], int | None] = {}
+
+    if "case" in grouped:
+        run_ids = grouped["case"]
+        stmt = (
+            select(TestRun.id, Module.project_id)
+            .outerjoin(TestCase, TestRun.case_id == TestCase.id)
+            .outerjoin(Module, TestCase.module_id == Module.id)
+            .where(TestRun.id.in_(run_ids))
+        )
+        for r_id, p_id in (await db.execute(stmt)).all():
+            task_project_map[("case", r_id)] = p_id
+
+    if "suite" in grouped:
+        run_ids = grouped["suite"]
+        stmt = (
+            select(SuiteRun.id, TestSuite.project_id)
+            .outerjoin(TestSuite, SuiteRun.suite_id == TestSuite.id)
+            .where(SuiteRun.id.in_(run_ids))
+        )
+        for r_id, p_id in (await db.execute(stmt)).all():
+            task_project_map[("suite", r_id)] = p_id
+
+    if "plan" in grouped:
+        run_ids = grouped["plan"]
+        stmt = (
+            select(PlanRun.id, TestPlan.project_id)
+            .outerjoin(TestPlan, PlanRun.plan_id == TestPlan.id)
+            .where(PlanRun.id.in_(run_ids))
+        )
+        for r_id, p_id in (await db.execute(stmt)).all():
+            task_project_map[("plan", r_id)] = p_id
+
+    if "android" in grouped:
+        run_ids = grouped["android"]
+        stmt = (
+            select(MobileSpecialRun.id, MobileSpecialTask.project_id)
+            .outerjoin(MobileSpecialTask, MobileSpecialRun.task_id == MobileSpecialTask.id)
+            .where(MobileSpecialRun.id.in_(run_ids))
+        )
+        for r_id, p_id in (await db.execute(stmt)).all():
+            task_project_map[("android", r_id)] = p_id
+
+    if "performance" in grouped:
+        run_ids = grouped["performance"]
+        stmt = select(PerformanceRun.id, PerformanceRun.project_id).where(PerformanceRun.id.in_(run_ids))
+        for r_id, p_id in (await db.execute(stmt)).all():
+            task_project_map[("performance", r_id)] = p_id
+
+    for t in tasks:
+        key = (t.task_type, t.run_id)
+        if key not in task_project_map:
+            raise HTTPException(status_code=404, detail=f"任务记录不存在: {t.task_type} #{t.run_id}")
+
+    distinct_projects = {p_id for p_id in task_project_map.values() if p_id is not None}
+    for p_id in distinct_projects:
+        await assert_project_access(db, user, p_id, required_role)
+
+    if None in task_project_map.values() and user.role != UserRole.admin:
+        raise HTTPException(status_code=403, detail="仅管理员可操作无项目归属的任务")
+
+    return task_project_map
+
+
+@router.post("/workbench/todos/{todo_id:path}/snooze", response_model=WorkbenchTodoSnoozeOut)
+async def snooze_workbench_todo(
+    todo_id: str,
+    body: WorkbenchTodoSnoozeIn = WorkbenchTodoSnoozeIn(),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project_id = await _resolve_todo_project_and_authorize(db, current_user, todo_id)
+    now = datetime.now(timezone.utc)
+    snoozed_until = now + timedelta(hours=body.duration_hours) if body.duration_hours > 0 else None
+
+    stmt = select(WorkbenchTodoSnooze).where(
+        WorkbenchTodoSnooze.user_id == current_user.id,
+        WorkbenchTodoSnooze.todo_id == todo_id,
+    )
+    existing = (await db.execute(stmt)).scalar_one_or_none()
+    if existing:
+        existing.reason = body.reason.strip() if body.reason else None
+        existing.snoozed_until = snoozed_until
+        existing.project_id = project_id
+        existing.created_at = now
+        snooze_obj = existing
+    else:
+        snooze_obj = WorkbenchTodoSnooze(
+            todo_id=todo_id,
+            user_id=current_user.id,
+            project_id=project_id,
+            reason=body.reason.strip() if body.reason else None,
+            snoozed_until=snoozed_until,
+            created_at=now,
+        )
+        db.add(snooze_obj)
+    await db.commit()
+    await db.refresh(snooze_obj)
+    return WorkbenchTodoSnoozeOut(
+        todo_id=snooze_obj.todo_id,
+        user_id=snooze_obj.user_id,
+        reason=snooze_obj.reason,
+        snoozed_until=snooze_obj.snoozed_until,
+        created_at=snooze_obj.created_at,
+    )
+
+
+@router.delete("/workbench/todos/{todo_id:path}/snooze")
+@router.post("/workbench/todos/{todo_id:path}/unsnooze")
+async def unsnooze_workbench_todo(
+    todo_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(WorkbenchTodoSnooze).where(
+        WorkbenchTodoSnooze.user_id == current_user.id,
+        WorkbenchTodoSnooze.todo_id == todo_id,
+    )
+    existing = (await db.execute(stmt)).scalar_one_or_none()
+    if existing:
+        if existing.project_id is not None:
+            await assert_project_access(db, current_user, existing.project_id, ProjectRole.viewer)
+        await db.delete(existing)
+        await db.commit()
+    return {"status": "ok", "todo_id": todo_id, "unsnoozed": True}
+
+
+@router.post("/workbench/tasks/archive", response_model=WorkbenchTaskArchiveOut)
+async def archive_workbench_tasks(
+    body: WorkbenchTaskArchiveIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    task_project_map = await _batch_resolve_task_projects_and_authorize(
+        db, current_user, body.tasks, ProjectRole.editor
+    )
+    now = datetime.now(timezone.utc)
+    task_keys = {(t.task_type, t.run_id) for t in body.tasks}
+    existing_stmt = select(WorkbenchArchivedTask.task_type, WorkbenchArchivedTask.run_id).where(
+        or_(
+            *(
+                and_(WorkbenchArchivedTask.task_type == t_type, WorkbenchArchivedTask.run_id == r_id)
+                for t_type, r_id in task_keys
+            )
+        )
+    )
+    existing_keys = set((await db.execute(existing_stmt)).all())
+
+    processed = 0
+    for task_ref in body.tasks:
+        key = (task_ref.task_type, task_ref.run_id)
+        if key not in existing_keys:
+            db.add(
+                WorkbenchArchivedTask(
+                    task_type=task_ref.task_type,
+                    run_id=task_ref.run_id,
+                    project_id=task_project_map[key],
+                    archived_by=current_user.id,
+                    archived_at=now,
+                )
+            )
+            existing_keys.add(key)
+            processed += 1
+    await db.commit()
+    return WorkbenchTaskArchiveOut(processed=processed, archived=True)
+
+
+@router.post("/workbench/tasks/unarchive", response_model=WorkbenchTaskArchiveOut)
+async def unarchive_workbench_tasks(
+    body: WorkbenchTaskArchiveIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _batch_resolve_task_projects_and_authorize(db, current_user, body.tasks, ProjectRole.editor)
+    task_keys = {(t.task_type, t.run_id) for t in body.tasks}
+    delete_stmt = select(WorkbenchArchivedTask).where(
+        or_(
+            *(
+                and_(WorkbenchArchivedTask.task_type == t_type, WorkbenchArchivedTask.run_id == r_id)
+                for t_type, r_id in task_keys
+            )
+        )
+    )
+    existing_rows = (await db.execute(delete_stmt)).scalars().all()
+    processed = len(existing_rows)
+    for row in existing_rows:
+        await db.delete(row)
+    await db.commit()
+    return WorkbenchTaskArchiveOut(processed=processed, archived=False)

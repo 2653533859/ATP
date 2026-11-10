@@ -18,6 +18,9 @@
             {{ project.name }}
           </a-select-option>
         </a-select>
+        <a-button type="primary" size="small" @click="openQuickDispatch">
+          <PlusOutlined /> {{ t('task_center.quick_dispatch') }}
+        </a-button>
         <a-button size="small" :loading="loading" @click="loadTasks">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -36,6 +39,11 @@
             {{ t(`task_center.types.${option}`) }}
           </a-select-option>
         </a-select>
+        <a-select size="small" v-model:value="archivedFilter" style="width: 140px" @change="handleFilterChange">
+          <a-select-option value="exclude">{{ t('task_center.archive_filters.unarchived') }}</a-select-option>
+          <a-select-option value="only">{{ t('task_center.archive_filters.archived') }}</a-select-option>
+          <a-select-option value="all">{{ t('task_center.archive_filters.all') }}</a-select-option>
+        </a-select>
         <span class="filter-hint">{{ t('task_center.refresh_hint') }}</span>
       </div>
       <div class="action-bar">
@@ -46,6 +54,24 @@
           </a-button>
           <a-button size="small" danger :disabled="!selectedRowKeys.length" @click="handleBatch('stop')">
             {{ t('task_center.stop_selected') }}
+          </a-button>
+          <a-button
+            v-if="archivedFilter !== 'only'"
+            size="small"
+            :disabled="!selectedRowKeys.length"
+            :loading="archiveSubmitting"
+            @click="handleBatchArchive"
+          >
+            {{ t('task_center.archive_selected') }}
+          </a-button>
+          <a-button
+            v-if="archivedFilter === 'only'"
+            size="small"
+            :disabled="!selectedRowKeys.length"
+            :loading="archiveSubmitting"
+            @click="handleBatchUnarchive"
+          >
+            {{ t('task_center.unarchive_selected') }}
           </a-button>
         </div>
       </div>
@@ -79,7 +105,7 @@
           {{ formatTime(record.created_at) }}
         </template>
         <template v-else-if="column.key === 'action'">
-          <a-space>
+          <a-space size="small">
             <a-button type="link" @click="router.push(record.detail_path)">{{ t('task_center.view') }}</a-button>
             <a-button v-if="isFailureStatus(record.status)" type="link" @click="openFailureDiagnosis(asTask(record))">
               {{ t('task_center.diagnose') }}
@@ -89,6 +115,12 @@
             </a-button>
             <a-button v-if="record.can_stop" type="link" danger :loading="actionKey === record.id" @click="handleAction(asTask(record), 'stop')">
               {{ t('task_center.stop') }}
+            </a-button>
+            <a-button v-if="!record.is_archived" type="link" size="small" @click="handleRowArchive(asTask(record))">
+              {{ t('task_center.archive') }}
+            </a-button>
+            <a-button v-else type="link" size="small" @click="handleRowUnarchive(asTask(record))">
+              {{ t('task_center.unarchive') }}
             </a-button>
           </a-space>
         </template>
@@ -149,6 +181,60 @@
       </a-spin>
     </a-modal>
 
+    <!-- 快捷发起执行弹窗 -->
+    <a-modal
+      v-model:open="dispatchModalVisible"
+      :title="t('task_center.quick_dispatch_title')"
+      :confirm-loading="dispatchSubmitting"
+      destroy-on-close
+      @ok="handleDispatchSubmit"
+      @cancel="closeDispatchModal"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('task_center.quick_dispatch_project')" required>
+          <a-select
+            v-model:value="dispatchForm.projectId"
+            :placeholder="t('task_center.quick_dispatch_project')"
+            @change="onDispatchProjectChange"
+          >
+            <a-select-option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item :label="t('task_center.quick_dispatch_type')" required>
+          <a-radio-group v-model:value="dispatchForm.taskType" @change="onDispatchTypeChange">
+            <a-radio-button value="case">{{ t('task_center.types.case') }}</a-radio-button>
+            <a-radio-button value="suite">{{ t('task_center.types.suite') }}</a-radio-button>
+            <a-radio-button value="plan">{{ t('task_center.types.plan') }}</a-radio-button>
+            <a-radio-button value="performance">{{ t('task_center.types.performance') }}</a-radio-button>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item :label="t('task_center.quick_dispatch_target')" required>
+          <a-select
+            v-model:value="dispatchForm.targetId"
+            show-search
+            :filter-option="filterTargetOption"
+            :loading="targetLoading"
+            :placeholder="t('task_center.quick_dispatch_target')"
+          >
+            <a-select-option v-for="item in targetOptions" :key="item.id" :value="item.id">
+              {{ item.name }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item :label="t('task_center.quick_dispatch_env')">
+          <a-select
+            v-model:value="dispatchForm.environmentId"
+            allow-clear
+            :placeholder="t('task_center.quick_dispatch_env_placeholder')"
+          >
+            <a-select-option v-for="env in environmentOptions" :key="env.id" :value="env.id">
+              {{ env.name }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
     <div v-if="total > pageSize" class="pagination-row">
       <a-pagination
         :current="page"
@@ -172,10 +258,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
-import { ReloadOutlined, ScheduleOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, ReloadOutlined, ScheduleOutlined } from '@ant-design/icons-vue'
 import {
+  caseApi,
+  environmentApi,
+  performanceApi,
+  planApi,
   projectApi,
   runApi,
+  suiteApi,
   workbenchApi,
   type FailureDiagnosisResult,
   type ProjectItem,
@@ -206,6 +297,7 @@ const projects = ref<ProjectItem[]>([])
 const projectId = ref<number | undefined>(toProjectId(route.query.project_id))
 const statusFilter = ref<string | undefined>(toStringValue(route.query.status))
 const taskType = ref<WorkbenchTaskType | undefined>(toTaskType(route.query.task_type))
+const archivedFilter = ref<'exclude' | 'only' | 'all'>('exclude')
 const page = ref(toPage(route.query.page))
 const tasks = ref<WorkbenchTaskItem[]>([])
 const total = ref(0)
@@ -229,7 +321,7 @@ const columns = computed(() => [
   { title: t('task_center.columns.project'), key: 'project', width: 160 },
   { title: t('task_center.columns.status'), key: 'status', width: 120 },
   { title: t('task_center.columns.created_at'), key: 'created_at', width: 180 },
-  { title: t('task_center.columns.action'), key: 'action', width: 290, fixed: 'right' as const },
+  { title: t('task_center.columns.action'), key: 'action', width: 330, fixed: 'right' as const },
 ])
 
 const rowSelection = computed(() => ({
@@ -369,13 +461,24 @@ async function loadTasks() {
     if (queryChanged) {
       await router.replace({ query: nextQuery })
     }
-    const result = await workbenchApi.tasks({
+    const params: {
+      project_id?: number
+      status?: string
+      task_type?: WorkbenchTaskType
+      archived_filter?: string
+      limit: number
+      offset: number
+    } = {
       project_id: projectId.value,
       status: statusFilter.value,
       task_type: taskType.value,
       limit: pageSize,
       offset: Math.min((page.value - 1) * pageSize, maxTaskOffset),
-    })
+    }
+    if (archivedFilter.value !== 'exclude') {
+      params.archived_filter = archivedFilter.value
+    }
+    const result = await workbenchApi.tasks(params)
     if (requestSequence !== loadSequence) return
     tasks.value = result.items
     total.value = result.total
@@ -526,6 +629,183 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (refreshTimer !== undefined) window.clearInterval(refreshTimer)
 })
+
+const archiveSubmitting = ref(false)
+
+async function handleBatchArchive() {
+  const selectedTasks = tasks.value
+    .filter((task) => selectedRowKeys.value.includes(task.id))
+    .map((task) => ({ task_type: task.task_type, run_id: task.run_id }))
+  if (!selectedTasks.length) return
+  archiveSubmitting.value = true
+  try {
+    await workbenchApi.archiveTasks(selectedTasks)
+    message.success(t('task_center.archive_success'))
+    selectedRowKeys.value = []
+    await loadTasks()
+  } catch {
+    message.error(t('task_center.action_failed'))
+  } finally {
+    archiveSubmitting.value = false
+  }
+}
+
+async function handleBatchUnarchive() {
+  const selectedTasks = tasks.value
+    .filter((task) => selectedRowKeys.value.includes(task.id))
+    .map((task) => ({ task_type: task.task_type, run_id: task.run_id }))
+  if (!selectedTasks.length) return
+  archiveSubmitting.value = true
+  try {
+    await workbenchApi.unarchiveTasks(selectedTasks)
+    message.success(t('task_center.unarchive_success'))
+    selectedRowKeys.value = []
+    await loadTasks()
+  } catch {
+    message.error(t('task_center.action_failed'))
+  } finally {
+    archiveSubmitting.value = false
+  }
+}
+
+async function handleRowArchive(task: WorkbenchTaskItem) {
+  try {
+    await workbenchApi.archiveTasks([{ task_type: task.task_type, run_id: task.run_id }])
+    message.success(t('task_center.archive_success'))
+    await loadTasks()
+  } catch {
+    message.error(t('task_center.action_failed'))
+  }
+}
+
+async function handleRowUnarchive(task: WorkbenchTaskItem) {
+  try {
+    await workbenchApi.unarchiveTasks([{ task_type: task.task_type, run_id: task.run_id }])
+    message.success(t('task_center.unarchive_success'))
+    await loadTasks()
+  } catch {
+    message.error(t('task_center.action_failed'))
+  }
+}
+
+// Quick dispatch state
+const dispatchModalVisible = ref(false)
+const dispatchSubmitting = ref(false)
+const targetLoading = ref(false)
+const dispatchForm = ref<{
+  projectId?: number
+  taskType: 'case' | 'suite' | 'plan' | 'performance'
+  targetId?: number
+  environmentId?: number
+}>({
+  projectId: undefined,
+  taskType: 'case',
+  targetId: undefined,
+  environmentId: undefined,
+})
+const targetOptions = ref<Array<{ id: number; name: string }>>([])
+const environmentOptions = ref<Array<{ id: number; name: string }>>([])
+
+function openQuickDispatch() {
+  dispatchForm.value.projectId = projectId.value || (projects.value[0]?.id)
+  dispatchForm.value.taskType = 'case'
+  dispatchForm.value.targetId = undefined
+  dispatchForm.value.environmentId = undefined
+  dispatchModalVisible.value = true
+  loadDispatchTargets()
+  loadDispatchEnvironments()
+}
+
+function closeDispatchModal() {
+  dispatchModalVisible.value = false
+}
+
+function onDispatchProjectChange() {
+  dispatchForm.value.targetId = undefined
+  dispatchForm.value.environmentId = undefined
+  loadDispatchTargets()
+  loadDispatchEnvironments()
+}
+
+function onDispatchTypeChange() {
+  dispatchForm.value.targetId = undefined
+  loadDispatchTargets()
+}
+
+async function loadDispatchEnvironments() {
+  if (!dispatchForm.value.projectId) {
+    environmentOptions.value = []
+    return
+  }
+  try {
+    const list = await environmentApi.list(dispatchForm.value.projectId)
+    environmentOptions.value = list
+  } catch {
+    environmentOptions.value = []
+  }
+}
+
+async function loadDispatchTargets() {
+  if (!dispatchForm.value.projectId) {
+    targetOptions.value = []
+    return
+  }
+  targetLoading.value = true
+  try {
+    if (dispatchForm.value.taskType === 'case') {
+      const res = await caseApi.list({ project_id: dispatchForm.value.projectId })
+      targetOptions.value = res.map((c) => ({ id: c.id, name: `${c.name} (#${c.id})` }))
+    } else if (dispatchForm.value.taskType === 'suite') {
+      const res = await suiteApi.list({ project_id: dispatchForm.value.projectId })
+      targetOptions.value = res.map((s) => ({ id: s.id, name: `${s.name} (#${s.id})` }))
+    } else if (dispatchForm.value.taskType === 'plan') {
+      const res = await planApi.list({ project_id: dispatchForm.value.projectId })
+      targetOptions.value = res.map((p) => ({ id: p.id, name: `${p.name} (#${p.id})` }))
+    } else if (dispatchForm.value.taskType === 'performance') {
+      const res = await performanceApi.listTests(dispatchForm.value.projectId)
+      targetOptions.value = res.map((pt) => ({ id: pt.id, name: `${pt.name} (#${pt.id})` }))
+    }
+  } catch {
+    targetOptions.value = []
+  } finally {
+    targetLoading.value = false
+  }
+}
+
+function filterTargetOption(input: string, option: any) {
+  return String(option?.children ?? option?.name ?? '').toLowerCase().includes(input.toLowerCase())
+}
+
+async function handleDispatchSubmit() {
+  if (!dispatchForm.value.projectId || !dispatchForm.value.targetId) {
+    message.warning(t('task_center.quick_dispatch_target'))
+    return
+  }
+  dispatchSubmitting.value = true
+  try {
+    let runId: number | undefined
+    if (dispatchForm.value.taskType === 'case') {
+      const res = await caseApi.run(dispatchForm.value.targetId, { env_id: dispatchForm.value.environmentId })
+      runId = res.id
+    } else if (dispatchForm.value.taskType === 'suite') {
+      const res = await suiteApi.run(dispatchForm.value.targetId, { env_id: dispatchForm.value.environmentId })
+      runId = res.id
+    } else if (dispatchForm.value.taskType === 'plan') {
+      const res = await planApi.run(dispatchForm.value.targetId, { env_id: dispatchForm.value.environmentId })
+      runId = res.id
+    } else if (dispatchForm.value.taskType === 'performance') {
+      const res = await performanceApi.triggerRun(dispatchForm.value.targetId, { environment_id: dispatchForm.value.environmentId })
+      runId = res.id
+    }
+    message.success(t('task_center.quick_dispatch_success', { id: runId ?? '' }))
+    closeDispatchModal()
+    await loadTasks()
+  } catch (err: any) {
+    message.error(err?.message || t('task_center.action_failed'))
+  } finally {
+    dispatchSubmitting.value = false
+  }
+}
 </script>
 
 <style scoped>

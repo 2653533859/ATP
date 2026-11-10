@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Union
 
 import app.api.v1.cases as _cases
@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
@@ -22,6 +23,7 @@ from app.models.environment import Environment, EnvVariable
 from app.models.project import Module
 from app.models.user import User
 from app.models.user_project import ProjectRole
+from app.services.audit import write_audit_log
 from app.schemas.case import (
     FailureDiagnosisOut,
     HealingFeedbackRequest,
@@ -30,6 +32,7 @@ from app.schemas.case import (
     RunTriggerRequest,
     TestRunListItem,
     TestRunOut,
+    RunTriageIn,
 )
 from app.schemas.android_precheck import (
     AndroidDraftPrecheckIn,
@@ -318,4 +321,37 @@ async def submit_healing_feedback(
     step.healing_feedback = body.action
     step.healing_feedback_at = datetime.now(timezone.utc)
     await db.commit()
-    return None
+
+
+@router.patch("/runs/{run_id}/triage", response_model=TestRunOut)
+async def update_run_triage(
+    run_id: int,
+    body: RunTriageIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
+    summary = dict(run.result_summary or {})
+    summary["triage"] = {
+        "category": body.category,
+        "note": body.note.strip() if body.note else None,
+        "triaged_by_id": current_user.id,
+        "triaged_by_name": current_user.username,
+        "triaged_at": datetime.now(timezone.utc).isoformat(),
+    }
+    run.result_summary = summary
+    if hasattr(run, "_sa_instance_state"):
+        flag_modified(run, "result_summary")
+    await write_audit_log(
+        db,
+        action="run_triage_updated",
+        resource_type="test_run",
+        resource_id=run.id,
+        user_id=current_user.id,
+        username=current_user.username,
+        project_id=run.project_id,
+        detail=f"人工研判执行记录 {run.id}: 分类={body.category}, 备注={body.note or '-'}",
+    )
+    await db.commit()
+    await db.refresh(run)
+    return run

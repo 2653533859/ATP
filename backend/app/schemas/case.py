@@ -314,3 +314,18 @@ class CaseBatchImportPreviewOut(BaseModel):
     invalid_count: int
     preview_cases: list[CaseBatchImportPreviewItem] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+
+
+RunTriageCategory = Literal[
+    "biz_bug",
+    "env_issue",
+    "script_bug",
+    "data_issue",
+    "false_positive",
+    "unconfirmed",
+]
+
+
+class RunTriageIn(BaseModel):
+    category: RunTriageCategory
+    note: str | None = Field(default=None, max_length=2000)

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class WorkbenchTodoItem(BaseModel):
@@ -19,6 +19,9 @@ class WorkbenchTodoItem(BaseModel):
     due_at: datetime | None = None
     path: str
     metadata: dict = Field(default_factory=dict)
+    is_snoozed: bool = False
+    snooze_reason: str | None = None
+    snoozed_until: datetime | None = None
 
 
 class WorkbenchTaskItem(BaseModel):
@@ -39,6 +42,8 @@ class WorkbenchTaskItem(BaseModel):
     can_retry: bool = False
     can_stop: bool = False
     metadata: dict = Field(default_factory=dict)
+    is_archived: bool = False
+    archived_at: datetime | None = None
 
 
 class WorkbenchOverviewOut(BaseModel):
@@ -93,3 +98,32 @@ class WorkbenchBatchActionOut(BaseModel):
     processed: int
     results: list[WorkbenchTaskActionOut] = Field(default_factory=list)
     failures: list[dict] = Field(default_factory=list)
+
+
+class WorkbenchTodoSnoozeIn(BaseModel):
+    duration_hours: int = Field(default=24, ge=-1, le=720)  # -1 for indefinite
+    reason: str | None = Field(default=None, max_length=500)
+
+    @field_validator("duration_hours")
+    @classmethod
+    def validate_duration_hours(cls, v: int) -> int:
+        if v == 0:
+            raise ValueError("duration_hours must be -1 (indefinite) or positive integer")
+        return v
+
+
+class WorkbenchTodoSnoozeOut(BaseModel):
+    todo_id: str
+    user_id: int
+    reason: str | None = None
+    snoozed_until: datetime | None = None
+    created_at: datetime
+
+
+class WorkbenchTaskArchiveIn(BaseModel):
+    tasks: list[WorkbenchTaskRef] = Field(min_length=1, max_length=100)
+
+
+class WorkbenchTaskArchiveOut(BaseModel):
+    processed: int
+    archived: bool

@@ -1563,6 +1563,27 @@ export interface RunDetailItem {
   case?: { name?: string }
 }
 
+export type RunTriageCategory =
+  | 'biz_bug'
+  | 'env_issue'
+  | 'script_bug'
+  | 'data_issue'
+  | 'false_positive'
+  | 'unconfirmed'
+
+export interface RunTriageIn {
+  category: RunTriageCategory
+  note?: string | null
+}
+
+export interface RunTriageInfo {
+  category: RunTriageCategory
+  note?: string | null
+  triaged_by_id: number
+  triaged_by_name: string
+  triaged_at: string
+}
+
 export type WorkbenchTaskType = 'case' | 'suite' | 'plan' | 'android' | 'performance'
 export type WorkbenchAction = 'retry' | 'stop'
 
@@ -1579,8 +1600,28 @@ export interface WorkbenchTodoItem {
   due_at?: string | null
   path: string
   metadata: Record<string, unknown>
+  is_snoozed?: boolean
+  snooze_reason?: string | null
+  snoozed_until?: string | null
 }
 
+export interface WorkbenchTodoSnoozeIn {
+  duration_hours?: number
+  reason?: string | null
+}
+
+export interface WorkbenchTodoSnoozeOut {
+  todo_id: string
+  user_id: number
+  reason?: string | null
+  snoozed_until?: string | null
+  created_at: string
+}
+
+export interface WorkbenchTaskArchiveOut {
+  processed: number
+  archived: boolean
+}
 export interface WorkbenchTaskItem {
   id: string
   task_type: WorkbenchTaskType
@@ -1599,6 +1640,8 @@ export interface WorkbenchTaskItem {
   can_retry: boolean
   can_stop: boolean
   metadata: Record<string, unknown>
+  is_archived?: boolean
+  archived_at?: string | null
 }
 
 export interface WorkbenchOverviewItem {
@@ -2152,12 +2195,14 @@ export const runApi = {
     http.get<unknown, Blob>(`/runs/${id}/junit`, { responseType: 'blob' }),
   submitHealingFeedback: (runId: number, stepId: number, action: 'adopted' | 'rejected') =>
     http.post<unknown, void>(`/runs/${runId}/steps/${stepId}/healing/feedback`, { action }),
+  updateTriage: (id: number, data: RunTriageIn) =>
+    http.patch<unknown, RunDetailItem>(`/runs/${id}/triage`, data),
 }
 
 export const workbenchApi = {
-  overview: (params?: { project_id?: number; todo_limit?: number; todo_offset?: number; task_limit?: number }) =>
+  overview: (params?: { project_id?: number; todo_limit?: number; todo_offset?: number; task_limit?: number; snooze_filter?: string }) =>
     http.get<unknown, WorkbenchOverviewItem>('/workbench/overview', { params }),
-  tasks: (params?: { project_id?: number; status?: string; task_type?: WorkbenchTaskType; limit?: number; offset?: number }) =>
+  tasks: (params?: { project_id?: number; status?: string; task_type?: WorkbenchTaskType; archived_filter?: string; limit?: number; offset?: number }) =>
     http.get<unknown, WorkbenchTaskPage>('/workbench/tasks', { params }),
   failureDiagnosis: (taskType: WorkbenchTaskType, runId: number) =>
     http.post<unknown, FailureDiagnosisResult>(`/workbench/tasks/${taskType}/${runId}/failure-diagnosis`),
@@ -2174,6 +2219,14 @@ export const workbenchApi = {
     tasks: Array<{ task_type: WorkbenchTaskType; run_id: number; command_id?: string }>,
   ) =>
     http.post<unknown, WorkbenchBatchActionResult>('/workbench/tasks/batch-action', { action, tasks }),
+  snoozeTodo: (todoId: string, data: WorkbenchTodoSnoozeIn) =>
+    http.post<unknown, WorkbenchTodoSnoozeOut>(`/workbench/todos/${encodeURIComponent(todoId)}/snooze`, data),
+  unsnoozeTodo: (todoId: string) =>
+    http.post<unknown, { status: string; unsnoozed: boolean }>(`/workbench/todos/${encodeURIComponent(todoId)}/unsnooze`),
+  archiveTasks: (tasks: Array<{ task_type: WorkbenchTaskType; run_id: number }>) =>
+    http.post<unknown, WorkbenchTaskArchiveOut>('/workbench/tasks/archive', { tasks }),
+  unarchiveTasks: (tasks: Array<{ task_type: WorkbenchTaskType; run_id: number }>) =>
+    http.post<unknown, WorkbenchTaskArchiveOut>('/workbench/tasks/unarchive', { tasks }),
 }
 
 export const scriptApi = {

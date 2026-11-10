@@ -37,6 +37,13 @@
           >
             <BugOutlined /> {{ t('run.create_internal_defect') }}
           </a-button>
+          <a-button
+            v-if="run"
+            size="small"
+            @click="openTriageModal"
+          >
+            <AuditOutlined /> {{ t('run.triage') }}
+          </a-button>
           <a-tag v-if="run" :color="statusColor(run.status)" style="font-size: 14px">
             {{ run.status }}
           </a-tag>
@@ -139,6 +146,18 @@
                 </router-link>
               </a-tag>
             </a-space>
+          </a-descriptions-item>
+          <a-descriptions-item v-if="triageInfo" :label="t('run.triage')" :span="2">
+            <a-tag :color="triageColor(triageInfo.category)">
+              {{ t(`run.triage_categories.${triageInfo.category}`) }}
+            </a-tag>
+            <span v-if="triageInfo.note" style="margin-left: 8px; color: #595959">{{ triageInfo.note }}</span>
+            <span style="margin-left: 8px; font-size: 12px; color: #8c8c8c">
+              ({{ triageInfo.triaged_by_name }} · {{ formatTime(triageInfo.triaged_at) }})
+            </span>
+            <a-button size="small" type="link" @click="openTriageModal" style="margin-left: 4px">
+              {{ t('common.edit', '编辑') }}
+            </a-button>
           </a-descriptions-item>
         </a-descriptions>
 
@@ -715,6 +734,86 @@
       @close="closeResumeDrawer"
       @saved="handleResumeCaseSaved"
     />
+
+    <!-- 人工研判弹窗 -->
+    <a-modal
+      v-model:open="triageModalVisible"
+      :title="t('run.triage_title')"
+      :confirm-loading="triageSubmitting"
+      destroy-on-close
+      @ok="handleTriageSubmit"
+      @cancel="closeTriageModal"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('run.triage_category')" required>
+          <a-select v-model:value="triageForm.category">
+            <a-select-option value="biz_bug">{{ t('run.triage_categories.biz_bug') }}</a-select-option>
+            <a-select-option value="env_issue">{{ t('run.triage_categories.env_issue') }}</a-select-option>
+            <a-select-option value="script_bug">{{ t('run.triage_categories.script_bug') }}</a-select-option>
+            <a-select-option value="data_issue">{{ t('run.triage_categories.data_issue') }}</a-select-option>
+            <a-select-option value="false_positive">{{ t('run.triage_categories.false_positive') }}</a-select-option>
+            <a-select-option value="unconfirmed">{{ t('run.triage_categories.unconfirmed') }}</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item :label="t('run.triage_note')">
+          <a-textarea
+            v-model:value="triageForm.note"
+            :rows="4"
+            :maxlength="2000"
+            :placeholder="t('run.triage_note_placeholder')"
+            show-count
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 转为内部缺陷弹窗 -->
+    <a-modal
+      v-model:open="defectModalVisible"
+      :title="t('run.create_defect_modal_title')"
+      :confirm-loading="defectSubmitting"
+      :width="620"
+      destroy-on-close
+      @ok="handleDefectSubmit"
+      @cancel="closeDefectModal"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('run.defect_title')" required>
+          <a-input v-model:value="defectForm.title" :maxlength="128" />
+        </a-form-item>
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item :label="t('run.defect_severity')">
+              <a-select v-model:value="defectForm.severity">
+                <a-select-option value="blocker">Blocker</a-select-option>
+                <a-select-option value="critical">Critical</a-select-option>
+                <a-select-option value="high">High</a-select-option>
+                <a-select-option value="medium">Medium</a-select-option>
+                <a-select-option value="low">Low</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item :label="t('run.defect_priority')">
+              <a-select v-model:value="defectForm.priority">
+                <a-select-option value="urgent">Urgent</a-select-option>
+                <a-select-option value="high">High</a-select-option>
+                <a-select-option value="medium">Medium</a-select-option>
+                <a-select-option value="low">Low</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-form-item :label="t('run.defect_description')">
+          <a-textarea
+            v-model:value="defectForm.description"
+            :rows="6"
+            :maxlength="20000"
+            show-count
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -722,9 +821,9 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
-import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined, CloudSyncOutlined, SyncOutlined, StopOutlined } from '@ant-design/icons-vue'
+import { AuditOutlined, VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined, CloudSyncOutlined, SyncOutlined, StopOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, cloudSyncApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem, type RunSyncStatus } from '@/api'
+import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, cloudSyncApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem, type RunSyncStatus, type RunTriageCategory, type RunTriageInfo } from '@/api'
 import { getRuntimeMode } from '@/runtimeMode'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -1105,16 +1204,122 @@ function errorMessage(error: unknown, fallback = '') {
   return fallback
 }
 
+function formatTime(value?: string | null) {
+  if (!value) return '-'
+  return value.slice(0, 19).replace('T', ' ')
+}
+
 function openInternalDefect() {
   if (!run.value) return
-  void router.push({
-    name: 'bugs',
-    query: {
-      project_id: run.value.project_id ? String(run.value.project_id) : undefined,
-      run_type: 'case',
-      run_id: String(run.value.id),
-    },
-  })
+  defectForm.title = `[用例失败] ${caseDisplayName.value || '用例'} (Run #${runId})`
+  defectForm.severity = 'high'
+  defectForm.priority = 'high'
+  const stepErrs = failedOrErrorSteps.value
+    .map((s) => `• 步骤 ${s.step_index} (${s.name}): ${s.error_message || '执行异常'}`)
+    .join('\n')
+  defectForm.description = [
+    `【关联用例】: ${caseDisplayName.value || '-'} (ID: ${run.value.case_id})`,
+    `【执行记录】: Case Run #${runId}`,
+    `【触发环境】: ${run.value.environment || '默认'}`,
+    `【错误信息】: ${run.value.error_message || failedOrErrorSteps.value[0]?.error_message || '未捕获显式错误'}`,
+    `【失败步骤明细】:\n${stepErrs || '-'}`,
+  ].join('\n')
+  defectModalVisible.value = true
+}
+
+const triageModalVisible = ref(false)
+const triageSubmitting = ref(false)
+const triageForm = reactive<{ category: RunTriageCategory; note: string }>({
+  category: 'unconfirmed',
+  note: '',
+})
+
+const triageInfo = computed<RunTriageInfo | null>(() => {
+  const triage = run.value?.result_summary?.triage
+  if (triage && typeof triage === 'object' && 'category' in triage) {
+    return triage as RunTriageInfo
+  }
+  return null
+})
+
+function triageColor(cat?: string) {
+  switch (cat) {
+    case 'biz_bug': return 'red'
+    case 'env_issue': return 'orange'
+    case 'script_bug': return 'purple'
+    case 'data_issue': return 'gold'
+    case 'false_positive': return 'default'
+    case 'unconfirmed': return 'blue'
+    default: return 'blue'
+  }
+}
+
+function openTriageModal() {
+  if (triageInfo.value) {
+    triageForm.category = triageInfo.value.category
+    triageForm.note = triageInfo.value.note || ''
+  } else {
+    triageForm.category = (run.value?.status === 'failed' || run.value?.status === 'error') ? 'biz_bug' : 'unconfirmed'
+    triageForm.note = ''
+  }
+  triageModalVisible.value = true
+}
+
+function closeTriageModal() {
+  triageModalVisible.value = false
+}
+
+async function handleTriageSubmit() {
+  triageSubmitting.value = true
+  try {
+    const updated = await runApi.updateTriage(runId, {
+      category: triageForm.category,
+      note: triageForm.note.trim() || undefined,
+    })
+    run.value = updated
+    message.success(t('run.triage_success'))
+    closeTriageModal()
+  } catch (err: any) {
+    message.error(err?.message || t('common.action_failed', '操作失败'))
+  } finally {
+    triageSubmitting.value = false
+  }
+}
+
+const defectModalVisible = ref(false)
+const defectSubmitting = ref(false)
+const defectForm = reactive({
+  title: '',
+  severity: 'high',
+  priority: 'high',
+  description: '',
+})
+
+function closeDefectModal() {
+  defectModalVisible.value = false
+}
+
+async function handleDefectSubmit() {
+  if (!defectForm.title.trim()) {
+    message.warning(t('defect.title_required', '缺陷标题不能为空'))
+    return
+  }
+  defectSubmitting.value = true
+  try {
+    const res = await defectApi.createFromRun('case', runId, {
+      title: defectForm.title.trim(),
+      severity: defectForm.severity as any,
+      priority: defectForm.priority as any,
+      description: defectForm.description.trim() || undefined,
+    })
+    message.success(t('run.defect_created_success', { id: res.defect.id, title: res.defect.title }))
+    closeDefectModal()
+    await loadInternalDefects()
+  } catch (err: any) {
+    message.error(err?.message || t('common.action_failed', '操作失败'))
+  } finally {
+    defectSubmitting.value = false
+  }
 }
 
 async function loadInternalDefects() {
