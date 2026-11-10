@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 18
+CURRENT_LOCAL_SCHEMA_VERSION = 19
 
 
 def _create_sync_outbox(connection: Connection) -> None:
@@ -485,6 +485,90 @@ def _create_system_settings(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[18] = _create_system_settings
+
+
+def _create_android_agent_tables(connection: Connection) -> None:
+    """创建 Android 自然语言自动化（Agent）会话、事件与命令表。"""
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS android_agent_sessions ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, "
+        "device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL, "
+        "created_by INTEGER REFERENCES users(id) ON DELETE SET NULL, "
+        "title VARCHAR(128) NOT NULL DEFAULT 'Android Agent Session', "
+        "goal TEXT NOT NULL, "
+        "expected_outcome TEXT NOT NULL, "
+        "package_name VARCHAR(128) NOT NULL, "
+        "llm_config_id INTEGER REFERENCES ai_llm_configs(id) ON DELETE SET NULL, "
+        "status VARCHAR(32) NOT NULL DEFAULT 'created', "
+        "controller VARCHAR(16) NOT NULL DEFAULT 'agent', "
+        "version INTEGER NOT NULL DEFAULT 1, "
+        "control_epoch INTEGER NOT NULL DEFAULT 0, "
+        "lease_token VARCHAR(64), "
+        "budget_max_steps INTEGER NOT NULL DEFAULT 30, "
+        "budget_max_calls INTEGER NOT NULL DEFAULT 40, "
+        "steps_count INTEGER NOT NULL DEFAULT 0, "
+        "model_calls_count INTEGER NOT NULL DEFAULT 0, "
+        "total_tokens INTEGER NOT NULL DEFAULT 0, "
+        "error_code VARCHAR(64), "
+        "context_values JSON NOT NULL DEFAULT '{}', "
+        "started_at DATETIME, "
+        "finished_at DATETIME, "
+        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_android_agent_sessions_project_id ON android_agent_sessions(project_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_android_agent_sessions_device_id ON android_agent_sessions(device_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_android_agent_sessions_status ON android_agent_sessions(status)"
+    )
+
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS android_agent_events ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "session_id INTEGER NOT NULL REFERENCES android_agent_sessions(id) ON DELETE CASCADE, "
+        "seq INTEGER NOT NULL, "
+        "event_type VARCHAR(32) NOT NULL, "
+        "payload JSON NOT NULL DEFAULT '{}', "
+        "artifact_refs JSON NOT NULL DEFAULT '[]', "
+        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "CONSTRAINT uq_android_agent_events_session_seq UNIQUE (session_id, seq)"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_android_agent_events_session_id ON android_agent_events(session_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_android_agent_events_event_type ON android_agent_events(event_type)"
+    )
+
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS android_agent_commands ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "session_id INTEGER NOT NULL REFERENCES android_agent_sessions(id) ON DELETE CASCADE, "
+        "seq INTEGER NOT NULL, "
+        "control_epoch INTEGER NOT NULL, "
+        "observation_id VARCHAR(64) NOT NULL, "
+        "idempotency_key VARCHAR(64) NOT NULL, "
+        "action VARCHAR(32) NOT NULL, "
+        "status VARCHAR(32) NOT NULL DEFAULT 'prepared', "
+        "params JSON NOT NULL DEFAULT '{}', "
+        "error_message VARCHAR(256), "
+        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "CONSTRAINT uq_android_agent_commands_session_idempotency UNIQUE (session_id, idempotency_key)"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_android_agent_commands_session_id ON android_agent_commands(session_id)"
+    )
+
+
+LOCAL_MIGRATIONS[19] = _create_android_agent_tables
 
 
 def _read_version(connection: Connection) -> int:

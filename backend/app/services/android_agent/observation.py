@@ -1,9 +1,12 @@
-"""Bounded UIAutomator parsing for M0; screenshots are not redacted here."""
+"""Bounded UIAutomator parsing, multimodal observation models and validation for Android Agent."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import datetime
+import hashlib
 import re
+from typing import Any
 from xml.etree.ElementTree import Element
 
 from defusedxml import ElementTree
@@ -16,7 +19,96 @@ _BOUNDS = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
 
 class ObservationRejected(ValueError):
-    pass
+    """Stable error codes: capture_skew_too_high, unexpected_package, sensitive_page, etc."""
+
+
+@dataclass(frozen=True)
+class ScreenMetrics:
+    width: int
+    height: int
+    rotation: int = 0  # 0, 90, 180, 270
+
+    def __post_init__(self) -> None:
+        if self.width <= 0 or self.height <= 0:
+            raise ObservationRejected("invalid_screen_size")
+        if self.rotation not in (0, 90, 180, 270):
+            raise ObservationRejected("invalid_screen_rotation")
+
+
+@dataclass(frozen=True)
+class UiNode:
+    node_id: str
+    parent_id: str | None
+    resource_id: str
+    text: str
+    content_desc: str
+    class_name: str
+    bounds: tuple[int, int, int, int] | None
+    enabled: bool
+    clickable: bool
+    redacted: bool
+    text_truncated: bool = False
+
+
+@dataclass(frozen=True)
+class Observation:
+    observation_id: str
+    session_id: int
+    captured_at: datetime
+    package_name: str
+    activity: str | None
+    screen: ScreenMetrics
+    screenshot_path: str
+    screenshot_hash: str
+    nodes: list[UiNode]
+    capture_skew_ms: int = 0
+    is_secure_window: bool = False
+
+
+def validate_observation_skew(skew_ms: int, max_skew_ms: int = 2000) -> None:
+    """Ensure the screenshot and UI tree capture timing did not drift across view updates."""
+    if skew_ms < 0 or skew_ms > max_skew_ms:
+        raise ObservationRejected("capture_skew_too_high")
+
+
+def check_page_consistency(before_pkg: str, after_pkg: str, expected_pkg: str) -> None:
+    """Ensure the target package remained foreground during the entire capture window."""
+    if before_pkg != expected_pkg or after_pkg != expected_pkg:
+        raise ObservationRejected("unexpected_package")
+
+
+def compute_bytes_hash(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def detect_secure_window(screenshot_bytes: bytes) -> bool:
+    """Detect potential FLAG_SECURE window (all black or empty payload)."""
+    if not screenshot_bytes or len(screenshot_bytes) < 32:
+        return True
+    # Fast heuristic: if all non-header bytes are 0x00, screencap was blanked
+    sample = screenshot_bytes[32:4096]
+    return all(b == 0 for b in sample) if sample else True
+
+
+def build_model_observation(obs: Observation, allowed_value_refs: list[str]) -> dict[str, Any]:
+    """Serialize sanitized observation for LLM context, omitting raw internal references."""
+    return {
+        "observation_id": obs.observation_id,
+        "package_name": obs.package_name,
+        "activity": obs.activity,
+        "screen": {
+            "width": obs.screen.width,
+            "height": obs.screen.height,
+            "rotation": obs.screen.rotation,
+        },
+        "allowed_value_refs": sorted(allowed_value_refs),
+        "is_secure_window": obs.is_secure_window,
+        "nodes": [
+            {k: v for k, v in asdict(node).items() if k not in {"parent_id", "redacted"}}
+            for node in obs.nodes
+            if not node.redacted
+        ],
+    }
 
 
 def parse_dump_output(stdout: bytes, *, returncode: int, width: int, height: int) -> list[UiNode]:
@@ -37,21 +129,6 @@ def parse_dump_output(stdout: bytes, *, returncode: int, width: int, height: int
     if trailer not in (b"", b"UI hierchary dumped to: /dev/tty", b"UI hierarchy dumped to: /dev/tty"):
         raise ObservationRejected("invalid_ui_dump_envelope")
     return parse_hierarchy(stdout[:end].strip(), width=width, height=height)
-
-
-@dataclass(frozen=True)
-class UiNode:
-    node_id: str
-    parent_id: str | None
-    resource_id: str
-    text: str
-    content_desc: str
-    class_name: str
-    bounds: tuple[int, int, int, int] | None
-    enabled: bool
-    clickable: bool
-    redacted: bool
-    text_truncated: bool = False
 
 
 def parse_hierarchy(xml: bytes, *, width: int, height: int) -> list[UiNode]:

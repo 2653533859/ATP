@@ -60,6 +60,7 @@ from app.api.v1 import (
     security,
     cloud_sync,
     remote_nodes,
+    android_agent,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -125,3 +126,4 @@ router.include_router(api_scenarios.router)
 router.include_router(device_stream_router)
 router.include_router(mcp.router)
 router.include_router(security.router)
+router.include_router(android_agent.router)

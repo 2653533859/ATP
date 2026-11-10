@@ -121,8 +121,6 @@ async def run_model_step(
         return StepOutcome("needs_review", "finish_proposed", decision)
     if isinstance(decision, RequestHelp):
         return StepOutcome("needs_review", decision.code, decision)
-    if isinstance(decision, Swipe):
-        return StepOutcome("halted", "action_not_supported", decision)
     if budget.actions >= budget.max_actions:
         return StepOutcome("halted", "budget_exceeded", decision)
 
@@ -137,6 +135,14 @@ async def run_model_step(
                 adapter.replace_text,
                 by_id[decision.target.node_id].resource_id,
                 values[decision.value_ref],
+                assert_write_allowed=allow,
+            )
+        elif isinstance(decision, Swipe):
+            budget.actions += 1
+            await asyncio.to_thread(
+                adapter.swipe,
+                decision.direction,
+                decision.distance_fraction,
                 assert_write_allowed=allow,
             )
         elif isinstance(decision, Back):

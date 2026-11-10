@@ -226,3 +226,44 @@ class AndroidDeviceAdapter:
             self.transport.rpc_once("pressKey", ["back"])
         except Exception:
             raise DeviceAdapterError("write_outcome_unknown") from None
+
+    def swipe(
+        self,
+        direction: str,
+        distance_fraction: float,
+        *,
+        assert_write_allowed: Callable[[], None],
+    ) -> None:
+        """Bounded screen-center swipe, avoiding edges that trigger system gestures."""
+        if direction not in ("up", "down", "left", "right"):
+            raise DeviceAdapterError("invalid_swipe_direction")
+        if type(distance_fraction) not in (float, int) or not (0.0 < float(distance_fraction) <= 0.8):
+            raise DeviceAdapterError("invalid_swipe_distance")
+
+        self._check_package()
+        cx = self.width // 2
+        cy = self.height // 2
+        dx = int(self.width * float(distance_fraction) / 2)
+        dy = int(self.height * float(distance_fraction) / 2)
+
+        if direction == "up":
+            sx, sy, ex, ey = cx, cy + dy, cx, cy - dy
+        elif direction == "down":
+            sx, sy, ex, ey = cx, cy - dy, cx, cy + dy
+        elif direction == "left":
+            sx, sy, ex, ey = cx + dx, cy, cx - dx, cy
+        else:  # right
+            sx, sy, ex, ey = cx - dx, cy, cx + dx, cy
+
+        min_x, max_x = int(self.width * 0.05), int(self.width * 0.95)
+        min_y, max_y = int(self.height * 0.05), int(self.height * 0.95)
+        if not (min_x <= sx <= max_x and min_x <= ex <= max_x and min_y <= sy <= max_y and min_y <= ey <= max_y):
+            raise DeviceAdapterError("swipe_coordinates_out_of_bounds")
+
+        assert_write_allowed()
+        try:
+            result = self.transport.rpc_once("swipe", [sx, sy, ex, ey, 50])
+        except Exception:
+            raise DeviceAdapterError("write_outcome_unknown") from None
+        if result is not True:
+            raise DeviceAdapterError("write_outcome_unknown")

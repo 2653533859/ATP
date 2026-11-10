@@ -52,15 +52,18 @@ def load_all_models() -> None:
     from app.models.remote_node_grant import RemoteNodeGrant
     from app.models.api_schema import ApiSchemaAsset
     from app.models.api_contract_asset import ApiContractAsset
+    from app.models.android_agent import AndroidAgentSession, AndroidAgentEvent, AndroidAgentCommand
 
     _ = (
         User,
+        UserRole,
         SystemSetting,
         HermesAction,
         ExecutionDispatch,
         GroupRunChild,
         RemoteAgent,
         RemoteAgentDevice,
+        RemoteNodeGrant,
         ApiKey,
         CloudRunSummaryModel,
         ApiSchemaAsset,
@@ -126,4 +129,7 @@ def load_all_models() -> None:
         IosDevice,
         IosDeviceLease,
         HermesSession,
+        AndroidAgentSession,
+        AndroidAgentEvent,
+        AndroidAgentCommand,
     )

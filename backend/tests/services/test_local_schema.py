@@ -218,3 +218,26 @@ def test_version_sixteen_to_seventeen_creates_api_asset_tables(tmp_path) -> None
         table_names = inspect(connection).get_table_names()
         assert "api_schema_assets" in table_names
         assert "api_contract_assets" in table_names
+
+
+def test_version_eighteen_to_nineteen_creates_android_agent_tables(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'v18.sqlite3'}")
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE android_agent_commands")
+        connection.exec_driver_sql("DROP TABLE android_agent_events")
+        connection.exec_driver_sql("DROP TABLE android_agent_sessions")
+        connection.exec_driver_sql("PRAGMA user_version=18")
+
+    with engine.connect() as connection:
+        table_names = inspect(connection).get_table_names()
+        assert "android_agent_sessions" not in table_names
+        assert "android_agent_events" not in table_names
+        assert "android_agent_commands" not in table_names
+
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.connect() as connection:
+        table_names = inspect(connection).get_table_names()
+        assert "android_agent_sessions" in table_names
+        assert "android_agent_events" in table_names
+        assert "android_agent_commands" in table_names
