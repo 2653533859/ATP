@@ -27,6 +27,7 @@ _LOCAL_PROFILE_KEYS = frozenset(
         "FIRST_ADMIN_EMAIL",
         "ENCRYPTION_KEY",
         "ADB_SCAN_ENABLED",
+        "ADB_SERVER_SOCKET",
         "LOCAL_DEVICE_MONITOR_ENABLED",
         "PERFORMANCE_NODE_ENABLED",
         "PERFORMANCE_EXECUTORS",
@@ -128,6 +129,7 @@ class Settings(BaseSettings):
     ADB_SCAN_ENABLED: bool = True  # 设为 False 可关闭定时扫描（纯 Web 测试环境）
     ADB_SCAN_INTERVAL: int = 15  # 设备扫描间隔（秒）
     ADB_SCAN_MODE: str = "local"  # local=当前进程扫描；worker=投递到 mobile_special 队列
+    ADB_SERVER_SOCKET: str = ""  # 远程 ADB Server 地址（例如 "tcp:172.16.102.195:5037"），为空则连本机
     # Windows 本地模式没有 Celery Beat：后端进程内定期扫描 ADB、刷新设备状态并回收过期租约。
     # 与 ADB_SCAN_ENABLED 分开，因为已有本地档案里写的是 ADB_SCAN_ENABLED=false（当时本地模式不扫描）。
     LOCAL_DEVICE_MONITOR_ENABLED: bool = True
@@ -287,6 +289,21 @@ class Settings(BaseSettings):
     # Jaeger UI 基础 URL，前端展示"在 Jaeger 中打开"链接时使用；为空则不显示按钮
     JAEGER_UI_URL: str = ""
     JAEGER_QUERY_URL: str = ""
+
+    @model_validator(mode="after")
+    def sync_adb_env(self) -> Self:
+        socket_str = self.ADB_SERVER_SOCKET.strip()
+        if socket_str:
+            os.environ["ADB_SERVER_SOCKET"] = socket_str
+            if socket_str.startswith("tcp:"):
+                raw = socket_str[4:]
+                if ":" in raw:
+                    host, port = raw.split(":", 1)
+                    os.environ["ANDROID_ADB_SERVER_HOST"] = host
+                    os.environ["ANDROID_ADB_SERVER_PORT"] = port
+                else:
+                    os.environ["ANDROID_ADB_SERVER_HOST"] = raw
+        return self
 
     @model_validator(mode="after")
     def validate_auth_cookie_settings(self) -> Self:

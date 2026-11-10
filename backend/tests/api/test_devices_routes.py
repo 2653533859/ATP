@@ -293,6 +293,20 @@ def test_local_android_status_does_not_query_worker_registry(monkeypatch):
     assert asyncio.run(devices.list_android_worker_status(_=None)) == []
 
 
+def test_remote_adb_server_socket_reports_direct_worker_status(monkeypatch):
+    monkeypatch.setattr(devices.settings, "ATP_LOCAL_MODE", False)
+    monkeypatch.setattr(devices.settings, "ADB_SERVER_SOCKET", "tcp:172.16.102.195:5037")
+    monkeypatch.setattr(
+        devices,
+        "list_android_workers",
+        lambda: (_ for _ in ()).throw(AssertionError("registry must not be queried")),
+    )
+    result = asyncio.run(devices.list_android_worker_status(_=None))
+    assert len(result) == 1
+    assert "Direct-ADB (tcp:172.16.102.195:5037)" in result[0]["worker_id"]
+    assert result[0]["status"] == "online"
+
+
 def test_list_android_worker_status_returns_503_when_registry_is_unavailable(monkeypatch):
     async def broken_list():
         raise devices.AndroidWorkerRegistryError("redis down")

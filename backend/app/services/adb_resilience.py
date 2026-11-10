@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import subprocess
 import time
 from contextlib import asynccontextmanager
@@ -64,8 +65,12 @@ def _parse_backoff_ms(raw: str) -> list[int]:
 def _run_adb_raw(args: Sequence[str], timeout: int) -> tuple[int | None, str, str]:
     """同步执行 adb 命令，返回 (returncode, stdout, stderr)；FileNotFoundError 时 returncode=None"""
     cmd = ["adb", *args]
+    env = os.environ.copy()
+    server_socket = getattr(settings, "ADB_SERVER_SOCKET", "").strip()
+    if server_socket:
+        env["ADB_SERVER_SOCKET"] = server_socket
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
         return proc.returncode, (proc.stdout or "").strip(), (proc.stderr or "").strip()
     except FileNotFoundError:
         return None, "", "adb_not_found"
@@ -196,12 +201,16 @@ def safe_run_adb(
         CompletedProcess（成功或最后一次失败），adb 不存在时返回 None
     """
     cmd = ["adb", "-s", serial, *args] if serial else ["adb", *args]
+    env = os.environ.copy()
+    server_socket = getattr(settings, "ADB_SERVER_SOCKET", "").strip()
+    if server_socket:
+        env["ADB_SERVER_SOCKET"] = server_socket
     last_proc: subprocess.CompletedProcess | None = None
     attempts = max(1, retries + 1)
 
     for attempt in range(attempts):
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
             last_proc = proc
             if proc.returncode == 0:
                 return proc

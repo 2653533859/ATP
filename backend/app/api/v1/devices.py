@@ -1,4 +1,6 @@
 import asyncio
+import os
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -304,9 +306,24 @@ async def get_scan_status(
 async def list_android_worker_status(
     _=Depends(require_engineer),
 ):
-    """返回当前通过 Redis 心跳注册的 Windows Android Worker。"""
+    """返回当前通过 Redis 心跳注册的 Windows Android Worker，或直连 ADB 状态。"""
     if settings.ATP_LOCAL_MODE:
         return []
+    if settings.ADB_SERVER_SOCKET.strip():
+        target = settings.ADB_SERVER_SOCKET.strip()
+        now = time.time()
+        return [
+            {
+                "worker_id": f"Direct-ADB ({target})",
+                "status": "online",
+                "queues": ["direct"],
+                "capabilities": ["adb-direct"],
+                "hostname": target,
+                "pid": os.getpid(),
+                "updated_at": now,
+                "expires_at": now + 3600.0,
+            }
+        ]
     try:
         return await list_android_workers()
     except AndroidWorkerRegistryError as exc:

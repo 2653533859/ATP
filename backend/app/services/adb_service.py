@@ -8,9 +8,12 @@ ADB 设备扫描服务
 
 import asyncio
 import logging
+import os
 import re
 import subprocess
 from dataclasses import dataclass
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +34,17 @@ class AdbDeviceInfo:
 def _run_adb(*args: str, timeout: int = 10) -> str | None:
     """同步执行 adb 命令，返回 stdout"""
     cmd = ["adb", *args]
+    env = os.environ.copy()
+    server_socket = getattr(settings, "ADB_SERVER_SOCKET", "").strip()
+    if server_socket:
+        env["ADB_SERVER_SOCKET"] = server_socket
     try:
         proc = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=env,
         )
         if proc.returncode != 0:
             logger.warning(
