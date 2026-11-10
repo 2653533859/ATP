@@ -9,15 +9,23 @@ const {
   keyeventMock,
   inputTextMock,
   messageWarning,
+  messageSuccess,
   tapMock,
   uiTargetMock,
+  acquireLeaseMock,
+  heartbeatLeaseMock,
+  releaseLeaseMock,
 } = vi.hoisted(() => ({
   screenshotMock: vi.fn(),
   keyeventMock: vi.fn(),
   inputTextMock: vi.fn(),
   messageWarning: vi.fn(),
+  messageSuccess: vi.fn(),
   tapMock: vi.fn(),
   uiTargetMock: vi.fn(),
+  acquireLeaseMock: vi.fn(),
+  heartbeatLeaseMock: vi.fn(),
+  releaseLeaseMock: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -25,7 +33,7 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock('ant-design-vue', () => ({
-  message: { warning: messageWarning },
+  message: { warning: messageWarning, success: messageSuccess },
 }))
 
 vi.mock('@/api', () => ({
@@ -36,6 +44,9 @@ vi.mock('@/api', () => ({
     tap: tapMock,
     swipe: vi.fn(),
     uiTarget: uiTargetMock,
+    acquireLease: acquireLeaseMock,
+    heartbeatLease: heartbeatLeaseMock,
+    releaseLease: releaseLeaseMock,
   },
 }))
 
@@ -75,6 +86,8 @@ function mountModal(props: { open: boolean; device: any; recordable?: boolean; l
         ASpin: passthrough('ASpin'),
         ARadioGroup: passthrough('ARadioGroup'),
         ARadioButton: passthrough('ARadioButton'),
+        ATag: passthrough('ATag'),
+        ASpace: passthrough('ASpace'),
         AInput: defineComponent({
           name: 'AInput',
           props: ['value'],
@@ -105,6 +118,9 @@ describe('DeviceMirrorModal', () => {
     screenshotMock.mockResolvedValue(new Blob(['img'], { type: 'image/jpeg' }))
     tapMock.mockResolvedValue({})
     uiTargetMock.mockResolvedValue({ target: { resourceId: 'com.example:id/login' } })
+    acquireLeaseMock.mockResolvedValue({ lease_token: 'auto-test-lease', ttl_seconds: 600 })
+    heartbeatLeaseMock.mockResolvedValue({ lease_token: 'auto-test-lease' })
+    releaseLeaseMock.mockResolvedValue(true)
   })
 
   afterEach(() => {
@@ -221,6 +237,37 @@ describe('DeviceMirrorModal', () => {
 
     expect(keyeventMock).toHaveBeenCalledWith(2, 3, 'device-lease')
 
+    wrapper.unmount()
+  })
+
+  it('auto-acquires interactive lease when opened without leaseToken and releases on close', async () => {
+    const device = {
+      id: 5,
+      serial: 'b01ac8cb',
+      brand: 'OPPO',
+      model: 'OPPO R11',
+      resolution: '1080x1920',
+      status: 'online',
+    }
+
+    const wrapper = mountModal({ open: true, device })
+    await flushPromises()
+
+    expect(acquireLeaseMock).toHaveBeenCalledWith(5, {
+      ttl_seconds: 600,
+      owner_label: '投屏控制',
+    })
+
+    const navButtons = wrapper.findAll('.nav-key-btn')
+    await navButtons[0].trigger('click')
+    await flushPromises()
+
+    expect(keyeventMock).toHaveBeenCalledWith(5, 4, 'auto-test-lease')
+
+    await wrapper.find('.modal-close').trigger('click')
+    await flushPromises()
+
+    expect(releaseLeaseMock).toHaveBeenCalledWith(5, 'auto-test-lease')
     wrapper.unmount()
   })
 

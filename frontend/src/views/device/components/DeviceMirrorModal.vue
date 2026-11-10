@@ -6,16 +6,50 @@
     centered
     :footer="null"
     :destroy-on-close="true"
+    class="device-mirror-dialog"
     @cancel="handleClose"
   >
+    <template #title>
+      <div class="mirror-modal-header">
+        <div class="header-device-info">
+          <MobileOutlined class="device-icon" />
+          <span class="device-title-text">{{ title }}</span>
+          <a-tag :color="props.device?.status === 'online' ? 'success' : 'default'" class="header-status-tag">
+            {{ props.device?.status === 'online' ? '在线' : (props.device?.status || '离线') }}
+          </a-tag>
+        </div>
+        <div class="header-lease-info">
+          <a-tooltip :title="leaseTooltip">
+            <a-tag :color="hasControlLease ? 'success' : 'warning'" class="header-lease-tag">
+              <CheckCircleOutlined v-if="hasControlLease" />
+              <LockOutlined v-else />
+              {{ hasControlLease ? `控制权已生效 (${leaseRemainingText})` : '只读模式' }}
+            </a-tag>
+          </a-tooltip>
+          <a-button
+            v-if="!hasControlLease"
+            size="small"
+            type="primary"
+            ghost
+            :loading="leaseAcquiring"
+            @click="acquireInteractiveLease(false)"
+          >
+            获取控制权
+          </a-button>
+        </div>
+      </div>
+    </template>
+
     <div class="mirror-workspace">
+      <!-- 手机外框与屏幕容器 -->
       <div
-        class="mirror-container"
+        class="mirror-phone-frame"
         :class="{
-          'mirror-container-ready': isScrcpyLive || Boolean(mirrorSrc),
-          'mirror-container-landscape': isLandscapeMirror,
+          'phone-frame-ready': isScrcpyLive || Boolean(mirrorSrc),
+          'phone-frame-landscape': isLandscapeMirror,
         }"
       >
+        <div v-if="!isLandscapeMirror" class="phone-earpiece-notch"></div>
         <div class="mirror-screen-wrapper" :class="{ 'wrapper-landscape': isLandscapeMirror }">
           <canvas
             ref="scrcpyCanvasRef"
@@ -52,36 +86,41 @@
 
       <!-- 快捷导航栏 (Back, Home, Recents, Power, Vol+, Vol-) -->
       <div class="mirror-nav-bar">
-        <a-tooltip title="返回键 (Back)">
-          <button class="nav-key-btn" @click="sendKeyEvent(4)">
-            <LeftOutlined />
-          </button>
-        </a-tooltip>
-        <a-tooltip title="主屏幕 (Home)">
-          <button class="nav-key-btn" @click="sendKeyEvent(3)">
-            <HomeOutlined />
-          </button>
-        </a-tooltip>
-        <a-tooltip title="多任务 (Recent Apps)">
-          <button class="nav-key-btn" @click="sendKeyEvent(187)">
-            <AppstoreOutlined />
-          </button>
-        </a-tooltip>
-        <a-tooltip title="电源键 (Power)">
-          <button class="nav-key-btn" @click="sendKeyEvent(26)">
-            <PoweroffOutlined />
-          </button>
-        </a-tooltip>
-        <a-tooltip title="音量加">
-          <button class="nav-key-btn" @click="sendKeyEvent(24)">
-            <PlusOutlined />
-          </button>
-        </a-tooltip>
-        <a-tooltip title="音量减">
-          <button class="nav-key-btn" @click="sendKeyEvent(25)">
-            <MinusOutlined />
-          </button>
-        </a-tooltip>
+        <div class="nav-btn-group">
+          <a-tooltip :title="hasControlLease ? '返回键 (Back)' : '需要控制权'">
+            <button class="nav-key-btn" :disabled="!hasControlLease" @click="sendKeyEvent(4)">
+              <LeftOutlined />
+            </button>
+          </a-tooltip>
+          <a-tooltip :title="hasControlLease ? '主屏幕 (Home)' : '需要控制权'">
+            <button class="nav-key-btn" :disabled="!hasControlLease" @click="sendKeyEvent(3)">
+              <HomeOutlined />
+            </button>
+          </a-tooltip>
+          <a-tooltip :title="hasControlLease ? '多任务 (Recent Apps)' : '需要控制权'">
+            <button class="nav-key-btn" :disabled="!hasControlLease" @click="sendKeyEvent(187)">
+              <AppstoreOutlined />
+            </button>
+          </a-tooltip>
+        </div>
+        <div class="nav-separator"></div>
+        <div class="nav-btn-group">
+          <a-tooltip :title="hasControlLease ? '电源键 (Power)' : '需要控制权'">
+            <button class="nav-key-btn nav-power-btn" :disabled="!hasControlLease" @click="sendKeyEvent(26)">
+              <PoweroffOutlined />
+            </button>
+          </a-tooltip>
+          <a-tooltip :title="hasControlLease ? '音量减' : '需要控制权'">
+            <button class="nav-key-btn" :disabled="!hasControlLease" @click="sendKeyEvent(25)">
+              <MinusOutlined />
+            </button>
+          </a-tooltip>
+          <a-tooltip :title="hasControlLease ? '音量加' : '需要控制权'">
+            <button class="nav-key-btn" :disabled="!hasControlLease" @click="sendKeyEvent(24)">
+              <PlusOutlined />
+            </button>
+          </a-tooltip>
+        </div>
       </div>
 
       <div v-if="canModify && recordable" class="mirror-record-bar">
@@ -97,13 +136,23 @@
       <div class="mirror-text-bar">
         <a-input
           v-model:value="quickInputText"
-          placeholder="输入文字按回车发送到手机"
+          :placeholder="hasControlLease ? '输入文字按回车发送到手机' : '获取控制权后可输入文字并发送'"
+          :disabled="!hasControlLease"
           size="small"
           allow-clear
           @pressEnter="sendQuickText"
         >
+          <template #prefix>
+            <EditOutlined style="color: var(--c-text-tertiary)" />
+          </template>
           <template #suffix>
-            <a-button type="link" size="small" style="padding: 0" @click="sendQuickText">
+            <a-button
+              type="link"
+              size="small"
+              :disabled="!hasControlLease || !quickInputText.trim()"
+              style="padding: 0"
+              @click="sendQuickText"
+            >
               <SendOutlined />
             </a-button>
           </template>
@@ -113,62 +162,74 @@
       <!-- 底部状态栏 -->
       <div class="mirror-footer">
         <div class="mirror-footer-left">
-          <a-button
-            size="small"
-            :type="isScrcpyLive ? 'default' : 'primary'"
-            :ghost="!isScrcpyLive"
-            :disabled="!props.device"
-            @click="handleReconnectStream"
-          >
-            <ReloadOutlined /> 重连极速流
-          </a-button>
-          <a-button
-            v-if="!isScrcpyLive"
-            size="small"
-            :disabled="!props.device"
-            @click="retryScreenshot"
-          >
-            刷新截图
-          </a-button>
-          <a-radio-group v-model:value="mirrorScaleMode" size="small" button-style="solid">
-            <a-radio-button value="auto">标准</a-radio-button>
-            <a-radio-button value="large">大屏</a-radio-button>
-            <a-radio-button value="max">超宽</a-radio-button>
-          </a-radio-group>
-          <span class="res-info" v-if="realResolution.w">
-            {{ realResolution.w }}×{{ realResolution.h }}
-          </span>
+          <a-space size="small">
+            <a-button
+              size="small"
+              :type="isScrcpyLive ? 'default' : 'primary'"
+              :ghost="!isScrcpyLive"
+              :disabled="!props.device"
+              @click="handleReconnectStream"
+            >
+              <ReloadOutlined /> 重连极速流
+            </a-button>
+            <a-button
+              v-if="!isScrcpyLive"
+              size="small"
+              :disabled="!props.device"
+              @click="retryScreenshot"
+            >
+              刷新截图
+            </a-button>
+            <a-radio-group v-model:value="mirrorScaleMode" size="small" button-style="solid">
+              <a-radio-button value="auto">标准</a-radio-button>
+              <a-radio-button value="large">大屏</a-radio-button>
+              <a-radio-button value="max">超宽</a-radio-button>
+            </a-radio-group>
+          </a-space>
         </div>
-        <span style="color: var(--c-text-tertiary); font-size: 12px">
-          <template v-if="isScrcpyLive">
-            <span style="color: #52c41a; font-weight: bold">● scrcpy 极速实时流 ({{ currentFps }} FPS)</span> · 原生零延迟触控
-          </template>
-          <template v-else-if="mirrorSrc">
-            <span style="color: #faad14; font-weight: 500">● 截图降级模式</span> · {{ mirrorError || '点击「重连极速流」恢复' }}
-          </template>
-          <template v-else-if="mirrorError">截图获取失败，请检查连接后重试</template>
-          <template v-else>
-            {{ isInteracting ? '正在执行触控...' : '正在建立 scrcpy 极速流通道...' }}
-          </template>
-        </span>
+        <div class="mirror-footer-right">
+          <a-space size="small">
+            <span class="res-info" v-if="realResolution.w">
+              {{ realResolution.w }}×{{ realResolution.h }}
+            </span>
+            <span class="stream-status-pill">
+              <template v-if="isScrcpyLive">
+                <span class="status-dot dot-live">●</span> scrcpy 极速实时流 ({{ currentFps }} FPS)
+              </template>
+              <template v-else-if="mirrorSrc">
+                <span class="status-dot dot-fallback">●</span> 截图降级模式
+              </template>
+              <template v-else-if="mirrorError">
+                <span class="status-dot dot-error">●</span> 画面获取失败
+              </template>
+              <template v-else>
+                <span class="status-dot dot-connecting">●</span> 正在连接画面...
+              </template>
+            </span>
+          </a-space>
+        </div>
       </div>
     </div>
   </a-modal>
 </template>
-
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   AppstoreOutlined,
+  CheckCircleOutlined,
+  EditOutlined,
   HomeOutlined,
   LeftOutlined,
+  LockOutlined,
   MinusOutlined,
+  MobileOutlined,
   PlusOutlined,
   PoweroffOutlined,
   ReloadOutlined,
   SendOutlined,
 } from '@ant-design/icons-vue'
+import { useAuthStore } from '@/stores/auth'
 import { deviceApi, type DeviceItem } from '@/api'
 import { isWebCodecsSupported, useWebCodecsDecoder } from '@/composables/useWebCodecsDecoder'
 import { buildAndroidRecordedClickParams, buildAndroidRecordedSwipeParams, type AndroidRecordedStepDraft } from '@/utils/androidRecording'
@@ -204,6 +265,115 @@ const title = computed(() => {
   const brandModel = `${d.brand ?? ''} ${d.model ?? d.name ?? ''}`.trim()
   return brandModel ? `设备投屏 · ${brandModel}` : `设备投屏 · ${d.serial}`
 })
+
+function getAuthToken(): string {
+  try {
+    return useAuthStore().token || localStorage.getItem('token') || ''
+  } catch {
+    return typeof localStorage !== 'undefined' ? (localStorage.getItem('token') || '') : ''
+  }
+}
+const internalLeaseToken = ref<string | null>(null)
+const leaseAcquiring = ref(false)
+const leaseExpiresAt = ref<number | null>(null)
+const leaseRemainingSeconds = ref(0)
+let leaseCountdownTimer: ReturnType<typeof setInterval> | null = null
+let leaseHeartbeatTimer: ReturnType<typeof setInterval> | null = null
+
+const effectiveLeaseToken = computed(() => {
+  return props.leaseToken || internalLeaseToken.value || null
+})
+
+const hasControlLease = computed(() => {
+  return Boolean(effectiveLeaseToken.value)
+})
+
+const leaseRemainingText = computed(() => {
+  if (leaseRemainingSeconds.value <= 0) return '有效'
+  const mins = Math.floor(leaseRemainingSeconds.value / 60)
+  const secs = leaseRemainingSeconds.value % 60
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`
+})
+
+const leaseTooltip = computed(() => {
+  if (hasControlLease.value) {
+    return '已持有设备控制租约，可直接在屏幕上触控、滑动、输入文字或使用按键。'
+  }
+  return '未获得设备控制租约，当前处于只读观察模式。点击“获取控制权”可申请交互租约。'
+})
+
+async function acquireInteractiveLease(silent = false) {
+  if (!props.device) return
+  leaseAcquiring.value = true
+  try {
+    const res = await deviceApi.acquireLease(props.device.id, {
+      ttl_seconds: 600,
+      owner_label: '投屏控制',
+    })
+    internalLeaseToken.value = res.lease_token || null
+    startLeaseHeartbeat(600)
+    if (!silent) {
+      message.success('已成功获取设备控制权')
+    }
+  } catch (err: any) {
+    const detail = err?.response?.data?.detail || err?.message || '设备可能正被其他任务占用'
+    message.warning(`获取控制权失败: ${detail}`)
+  } finally {
+    leaseAcquiring.value = false
+  }
+}
+
+function startLeaseHeartbeat(ttl = 600) {
+  stopLeaseHeartbeat()
+  leaseExpiresAt.value = Date.now() + ttl * 1000
+  leaseRemainingSeconds.value = ttl
+
+  leaseCountdownTimer = setInterval(() => {
+    if (!leaseExpiresAt.value) return
+    const diff = Math.max(0, Math.round((leaseExpiresAt.value - Date.now()) / 1000))
+    leaseRemainingSeconds.value = diff
+    if (diff <= 0) {
+      stopLeaseHeartbeat()
+      internalLeaseToken.value = null
+    }
+  }, 1000)
+
+  leaseHeartbeatTimer = setInterval(async () => {
+    if (!props.device || !internalLeaseToken.value) return
+    try {
+      await deviceApi.heartbeatLease(props.device.id, internalLeaseToken.value)
+      leaseExpiresAt.value = Date.now() + 600 * 1000
+      leaseRemainingSeconds.value = 600
+    } catch {
+      stopLeaseHeartbeat()
+      internalLeaseToken.value = null
+    }
+  }, 25000)
+}
+
+function stopLeaseHeartbeat() {
+  if (leaseCountdownTimer) {
+    clearInterval(leaseCountdownTimer)
+    leaseCountdownTimer = null
+  }
+  if (leaseHeartbeatTimer) {
+    clearInterval(leaseHeartbeatTimer)
+    leaseHeartbeatTimer = null
+  }
+  leaseExpiresAt.value = null
+  leaseRemainingSeconds.value = 0
+}
+
+async function releaseInteractiveLease() {
+  if (props.device && internalLeaseToken.value) {
+    const token = internalLeaseToken.value
+    internalLeaseToken.value = null
+    stopLeaseHeartbeat()
+    try {
+      await deviceApi.releaseLease(props.device.id, token)
+    } catch {}
+  }
+}
 
 const screenImgRef = ref<HTMLImageElement | null>(null)
 const scrcpyCanvasRef = ref<HTMLCanvasElement | null>(null)
@@ -355,8 +525,9 @@ function initScrcpyStream(serial: string) {
   }, 5000)
 
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${proto}//${window.location.host}/ws/scrcpy/${encodeURIComponent(serial)}`
-
+  const authToken = getAuthToken()
+  const tokenParam = authToken ? `?token=${encodeURIComponent(authToken)}` : ''
+  const wsUrl = `${proto}//${window.location.host}/ws/scrcpy/${encodeURIComponent(serial)}${tokenParam}`
   scrcpyWs = new WebSocket(wsUrl)
   scrcpyWs.binaryType = 'arraybuffer'
 
@@ -561,11 +732,15 @@ async function onScreenMouseUp(e: MouseEvent) {
 
   isInteracting.value = true
   try {
+    if (!hasControlLease.value) {
+      message.warning('设备当前处于只读模式，请先点击右上角「获取控制权」')
+      return
+    }
     if (distance < 10) {
       const target = recording.value
         ? await deviceApi.uiTarget(props.device.id, { x: realStartX, y: realStartY }).then((result) => result.target).catch(() => null)
         : null
-      await deviceApi.tap(props.device.id, { x: realStartX, y: realStartY }, props.leaseToken)
+      await deviceApi.tap(props.device.id, { x: realStartX, y: realStartY }, effectiveLeaseToken.value)
       appendRecordedStep('click', '镜像点击', buildAndroidRecordedClickParams({ x: realStartX, y: realStartY }, target))
     } else {
       await deviceApi.swipe(props.device.id, {
@@ -574,7 +749,7 @@ async function onScreenMouseUp(e: MouseEvent) {
         x2: realEndX,
         y2: realEndY,
         duration_ms: duration,
-      }, props.leaseToken)
+      }, effectiveLeaseToken.value)
       appendRecordedStep('swipe', '镜像滑动', buildAndroidRecordedSwipeParams(
         { x: realStartX, y: realStartY }, { x: realEndX, y: realEndY },
         { width: devW, height: devH }, duration,
@@ -591,13 +766,17 @@ async function onScreenMouseUp(e: MouseEvent) {
 
 async function sendKeyEvent(keycode: number | string) {
   if (!props.device) return
+  if (!hasControlLease.value) {
+    message.warning('设备当前处于只读模式，请先点击右上角「获取控制权」')
+    return
+  }
   if (isScrcpyLive.value && scrcpyWs && scrcpyWs.readyState === WebSocket.OPEN) {
     scrcpyWs.send(JSON.stringify({ type: 'key', keycode: Number(keycode) }))
     recordKeyEvent(Number(keycode))
     return
   }
   try {
-    await deviceApi.keyevent(props.device.id, keycode, props.leaseToken)
+    await deviceApi.keyevent(props.device.id, keycode, effectiveLeaseToken.value)
     recordKeyEvent(Number(keycode))
     if (!isScrcpyLive.value) {
       scheduleActionRefresh(150)
@@ -619,6 +798,10 @@ function recordKeyEvent(keycode: number) {
 async function sendQuickText() {
   const text = quickInputText.value.trim()
   if (!text || !props.device) return
+  if (!hasControlLease.value) {
+    message.warning('设备当前处于只读模式，请先点击右上角「获取控制权」')
+    return
+  }
   if (isScrcpyLive.value && scrcpyWs && scrcpyWs.readyState === WebSocket.OPEN) {
     scrcpyWs.send(JSON.stringify({ type: 'text', text }))
     appendRecordedStep('input', '镜像输入文字', { text })
@@ -626,7 +809,7 @@ async function sendQuickText() {
     return
   }
   try {
-    await deviceApi.inputText(props.device.id, text, props.leaseToken)
+    await deviceApi.inputText(props.device.id, text, effectiveLeaseToken.value)
     appendRecordedStep('input', '镜像输入文字', { text })
     quickInputText.value = ''
     if (!isScrcpyLive.value) {
@@ -637,6 +820,7 @@ async function sendQuickText() {
     message.warning(`文字发送失败: ${msg}`)
   }
 }
+
 
 function startMirror() {
   if (!props.device) return
@@ -739,6 +923,7 @@ function stopMirrorPolling() {
 function handleClose() {
   discardRecording()
   cleanupMirror()
+  releaseInteractiveLease()
   emit('update:open', false)
   emit('close')
 }
@@ -748,8 +933,12 @@ watch(
   (val) => {
     if (val && props.device) {
       startMirror()
+      if (!props.leaseToken) {
+        acquireInteractiveLease(true)
+      }
     } else {
       cleanupMirror()
+      releaseInteractiveLease()
     }
   },
   { immediate: true },
@@ -760,38 +949,88 @@ watch(
   (newId, oldId) => {
     if (props.open && newId && newId !== oldId && props.device) {
       startMirror()
+      if (!props.leaseToken) {
+        acquireInteractiveLease(true)
+      }
     }
   },
 )
 
 onBeforeUnmount(() => {
   cleanupMirror()
+  releaseInteractiveLease()
 })
 </script>
 
 <style scoped>
+.mirror-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding-right: 32px;
+}
+.header-device-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.device-icon {
+  font-size: 16px;
+  color: #1677ff;
+}
+.device-title-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.header-status-tag {
+  margin: 0;
+  font-size: 11px;
+  border-radius: 10px;
+  padding: 0 6px;
+  line-height: 18px;
+}
+.header-lease-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-lease-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  border-radius: 4px;
+  padding: 1px 8px;
+}
 .mirror-workspace {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
-.mirror-container {
+.mirror-phone-frame {
   position: relative;
-  display: flex;
-  justify-content: center;
+  display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  min-height: 480px;
-  background: #0d0d12;
-  border-radius: 10px;
-  overflow: hidden;
+  background: #121319;
+  border-radius: 28px;
+  padding: 8px 8px 6px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28), 0 0 0 2px rgba(255, 255, 255, 0.08);
+  margin: 0 auto;
   user-select: none;
-  border: 1px solid var(--c-border);
-  width: 100%;
-  transition: all 0.2s ease;
+  max-width: 100%;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.mirror-container.mirror-container-ready {
-  min-height: 0;
+.phone-earpiece-notch {
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 2px auto 6px;
+  flex-shrink: 0;
 }
 .mirror-screen-wrapper {
   position: relative;
@@ -800,7 +1039,9 @@ onBeforeUnmount(() => {
   align-items: center;
   cursor: crosshair;
   line-height: 0;
-  width: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #000;
 }
 .mirror-img {
   max-width: 100%;
@@ -832,38 +1073,65 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  width: 100%;
-  padding: 6px 12px;
-  background: var(--c-bg-elevated);
-  border-radius: 8px;
-  border: 1px solid var(--c-border);
+  gap: 6px;
+  width: auto;
+  padding: 3px 12px;
+  background: var(--c-bg-elevated, #f5f5f7);
+  border-radius: 20px;
+  border: 1px solid var(--c-border, #e8e8e8);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.nav-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nav-separator {
+  width: 1px;
+  height: 14px;
+  background: var(--c-border, #d9d9d9);
+  margin: 0 4px;
 }
 .nav-key-btn {
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 15px;
-  color: var(--c-text);
-  padding: 6px 12px;
+  font-size: 14px;
+  color: var(--c-text, #262626);
+  width: 34px;
+  height: 28px;
   border-radius: 6px;
-  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.15s ease;
 }
-.nav-key-btn:hover {
-  background: var(--c-bg-hover, rgba(0, 0, 0, 0.06));
-  color: var(--c-primary);
+.nav-key-btn:not(:disabled):hover {
+  background: var(--c-bg-hover, rgba(0, 0, 0, 0.08));
+  color: #1677ff;
+  transform: translateY(-1px);
+}
+.nav-key-btn:not(:disabled):active {
+  transform: scale(0.92);
+}
+.nav-key-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.nav-power-btn:not(:disabled):hover {
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.1);
 }
 .mirror-record-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
+  justify-content: center;
 }
 .mirror-text-bar {
   width: 100%;
+  max-width: 420px;
 }
 .mirror-placeholder {
   position: absolute;
@@ -871,7 +1139,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  color: var(--c-text-tertiary);
+  color: var(--c-text-tertiary, #8c8c8c);
   padding: 24px;
   text-align: center;
 }
@@ -880,15 +1148,39 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--c-border-subtle, rgba(0, 0, 0, 0.06));
 }
 .mirror-footer-left {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+.mirror-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .res-info {
   font-size: 11px;
-  color: var(--c-text-tertiary);
+  padding: 1px 6px;
+  background: var(--c-bg-elevated, #f0f0f0);
+  border-radius: 4px;
+  color: var(--c-text-tertiary, #8c8c8c);
 }
+.stream-status-pill {
+  font-size: 12px;
+  color: var(--c-text-secondary, #595959);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.dot-live { color: #52c41a; font-size: 9px; }
+.dot-fallback { color: #faad14; font-size: 9px; }
+.dot-error { color: #ff4d4f; font-size: 9px; }
+.dot-connecting { color: #1677ff; font-size: 9px; }
 </style>
