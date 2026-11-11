@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 import json
 import secrets
 from typing import Any
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.android_agent import AndroidAgentCommand, AndroidAgentEvent, AndroidAgentSession
 from app.schemas.android_agent import (
     AgentControlAction,
+    AgentController,
     AgentErrorCode,
     AgentManualActionRequest,
     AgentSessionCreate,
@@ -79,6 +82,9 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
     AgentSessionStatus.failed.value: set(),
     AgentSessionStatus.cancelled.value: set(),
 }
+
+# 兼容早期写入的 "human"；新数据统一写 "manual"
+MANUAL_CONTROLLERS = frozenset({"manual", "human"})
 
 TERMINAL_STATUSES = frozenset(
     {
@@ -283,7 +289,7 @@ class AgentCoordinator:
             if session.status in TERMINAL_STATUSES:
                 raise InvalidStateTransitionError(f"Cannot takeover session in terminal state '{session.status}'")
 
-            session.controller = "human"
+            session.controller = AgentController.manual.value
             session.status = AgentSessionStatus.paused.value
             session.control_epoch += 1
             session.version += 1
@@ -341,9 +347,11 @@ class AgentCoordinator:
         request: AgentManualActionRequest,
     ) -> AndroidAgentCommand:
         session = await self.get_session(db, session_id)
-        if session.controller != "human" or session.status != AgentSessionStatus.paused.value:
+        # 接管后控制器统一记为 manual（与 AgentController.manual 一致）；早期记录写过 human，读取时兼容
+        if session.controller not in MANUAL_CONTROLLERS or session.status != AgentSessionStatus.paused.value:
             raise UnauthorizedControllerError(
-                f"Manual actions require controller='human' and status='paused' (current: {session.controller}/{session.status})"
+                f"Manual actions require a manual controller and status='paused' "
+                f"(current: {session.controller}/{session.status})"
             )
 
         idempotency_key = request.idempotency_key or secrets.token_hex(16)
@@ -371,7 +379,8 @@ class AgentCoordinator:
             action=request.action,
             params=request.params,
             idempotency_key=idempotency_key,
-            status="executed",
+            # 只登记"已准备"：真正写设备前必须由 dispatch_prepared_command 复核控制权
+            status="prepared",
         )
         db.add(cmd)  # type: ignore[attr-defined]
         await db.flush()
@@ -379,7 +388,7 @@ class AgentCoordinator:
         await self.append_event(
             db,
             session_id,
-            event_type="manual_action_executed",
+            event_type="manual_action_prepared",
             payload={
                 "command_id": cmd.id,
                 "action": cmd.action,
@@ -388,6 +397,45 @@ class AgentCoordinator:
             },
         )
         return cmd
+
+    async def dispatch_prepared_command(
+        self,
+        db: AsyncSession,
+        session_id: int,
+        command_id: int,
+        *,
+        execute: Callable[[AsyncSession, AndroidAgentSession, AndroidAgentCommand], None],
+    ) -> AndroidAgentCommand:
+        """人工动作的执行闸门：只有 controller=manual 且非终态时才允许落设备。
+
+        门禁内的任何拒绝都只把命令留在 prepared 并返回 409，不产生设备写入。
+        """
+        session = await self.get_session(db, session_id)
+        command = await db.get(AndroidAgentCommand, command_id)
+        if command is None or command.session_id != session_id:
+            raise AgentCoordinatorError(f"Command {command_id} not found for session {session_id}")
+        if command.status != "prepared":
+            return command
+        if session.status in TERMINAL_STATUSES or session.controller != "manual":
+            raise HTTPException(
+                status_code=409,
+                detail=f"manual_control_required: controller={session.controller}, status={session.status}",
+            )
+
+        execute(db, session, command)
+        command.status = "succeeded"
+        await db.flush()
+        await self.append_event(
+            db,
+            session_id,
+            event_type="manual_action_executed",
+            payload={
+                "command_id": command.id,
+                "action": command.action,
+                "control_epoch": session.control_epoch,
+            },
+        )
+        return command
 
     async def complete_session(
         self,
@@ -579,7 +627,7 @@ class AgentCoordinator:
                 await self.fail_session(
                     db,
                     session.id,
-                    error_code="orphaned_session_recovered",
+                    error_code=AgentErrorCode.system_restarted_needs_review.value,
                     reason=reason,
                 )
                 recovered_ids.append(session.id)

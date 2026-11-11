@@ -211,7 +211,7 @@ async def test_control_takeover_and_manual_action(tmp_path: Path):
             takeover = await coord.control_session(db, session.id, AgentControlAction.takeover, reason="Manual login")
             await db.commit()
             assert takeover.status == AgentSessionStatus.paused.value
-            assert takeover.controller == "human"
+            assert takeover.controller == "manual"
 
             # 执行人工指令
             manual_req = AgentManualActionRequest(
@@ -222,7 +222,14 @@ async def test_control_takeover_and_manual_action(tmp_path: Path):
             cmd = await coord.manual_action(db, session.id, manual_req)
             await db.commit()
             assert cmd.action == "tap"
-            assert cmd.status == "executed"
+            # 人工动作只登记为 prepared，真正落设备要过 dispatch_prepared_command 的控制器门禁
+            assert cmd.status == "prepared"
+
+            executed = await coord.dispatch_prepared_command(
+                db, session.id, cmd.id, execute=lambda _db, _session, _cmd: None
+            )
+            await db.commit()
+            assert executed.status == "succeeded"
 
             # 幂等性测试
             cmd2 = await coord.manual_action(db, session.id, manual_req)
@@ -234,7 +241,7 @@ async def test_control_takeover_and_manual_action(tmp_path: Path):
             assert resumed.controller == "agent"
             assert resumed.status == AgentSessionStatus.running.value
 
-            # 非 human 状态下拒绝 manual_action
+            # 非人工接管状态下拒绝 manual_action
             with pytest.raises(UnauthorizedControllerError):
                 await coord.manual_action(db, session.id, manual_req)
     finally:
@@ -338,7 +345,8 @@ async def test_recover_orphaned_sessions(tmp_path: Path):
             assert s2.id in recovered
             reloaded_s2 = await coord.get_session(db, s2.id)
             assert reloaded_s2.status == AgentSessionStatus.failed.value
-            assert reloaded_s2.error_code == "orphaned_session_recovered"
+            # 错误码对齐实施清单的 system_restarted_needs_review
+            assert reloaded_s2.error_code == "system_restarted_needs_review"
 
             reloaded_s1 = await coord.get_session(db, s1.id)
             assert reloaded_s1.status == AgentSessionStatus.running.value

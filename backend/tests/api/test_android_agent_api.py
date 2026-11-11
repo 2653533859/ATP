@@ -244,7 +244,8 @@ async def test_api_control_session_and_version_defense(tmp_path: Path):
                 db=db,
                 current_user=user,
             )
-            assert resp_takeover.controller == "human"
+            # 接管后控制器统一记为 manual（与 AgentController.manual 一致）
+            assert resp_takeover.controller == "manual"
             assert resp_takeover.status == AgentSessionStatus.paused.value
 
             # 人工接管下执行单步动作
@@ -257,7 +258,8 @@ async def test_api_control_session_and_version_defense(tmp_path: Path):
                 current_user=user,
             )
             assert manual_resp["action"] == "tap"
-            assert manual_resp["status"] == "executed"
+            # 接口只登记 prepared，设备写入由控制权门禁放行后执行
+            assert manual_resp["status"] == "prepared"
 
             # 恢复会话
             resume_req = AgentControlRequest(action=AgentControlAction.resume)
