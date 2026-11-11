@@ -3,6 +3,8 @@ import http from './http'
 export * from './hermes'
 export * from './aiChat'
 export * from './cloudSync'
+export * from './androidAgent'
+export * from './androidAgent'
 export const localGroupApi = {
   cancel: (kind: 'suite' | 'plan', runId: number) =>
     http.post<unknown, { requested: boolean; message: string }>(`/local-groups/${kind}/${runId}/cancel`),

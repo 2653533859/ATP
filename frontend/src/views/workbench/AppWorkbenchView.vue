@@ -339,6 +339,13 @@
           </div>
         </div>
       </section>
+
+      <AndroidAgentPanel
+        :project-id="selectedProjectId"
+        :devices="devices"
+        :modules="agentModuleOptions"
+        :can-modify="canModify"
+      />
     </template>
 
     <DeviceMirrorModal
@@ -408,6 +415,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getRuntimeMode } from '@/runtimeMode'
 import DeviceMirrorModal from '@/views/device/components/DeviceMirrorModal.vue'
 import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
+import AndroidAgentPanel from '@/views/workbench/AndroidAgentPanel.vue'
 import type { AndroidRecordedStepDraft } from '@/utils/androidRecording'
 
 type LaunchMode = 'case' | 'special'
@@ -466,6 +474,15 @@ const recordedDraftProjectId = ref<number | null>(null)
 const usingRecordedDraft = ref(false)
 const projectModules = ref<ModuleTreeItem[]>([])
 const defaultModuleId = computed<number | null>(() => projectModules.value[0]?.id ?? null)
+// Agent 草稿保存正式用例时需要显式指定模块归属，这里把模块树摊平成选择项
+const agentModuleOptions = computed(() => {
+  const flatten = (nodes: ModuleTreeItem[], prefix = ''): ModuleTreeItem[] =>
+    nodes.flatMap((node) => [
+      { ...node, name: prefix ? prefix + node.name : node.name },
+      ...flatten(node.children ?? [], (prefix ? prefix : '') + node.name + ' / '),
+    ])
+  return flatten(projectModules.value)
+})
 let leaseHeartbeatTimer: number | null = null
 let projectSequence = 0
 let projectDataSequence = 0
