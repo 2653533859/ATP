@@ -51,7 +51,7 @@ def _conflict_message(lease: DeviceLease | None, now: datetime) -> str:
     label = (getattr(lease, "owner_label", "") or "").strip()
     if lease is None or not label:
         return "设备已被其他任务占用"
-    return f"设备已被“{label}”占用，预计 {_remaining_text(lease, now)} 后释放"
+    return f"设备已被“{label}”占用，预计 {_remaining_text(lease, now)}后释放"
 
 
 async def _delete_expired_lease(db: AsyncSession, lease_id: int, lease_token: str, now: datetime) -> bool:

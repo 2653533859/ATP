@@ -13,8 +13,8 @@
         <div class="header-device-info">
           <MobileOutlined class="device-icon" />
           <span class="device-title-text">{{ title }}</span>
-          <a-tag :color="props.device?.status === 'online' ? 'success' : 'default'" class="header-status-tag">
-            {{ props.device?.status === 'online' ? '在线' : (props.device?.status || '离线') }}
+          <a-tag :color="deviceStatusMeta.color" class="header-status-tag">
+            {{ deviceStatusMeta.label }}
           </a-tag>
         </div>
         <div class="header-lease-info">
@@ -287,6 +287,15 @@ const title = computed(() => {
   return brandModel ? `设备投屏 · ${brandModel}` : `设备投屏 · ${d.serial}`
 })
 
+const DEVICE_STATUS_META: Record<string, { label: string; color: string }> = {
+  online: { label: '在线', color: 'success' },
+  busy: { label: '执行中', color: 'processing' },
+  offline: { label: '离线', color: 'default' },
+}
+const deviceStatusMeta = computed(
+  () => DEVICE_STATUS_META[props.device?.status ?? ''] ?? { label: props.device?.status ?? '离线', color: 'default' },
+)
+
 function getAuthToken(): string {
   try {
     return useAuthStore().token || localStorage.getItem('token') || ''
@@ -327,6 +336,16 @@ const leaseTooltip = computed(() => {
   return '未获得设备控制租约，当前处于只读观察模式。点击“获取控制权”可申请交互租约。'
 })
 
+/** http 拦截器以字符串拒绝（detail）或抛 axios 错误，两种形态都要取出可展示的原因。 */
+function leaseErrorText(err: unknown): string {
+  if (typeof err === 'string' && err.trim()) return err.trim()
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+  if (typeof detail === 'string' && detail.trim()) return detail.trim()
+  const message = (err as { message?: unknown })?.message
+  if (typeof message === 'string' && message.trim()) return message.trim()
+  return '设备可能正被其他任务占用'
+}
+
 async function acquireInteractiveLease(silent = false) {
   if (!props.device || hasControlLease.value || leaseRequestInFlight) return
   leaseRequestInFlight = true
@@ -342,11 +361,10 @@ async function acquireInteractiveLease(silent = false) {
     if (!silent) {
       message.success('已成功获取设备控制权')
     }
-  } catch (err: any) {
-    const detail = err?.response?.data?.detail || err?.message || '设备可能正被其他任务占用'
-    leaseError.value = String(detail)
+  } catch (err: unknown) {
+    leaseError.value = leaseErrorText(err)
     if (!silent) {
-      message.warning(`获取控制权失败: ${detail}`)
+      message.warning(`获取控制权失败: ${leaseError.value}`)
     }
   } finally {
     leaseRequestInFlight = false

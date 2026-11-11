@@ -217,6 +217,7 @@ describe('DeviceMirrorModal', () => {
     const modal = wrapper.find('.ant-modal')
     expect(modal.exists()).toBe(true)
     expect(wrapper.find('.ant-modal-title').text()).toContain('rk3588')
+    expect(wrapper.find('.header-status-tag').text()).toBe('在线')
 
     // 检查快捷导航栏按钮（Back, Home, Recents, Power, Vol+, Vol-）
     const navButtons = wrapper.findAll('.nav-key-btn')
@@ -285,16 +286,16 @@ describe('DeviceMirrorModal', () => {
 
   it('shows the lease conflict reason inline instead of only a toast', async () => {
     const device = { id: 6, serial: 'DEV-6', brand: 'OPPO', model: 'OPPO R11', status: 'online' }
-    acquireLeaseMock.mockRejectedValueOnce({
-      response: { data: { detail: '设备已被其他任务占用' } },
-    })
+    // http 拦截器把 409 的 detail 作为字符串拒绝，而不是 axios 错误对象。
+    acquireLeaseMock.mockRejectedValueOnce('设备已被“自动化用例执行”占用，预计 1 分 30 秒 后释放')
 
     const wrapper = mountModal({ open: true, device })
     await flushPromises()
 
     const alert = wrapper.find('.mirror-lease-alert')
     expect(alert.exists()).toBe(true)
-    expect(alert.text()).toContain('设备已被其他任务占用')
+    expect(alert.text()).toContain('自动化用例执行')
+    expect(alert.text()).toContain('1 分 30 秒')
     expect(wrapper.find('.header-lease-tag').text()).toContain('只读模式')
     wrapper.unmount()
   })
