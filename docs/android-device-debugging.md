@@ -91,6 +91,16 @@ adb devices
 
 宿主机的 ADB 连接不会自动被容器复用。需要复用 USB/TCP 设备列表时，显式配置 `ADB_SERVER_SOCKET=tcp:host.docker.internal:5037`，并确保宿主 ADB server 仅对 Docker 网关安全可达。完整演练见 `docs/android-worker-connectivity-rehearsal.md`。
 
+远程后端（例如 K3s 中的 `ADB_SERVER_SOCKET=tcp:<Windows-IP>:5037`）复用 Windows 宿主 ADB server 时，server 必须监听非回环地址。默认 `adb start-server` 只绑定 `127.0.0.1`，此时云端日志表现为 `failed to connect to '<ip>:5037': Connection refused`；改用下列命令重启（Windows 防火墙仅放通受控来源）：
+
+```powershell
+adb kill-server
+adb -a start-server      # 监听 0.0.0.0:5037
+netstat -ano | findstr :5037   # 期望 0.0.0.0:5037 LISTENING
+```
+
+注意：之后任何 `adb kill-server` 或由普通 adb 客户端自动拉起的 server 都会退回回环绑定，需要重新执行上述步骤。`adb forward` 的端口在 Windows 上绑定 `0.0.0.0`，因此远端 scrcpy 流会连接 ADB server 主机而不是容器回环（见 `backend/app/device_stream/manager.py` 的 `_adb_forward_host`）。
+
 ---
 
 ## 四、平台内验证步骤
