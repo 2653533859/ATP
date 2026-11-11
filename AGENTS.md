@@ -49,6 +49,20 @@ Python 3.12 is required. Node 20+ for the frontend.
 - Every test file must also pass on its own — `make test-backend-standalone` sweeps non-integration files individually and CI runs it after the main pytest job. The root conftest puts `backend/` on `sys.path`, so new files need no `sys.path.insert`; a file that only passes inside the full suite is depending on another file's side effect.
 - Cover critical flows from `PRD.md`: case execution, scheduling, reporting, role permissions. Add a regression test for every bug fix.
 
+## Working in a Shared Checkout
+
+This working directory is not exclusive. On 2026-11-11 another agent session operated on the same checkout while a task was in progress: at 14:50 it ran a blanket stage that swept someone else's uncommitted Android Agent changes into a commit labelled `fix(backend): resolve bundled assets inside container image layout`. Nothing was lost — the mixed commit was later split and the tree hash verified identical — but the history had to be rewritten and force-pushed.
+
+Assume a second writer may exist. Before touching git state:
+
+- **Never blanket-stage.** Use `git add -- <explicit paths>`; avoid `git add -A`, `git add .`, and `git commit -a`. A blanket stage silently adopts whatever another session left in the tree.
+- **Check `git status` before committing.** If you see modified files you did not touch, stop and report instead of committing them under your message.
+- **Do not discard other work.** `git reset --hard`, `git checkout -- .`, `git clean -fd` and `git stash` can destroy an in-flight change from another session.
+- **Prefer an isolated worktree for parallel work:** `git worktree add ../ATP-<name> -b <branch>` and do everything there. `git worktree list` shows the existing ones.
+- **Never rewrite pushed history silently.** If a commit needs splitting or relabelling, take a backup branch first, confirm `git rev-parse HEAD^{tree}` is unchanged after the rewrite, and push with `git push --force-with-lease`. Tell the user, because other clones must re-sync.
+
+When one session must hand the checkout to another, the handoff point is a clean tree: commit or stash nothing — commit real work, leave the tree empty.
+
 ## Commit & Pull Request Guidelines
 
 The repository follows Conventional Commits:
