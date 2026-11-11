@@ -84,10 +84,25 @@ alert: 当前无法控制设备：设备已被“自动化用例执行”占用�
 tag: 只读模式 → 释放占用后点“重试获取控制权” → 控制权已生效 (1:29)，alert 消失
 ```
 
+## 第三轮：仍然无法操作的真实原因（同日修复）
+
+用户反馈“浏览器里还是不能操作手机”。实测定位到两个叠加原因：
+
+1. **被自己的其他页面锁住**：设备被租约 49 占用（`owner_label=android-case-editor`，TTL 900s，本人）。用例编辑器/APP 工作台打开即占设备，关闭标签页后仍要等 15 分钟过期；投屏弹窗此时只能拿到 409，用户无法自行解锁。
+   - 后端：`acquire_device_lease(..., takeover_own=True)` 允许**本人**显式接管自己的遗留租约（按 id+令牌条件删除后重建）；他人租约即使带该标志仍冲突。`POST /devices/{id}/lease` 新增 `takeover_own` 字段。
+   - 前端：投屏弹窗的冲突提示新增“接管我自己的租约”按钮；用例编辑器与 APP 工作台的租约改为 TTL 120s、每 30s 心跳（心跳带 `ttl_seconds`），关页面后最多占用 2 分钟。
+2. **截图模式太慢**：`http://192.168.3.196:8080` 是明文 HTTP，`VideoDecoder` 只在安全上下文（HTTPS/localhost）暴露，`isWebCodecsSupported()` 恒为 false → 永远走“截图降级模式”。而截图接口返回 1080×1920 原始 PNG（约 2.6MB/帧），350ms 轮询 ≈ 7.4MB/s，操作明显滞后。
+   - 后端：`GET /devices/{id}/screenshot` 新增 `max_width`、`fmt`（png/jpeg），Pillow 在后台线程降采样/转码。
+   - 前端：投屏轮询改为 `max_width=540&fmt=jpeg`；设备真实分辨率优先取设备档案，避免预览缩小后点击坐标被按 540 宽换算。
+
+部署：`backend/worker:dd492c9d`、`frontend:dd492c9d`，Helm revision 84，迁移头不变（`20261110_0087`）。
+
 ## 残留与限制
 
+- **实时流需要 HTTPS**：明文 HTTP 下 WebCodecs 不可用，投屏固定走截图模式（现已优化为 JPEG 540 轮询）。要启用 60FPS scrcpy 实时流，需给云端 Web 入口配置 TLS（自签或正式证书）。
 - `adb -a start-server` 不是持久配置：任何 `adb kill-server` 或普通 adb 客户端自动拉起的 server 都会退回回环绑定，需要人工重跑；未在 `scripts/windows-android-worker.ps1` 中自动检测。
 - 云端镜像内没有 `scripts/`，`/device-agents/agent-script` 下载端点仍指向缺失文件（既有问题，未在本轮修改）。
 - 未执行 MSI/便携包重建；前端改动仅部署到云端 Web 入口。
 - 真机验收只覆盖单台 OPPO R11（USB 经 Windows ADB server 转发），未覆盖多设备并发与模拟器。
-- 浏览器直接关闭标签页时不会立刻释放租约，依赖 90s TTL 到期回收；未加 `pagehide` 上报。
+- 浏览器直接关闭标签页时不会立刻释放租约，依赖 TTL（投屏 90s、编辑器/工作台 120s）到期回收；未加 `pagehide` 上报。
+- “接管我自己的租约”只在租约 owner 与当前账号一致时生效；管理员强制接管他人租约与审计仍未实现。
