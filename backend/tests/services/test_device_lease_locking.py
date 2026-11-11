@@ -8,7 +8,7 @@ from sqlalchemy.dialects import postgresql
 from app.models import load_all_models
 from app.models.device import DeviceStatus
 from app.models.ios import IosDeviceStatus
-from app.services.device_leases import acquire_device_lease, get_active_device_lease
+from app.services.device_leases import DeviceLeaseConflict, acquire_device_lease, get_active_device_lease
 from app.services.ios_device_leases import acquire_ios_device_lease
 from app.services import device_leases, ios_device_leases
 
@@ -206,3 +206,22 @@ def test_lease_service_rejects_missing_offline_active_and_expired(service, statu
     expired = SimpleNamespace(expires_at=datetime.now(timezone.utc) - timedelta(seconds=1))
     with pytest.raises(conflict):
         asyncio.run(heartbeat(_LifecycleDB([expired]), device_id, "expired"))
+
+
+def test_android_lease_conflict_reports_holder_and_remaining_time():
+    """冲突提示要说明占用者标签与预计释放时间，投屏弹窗直接展示该文本。"""
+    now = datetime.now(timezone.utc)
+    holder = SimpleNamespace(
+        id=3,
+        lease_token="held",
+        owner_label="投屏控制",
+        expires_at=now + timedelta(minutes=1, seconds=30),
+    )
+    db = _LifecycleDB([SimpleNamespace(id=3, status=DeviceStatus.online), holder])
+
+    with pytest.raises(DeviceLeaseConflict) as excinfo:
+        asyncio.run(acquire_device_lease(db, 3, owner_id=2, owner_label="第二会话"))
+
+    message = str(excinfo.value)
+    assert "投屏控制" in message
+    assert "分" in message and "秒" in message

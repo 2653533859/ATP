@@ -10,6 +10,7 @@ class DeviceLeaseAcquireIn(BaseModel):
 
 class DeviceLeaseTokenIn(BaseModel):
     lease_token: str = Field(min_length=16, max_length=96)
+    ttl_seconds: int = Field(default=900, ge=30, le=7200)
 
 
 class DeviceLeaseOut(BaseModel):

@@ -264,7 +264,7 @@ describe('DeviceMirrorModal', () => {
 
     expect(acquireLeaseMock).toHaveBeenCalledTimes(1)
     expect(acquireLeaseMock).toHaveBeenCalledWith(5, {
-      ttl_seconds: 600,
+      ttl_seconds: 90,
       owner_label: '投屏控制',
     })
     expect(wrapper.find('.ant-modal-title').text()).toContain('设备投屏 · OPPO R11')

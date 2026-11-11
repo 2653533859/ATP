@@ -36,6 +36,24 @@ async def _device_has_lease(db: AsyncSession, device_id: int) -> bool:
     return found.scalar_one_or_none() is not None
 
 
+def _remaining_text(lease: DeviceLease, now: datetime) -> str:
+    expires_at = lease.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    seconds = max(0, int((expires_at - now).total_seconds()))
+    if seconds >= 60:
+        return f"{seconds // 60} 分 {seconds % 60} 秒"
+    return f"{seconds} 秒"
+
+
+def _conflict_message(lease: DeviceLease | None, now: datetime) -> str:
+    """冲突提示带上占用者标签与剩余时长，供投屏弹窗直接展示给用户。"""
+    label = (getattr(lease, "owner_label", "") or "").strip()
+    if lease is None or not label:
+        return "设备已被其他任务占用"
+    return f"设备已被“{label}”占用，预计 {_remaining_text(lease, now)} 后释放"
+
+
 async def _delete_expired_lease(db: AsyncSession, lease_id: int, lease_token: str, now: datetime) -> bool:
     """调用方须先 expunge 该租约；过期条件无法在内存中对无时区时间求值，因此不同步会话。"""
     removed = await db.execute(_delete_expired_lease_stmt(lease_id, lease_token, now))
@@ -68,7 +86,7 @@ async def acquire_device_lease(
     current = (await db.execute(select(DeviceLease).where(DeviceLease.device_id == device_id))).scalar_one_or_none()
     if current is not None:
         if lease_is_active(current, now):
-            raise DeviceLeaseConflict("设备已被其他任务占用")
+            raise DeviceLeaseConflict(_conflict_message(current, now))
         # SQLite 会复用 id，须带令牌；带过期条件则不会删掉持有者刚续期的租约。
         current_id, current_token = current.id, current.lease_token
         db.expunge(current)

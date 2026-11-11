@@ -2298,8 +2298,11 @@ export const deviceApi = {
   workers: () => http.get<unknown, AndroidWorkerItem[]>('/devices/workers'),
   acquireLease: (id: number, data?: { ttl_seconds?: number; owner_label?: string }) =>
     http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease`, data ?? {}),
-  heartbeatLease: (id: number, leaseToken: string) =>
-    http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease/heartbeat`, { lease_token: leaseToken }),
+  heartbeatLease: (id: number, leaseToken: string, ttlSeconds?: number) =>
+    http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease/heartbeat`, {
+      lease_token: leaseToken,
+      ...(ttlSeconds ? { ttl_seconds: ttlSeconds } : {}),
+    }),
   releaseLease: (id: number, leaseToken: string) =>
     http.delete(`/devices/${id}/lease`, { data: { lease_token: leaseToken } }),
   scan: () => http.post<unknown, DeviceScanResult>('/devices/scan'),

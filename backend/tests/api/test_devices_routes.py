@@ -413,8 +413,10 @@ def test_acquire_lease_returns_token_for_owner(monkeypatch):
 
 def test_heartbeat_lease_does_not_return_secret_token(monkeypatch):
     lease = _lease()
+    seen: dict[str, int] = {}
 
-    async def fake_heartbeat(_db, _device_id, _token):
+    async def fake_heartbeat(_db, _device_id, _token, *, ttl_seconds=900):
+        seen["ttl"] = ttl_seconds
         return lease
 
     monkeypatch.setattr(devices, "heartbeat_device_lease", fake_heartbeat)
@@ -422,13 +424,14 @@ def test_heartbeat_lease_does_not_return_secret_token(monkeypatch):
     result = asyncio.run(
         devices.heartbeat_lease(
             device_id=1,
-            body=DeviceLeaseTokenIn(lease_token=lease.lease_token),
+            body=DeviceLeaseTokenIn(lease_token=lease.lease_token, ttl_seconds=90),
             db=_DB(),
             _=None,
         )
     )
 
     assert result.lease_token is None
+    assert seen["ttl"] == 90
 
 
 def test_acquire_lease_returns_conflict_for_busy_device(monkeypatch):

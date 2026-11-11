@@ -302,6 +302,8 @@ const leaseRemainingSeconds = ref(0)
 let leaseCountdownTimer: ReturnType<typeof setInterval> | null = null
 let leaseHeartbeatTimer: ReturnType<typeof setInterval> | null = null
 let leaseRequestInFlight = false
+// 心跳每 25s 续期；TTL 取 90s，标签页被关闭或休眠时设备最多被占用约 1.5 分钟。
+const LEASE_TTL_SECONDS = 90
 
 const effectiveLeaseToken = computed(() => {
   return props.leaseToken || internalLeaseToken.value || null
@@ -332,11 +334,11 @@ async function acquireInteractiveLease(silent = false) {
   leaseError.value = ''
   try {
     const res = await deviceApi.acquireLease(props.device.id, {
-      ttl_seconds: 600,
+      ttl_seconds: LEASE_TTL_SECONDS,
       owner_label: '投屏控制',
     })
     internalLeaseToken.value = res.lease_token || null
-    startLeaseHeartbeat(600)
+    startLeaseHeartbeat(LEASE_TTL_SECONDS)
     if (!silent) {
       message.success('已成功获取设备控制权')
     }
@@ -352,7 +354,7 @@ async function acquireInteractiveLease(silent = false) {
   }
 }
 
-function startLeaseHeartbeat(ttl = 600) {
+function startLeaseHeartbeat(ttl = LEASE_TTL_SECONDS) {
   stopLeaseHeartbeat()
   leaseExpiresAt.value = Date.now() + ttl * 1000
   leaseRemainingSeconds.value = ttl
@@ -370,9 +372,9 @@ function startLeaseHeartbeat(ttl = 600) {
   leaseHeartbeatTimer = setInterval(async () => {
     if (!props.device || !internalLeaseToken.value) return
     try {
-      await deviceApi.heartbeatLease(props.device.id, internalLeaseToken.value)
-      leaseExpiresAt.value = Date.now() + 600 * 1000
-      leaseRemainingSeconds.value = 600
+      await deviceApi.heartbeatLease(props.device.id, internalLeaseToken.value, LEASE_TTL_SECONDS)
+      leaseExpiresAt.value = Date.now() + LEASE_TTL_SECONDS * 1000
+      leaseRemainingSeconds.value = LEASE_TTL_SECONDS
     } catch {
       stopLeaseHeartbeat()
       internalLeaseToken.value = null

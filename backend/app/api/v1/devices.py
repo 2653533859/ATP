@@ -404,7 +404,7 @@ async def heartbeat_lease(
     _: User = Depends(require_engineer),
 ):
     try:
-        lease = await heartbeat_device_lease(db, device_id, body.lease_token)
+        lease = await heartbeat_device_lease(db, device_id, body.lease_token, ttl_seconds=body.ttl_seconds)
     except DeviceLeaseConflict as exc:
         raise _lease_error(exc) from exc
     await db.commit()
