@@ -19,9 +19,21 @@ from typing import Dict, Generator, List, Optional, Set
 
 import adbutils
 
+from app.core.config import settings
 from app.core.package_paths import bundled_resource
 
 logger = logging.getLogger("ScrcpyManager")
+
+
+def _adb_forward_host() -> str:
+    """ADB 端口转发建立在其 server 所在主机；远程 server 模式下不能连本机回环。"""
+    socket_str = (getattr(settings, "ADB_SERVER_SOCKET", "") or "").strip()
+    if socket_str.startswith("tcp:"):
+        host, sep, _port = socket_str[4:].strip().rpartition(":")
+        if sep and host:
+            return host
+    return "127.0.0.1"
+
 
 SCRCPY_SERVER_PATH = bundled_resource("backend/assets/scrcpy-server.jar")
 DEVICE_JAR_PATH = "/data/local/tmp/scrcpy-server.jar"
@@ -359,6 +371,7 @@ class ScrcpyDeviceManager:
                 pass
 
             device.forward(f"tcp:{local_port}", "localabstract:scrcpy")
+            forward_host = _adb_forward_host()
 
             cmd = [
                 "adb",
@@ -396,7 +409,7 @@ class ScrcpyDeviceManager:
                 try:
                     video_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     video_sock.settimeout(2)
-                    video_sock.connect(("127.0.0.1", local_port))
+                    video_sock.connect((forward_host, local_port))
                     # 验证是否真正打通（读取 1 字节 dummy byte）
                     dummy = self._recv_exactly(video_sock, 1)
                     if dummy:
@@ -422,7 +435,7 @@ class ScrcpyDeviceManager:
             ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             ctrl_sock.settimeout(3)
             ctrl_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            ctrl_sock.connect(("127.0.0.1", local_port))
+            ctrl_sock.connect((forward_host, local_port))
             dev_info.control_socket = ctrl_sock
 
             name_bytes = self._recv_exactly(video_sock, 64)

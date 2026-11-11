@@ -941,6 +941,7 @@ def test_connect_device_sync_success_sets_up_streams(monkeypatch):
     mgr = ScrcpyDeviceManager()
     codec_header = b"h264" + struct.pack(">II", 1080, 2340)
     env = _prepare_connect_success_env(monkeypatch, mgr, "FAKE_SERIAL", codec_header)
+    monkeypatch.setattr(device_stream_manager.settings, "ADB_SERVER_SOCKET", "")
     mgr._connecting.add("FAKE_SERIAL")
 
     mgr._connect_device_sync("FAKE_SERIAL")
@@ -961,6 +962,30 @@ def test_connect_device_sync_success_sets_up_streams(monkeypatch):
     assert env.subprocess.popen_calls[0][0][0] == "adb"
     assert "com.genymobile.scrcpy.Server" in env.subprocess.popen_calls[0][0]
     assert env.video_fake.connected == ("127.0.0.1", dev.local_port)
+
+
+def test_connect_device_sync_uses_remote_adb_server_host(monkeypatch):
+    """远程 ADB server 的 forward 落在 server 主机，socket 必须连该主机而不是回环。"""
+    mgr = ScrcpyDeviceManager()
+    codec_header = b"h264" + struct.pack(">II", 1080, 2340)
+    env = _prepare_connect_success_env(monkeypatch, mgr, "FAKE_SERIAL", codec_header)
+    monkeypatch.setattr(device_stream_manager.settings, "ADB_SERVER_SOCKET", "tcp:172.16.102.195:5037")
+    mgr._connecting.add("FAKE_SERIAL")
+
+    mgr._connect_device_sync("FAKE_SERIAL")
+
+    dev = mgr._devices["FAKE_SERIAL"]
+    assert dev.ready is True
+    assert env.video_fake.connected == ("172.16.102.195", dev.local_port)
+    assert env.ctrl_fake.connected == ("172.16.102.195", dev.local_port)
+
+
+def test_adb_forward_host_defaults_to_loopback(monkeypatch):
+    """未配置或非 tcp: 形式时仍连本机回环。"""
+    monkeypatch.setattr(device_stream_manager.settings, "ADB_SERVER_SOCKET", "")
+    assert device_stream_manager._adb_forward_host() == "127.0.0.1"
+    monkeypatch.setattr(device_stream_manager.settings, "ADB_SERVER_SOCKET", "unix:/tmp/adb.sock")
+    assert device_stream_manager._adb_forward_host() == "127.0.0.1"
 
 
 def test_connect_device_sync_unknown_codec_header_uses_default_resolution(monkeypatch):
