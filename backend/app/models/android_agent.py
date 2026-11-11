@@ -1,10 +1,10 @@
-"""Database models for Android Natural Language Agent sessions, events and commands."""
+"""Database models for Android Natural Language Agent sessions, events, commands, drafts and replays."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -91,3 +91,75 @@ class AndroidAgentCommand(Base):
     params: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     error_message: Mapped[str | None] = mapped_column(String(256), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class AndroidAgentDraft(Base, TimestampMixin):
+    """不可变的低代码草稿版本：编辑只产生新版本，旧版本内容不再变化。"""
+
+    __tablename__ = "android_agent_drafts"
+    __table_args__ = (
+        UniqueConstraint("session_id", "version", name="uq_android_agent_drafts_session_version"),
+        UniqueConstraint("session_id", "content_hash", name="uq_android_agent_drafts_session_hash"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("android_agent_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="replayable", index=True)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    steps: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    assertions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    variables: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    preconditions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    blocking_issues: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    source_map: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    environment_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    published_case_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    replays: Mapped[list[AndroidAgentReplay]] = relationship(
+        "AndroidAgentReplay", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class AndroidAgentReplay(Base, TimestampMixin):
+    """草稿固定快照的独立回放结果。
+
+    回放复用现有低代码执行器执行，Agent 决策关闭；不请模型临时修复失败步骤。
+    """
+
+    __tablename__ = "android_agent_replays"
+    __table_args__ = (
+        UniqueConstraint("draft_id", "idempotency_key", name="uq_android_agent_replays_draft_idempotency"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("android_agent_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    draft_id: Mapped[int] = mapped_column(
+        ForeignKey("android_agent_drafts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    draft_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued", index=True)
+    initial_state_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    module_id: Mapped[int | None] = mapped_column(ForeignKey("modules.id", ondelete="SET NULL"), nullable=True)
+    case_id: Mapped[int | None] = mapped_column(
+        ForeignKey("test_cases.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("test_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    environment_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    evidence: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

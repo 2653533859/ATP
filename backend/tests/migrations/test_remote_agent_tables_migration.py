@@ -25,9 +25,18 @@ def test_site_revision_is_ancestor_of_single_head():
     config = Config()
     config.set_main_option("script_location", str(VERSIONS.parent))
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == ["20261104_0085"]
+    # 单一迁移头；新增迁移时同步更新此处，确保线上库可按单链升级
+    assert scripts.get_heads() == ["20261111_0088"]
     revisions = [revision.revision for revision in scripts.iterate_revisions("head", "20261026_0082")]
-    assert revisions == ["20261104_0085", "20261102_0084", "20261102_0083", "20261029_0083"]
+    assert revisions == [
+        "20261111_0088",
+        "20261110_0087",
+        "20261110_0086",
+        "20261104_0085",
+        "20261102_0084",
+        "20261102_0083",
+        "20261029_0083",
+    ]
 
 
 def test_remote_agent_upgrade_preserves_existing_site_data(tmp_path):

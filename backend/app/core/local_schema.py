@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 20
+CURRENT_LOCAL_SCHEMA_VERSION = 21
 
 
 def _create_sync_outbox(connection: Connection) -> None:
@@ -618,6 +618,81 @@ def _create_workbench_tables(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[20] = _create_workbench_tables
+
+
+def _create_android_agent_draft_replay_tables(connection: Connection) -> None:
+    """创建 Android Agent 草稿版本与独立回放表（v21，对应 Alembic 20261111_0088）。"""
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS android_agent_drafts ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, "
+        "session_id INTEGER NOT NULL REFERENCES android_agent_sessions(id) ON DELETE CASCADE, "
+        "version INTEGER NOT NULL, "
+        "schema_version INTEGER NOT NULL DEFAULT 1, "
+        "status VARCHAR(32) NOT NULL DEFAULT 'replayable', "
+        "content_hash VARCHAR(64) NOT NULL, "
+        "steps JSON NOT NULL DEFAULT '[]', "
+        "assertions JSON NOT NULL DEFAULT '[]', "
+        "variables JSON NOT NULL DEFAULT '[]', "
+        "preconditions JSON NOT NULL DEFAULT '[]', "
+        "blocking_issues JSON NOT NULL DEFAULT '[]', "
+        "source_map JSON NOT NULL DEFAULT '{}', "
+        "environment_snapshot JSON NOT NULL DEFAULT '{}', "
+        "created_by INTEGER REFERENCES users(id) ON DELETE SET NULL, "
+        "published_case_id INTEGER, "
+        "published_at DATETIME, "
+        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "CONSTRAINT uq_android_agent_drafts_session_version UNIQUE (session_id, version), "
+        "CONSTRAINT uq_android_agent_drafts_session_hash UNIQUE (session_id, content_hash)"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_android_agent_drafts_project_id ON android_agent_drafts(project_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_android_agent_drafts_session_id ON android_agent_drafts(session_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_android_agent_drafts_status ON android_agent_drafts(status)"
+    )
+
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS android_agent_replays ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, "
+        "session_id INTEGER NOT NULL REFERENCES android_agent_sessions(id) ON DELETE CASCADE, "
+        "draft_id INTEGER NOT NULL REFERENCES android_agent_drafts(id) ON DELETE CASCADE, "
+        "draft_version INTEGER NOT NULL, "
+        "content_hash VARCHAR(64) NOT NULL, "
+        "idempotency_key VARCHAR(128) NOT NULL, "
+        "status VARCHAR(32) NOT NULL DEFAULT 'queued', "
+        "initial_state_confirmed BOOLEAN NOT NULL DEFAULT 0, "
+        "module_id INTEGER REFERENCES modules(id) ON DELETE SET NULL, "
+        "case_id INTEGER REFERENCES test_cases(id) ON DELETE SET NULL, "
+        "run_id INTEGER REFERENCES test_runs(id) ON DELETE SET NULL, "
+        "environment_snapshot JSON NOT NULL DEFAULT '{}', "
+        "evidence JSON NOT NULL DEFAULT '{}', "
+        "error_code VARCHAR(64), "
+        "started_at DATETIME, "
+        "finished_at DATETIME, "
+        "created_at DATETIME NOT NULL, "
+        "updated_at DATETIME NOT NULL, "
+        "CONSTRAINT uq_android_agent_replays_draft_idempotency UNIQUE (draft_id, idempotency_key)"
+        ")"
+    )
+    for index_name, column in (
+        ("ix_android_agent_replays_project_id", "project_id"),
+        ("ix_android_agent_replays_session_id", "session_id"),
+        ("ix_android_agent_replays_draft_id", "draft_id"),
+        ("ix_android_agent_replays_status", "status"),
+        ("ix_android_agent_replays_case_id", "case_id"),
+        ("ix_android_agent_replays_run_id", "run_id"),
+    ):
+        connection.exec_driver_sql(f"CREATE INDEX IF NOT EXISTS {index_name} ON android_agent_replays({column})")
+
+
+LOCAL_MIGRATIONS[21] = _create_android_agent_draft_replay_tables
 
 
 def _read_version(connection: Connection) -> int:

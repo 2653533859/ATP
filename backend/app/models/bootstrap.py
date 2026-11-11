@@ -52,7 +52,13 @@ def load_all_models() -> None:
     from app.models.remote_node_grant import RemoteNodeGrant
     from app.models.api_schema import ApiSchemaAsset
     from app.models.api_contract_asset import ApiContractAsset
-    from app.models.android_agent import AndroidAgentSession, AndroidAgentEvent, AndroidAgentCommand
+    from app.models.android_agent import (
+        AndroidAgentCommand,
+        AndroidAgentDraft,
+        AndroidAgentEvent,
+        AndroidAgentReplay,
+        AndroidAgentSession,
+    )
     from app.models.workbench import WorkbenchTodoSnooze, WorkbenchArchivedTask
 
     _ = (
@@ -133,6 +139,8 @@ def load_all_models() -> None:
         AndroidAgentSession,
         AndroidAgentEvent,
         AndroidAgentCommand,
+        AndroidAgentDraft,
+        AndroidAgentReplay,
         WorkbenchTodoSnooze,
         WorkbenchArchivedTask,
     )

@@ -154,3 +154,128 @@ class AgentEventsResponse(BaseModel):
     items: list[AgentEventItem]
     next_seq: int
     has_more: bool
+
+
+# ---- Drafts (A30/A31) ----
+
+
+class AgentDraftCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    restored_initial_state: bool = True
+
+
+class AgentDraftPatchRequest(BaseModel):
+    """编辑草稿必须携带 `expected_version`，服务端据此生成新版本。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(..., ge=1)
+    steps: Optional[list[dict[str, Any]]] = None
+    assertions: Optional[list[dict[str, Any]]] = None
+    preconditions: Optional[list[str]] = None
+
+
+class AgentDraftSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int
+    session_id: int
+    version: int
+    schema_version: int
+    status: str
+    content_hash: str
+    blocking_issues: list[dict[str, Any]]
+    variables: list[str]
+    published_case_id: Optional[int]
+    created_at: datetime
+
+
+class AgentDraftResponse(AgentDraftSummary):
+    steps: list[dict[str, Any]]
+    assertions: list[dict[str, Any]]
+    preconditions: list[str]
+    source_map: dict[str, Any]
+    environment_snapshot: dict[str, Any]
+    published_at: Optional[datetime]
+
+
+# ---- Replays (A32) ----
+
+
+class AgentReplayStartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    initial_state_confirmed: bool
+    module_id: int = Field(..., ge=1)
+    device_id: Optional[int] = Field(default=None, ge=1)
+    idempotency_key: str = Field(..., min_length=1, max_length=128)
+
+
+class AgentReplayResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int
+    session_id: int
+    draft_id: int
+    draft_version: int
+    content_hash: str
+    status: str
+    initial_state_confirmed: bool
+    module_id: Optional[int]
+    case_id: Optional[int]
+    run_id: Optional[int]
+    error_code: Optional[str]
+    evidence: dict[str, Any]
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
+    created_at: datetime
+
+
+class AgentReplayHandoffResponse(BaseModel):
+    replay: AgentReplayResponse
+    case_id: int
+    run_id: int
+    frozen_snapshot: dict[str, Any]
+
+
+class AgentReplayPreviewItem(BaseModel):
+    code: str
+    status: str
+    message: str
+
+
+class AgentReplayPreviewResponse(BaseModel):
+    draft_id: int
+    draft_version: int
+    content_hash: str
+    ready: bool
+    frozen_snapshot: dict[str, Any]
+    items: list[AgentReplayPreviewItem]
+
+
+# ---- Publish (A33) ----
+
+
+class AgentPublishResponse(BaseModel):
+    draft_id: int
+    draft_version: int
+    case_id: int
+    verified_replay_id: int
+    published: bool
+    idempotent_replay: bool = False
+
+
+# ---- Loop Run (A22) ----
+
+
+class AgentRunResultResponse(BaseModel):
+    """一次模型循环的收敛结果；只返回稳定状态与用量，不回传模型原文。"""
+
+    status: str
+    reason: str
+    steps: int = 0
+    model_calls: int = 0
+    tokens: int = 0
