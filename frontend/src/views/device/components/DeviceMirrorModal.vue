@@ -49,9 +49,14 @@
         description="设备可能正被其他任务或另一位用户占用。可稍后重试；若长时间占用，请在设备管理中确认来源后再接管。"
       >
         <template #action>
-          <a-button size="small" :loading="leaseAcquiring" @click="acquireInteractiveLease(false)">
-            重试获取控制权
-          </a-button>
+          <a-space direction="vertical" size="small">
+            <a-button size="small" :loading="leaseAcquiring" @click="acquireInteractiveLease(false)">
+              重试获取控制权
+            </a-button>
+            <a-button size="small" type="link" :loading="leaseAcquiring" @click="acquireInteractiveLease(false, true)">
+              接管我自己的租约
+            </a-button>
+          </a-space>
         </template>
       </a-alert>
       <!-- 手机外框与屏幕容器 -->
@@ -346,7 +351,7 @@ function leaseErrorText(err: unknown): string {
   return '设备可能正被其他任务占用'
 }
 
-async function acquireInteractiveLease(silent = false) {
+async function acquireInteractiveLease(silent = false, takeoverOwn = false) {
   if (!props.device || hasControlLease.value || leaseRequestInFlight) return
   leaseRequestInFlight = true
   leaseAcquiring.value = true
@@ -355,6 +360,7 @@ async function acquireInteractiveLease(silent = false) {
     const res = await deviceApi.acquireLease(props.device.id, {
       ttl_seconds: LEASE_TTL_SECONDS,
       owner_label: '投屏控制',
+      ...(takeoverOwn ? { takeover_own: true } : {}),
     })
     internalLeaseToken.value = res.lease_token || null
     startLeaseHeartbeat(LEASE_TTL_SECONDS)
@@ -719,6 +725,8 @@ function removeWindowMouseListeners() {
 }
 
 function onImgLoaded() {
+  // 预览图可能被服务端降采样（JPEG/540 宽），设备真实分辨率优先取设备档案，避免点击坐标被缩小。
+  if (realResolution.value.w && realResolution.value.h) return
   if (screenImgRef.value) {
     const naturalW = screenImgRef.value.naturalWidth
     const naturalH = screenImgRef.value.naturalHeight
@@ -921,7 +929,7 @@ async function refreshMirror(session = mirrorSession) {
   if (!props.device || mirrorRefreshingSession === session || session !== mirrorSession) return false
   mirrorRefreshingSession = session
   try {
-    const blob = await deviceApi.screenshot(props.device.id)
+    const blob = await deviceApi.screenshot(props.device.id, { maxWidth: 540, format: 'jpeg' })
     if (session !== mirrorSession) return
     const nextUrl = URL.createObjectURL(blob)
     const prevUrl = mirrorObjectUrl

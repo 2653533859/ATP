@@ -68,6 +68,16 @@ def _delete_expired_lease_stmt(lease_id: int, lease_token: str, now: datetime):
     )
 
 
+async def _delete_lease_by_token(db: AsyncSession, lease_id: int, lease_token: str) -> bool:
+    """按 id+令牌条件删除，避免 SQLite 复用 id 时误删他人新租约。"""
+    removed = await db.execute(
+        delete(DeviceLease)
+        .where(DeviceLease.id == lease_id, DeviceLease.lease_token == lease_token)
+        .execution_options(synchronize_session=False)
+    )
+    return removed.rowcount == 1
+
+
 async def acquire_device_lease(
     db: AsyncSession,
     device_id: int,
@@ -75,6 +85,7 @@ async def acquire_device_lease(
     owner_id: int | None,
     owner_label: str,
     ttl_seconds: int = 900,
+    takeover_own: bool = False,
 ) -> DeviceLease:
     now = _now()
     device = (await db.execute(select(Device).where(Device.id == device_id).with_for_update())).scalar_one_or_none()
@@ -86,14 +97,21 @@ async def acquire_device_lease(
     current = (await db.execute(select(DeviceLease).where(DeviceLease.device_id == device_id))).scalar_one_or_none()
     if current is not None:
         if lease_is_active(current, now):
-            raise DeviceLeaseConflict(_conflict_message(current, now))
-        # SQLite 会复用 id，须带令牌；带过期条件则不会删掉持有者刚续期的租约。
-        current_id, current_token = current.id, current.lease_token
-        db.expunge(current)
-        if not await _delete_expired_lease(db, current_id, current_token, now):
-            # 没删到有两种可能：别人已接管或续期（冲突），或已被回收（设备空闲，继续）。
-            if await _device_has_lease(db, device_id):
-                raise DeviceLeaseConflict("设备已被其他任务占用")
+            # 本人其他页面（用例编辑器/工作台）遗留的租约允许显式接管，否则用户会被自己锁住。
+            if not (takeover_own and owner_id is not None and current.owner_id == owner_id):
+                raise DeviceLeaseConflict(_conflict_message(current, now))
+            current_id, current_token = current.id, current.lease_token
+            db.expunge(current)
+            if not await _delete_lease_by_token(db, current_id, current_token):
+                raise DeviceLeaseConflict(_conflict_message(current, now))
+        else:
+            # SQLite 会复用 id，须带令牌；带过期条件则不会删掉持有者刚续期的租约。
+            current_id, current_token = current.id, current.lease_token
+            db.expunge(current)
+            if not await _delete_expired_lease(db, current_id, current_token, now):
+                # 没删到有两种可能：别人已接管或续期（冲突），或已被回收（设备空闲，继续）。
+                if await _device_has_lease(db, device_id):
+                    raise DeviceLeaseConflict("设备已被其他任务占用")
 
     # 本地 SQLite（pysqlite 旧式事务）只在 DML 前隐式 BEGIN。先写设备状态，让下面的
     # SAVEPOINT 嵌套在调用方事务里；否则它成为最外层事务，RELEASE 时就提前提交了租约。

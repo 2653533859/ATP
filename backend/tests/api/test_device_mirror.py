@@ -398,3 +398,55 @@ def test_swipe_adb_failure_raises_503(monkeypatch):
             )
         )
     assert exc.value.status_code == 503
+
+
+# --------------------------- 截图降采样 ---------------------------
+
+
+def _png_bytes(width: int, height: int, noisy: bool = False) -> bytes:
+    import io
+    import os
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    if noisy:
+        image = Image.frombytes("RGB", (width, height), os.urandom(width * height * 3))
+    else:
+        image = Image.new("RGB", (width, height), (10, 120, 200))
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def test_encode_screenshot_downscales_and_transcodes_to_jpeg():
+    """轮询用 JPEG 540 宽：体积要显著小于原始 PNG，且宽度按比例缩小。"""
+    import io
+
+    from PIL import Image
+
+    original = _png_bytes(1080, 1920, noisy=True)
+    encoded, media_type = device_mirror._encode_screenshot(original, 540, "jpeg")
+
+    assert media_type == "image/jpeg"
+    assert len(encoded) < len(original) / 5
+    with Image.open(io.BytesIO(encoded)) as image:
+        assert image.size == (540, 960)
+
+
+def test_encode_screenshot_keeps_png_when_no_options():
+    original = _png_bytes(1080, 1920)
+    encoded, media_type = device_mirror._encode_screenshot(original, None, "png")
+    assert encoded == original
+    assert media_type == "image/png"
+
+
+def test_screenshot_route_returns_jpeg_when_requested(monkeypatch):
+    monkeypatch.setattr(device_mirror.settings, "ADB_SCAN_MODE", "local")
+    monkeypatch.setattr(device_mirror, "_adb_screenshot", lambda *_a, **_k: _png_bytes(1080, 1920))
+
+    response = asyncio.run(
+        device_mirror.device_screenshot(1, max_width=540, fmt="jpeg", db=_FakeDB(_online_device()), _=None)
+    )
+
+    assert response.media_type == "image/jpeg"
+    assert len(response.body) < 200_000

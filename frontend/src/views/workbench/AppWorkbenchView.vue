@@ -847,7 +847,7 @@ async function acquireLease() {
   if (!device || !canModify.value) return
   leaseLoading.value = true
   try {
-    const result = await deviceApi.acquireLease(device.id, { ttl_seconds: 900, owner_label: 'app-workbench' })
+    const result = await deviceApi.acquireLease(device.id, { ttl_seconds: 120, owner_label: 'app-workbench' })
     if (!result.lease_token) throw new Error(t('app_workbench.lease_token_missing'))
     lease.value = result
     startLeaseHeartbeat()
@@ -861,7 +861,7 @@ async function acquireLease() {
 
 function startLeaseHeartbeat() {
   stopLeaseHeartbeat()
-  leaseHeartbeatTimer = window.setInterval(() => { void heartbeatLease() }, 240000)
+  leaseHeartbeatTimer = window.setInterval(() => { void heartbeatLease() }, 30000)
 }
 
 function stopLeaseHeartbeat() {
@@ -875,7 +875,7 @@ async function heartbeatLease() {
   const current = lease.value
   if (!current?.lease_token) return
   try {
-    const result = await deviceApi.heartbeatLease(current.device_id, current.lease_token)
+    const result = await deviceApi.heartbeatLease(current.device_id, current.lease_token, 120)
     lease.value = { ...result, lease_token: current.lease_token }
   } catch {
     stopLeaseHeartbeat()

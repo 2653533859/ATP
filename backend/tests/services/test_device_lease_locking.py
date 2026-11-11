@@ -225,3 +225,37 @@ def test_android_lease_conflict_reports_holder_and_remaining_time():
     message = str(excinfo.value)
     assert "投屏控制" in message
     assert "分" in message and "秒" in message
+
+
+def test_android_lease_takeover_only_for_same_owner():
+    """本人遗留租约可显式接管；他人租约即使带 takeover 标志也必须冲突。"""
+    now = datetime.now(timezone.utc)
+    holder = SimpleNamespace(
+        id=11,
+        lease_token="held-by-me",
+        owner_id=1,
+        owner_label="android-case-editor",
+        expires_at=now + timedelta(minutes=10),
+    )
+    device = SimpleNamespace(id=3, status=DeviceStatus.online)
+    db = _LifecycleDB([device, holder], device=device)
+
+    lease = asyncio.run(
+        acquire_device_lease(db, 3, owner_id=1, owner_label="投屏控制", ttl_seconds=90, takeover_own=True)
+    )
+
+    assert db.conditional_deletes == 1
+    assert lease.owner_label == "投屏控制"
+    assert device.status is DeviceStatus.busy
+
+    other = SimpleNamespace(
+        id=12,
+        lease_token="held-by-other",
+        owner_id=2,
+        owner_label="别人的任务",
+        expires_at=now + timedelta(minutes=10),
+    )
+    blocked_db = _LifecycleDB([device, other], device=device)
+    with pytest.raises(DeviceLeaseConflict):
+        asyncio.run(acquire_device_lease(blocked_db, 3, owner_id=1, owner_label="投屏控制", takeover_own=True))
+    assert blocked_db.conditional_deletes == 0

@@ -300,6 +300,29 @@ describe('DeviceMirrorModal', () => {
     wrapper.unmount()
   })
 
+  it('offers to take over the caller’s own leftover lease', async () => {
+    const device = { id: 7, serial: 'DEV-7', brand: 'OPPO', model: 'OPPO R11', status: 'busy' }
+    acquireLeaseMock.mockRejectedValueOnce('设备已被“android-case-editor”占用，预计 1 分 20 秒后释放')
+
+    const wrapper = mountModal({ open: true, device })
+    await flushPromises()
+
+    const takeover = wrapper
+      .findAll('.mirror-lease-alert button')
+      .find((button) => button.text().includes('接管我自己的租约'))
+    expect(takeover).toBeTruthy()
+
+    await takeover!.trigger('click')
+    await flushPromises()
+
+    expect(acquireLeaseMock).toHaveBeenLastCalledWith(7, {
+      ttl_seconds: 90,
+      owner_label: '投屏控制',
+      takeover_own: true,
+    })
+    wrapper.unmount()
+  })
+
   it('emits update:open false and close event when cancelled', async () => {
     const device = {
       id: 1,

@@ -590,14 +590,14 @@ function stopEditorLeaseHeartbeat() {
 
 function startEditorLeaseHeartbeat() {
   stopEditorLeaseHeartbeat()
-  editorLeaseHeartbeatTimer = setInterval(() => { void heartbeatEditorLease() }, 240000)
+  editorLeaseHeartbeatTimer = setInterval(() => { void heartbeatEditorLease() }, 30000)
 }
 
 async function heartbeatEditorLease() {
   const current = editorLease.value
   if (!current?.lease_token) return
   try {
-    const refreshed = await deviceApi.heartbeatLease(current.device_id, current.lease_token)
+    const refreshed = await deviceApi.heartbeatLease(current.device_id, current.lease_token, 120)
     editorLease.value = { ...refreshed, lease_token: current.lease_token }
   } catch {
     stopEditorLeaseHeartbeat()
@@ -614,7 +614,7 @@ async function syncEditorLease(deviceId: number | null) {
   editorLeaseLoading.value = true
   try {
     const lease = await deviceApi.acquireLease(deviceId, {
-      ttl_seconds: 900,
+      ttl_seconds: 120,
       owner_label: 'android-case-editor',
     })
     if (seq !== editorLeaseSeq || !props.open) {

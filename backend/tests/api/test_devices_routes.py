@@ -406,7 +406,7 @@ def test_acquire_lease_returns_token_for_owner(monkeypatch):
     assert calls == {
         "db": db,
         "device_id": 1,
-        "kwargs": {"owner_id": 9, "owner_label": "manual", "ttl_seconds": 600},
+        "kwargs": {"owner_id": 9, "owner_label": "manual", "ttl_seconds": 600, "takeover_own": False},
     }
     assert db.commits == 1 and db.refreshes == 1
 
@@ -451,3 +451,27 @@ def test_acquire_lease_returns_conflict_for_busy_device(monkeypatch):
         )
 
     assert exc.value.status_code == 409
+
+
+def test_acquire_lease_forwards_takeover_flag(monkeypatch):
+    lease = _lease()
+    seen: dict[str, object] = {}
+
+    async def fake_acquire(_db, _device_id, **kwargs):
+        seen.update(kwargs)
+        return lease
+
+    monkeypatch.setattr(devices, "acquire_device_lease", fake_acquire)
+
+    asyncio.run(
+        devices.acquire_lease(
+            device_id=1,
+            body=DeviceLeaseAcquireIn(owner_label="投屏控制", ttl_seconds=90, takeover_own=True),
+            db=_DB(),
+            current_user=SimpleNamespace(id=9),
+        )
+    )
+
+    assert seen["owner_id"] == 9
+    assert seen["ttl_seconds"] == 90
+    assert seen["takeover_own"] is True

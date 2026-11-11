@@ -386,6 +386,7 @@ async def acquire_lease(
             owner_id=current_user.id,
             owner_label=body.owner_label,
             ttl_seconds=body.ttl_seconds,
+            takeover_own=body.takeover_own,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

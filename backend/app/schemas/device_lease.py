@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class DeviceLeaseAcquireIn(BaseModel):
     ttl_seconds: int = Field(default=900, ge=30, le=7200)
     owner_label: str = Field(default="manual", min_length=1, max_length=128)
+    takeover_own: bool = False
 
 
 class DeviceLeaseTokenIn(BaseModel):

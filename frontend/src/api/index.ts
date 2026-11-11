@@ -2296,7 +2296,7 @@ export const deviceApi = {
   list: (params?: { status_filter?: string }) =>
     http.get<unknown, DeviceItem[]>('/devices', { params }),
   workers: () => http.get<unknown, AndroidWorkerItem[]>('/devices/workers'),
-  acquireLease: (id: number, data?: { ttl_seconds?: number; owner_label?: string }) =>
+  acquireLease: (id: number, data?: { ttl_seconds?: number; owner_label?: string; takeover_own?: boolean }) =>
     http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease`, data ?? {}),
   heartbeatLease: (id: number, leaseToken: string, ttlSeconds?: number) =>
     http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease/heartbeat`, {
@@ -2311,8 +2311,16 @@ export const deviceApi = {
   update: (id: number, data: { name?: string; description?: string }) =>
     http.patch(`/devices/${id}`, data),
   delete: (id: number) => http.delete(`/devices/${id}`),
-  screenshot: (id: number) =>
-    http.get<unknown, Blob>(`/devices/${id}/screenshot`, { responseType: 'blob' }),
+  screenshot: (id: number, options?: { maxWidth?: number; format?: 'png' | 'jpeg' }) =>
+    http.get<unknown, Blob>(`/devices/${id}/screenshot`, {
+      responseType: 'blob',
+      params: options
+        ? {
+            ...(options.maxWidth ? { max_width: options.maxWidth } : {}),
+            ...(options.format ? { fmt: options.format } : {}),
+          }
+        : undefined,
+    }),
   tap: (id: number, data: { x: number; y: number }, leaseToken?: string | null) =>
     http.post(`/devices/${id}/tap`, data, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   uiTarget: (id: number, data: { x: number; y: number }) =>

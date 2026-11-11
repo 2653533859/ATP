@@ -9,12 +9,14 @@ POST /api/v1/devices/{device_id}/swipe       实时滑动
 
 import asyncio
 import base64
+import io
 import logging
 import re
 import subprocess
 from defusedxml import ElementTree as ET
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse, Response
+from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -117,6 +119,25 @@ def _adb_screenshot(serial: str, timeout: int = 10) -> bytes | None:
     except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
         logger.warning("adb screenshot failed for %s: %s", serial, e)
         return None
+
+
+def _encode_screenshot(data: bytes, max_width: int | None, fmt: str) -> tuple[bytes, str]:
+    """按需降采样/转码。截图轮询走 JPEG 540 宽时体积约为原 PNG 的 1/25，交互才跟手。"""
+    if not max_width and fmt == "png":
+        return data, "image/png"
+    try:
+        image = Image.open(io.BytesIO(data))
+    except Exception:
+        return data, "image/png"
+    if max_width and image.width > max_width:
+        height = max(1, round(image.height * (max_width / image.width)))
+        image = image.resize((max_width, height), Image.BILINEAR)
+    buffer = io.BytesIO()
+    if fmt == "jpeg":
+        image.convert("RGB").save(buffer, format="JPEG", quality=75)
+        return buffer.getvalue(), "image/jpeg"
+    image.save(buffer, format="PNG", compress_level=1)
+    return buffer.getvalue(), "image/png"
 
 
 def _adb_input(serial: str, *args: str, timeout: int = 10) -> bool:
@@ -231,17 +252,20 @@ async def _require_control_lease(db: AsyncSession, device_id: int, lease_token: 
 @router.get("/devices/{device_id}/screenshot")
 async def device_screenshot(
     device_id: int,
+    max_width: int | None = Query(default=None, ge=120, le=2160),
+    fmt: str = Query(default="png", pattern="^(png|jpeg)$"),
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """获取设备当前屏幕单帧截图（PNG）"""
+    """获取设备当前屏幕单帧截图；`max_width`/`fmt` 用于低带宽轮询（例如 JPEG 540 宽）。"""
     device = await _get_online_device(device_id, db)
 
     data = await _screenshot(device.serial)
     if not data:
         raise HTTPException(status_code=503, detail="截图失败，请检查设备连接")
 
-    return Response(content=data, media_type="image/png")
+    encoded, media_type = await asyncio.to_thread(_encode_screenshot, data, max_width, fmt)
+    return Response(content=encoded, media_type=media_type)
 
 
 @router.post("/devices/{device_id}/tap")
