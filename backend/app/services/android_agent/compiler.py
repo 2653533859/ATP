@@ -87,10 +87,14 @@ def _node_params(node: Any) -> dict[str, Any]:
     params: dict[str, Any] = {}
     resource_id = node.get("resource_id")
     text = node.get("text")
+    desc = node.get("content_desc")
     if isinstance(resource_id, str) and resource_id:
         params["resource_id"] = resource_id
     if isinstance(text, str) and text:
         params["locator"] = {"text": text, "strategy": "text_exact"}
+    elif isinstance(desc, str) and desc:
+        # 真机图标按钮常只有 content-desc，草稿需要保留这个稳定属性
+        params["locator"] = {"content_desc": desc, "strategy": "desc_exact"}
     return params
 
 
@@ -190,6 +194,7 @@ def compile_session_draft(
     goal: str,
     expected_outcome: str,
     events: Iterable[Any],
+    terminal_assertions: Iterable[Mapping[str, Any]] | None = None,
     restored_initial_state: bool = True,
 ) -> CompiledDraft:
     """把一个会话的事件序列编译成草稿版本（纯函数，可重复执行得到同一哈希）。"""
@@ -215,16 +220,21 @@ def compile_session_draft(
             continue
 
         seq = int(getattr(event, "seq", 0))
+        action_name = str(payload.get("action") or "").lower()
+        source_events.append({"seq": seq, "action": payload.get("action")})
+
+        # 终止建议轮（finish / request_help）不执行设备动作，action_status 记为
+        # not_executed 是正常的，不能据此判成失败步骤
+        if action_name in ("finish", "request_help"):
+            if action_name == "finish":
+                finish_expected = _normalize_expected(payload.get("expected"))
+            continue
+
         action_status = str(payload.get("action_status") or payload.get("status") or "succeeded")
         if action_status not in ("succeeded", "acted"):
             issues.append(
                 _issue("step_failed", f"步骤执行结果为 {action_status}", source_seq=seq, step_index=len(steps))
             )
-        source_events.append({"seq": seq, "action": payload.get("action")})
-
-        if str(payload.get("action") or "").lower() == "finish":
-            finish_expected = _normalize_expected(payload.get("expected"))
-            continue
 
         step, step_issues = _compile_step({**dict(payload), "source_seq": seq}, step_index=len(steps))
         issues.extend(step_issues)
@@ -241,9 +251,21 @@ def compile_session_draft(
             )
         )
 
-    if finish_expected is not None:
+    # 终态断言只认用户确认的成功条件：模型提出的 finish 仅是建议，不能当通过依据
+    for raw in terminal_assertions or []:
+        normalized = _normalize_expected(raw)
+        if normalized is not None:
+            assertions.append(normalized)
+    if not assertions and finish_expected is not None:
+        # 兼容旧轨迹：没有任何用户确认时，退回轨迹里记录的建议值并明确标注
         assertions.append(finish_expected)
-    else:
+        issues.append(
+            _issue(
+                "assertion_not_user_confirmed",
+                "终态断言取自轨迹建议值，未经用户确认，回放通过不计为验证",
+            )
+        )
+    if not assertions:
         issues.append(_issue("missing_final_assertion", "缺少用户确认的终态断言，不能自动回放"))
 
     # 无条件：启动应用固定为第一步，由任务配置决定，不由模型选择

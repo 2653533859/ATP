@@ -42,6 +42,8 @@ class AndroidAgentSession(Base, TimestampMixin):
     total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     context_values: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    # 用户确认的终态断言：模型不能定义成功，只能提出 finish 建议
+    terminal_assertions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

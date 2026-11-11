@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.api.v1.android_agent as android_agent_api
 from app.api.v1.android_agent import (
+    complete_agent_session,
     create_agent_draft,
     get_agent_draft,
     get_agent_replay,
@@ -35,6 +36,7 @@ from app.models.case import TestCase, TestRun
 from app.models.project import Module, Project
 from app.models.user import User
 from app.schemas.android_agent import (
+    AgentCompleteRequest,
     AgentDraftCreateRequest,
     AgentDraftPatchRequest,
     AgentReplayStartRequest,
@@ -179,6 +181,8 @@ async def _seed_session(factory, *, project_id: int = 1, status_value: str = "co
             package_name=PACKAGE,
             status=status_value,
             controller="agent",
+            # 用户确认的终态断言：草稿只能从这里取得回放依据
+            terminal_assertions=[{"type": "element_visible", "resource_id": f"{PACKAGE}:id/product_stock"}],
         )
         db.add(session)
         await db.flush()
@@ -203,6 +207,7 @@ def test_compile_success_trajectory_to_replayable_draft():
         goal="搜索商品并打开详情",
         expected_outcome="详情页商品名称等于 测试商品",
         events=events,
+        terminal_assertions=[{"type": "element_visible", "resource_id": f"{PACKAGE}:id/product_stock"}],
     )
 
     assert result.schema_version == DRAFT_SCHEMA_VERSION
@@ -249,6 +254,7 @@ def test_compile_failed_trajectory_keeps_blocking_issues():
         goal="搜索商品",
         expected_outcome="详情页可见",
         events=events,
+        terminal_assertions=[{"type": "element_visible", "resource_id": f"{PACKAGE}:id/detail"}],
     )
 
     assert result.replayable is False
@@ -265,6 +271,85 @@ def test_compile_is_deterministic_and_hashes_content():
     second = compile_session_draft(session_id=1, package_name=PACKAGE, goal="g", expected_outcome="e", events=events)
     assert first.content_hash == second.content_hash
     assert len(first.content_hash) == 64
+
+
+def test_finish_event_is_not_a_failed_step():
+    """finish 是终止建议，action_status=not_executed 是正常的，不能判成失败步骤。"""
+    events = [SimpleNamespace(**item) for item in _trajectory_events()]
+    events.insert(
+        6,
+        SimpleNamespace(
+            seq=70,
+            event_type="step_executed",
+            payload={
+                "observation_id": "obs-5",
+                "action": "finish",
+                "action_status": "not_executed",
+                "expected": {"type": "element_visible", "resource_id": f"{PACKAGE}:id/product_stock"},
+            },
+        ),
+    )
+    result = compile_session_draft(session_id=1, package_name=PACKAGE, goal="g", expected_outcome="e", events=events)
+    codes = {issue["code"] for issue in result.blocking_issues}
+    assert "step_failed" not in codes
+
+
+def test_user_confirmed_assertion_is_the_only_passing_basis():
+    """终态断言只认用户确认值；模型 finish 的建议值不能直接让草稿可回放。"""
+    events = [SimpleNamespace(**item) for item in _trajectory_events()]
+    events.insert(
+        6,
+        SimpleNamespace(
+            seq=70,
+            event_type="step_executed",
+            payload={
+                "observation_id": "obs-5",
+                "action": "finish",
+                "action_status": "not_executed",
+                "expected": {"type": "element_visible", "resource_id": f"{PACKAGE}:id/model_suggested"},
+            },
+        ),
+    )
+    confirmed = [{"type": "element_visible", "resource_id": f"{PACKAGE}:id/user_confirmed"}]
+    result = compile_session_draft(
+        session_id=1,
+        package_name=PACKAGE,
+        goal="g",
+        expected_outcome="e",
+        events=events,
+        terminal_assertions=confirmed,
+    )
+    assert result.replayable is True
+    assert result.assertions == confirmed
+
+
+def test_trajectory_suggested_assertion_is_flagged_when_unconfirmed():
+    """没有用户确认时退回轨迹建议值，但必须显式标注未经确认。"""
+    events = [SimpleNamespace(**item) for item in _trajectory_events()]
+    events.insert(
+        6,
+        SimpleNamespace(
+            seq=70,
+            event_type="step_executed",
+            payload={
+                "observation_id": "obs-5",
+                "action": "finish",
+                "action_status": "not_executed",
+                "expected": {"type": "element_visible", "resource_id": f"{PACKAGE}:id/suggested"},
+            },
+        ),
+    )
+    result = compile_session_draft(session_id=1, package_name=PACKAGE, goal="g", expected_outcome="e", events=events)
+    assert result.replayable is False
+    assert "assertion_not_user_confirmed" in {issue["code"] for issue in result.blocking_issues}
+
+
+def test_missing_assertion_blocks_replay():
+    events = [SimpleNamespace(**item) for item in _trajectory_events()]
+    result = compile_session_draft(session_id=1, package_name=PACKAGE, goal="g", expected_outcome="e", events=events)
+    assert result.replayable is False
+    # 轨迹里的 finish 建议值不算用户确认，必须显式标注
+    assert "assertion_not_user_confirmed" in {issue["code"] for issue in result.blocking_issues}
 
 
 # ---------------- A30/A31 API：创建与版本 ----------------
@@ -594,5 +679,89 @@ async def test_api_draft_project_isolation(tmp_path: Path):
             with pytest.raises(HTTPException) as exc_info:
                 await get_agent_draft(project_id=2, draft_id=draft.id, db=db, current_user=user)
             assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_complete_endpoint_requires_structured_assertions(tmp_path: Path):
+    """finish 只是建议：没有结构化终态断言时必须拒绝收敛。"""
+    engine, factory, user = await _setup_db(tmp_path, tag="complete-guard")
+    try:
+        session_id = await _seed_session(factory, status_value="paused")
+        async with factory() as db:
+            with pytest.raises(HTTPException) as exc_info:
+                await complete_agent_session(
+                    payload=AgentCompleteRequest(terminal_assertion_confirmed=True, terminal_assertions=[]),
+                    project_id=1,
+                    session_id=session_id,
+                    db=db,
+                    current_user=user,
+                )
+            assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+            assert "terminal_assertions_required" in str(exc_info.value.detail)
+
+            with pytest.raises(HTTPException) as exc_info2:
+                await complete_agent_session(
+                    payload=AgentCompleteRequest(
+                        terminal_assertion_confirmed=False,
+                        terminal_assertions=[{"type": "element_visible", "resource_id": "a:id/b"}],
+                    ),
+                    project_id=1,
+                    session_id=session_id,
+                    db=db,
+                    current_user=user,
+                )
+            assert exc_info2.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_complete_endpoint_converges_paused_session(tmp_path: Path):
+    """paused（needs_review）经用户确认后可收敛为 completed，并释放租约。"""
+    engine, factory, user = await _setup_db(tmp_path, tag="complete-ok")
+    try:
+        session_id = await _seed_session(factory, status_value="paused")
+        async with factory() as db:
+            session = await db.get(AndroidAgentSession, session_id)
+            session.lease_token = "lease-token-1"
+            await db.commit()
+
+            result = await complete_agent_session(
+                payload=AgentCompleteRequest(
+                    terminal_assertion_confirmed=True,
+                    terminal_assertions=[{"type": "element_visible", "resource_id": "a:id/result"}],
+                    summary="用户确认",
+                ),
+                project_id=1,
+                session_id=session_id,
+                db=db,
+                current_user=user,
+            )
+            assert result.status == "completed"
+            assert result.terminal_assertions == [{"type": "element_visible", "resource_id": "a:id/result"}]
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_complete_endpoint_rejects_terminal_state(tmp_path: Path):
+    engine, factory, user = await _setup_db(tmp_path, tag="complete-terminal")
+    try:
+        session_id = await _seed_session(factory, status_value="completed")
+        async with factory() as db:
+            with pytest.raises(HTTPException) as exc_info:
+                await complete_agent_session(
+                    payload=AgentCompleteRequest(
+                        terminal_assertion_confirmed=True,
+                        terminal_assertions=[{"type": "element_visible", "resource_id": "a:id/b"}],
+                    ),
+                    project_id=1,
+                    session_id=session_id,
+                    db=db,
+                    current_user=user,
+                )
+            assert exc_info.value.status_code == status.HTTP_409_CONFLICT
     finally:
         await engine.dispose()

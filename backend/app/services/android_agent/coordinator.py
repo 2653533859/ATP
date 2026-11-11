@@ -75,6 +75,8 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
     },
     AgentSessionStatus.paused.value: {
         AgentSessionStatus.running.value,
+        # 用户在 needs_review 状态下确认 finish 建议与终态断言后收敛
+        AgentSessionStatus.completed.value,
         AgentSessionStatus.failed.value,
         AgentSessionStatus.cancelled.value,
     },
@@ -443,13 +445,24 @@ class AgentCoordinator:
         session_id: int,
         summary: str = "",
         outcome: str = "success",
+        terminal_assertions: list[dict[str, Any]] | None = None,
     ) -> AndroidAgentSession:
+        """收敛会话为 completed；`terminal_assertions` 是用户确认的终态断言。
+
+        断言必须显式给出：M3 草稿编译只从会话取用户确认的成功条件，模型提出的
+        finish 仅是建议，不能作为回放通过的依据。
+        """
         session = await self.get_session(db, session_id)
         if session.status in TERMINAL_STATUSES:
             return session
 
+        assertions = list(terminal_assertions or session.terminal_assertions or [])
+        if not assertions:
+            raise AgentCoordinatorError("terminal_assertions_required: 未提供用户确认的终态断言")
+
         self.validate_transition(session.status, AgentSessionStatus.completed.value)
         session.status = AgentSessionStatus.completed.value
+        session.terminal_assertions = assertions
         session.finished_at = _now()
         session.version += 1
 
@@ -462,7 +475,7 @@ class AgentCoordinator:
             db,
             session.id,
             event_type="session_completed",
-            payload={"summary": summary, "outcome": outcome},
+            payload={"summary": summary, "outcome": outcome, "terminal_assertions": assertions},
         )
         return session
 

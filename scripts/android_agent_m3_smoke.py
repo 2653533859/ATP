@@ -34,9 +34,7 @@ def main() -> int:
     from app.main import app
 
     schema = app.openapi()
-    available = {
-        (method.lower(), path) for path, operations in schema["paths"].items() for method in operations
-    }
+    available = {(method.lower(), path) for path, operations in schema["paths"].items() for method in operations}
     missing = sorted(EXPECTED_ROUTES - available)
     if missing:
         print(json.dumps({"ok": False, "missing": missing}, ensure_ascii=False, indent=2))
@@ -48,7 +46,11 @@ def main() -> int:
         print(json.dumps({"ok": False, "reason": "publish 缺少 Idempotency-Key 头"}, ensure_ascii=False))
         return 1
 
-    print(json.dumps({"ok": True, "routes": len(EXPECTED_ROUTES), "openapi_version": schema.get("openapi")}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {"ok": True, "routes": len(EXPECTED_ROUTES), "openapi_version": schema.get("openapi")}, ensure_ascii=False
+        )
+    )
     return 0
 
 

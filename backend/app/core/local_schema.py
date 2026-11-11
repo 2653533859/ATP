@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 21
+CURRENT_LOCAL_SCHEMA_VERSION = 22
 
 
 def _create_sync_outbox(connection: Connection) -> None:
@@ -693,6 +693,18 @@ def _create_android_agent_draft_replay_tables(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[21] = _create_android_agent_draft_replay_tables
+
+
+def _add_android_agent_terminal_assertions(connection: Connection) -> None:
+    """v22：会话增加用户确认的终态断言列（对应 Alembic 20261111_0089）。"""
+    columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(android_agent_sessions)")}
+    if "terminal_assertions" not in columns:
+        connection.exec_driver_sql(
+            "ALTER TABLE android_agent_sessions ADD COLUMN terminal_assertions JSON NOT NULL DEFAULT '[]'"
+        )
+
+
+LOCAL_MIGRATIONS[22] = _add_android_agent_terminal_assertions
 
 
 def _read_version(connection: Connection) -> int:

@@ -14,7 +14,9 @@
   - API：`/api/v1/projects/{project_id}/android-agent` 提供创建/启动/查询/控制/人工动作/事件流 6 个端点，鉴权走 `assert_project_access`（viewer 只读、editor 操作）。
   - 最小控制页：本次新增 `frontend/src/views/workbench/AndroidAgentPanel.vue`，挂在 APP 工作台，提供表单、控制栏（暂停/接管/恢复/取消，带版本号乐观并发）、轨迹事件列表、草稿与回放入口；6 项组件单测通过。
   - 模型循环接入（2026-11-11）：新增 `services/android_agent/loop.py`，由持久协调器驱动"观察→模型→校验→再查代次与租约→执行→验证→写事件"，并开放 `POST /sessions/{id}/run` 与控制页"执行一轮"。未知结果不重发、暂停作废旧决策、重启不自动继续均有回归覆盖（循环 10 项 + 装配 4 项）。人工动作改为 `prepared` 并经 `dispatch_prepared_command` 门禁，接管控制器统一为 `manual`，恢复错误码统一为 `system_restarted_needs_review`。
-  - 未完成：循环**尚无真机/模拟器实跑证据**（单测全部使用模型替身），"目标→真实操作→验证→轨迹"真实闭环未验收，M2 门槛仍未达成。
+  - **真机闭环（2026-11-11 已达成）**：在 OPPO R11（`b01ac8cb`，Android 9）上完成"目标→真实操作→验证→轨迹"闭环：5 次真实点击全部 `succeeded`，独立断言确认屏幕显示 `15`，轨迹完整落库；设备租约互斥与写门禁均生效。现场库副本 v16→v22 升级通过。见[真机验收证据](docs/evidence/android-agent-m2-real-device-20261111.md)。
+  - 真机验证暴露并修复 7 个缺陷，其中 5 个是 **M2 与 M3 之间的集成断裂**：`complete_session` 全仓库无调用者（会话永远到不了 completed）、状态机缺 `paused→completed`、终态断言错误依赖模型 `finish.expected`（契约禁止模型定义成功）、`finish` 的 `not_executed` 被误判为失败步骤、轨迹建议值可直接充当断言。现已新增 `POST /sessions/{id}/complete` 与 `terminal_assertions` 列（迁移 `20261111_0089`、本地 SQLite v22），断言只能由用户确认写入。
+  - 未完成：**视觉模型决策未验证**（库中模型凭据由第三个 `APP_SECRET_KEY` 加密，现有密钥均无法解密），本轮模型输出由读取真实观察的确定性规划器替代；真机回放执行、模拟器矩阵、PostgreSQL 亦未验证。
 - [~] M3 / A30–A33（代码完成，真机回放待补）：
   - A30 轨迹编译：`services/android_agent/compiler.py` 把 `step_executed` 事件序列编译成低代码步骤，保留 `source_seq` 来源映射，输入参数只保留 `${var}` 引用不写明文，启动应用固定为注入的第一步；无法证明可自动转换的步骤进入 `needs_manual_review` 并生成阻断项。
   - A31 草稿版本：`android_agent_drafts` 表按 `(session_id, version)` 与 `(session_id, content_hash)` 唯一，编辑走 `PATCH /drafts/{id}` 生成新版本，`expected_version` 冲突返回 409，旧版本内容不变。

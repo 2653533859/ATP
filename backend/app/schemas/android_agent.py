@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -100,6 +100,7 @@ class AgentSessionResponse(BaseModel):
     total_tokens: int
     error_code: Optional[str]
     context_values: dict[str, Any]
+    terminal_assertions: list[dict[str, Any]] = Field(default_factory=list)
     started_at: Optional[datetime]
     finished_at: Optional[datetime]
     created_at: datetime
@@ -279,3 +280,26 @@ class AgentRunResultResponse(BaseModel):
     steps: int = 0
     model_calls: int = 0
     tokens: int = 0
+
+
+# ---- Completion confirmation (A22) ----
+
+
+class AgentAssertion(BaseModel):
+    """用户确认的终态断言；只有它能让草稿变成可回放。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["element_visible", "element_absent"]
+    resource_id: str = Field(..., min_length=1, max_length=512)
+
+
+class AgentCompleteRequest(BaseModel):
+    """会话收敛请求：finish 只是建议，必须由用户确认终态断言。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    terminal_assertion_confirmed: bool
+    terminal_assertions: list[AgentAssertion] = Field(default_factory=list)
+    summary: str = Field(default="", max_length=500)
+    outcome: Literal["success", "partial"] = "success"

@@ -26,6 +26,7 @@ from app.models.device import Device, DeviceStatus
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.schemas.android_agent import (
+    AgentCompleteRequest,
     AgentControlRequest,
     AgentControlResponse,
     AgentDraftCreateRequest,
@@ -282,6 +283,53 @@ def _build_device_adapter(device: Device, package_name: str) -> Any:
 
 
 @router.post(
+    "/sessions/{session_id}/complete",
+    response_model=AgentSessionResponse,
+    summary="用户确认终态断言后收敛会话（finish 建议不自动等于成功）",
+)
+async def complete_agent_session(
+    payload: AgentCompleteRequest,
+    project_id: int = Path(..., ge=1),
+    session_id: int = Path(..., ge=1),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AndroidAgentSession:
+    await assert_project_access(db, current_user, project_id, ProjectRole.editor)
+    session = await _get_project_session(db, project_id, session_id)
+    if not payload.terminal_assertion_confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="必须确认终态断言（成功条件已在设备上验证）后才能收敛会话",
+        )
+    if not payload.terminal_assertions:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="terminal_assertions_required: 至少提供一条结构化终态断言",
+        )
+    if session.status not in (
+        AgentSessionStatus.paused.value,
+        AgentSessionStatus.running.value,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"agent_complete_rejected: 会话状态 {session.status} 不可收敛",
+        )
+    try:
+        completed = await coordinator.complete_session(
+            db,
+            session_id,
+            summary=payload.summary or "用户确认终态断言",
+            outcome=payload.outcome,
+            terminal_assertions=[item.model_dump() for item in payload.terminal_assertions],
+        )
+        await db.commit()
+        await db.refresh(completed)
+        return completed
+    except InvalidStateTransitionError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.post(
     "/sessions/{session_id}/run",
     response_model=AgentRunResultResponse,
     summary="驱动模型循环执行一轮会话（阻塞至收敛）",
@@ -444,6 +492,7 @@ async def create_agent_draft(
         goal=session.goal,
         expected_outcome=session.expected_outcome,
         events=events,
+        terminal_assertions=session.terminal_assertions or [],
         restored_initial_state=request.restored_initial_state,
     )
 

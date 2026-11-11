@@ -84,8 +84,13 @@ async def _record_model_usage(
     model_calls: int,
     tokens: int,
     outcome: str,
+    expected: dict[str, Any] | None = None,
 ) -> None:
-    """未执行设备动作的终止轮次也要记账，否则用量与成本报告会偏低。"""
+    """未执行设备动作的终止轮次也要记账，否则用量与成本报告会偏低。
+
+    `finish` 提出的终态断言必须随事件落库：M3 草稿编译只能从轨迹里取用户确认的
+    成功条件，丢失它会让草稿永远缺 `missing_final_assertion`。
+    """
     async with session_factory() as db:
         await coordinator.record_step_progress(
             db,
@@ -97,6 +102,7 @@ async def _record_model_usage(
                 "observation_id": observation_id,
                 "action": outcome,
                 "action_status": "not_executed",
+                "expected": expected or {},
             },
         )
         await db.commit()
@@ -141,9 +147,18 @@ class LoopResult:
 
 
 def _target_for(node: Any) -> UiTarget:
-    """文本只在完整且可辨识时进入选择器，绝不使用坐标兜底。"""
+    """文本/描述只在完整且可辨识时进入选择器，绝不使用坐标兜底。
+
+    真机图标按钮常常只有 content-desc，因此 text 为空时回落到描述。
+    """
     text = node.text if getattr(node, "text", "") and not getattr(node, "text_truncated", False) else ""
-    return UiTarget(getattr(node, "resource_id", ""), text)
+    desc = (
+        getattr(node, "content_desc", "")
+        if getattr(node, "content_desc", "") and not getattr(node, "desc_truncated", False)
+        else ""
+    )
+    # 文本与描述同时存在时只用文本，避免把两个条件叠加成无法匹配的复合选择器
+    return UiTarget(getattr(node, "resource_id", ""), text, "" if text else desc)
 
 
 def _budget_exhausted(session: AndroidAgentSession) -> bool:
@@ -428,6 +443,7 @@ async def run_agent_session(
                 model_calls=decision_calls,
                 tokens=tokens,
                 outcome=_action_name(decision),
+                expected=_expected_payload(decision),
             )
             return await _finish(
                 reason,

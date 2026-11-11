@@ -19,32 +19,54 @@ class DeviceAdapterError(ValueError):
 
 @dataclass(frozen=True)
 class UiTarget:
-    """Exact-match target; never substring-matched against the raw XML."""
+    """Exact-match target; never substring-matched against the raw XML.
+
+    真机上大量图标按钮只有 content-desc（如计算器的「加/减/乘/除/等于」），
+    因此定位必须同时支持 resource_id、text 与 content_desc 三种稳定属性。
+    """
 
     resource_id: str = ""
     text: str = ""
+    content_desc: str = ""
 
     def __post_init__(self) -> None:
-        if not self.resource_id and not self.text:
+        if not self.resource_id and not self.text and not self.content_desc:
             raise DeviceAdapterError("empty_target")
 
     def matches(self, node: UiNode) -> bool:
         if node.text_truncated and self.text:
             return False
-        return (not self.resource_id or node.resource_id == self.resource_id) and (
-            not self.text or node.text == self.text
+        if getattr(node, "desc_truncated", False) and self.content_desc:
+            return False
+        return (
+            (not self.resource_id or node.resource_id == self.resource_id)
+            and (not self.text or node.text == self.text)
+            and (not self.content_desc or node.content_desc == self.content_desc)
         )
 
     def rpc_selector(self) -> dict[str, Any]:
-        # Mask bits match uiautomator2 3.2.1: text=0x01, resourceId=0x200000.
+        # Mask bits match uiautomator2 3.2.1: text=0x01, description=0x40, resourceId=0x200000.
         selector: dict[str, Any] = {"mask": 0, "childOrSibling": [], "childOrSiblingSelector": []}
         if self.text:
             selector["mask"] |= 0x01
             selector["text"] = self.text
+        if self.content_desc:
+            selector["mask"] |= 0x40
+            selector["description"] = self.content_desc
         if self.resource_id:
             selector["mask"] |= 0x200000
             selector["resourceId"] = self.resource_id
         return selector
+
+    def describe(self) -> str:
+        parts = []
+        if self.resource_id:
+            parts.append(f"resource_id={self.resource_id}")
+        if self.text:
+            parts.append(f"text={self.text}")
+        if self.content_desc:
+            parts.append(f"content_desc={self.content_desc}")
+        return " ".join(parts)
 
 
 class Transport(Protocol):

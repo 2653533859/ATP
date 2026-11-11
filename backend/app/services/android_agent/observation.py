@@ -48,6 +48,7 @@ class UiNode:
     clickable: bool
     redacted: bool
     text_truncated: bool = False
+    desc_truncated: bool = False
 
 
 @dataclass(frozen=True)
@@ -178,6 +179,7 @@ def parse_hierarchy(xml: bytes, *, width: int, height: int) -> list[UiNode]:
                 clickable=attrs.get("clickable") == "true",
                 redacted=sensitive,
                 text_truncated=len(attrs.get("text", "")) > 512,
+                desc_truncated=len(attrs.get("content-desc", "")) > 512,
             )
         )
         stack.extend((child, node_id, depth + 1, sensitive) for child in reversed(list(element)))

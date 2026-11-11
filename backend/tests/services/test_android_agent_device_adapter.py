@@ -179,3 +179,62 @@ def test_unreviewed_dependency_version_is_rejected(monkeypatch):
     monkeypatch.setattr(importlib.metadata, "version", lambda name: "3.3.0")
     with pytest.raises(DeviceAdapterError, match="^unsupported_uiautomator_version$"):
         UiautomatorTransport(object())
+
+
+def test_ui_target_supports_content_desc_locator():
+    """真机图标按钮常常只有 content-desc，定位器必须支持它。"""
+    from app.services.android_agent.device_adapter import UiTarget
+    from app.services.android_agent.observation import UiNode
+
+    node = UiNode(
+        node_id="n1",
+        parent_id=None,
+        resource_id="com.demo:id/op_add",
+        text="",
+        content_desc="加",
+        class_name="android.widget.Button",
+        bounds=(0, 0, 10, 10),
+        enabled=True,
+        clickable=True,
+        redacted=False,
+    )
+    target = UiTarget(resource_id="com.demo:id/op_add", content_desc="加")
+    assert target.matches(node) is True
+
+    # 描述不一致时不得匹配
+    assert UiTarget(resource_id="com.demo:id/op_add", content_desc="减").matches(node) is False
+    # 截断的描述不得用于精确匹配
+    truncated = UiNode(
+        node_id="n2",
+        parent_id=None,
+        resource_id="com.demo:id/op_add",
+        text="",
+        content_desc="加",
+        class_name="android.widget.Button",
+        bounds=(0, 0, 10, 10),
+        enabled=True,
+        clickable=True,
+        redacted=False,
+        desc_truncated=True,
+    )
+    assert target.matches(truncated) is False
+
+
+def test_ui_target_selector_mask_includes_description():
+    """mask 必须包含 description(0x40)，否则 RPC 会按纯 resourceId 匹配到多个节点。"""
+    from app.services.android_agent.device_adapter import UiTarget
+
+    selector = UiTarget(resource_id="com.demo:id/op_add", content_desc="加").rpc_selector()
+    assert selector["mask"] & 0x40
+    assert selector["mask"] & 0x200000
+    assert selector["description"] == "加"
+    assert selector["resourceId"] == "com.demo:id/op_add"
+
+
+def test_ui_target_rejects_empty_and_describes_itself():
+    from app.services.android_agent.device_adapter import DeviceAdapterError, UiTarget
+
+    with pytest.raises(DeviceAdapterError):
+        UiTarget()
+    described = UiTarget(content_desc="等于").describe()
+    assert "content_desc=等于" in described
