@@ -1,7 +1,6 @@
 <template>
   <a-modal
     v-model:open="visible"
-    :title="title"
     :width="mirrorModalWidth"
     centered
     :footer="null"
@@ -41,6 +40,20 @@
     </template>
 
     <div class="mirror-workspace">
+      <a-alert
+        v-if="!hasControlLease && leaseError"
+        class="mirror-lease-alert"
+        type="warning"
+        show-icon
+        :message="`当前无法控制设备：${leaseError}`"
+        description="设备可能正被其他任务或另一位用户占用。可稍后重试；若长时间占用，请在设备管理中确认来源后再接管。"
+      >
+        <template #action>
+          <a-button size="small" :loading="leaseAcquiring" @click="acquireInteractiveLease(false)">
+            重试获取控制权
+          </a-button>
+        </template>
+      </a-alert>
       <!-- 手机外框与屏幕容器 -->
       <div
         class="mirror-phone-frame"
@@ -50,7 +63,13 @@
         }"
       >
         <div v-if="!isLandscapeMirror" class="phone-earpiece-notch"></div>
-        <div class="mirror-screen-wrapper" :class="{ 'wrapper-landscape': isLandscapeMirror }">
+        <div
+          class="mirror-screen-wrapper"
+          :class="{
+            'wrapper-landscape': isLandscapeMirror,
+            'wrapper-empty': !isScrcpyLive && !mirrorSrc,
+          }"
+        >
           <canvas
             ref="scrcpyCanvasRef"
             v-show="isScrcpyLive"
@@ -262,7 +281,9 @@ const visible = computed({
 const title = computed(() => {
   const d = props.device
   if (!d) return '设备投屏'
-  const brandModel = `${d.brand ?? ''} ${d.model ?? d.name ?? ''}`.trim()
+  const model = (d.model || d.name || '').trim()
+  const brand = (d.brand || '').trim()
+  const brandModel = model.toLowerCase().startsWith(brand.toLowerCase()) ? model : `${brand} ${model}`.trim()
   return brandModel ? `设备投屏 · ${brandModel}` : `设备投屏 · ${d.serial}`
 })
 
@@ -275,10 +296,12 @@ function getAuthToken(): string {
 }
 const internalLeaseToken = ref<string | null>(null)
 const leaseAcquiring = ref(false)
+const leaseError = ref('')
 const leaseExpiresAt = ref<number | null>(null)
 const leaseRemainingSeconds = ref(0)
 let leaseCountdownTimer: ReturnType<typeof setInterval> | null = null
 let leaseHeartbeatTimer: ReturnType<typeof setInterval> | null = null
+let leaseRequestInFlight = false
 
 const effectiveLeaseToken = computed(() => {
   return props.leaseToken || internalLeaseToken.value || null
@@ -303,8 +326,10 @@ const leaseTooltip = computed(() => {
 })
 
 async function acquireInteractiveLease(silent = false) {
-  if (!props.device) return
+  if (!props.device || hasControlLease.value || leaseRequestInFlight) return
+  leaseRequestInFlight = true
   leaseAcquiring.value = true
+  leaseError.value = ''
   try {
     const res = await deviceApi.acquireLease(props.device.id, {
       ttl_seconds: 600,
@@ -317,8 +342,12 @@ async function acquireInteractiveLease(silent = false) {
     }
   } catch (err: any) {
     const detail = err?.response?.data?.detail || err?.message || '设备可能正被其他任务占用'
-    message.warning(`获取控制权失败: ${detail}`)
+    leaseError.value = String(detail)
+    if (!silent) {
+      message.warning(`获取控制权失败: ${detail}`)
+    }
   } finally {
+    leaseRequestInFlight = false
     leaseAcquiring.value = false
   }
 }
@@ -347,6 +376,7 @@ function startLeaseHeartbeat(ttl = 600) {
     } catch {
       stopLeaseHeartbeat()
       internalLeaseToken.value = null
+      leaseError.value = '设备租约续期失败，可能已被收回'
     }
   }, 25000)
 }
@@ -1043,6 +1073,20 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: #000;
 }
+.mirror-screen-wrapper.wrapper-empty {
+  width: min(300px, 60vw);
+  aspect-ratio: 9 / 16;
+  max-height: 44vh;
+}
+.mirror-screen-wrapper.wrapper-empty.wrapper-landscape {
+  width: min(420px, 72vw);
+  aspect-ratio: 16 / 9;
+  max-height: 40vh;
+}
+.mirror-lease-alert {
+  width: 100%;
+  text-align: left;
+}
 .mirror-img {
   max-width: 100%;
   object-fit: contain;
@@ -1148,6 +1192,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 4px;
   padding-top: 6px;

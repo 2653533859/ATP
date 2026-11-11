@@ -245,7 +245,7 @@
           <template v-if="column.key === 'action'">
             <a-space>
               <a-button
-                v-if="record.status === 'online'"
+                v-if="record.status !== 'offline'"
                 type="link"
                 size="small"
                 @click="openMirror(asDevice(record))"

@@ -66,11 +66,19 @@ const modalStub = defineComponent({
     return () =>
       props.open
         ? h('div', { class: 'ant-modal', 'data-title': props.title, 'data-width': props.width }, [
+            h('div', { class: 'ant-modal-title' }, slots.title ? slots.title() : props.title),
             h('button', { class: 'modal-close', onClick: () => emit('cancel') }, 'close'),
             slots.default?.(),
           ])
         : null
   },
+})
+
+const alertStub = defineComponent({
+  name: 'AAlert',
+  props: ['message', 'description', 'type'],
+  setup: (props, { slots }) => () =>
+    h('div', { class: 'alert-stub' }, [props.message, props.description, slots.action?.()]),
 })
 
 const passthrough = (name: string) =>
@@ -88,6 +96,7 @@ function mountModal(props: { open: boolean; device: any; recordable?: boolean; l
         ARadioButton: passthrough('ARadioButton'),
         ATag: passthrough('ATag'),
         ASpace: passthrough('ASpace'),
+        AAlert: alertStub,
         AInput: defineComponent({
           name: 'AInput',
           props: ['value'],
@@ -207,7 +216,7 @@ describe('DeviceMirrorModal', () => {
 
     const modal = wrapper.find('.ant-modal')
     expect(modal.exists()).toBe(true)
-    expect(modal.attributes('data-title')).toContain('rk3588')
+    expect(wrapper.find('.ant-modal-title').text()).toContain('rk3588')
 
     // 检查快捷导航栏按钮（Back, Home, Recents, Power, Vol+, Vol-）
     const navButtons = wrapper.findAll('.nav-key-btn')
@@ -253,10 +262,13 @@ describe('DeviceMirrorModal', () => {
     const wrapper = mountModal({ open: true, device })
     await flushPromises()
 
+    expect(acquireLeaseMock).toHaveBeenCalledTimes(1)
     expect(acquireLeaseMock).toHaveBeenCalledWith(5, {
       ttl_seconds: 600,
       owner_label: '投屏控制',
     })
+    expect(wrapper.find('.ant-modal-title').text()).toContain('设备投屏 · OPPO R11')
+    expect(wrapper.find('.header-lease-tag').text()).toContain('控制权已生效')
 
     const navButtons = wrapper.findAll('.nav-key-btn')
     await navButtons[0].trigger('click')
@@ -268,6 +280,22 @@ describe('DeviceMirrorModal', () => {
     await flushPromises()
 
     expect(releaseLeaseMock).toHaveBeenCalledWith(5, 'auto-test-lease')
+    wrapper.unmount()
+  })
+
+  it('shows the lease conflict reason inline instead of only a toast', async () => {
+    const device = { id: 6, serial: 'DEV-6', brand: 'OPPO', model: 'OPPO R11', status: 'online' }
+    acquireLeaseMock.mockRejectedValueOnce({
+      response: { data: { detail: '设备已被其他任务占用' } },
+    })
+
+    const wrapper = mountModal({ open: true, device })
+    await flushPromises()
+
+    const alert = wrapper.find('.mirror-lease-alert')
+    expect(alert.exists()).toBe(true)
+    expect(alert.text()).toContain('设备已被其他任务占用')
+    expect(wrapper.find('.header-lease-tag').text()).toContain('只读模式')
     wrapper.unmount()
   })
 
