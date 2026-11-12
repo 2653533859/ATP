@@ -1,9 +1,10 @@
 <template>
   <section class="agent-panel panel" data-testid="android-agent-panel">
-    <div class="panel-head compact-head">
-      <div>
+    <header class="panel-head compact-head">
+      <div class="panel-title-block">
         <div class="panel-kicker">{{ t('android_agent.kicker') }}</div>
         <h2>{{ t('android_agent.title') }}</h2>
+        <p class="agent-description">{{ t('android_agent.description') }}</p>
       </div>
       <div class="agent-head-actions">
         <a-select
@@ -19,12 +20,16 @@
             {{ s.title }} (#{{ s.id }})
           </a-select-option>
         </a-select>
-        <a-button size="small" :loading="loading" @click="refreshAll">
+        <a-button
+          size="small"
+          :loading="loading"
+          :aria-label="t('android_agent.refresh')"
+          @click="refreshAll"
+        >
           <ReloadOutlined /> {{ t('android_agent.refresh') }}
         </a-button>
       </div>
-    </div>
-    <p class="agent-description">{{ t('android_agent.description') }}</p>
+    </header>
 
     <a-alert
       v-if="errorMessage"
@@ -40,29 +45,47 @@
       <span>{{ t('android_agent.empty_session') }}</span>
     </div>
 
-    <div class="agent-form">
-      <div class="agent-form-grid">
-        <div class="form-group">
-          <label>{{ t('android_agent.device_label') }}</label>
+    <section class="agent-setup" :aria-label="t('android_agent.setup_title')">
+      <div class="section-head">
+        <span class="section-index tabular-nums">01</span>
+        <div class="section-heading">
+          <strong>{{ t('android_agent.setup_title') }}</strong>
+          <span>{{ t('android_agent.setup_note') }}</span>
+        </div>
+      </div>
+
+      <div class="setup-fields">
+        <div class="field field-device">
+          <label :for="'agent-device-select'">{{ t('android_agent.device_label') }}</label>
           <a-select
+            id="agent-device-select"
             v-model:value="formDeviceId"
             :options="deviceOptions"
             :placeholder="t('app_workbench.device_placeholder')"
             size="small"
+            class="field-control"
           />
         </div>
-        <div class="form-group">
-          <label>{{ t('android_agent.package_label') }}</label>
-          <div class="agent-package-row">
+
+        <div class="field field-package">
+          <label :for="'agent-package-input'">{{ t('android_agent.package_label') }}</label>
+          <div class="package-control">
             <a-auto-complete
+              id="agent-package-input"
               v-model:value="formPackage"
               :options="packageOptions"
               :placeholder="t('android_agent.package_placeholder')"
               size="small"
-              class="agent-package-input"
+              class="package-input"
             />
-            <a-button size="small" :loading="packagesLoading" :disabled="formDeviceId === undefined" @click="loadDevicePackages(true)">
-              {{ t('android_agent.load_packages') }}
+            <a-button
+              size="small"
+              :loading="packagesLoading"
+              :disabled="formDeviceId === undefined"
+              :aria-label="t('android_agent.load_packages')"
+              @click="loadDevicePackages(true)"
+            >
+              <SyncOutlined /> {{ t('android_agent.load_short') }}
             </a-button>
             <a-popover
               :open="historyOpen"
@@ -86,92 +109,137 @@
                   </button>
                 </div>
               </template>
-              <a-button size="small" :disabled="formDeviceId === undefined">{{ t('android_agent.history') }}</a-button>
+              <a-button
+                size="small"
+                :disabled="formDeviceId === undefined"
+                :aria-label="t('android_agent.history')"
+              >
+                <HistoryOutlined /> {{ t('android_agent.history') }}
+              </a-button>
             </a-popover>
           </div>
-          <span v-if="packageHint" class="form-hint">{{ packageHint }}</span>
-        </div>
-        <div class="form-group">
-          <label>{{ t('android_agent.budget_label') }}</label>
-          <div class="agent-budget-row">
-            <a-input-number v-model:value="formMaxSteps" :min="1" :max="100" size="small" />
-            <a-input-number v-model:value="formMaxCalls" :min="1" :max="120" size="small" />
+          <div class="package-meta">
+            <span v-if="packageHint" class="form-hint">{{ packageHint }}</span>
+            <span v-if="devicePackages.length" class="package-count tabular-nums">
+              {{ t('android_agent.packages_count', { count: devicePackages.length }) }}
+            </span>
           </div>
         </div>
+
+        <div class="field field-goal">
+          <label :for="'agent-goal-input'">{{ t('android_agent.goal_label') }}</label>
+          <a-textarea
+            id="agent-goal-input"
+            v-model:value="formGoal"
+            :placeholder="t('android_agent.goal_placeholder')"
+            :rows="2"
+            :maxlength="500"
+            show-count
+          />
+        </div>
+
+        <div class="field field-outcome">
+          <label :for="'agent-outcome-input'">{{ t('android_agent.outcome_label') }}</label>
+          <a-textarea
+            id="agent-outcome-input"
+            v-model:value="formOutcome"
+            :placeholder="t('android_agent.outcome_placeholder')"
+            :rows="2"
+            :maxlength="500"
+            show-count
+          />
+        </div>
+
+        <div class="field field-budget">
+          <span class="field-label">{{ t('android_agent.budget_label') }}</span>
+          <div class="budget-row">
+            <label class="budget-input">
+              <span>{{ t('android_agent.budget_steps') }}</span>
+              <a-input-number v-model:value="formMaxSteps" :min="1" :max="100" size="small" />
+            </label>
+            <label class="budget-input">
+              <span>{{ t('android_agent.budget_calls') }}</span>
+              <a-input-number v-model:value="formMaxCalls" :min="1" :max="120" size="small" />
+            </label>
+          </div>
+        </div>
+
+        <div class="setup-actions">
+          <span v-if="!canCreate" class="setup-required">{{ t('android_agent.setup_required') }}</span>
+          <a-button
+            type="primary"
+            :disabled="!canCreate"
+            :loading="creating"
+            @click="createSession"
+          >
+            {{ t('android_agent.create') }}
+          </a-button>
+        </div>
       </div>
-      <div class="form-group">
-        <label>{{ t('android_agent.goal_label') }}</label>
-        <a-input v-model:value="formGoal" :placeholder="t('android_agent.goal_placeholder')" size="small" />
-      </div>
-      <div class="form-group">
-        <label>{{ t('android_agent.outcome_label') }}</label>
-        <a-input v-model:value="formOutcome" :placeholder="t('android_agent.outcome_placeholder')" size="small" />
-      </div>
-      <div class="agent-form-actions">
-        <a-button
-          type="primary"
-          size="small"
-          :disabled="!canCreate"
-          :loading="creating"
-          @click="createSession"
-        >
-          {{ t('android_agent.create') }}
-        </a-button>
-      </div>
-    </div>
+    </section>
 
     <div v-if="sessionId" class="agent-session">
-      <div class="agent-session-head">
-        <div class="agent-session-meta">
-          <a-tag :color="statusColor(session?.status)">{{ session?.status || '-' }}</a-tag>
-          <span class="agent-controller">{{ t('android_agent.controller_label') }}: {{ session?.controller || '-' }}</span>
-          <span class="agent-usage tabular-nums">{{ usageLabel }}</span>
+      <div class="section-head session-head">
+        <span class="section-index tabular-nums">02</span>
+        <div class="section-heading">
+          <strong>{{ t('android_agent.session_title') }}</strong>
+          <span class="session-title-text">{{ session?.title || '' }}</span>
         </div>
-        <div class="agent-controls">
-          <a-button size="small" :disabled="!canStart" :loading="acting" @click="startSession">
-            {{ t('android_agent.start') }}
-          </a-button>
-          <a-button
-            size="small"
-            :disabled="!canRunLoop"
-            :loading="running"
-            @click="runLoop"
-          >
-            {{ t('android_agent.run_loop') }}
-          </a-button>
-          <a-button size="small" :disabled="!canPause" :loading="acting" @click="control('pause')">
-            {{ t('android_agent.pause') }}
-          </a-button>
-          <a-button size="small" :disabled="!canPause" :loading="acting" @click="control('takeover')">
-            {{ t('android_agent.takeover') }}
-          </a-button>
-          <a-button size="small" :disabled="!canResume" :loading="acting" @click="control('resume')">
-            {{ t('android_agent.resume') }}
-          </a-button>
-          <a-button size="small" danger :disabled="!canCancel" :loading="acting" @click="control('cancel')">
-            {{ t('android_agent.cancel') }}
-          </a-button>
-        </div>
+        <a-tag :color="statusColor(session?.status)">{{ statusLabel }}</a-tag>
+      </div>
+
+      <div class="session-meta-row">
+        <span class="agent-controller">{{ t('android_agent.controller_label') }}: {{ session?.controller || '-' }}</span>
+        <span class="agent-usage tabular-nums">{{ usageLabel }}</span>
+      </div>
+
+      <div class="agent-controls-bar" role="toolbar" :aria-label="t('android_agent.session_title')">
+        <a-button type="primary" size="small" :disabled="!canStart" :loading="acting" @click="startSession">
+          {{ t('android_agent.start') }}
+        </a-button>
+        <a-button
+          size="small"
+          :disabled="!canRunLoop"
+          :loading="running"
+          @click="runLoop"
+        >
+          {{ t('android_agent.run_loop') }}
+        </a-button>
+        <span class="control-sep" aria-hidden="true" />
+        <a-button size="small" :disabled="!canPause" :loading="acting" @click="control('pause')">
+          {{ t('android_agent.pause') }}
+        </a-button>
+        <a-button size="small" :disabled="!canPause" :loading="acting" @click="control('takeover')">
+          {{ t('android_agent.takeover') }}
+        </a-button>
+        <a-button size="small" :disabled="!canResume" :loading="acting" @click="control('resume')">
+          {{ t('android_agent.resume') }}
+        </a-button>
+        <span class="control-spacer" aria-hidden="true" />
+        <a-button size="small" danger :disabled="!canCancel" :loading="acting" @click="control('cancel')">
+          {{ t('android_agent.cancel') }}
+        </a-button>
       </div>
       <p class="agent-hint">{{ t('android_agent.control_hint') }}</p>
 
-      <div class="agent-events">
-        <div class="agent-events-head">
-          <strong>{{ t('android_agent.events_title') }}</strong>
-          <span class="agent-events-note">{{ t('android_agent.events_order') }}</span>
-        </div>
-        <p v-if="!events.length" class="agent-events-empty">{{ t('android_agent.events_empty') }}</p>
-        <ul v-else class="agent-event-list">
-          <li v-for="event in events" :key="event.seq" class="agent-event-row" :data-seq="event.seq">
-            <span class="agent-event-seq">#{{ event.seq }}</span>
-            <span class="agent-event-type">{{ event.event_type }}</span>
-            <span class="agent-event-time tabular-nums">{{ formatTime(event.created_at) }}</span>
-          </li>
-        </ul>
-      </div>
+      <div class="agent-session-body">
+        <section class="agent-events">
+          <div class="agent-events-head">
+            <strong>{{ t('android_agent.events_title') }}</strong>
+            <span class="agent-events-note">{{ t('android_agent.events_order') }}</span>
+          </div>
+          <p v-if="!events.length" class="agent-events-empty">{{ t('android_agent.events_empty') }}</p>
+          <ul v-else class="agent-event-list">
+            <li v-for="event in events" :key="event.seq" class="agent-event-row" :data-seq="event.seq">
+              <span class="agent-event-seq">#{{ event.seq }}</span>
+              <span class="agent-event-type">{{ event.event_type }}</span>
+              <span class="agent-event-time tabular-nums">{{ formatTime(event.created_at) }}</span>
+            </li>
+          </ul>
+        </section>
 
-      <div class="agent-draft">
-        <div class="agent-draft-head">
+        <section class="agent-draft">
+          <div class="agent-draft-head">
           <strong>{{ draft ? t('android_agent.draft_title', { version: draft.version }) : t('android_agent.compile_draft') }}</strong>
           <a-button size="small" :disabled="!canCompile" :loading="compiling" @click="compileDraft">
             {{ t('android_agent.compile_draft') }}
@@ -229,6 +297,7 @@
             </p>
           </div>
         </template>
+        </section>
       </div>
     </div>
   </section>
@@ -238,7 +307,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, HistoryOutlined, SyncOutlined } from '@ant-design/icons-vue'
 
 import { androidAgentApi, deviceApi, type AgentDraftItem, type AgentEventItem, type AgentSessionItem, type DevicePackageSnapshotItem } from '@/api'
 import { loadDevicePackagesAsync } from '@/utils/devicePackages'
@@ -356,6 +425,14 @@ const usageLabel = computed(() => {
 })
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
+
+const statusLabel = computed(() => {
+  const value = session.value?.status
+  if (!value) return '-'
+  const key = `android_agent.status_map.${value}`
+  const label = t(key)
+  return label === key ? value : label
+})
 
 function statusColor(status?: string) {
   if (status === 'running') return 'green'
@@ -770,7 +847,7 @@ defineExpose({
 }
 
 .agent-description {
-  margin: 8px 0 16px;
+  margin: 6px 0 0;
   color: var(--c-text-secondary);
   font-size: 13px;
   line-height: 1.5;
@@ -791,48 +868,122 @@ defineExpose({
   margin-bottom: 16px;
 }
 
-.agent-form {
+.agent-setup {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-4);
   background: var(--c-bg-subtle);
-  padding: 16px;
+  padding: var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--c-border-subtle);
 }
 
-.agent-form-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+.section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
-.form-group {
+.section-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.section-heading {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
+  min-width: 0;
 }
 
-.form-group label {
+.section-heading strong {
+  color: var(--c-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.section-heading span {
+  color: var(--c-text-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.setup-fields {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.field label,
+.field-label {
   color: var(--c-text-secondary);
   font-size: 12px;
   font-weight: 500;
+  line-height: 1.4;
 }
 
-.agent-budget-row {
-  display: flex;
-  gap: 8px;
+.field-device {
+  grid-column: span 4;
 }
 
-.agent-package-row {
+.field-package {
+  grid-column: span 8;
+}
+
+.field-goal,
+.field-outcome {
+  grid-column: span 12;
+}
+
+.field-budget {
+  grid-column: span 6;
+}
+
+.field-control,
+.budget-row :deep(.ant-input-number) {
+  width: 100%;
+}
+
+.package-control {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
 }
 
-.agent-package-input {
+.package-input {
   flex: 1;
   min-width: 0;
+}
+
+.package-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 16px;
+}
+
+.package-count {
+  flex: none;
+  color: var(--c-text-tertiary);
+  font-size: 11px;
 }
 
 .form-hint {
@@ -876,36 +1027,73 @@ defineExpose({
   white-space: nowrap;
 }
 
-.agent-form-actions {
+.budget-row {
   display: flex;
+  gap: var(--space-4);
+}
+
+.budget-input {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+}
+
+.budget-input span {
+  flex: none;
+}
+
+.setup-actions {
+  grid-column: span 6;
+  display: flex;
+  align-items: center;
   justify-content: flex-end;
-  margin-top: 4px;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.setup-required {
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
 }
 
 .agent-session {
-  margin-top: 20px;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
   border-top: 1px solid var(--c-border);
-  padding-top: 16px;
 }
 
-.agent-session-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: space-between;
+.session-head {
   align-items: center;
 }
 
-.agent-session-meta {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  font-size: 13px;
+.session-head .section-heading {
+  flex: 1;
+}
+
+.session-title-text {
+  overflow: hidden;
+  color: var(--c-text-secondary) !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tabular-nums {
   font-family: 'JetBrains Mono', monospace, sans-serif;
   font-variant-numeric: tabular-nums;
+}
+
+.session-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
 }
 
 .agent-controller {
@@ -918,21 +1106,72 @@ defineExpose({
   font-size: 12px;
 }
 
-.agent-controls {
+.agent-controls-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
+  margin-top: var(--space-3);
+  padding: var(--space-2);
+  border: 1px solid var(--c-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-elevated);
+}
+
+.control-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 var(--space-1);
+  background: var(--c-border);
+}
+
+.control-spacer {
+  flex: 1;
 }
 
 .agent-hint {
+  margin: var(--space-2) 0 var(--space-4);
   color: var(--c-text-tertiary);
   font-size: 12px;
-  margin: 8px 0 16px;
+}
+
+.agent-session-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.agent-events,
+.agent-draft {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--c-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-elevated);
+}
+
+@media (max-width: 1180px) {
+  .agent-session-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .field-device,
+  .field-package,
+  .field-budget,
+  .setup-actions {
+    grid-column: span 12;
+  }
+
+  .setup-actions {
+    justify-content: space-between;
+  }
 }
 
 .agent-events {
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .agent-events-head {
@@ -1001,11 +1240,6 @@ defineExpose({
   text-align: right;
 }
 
-.agent-draft {
-  margin-top: 16px;
-  border-top: 1px solid var(--c-border-subtle);
-  padding-top: 16px;
-}
 
 .agent-draft-head {
   display: flex;

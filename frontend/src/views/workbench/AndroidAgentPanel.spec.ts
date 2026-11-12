@@ -86,6 +86,7 @@ const globalStubs = {
   }),
   AInput: passthrough('AInput'),
   AAutoComplete: passthrough('AAutoComplete'),
+  ATextarea: passthrough('ATextarea'),
   APopover: defineComponent({
     name: 'APopover',
     props: ['open'],

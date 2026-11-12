@@ -56,6 +56,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   EyeOutlined: true,
   EditOutlined: true,
   HomeOutlined: true,
+  HistoryOutlined: true,
   LeftOutlined: true,
   MinusOutlined: true,
   MobileOutlined: true,
@@ -65,6 +66,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   ReloadOutlined: true,
   SafetyCertificateOutlined: true,
   SendOutlined: true,
+  SyncOutlined: true,
   ThunderboltOutlined: true,
   ToolOutlined: true,
 }))
