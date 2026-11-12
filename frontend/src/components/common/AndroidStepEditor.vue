@@ -466,14 +466,58 @@ const actionOptions = computed(() => [
   { label: t('case.android_editor.actions.foreground'), value: 'foreground' },
 ])
 
-const packageOptions = computed(() =>
-  (props.apkOptions || [])
-    .filter((apk) => apk.package_name)
-    .map((apk) => ({
-      value: apk.package_name as string,
-      label: apk.version_name ? `${apk.package_name} · ${apk.filename} · v${apk.version_name}` : `${apk.package_name} · ${apk.filename}`,
-    })),
+const devicePackages = ref<string[]>([])
+const deviceForeground = ref<string | null>(null)
+
+async function loadDevicePackages(deviceId?: number | null) {
+  if (!deviceId) {
+    devicePackages.value = []
+    deviceForeground.value = null
+    return
+  }
+  try {
+    const result = await deviceApi.packages(deviceId)
+    devicePackages.value = result.packages
+    deviceForeground.value = result.current_package
+  } catch {
+    // 包名建议是可选辅助，读取失败不阻断手动填写。
+    devicePackages.value = []
+    deviceForeground.value = null
+  }
+}
+
+watch(
+  () => props.deviceId,
+  (deviceId) => {
+    void loadDevicePackages(deviceId)
+  },
+  { immediate: true },
 )
+
+const packageOptions = computed(() => {
+  const options: Array<{ value: string; label: string }> = []
+  const seen = new Set<string>()
+  for (const apk of props.apkOptions || []) {
+    const packageName = apk.package_name
+    if (!packageName || seen.has(packageName)) continue
+    seen.add(packageName)
+    options.push({
+      value: packageName,
+      label: apk.version_name ? `${packageName} · ${apk.filename} · v${apk.version_name}` : `${packageName} · ${apk.filename}`,
+    })
+  }
+  for (const packageName of devicePackages.value) {
+    if (seen.has(packageName)) continue
+    seen.add(packageName)
+    options.push({
+      value: packageName,
+      label: packageName === deviceForeground.value
+        ? `${packageName} · ${t('case.android_editor.device_foreground_tag')}`
+        : `${packageName} · ${t('case.android_editor.device_installed_tag')}`,
+    })
+  }
+  return options
+})
 
 const defaultParams: Record<string, () => StepParams> = {
   click: () => ({ text: '', resourceId: '', contentDesc: '', x: undefined, y: undefined }),
@@ -715,6 +759,12 @@ watch(
 )
 
 onBeforeUnmount(revokeScreenshotUrl)
+
+defineExpose({
+  devicePackages,
+  packageOptions,
+  loadDevicePackages,
+})
 </script>
 
 <style scoped>

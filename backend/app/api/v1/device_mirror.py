@@ -11,6 +11,7 @@ import asyncio
 import base64
 import io
 import logging
+import os
 import re
 import subprocess
 from defusedxml import ElementTree as ET
@@ -24,13 +25,94 @@ from app.core.config import settings
 from app.models.device import Device, DeviceStatus
 from app.api.deps import get_current_user, require_engineer
 from app.services.device_leases import get_active_device_lease
-from app.schemas.device import DeviceSwipeIn, DeviceTapIn, DeviceKeyEventIn, DeviceTextInputIn
+from app.schemas.device import (
+    DeviceKeyEventIn,
+    DevicePackagesOut,
+    DeviceSwipeIn,
+    DeviceTapIn,
+    DeviceTextInputIn,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["设备镜像"])
 
 _BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
+_PACKAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
+_FOCUS_COMPONENT_RE = re.compile(
+    r"(?:mCurrentFocus|mFocusedApp|topResumedActivity|mResumedActivity)"
+    r"=[^\r\n]*?\s+([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+)/([^\s\}]+)"
+)
+
+
+def _adb_env() -> dict[str, str]:
+    env = os.environ.copy()
+    server_socket = getattr(settings, "ADB_SERVER_SOCKET", "").strip()
+    if server_socket:
+        env["ADB_SERVER_SOCKET"] = server_socket
+    return env
+
+
+def _parse_package_list(output: str) -> list[str]:
+    packages: set[str] = set()
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("package:"):
+            continue
+        candidate = line[len("package:") :].strip()
+        if "=" in candidate:
+            candidate = candidate.rsplit("=", 1)[-1].strip()
+        if _PACKAGE_RE.fullmatch(candidate):
+            packages.add(candidate)
+    return sorted(packages)
+
+
+def _parse_foreground_app(output: str) -> tuple[str | None, str | None]:
+    for match in _FOCUS_COMPONENT_RE.finditer(output):
+        pkg = match.group(1).strip()
+        act = match.group(2).strip().rstrip("}")
+        if _PACKAGE_RE.fullmatch(pkg):
+            return pkg, act or None
+    return None, None
+
+
+def _adb_device_packages(serial: str, include_system: bool = False, timeout: int = 10) -> dict[str, object] | None:
+    """读取设备已安装包名列表及当前前台应用包名/Activity。"""
+    pm_args = ["adb", "-s", serial, "shell", "pm", "list", "packages"]
+    if not include_system:
+        pm_args.append("-3")
+    env = _adb_env()
+    try:
+        pm_proc = subprocess.run(pm_args, capture_output=True, text=True, timeout=timeout, env=env)
+        if pm_proc.returncode != 0:
+            return None
+        packages = _parse_package_list(pm_proc.stdout or "")
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as exc:
+        logger.warning("adb list packages failed for %s: %s", serial, exc)
+        return None
+
+    current_package: str | None = None
+    current_activity: str | None = None
+    for dump_cmd in (
+        ["adb", "-s", serial, "shell", "dumpsys", "window", "displays"],
+        ["adb", "-s", serial, "shell", "dumpsys", "activity", "activities"],
+    ):
+        try:
+            dump_proc = subprocess.run(dump_cmd, capture_output=True, text=True, timeout=5, env=env)
+            if dump_proc.returncode == 0 and dump_proc.stdout:
+                current_package, current_activity = _parse_foreground_app(dump_proc.stdout)
+                if current_package:
+                    break
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            continue
+
+    if current_package:
+        packages = [current_package, *[pkg for pkg in packages if pkg != current_package]]
+    return {
+        "current_package": current_package,
+        "current_activity": current_activity,
+        "packages": packages,
+    }
 
 
 def _extract_hierarchy_xml(output: str) -> str | None:
@@ -306,6 +388,50 @@ async def device_ui_target(
         return response
     target, diagnostic = await asyncio.to_thread(_adb_ui_target_diagnostic, device.serial, x, y)
     return {"target": target, "diagnostic": diagnostic}
+
+
+@router.get("/devices/{device_id}/packages", response_model=DevicePackagesOut)
+async def device_packages(
+    device_id: int,
+    include_system: bool = Query(default=False, description="是否包含系统预装包名"),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """获取当前选择设备已安装的应用包名列表及前台应用包名。"""
+    device = await _get_online_device(device_id, db)
+    if _use_android_worker():
+        result = await _dispatch_worker_operation(
+            "packages",
+            device.serial,
+            {"include_system": include_system},
+        )
+        raw_packages = result.get("packages")
+        packages = (
+            [str(item) for item in raw_packages if isinstance(item, str)] if isinstance(raw_packages, list) else []
+        )
+        current_pkg = result.get("current_package")
+        current_act = result.get("current_activity")
+        return DevicePackagesOut(
+            device_id=device_id,
+            serial=device.serial,
+            current_package=str(current_pkg) if isinstance(current_pkg, str) and current_pkg else None,
+            current_activity=str(current_act) if isinstance(current_act, str) and current_act else None,
+            packages=packages,
+        )
+    payload = await asyncio.to_thread(_adb_device_packages, device.serial, include_system)
+    if payload is None:
+        raise HTTPException(status_code=503, detail="获取设备应用包名失败，请检查设备连接")
+    raw_list = payload.get("packages")
+    pkg_list = [str(item) for item in raw_list if isinstance(item, str)] if isinstance(raw_list, list) else []
+    cur_pkg = payload.get("current_package")
+    cur_act = payload.get("current_activity")
+    return DevicePackagesOut(
+        device_id=device_id,
+        serial=device.serial,
+        current_package=str(cur_pkg) if isinstance(cur_pkg, str) and cur_pkg else None,
+        current_activity=str(cur_act) if isinstance(cur_act, str) and cur_act else None,
+        packages=pkg_list,
+    )
 
 
 @router.post("/devices/{device_id}/swipe")

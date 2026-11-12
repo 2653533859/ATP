@@ -222,6 +222,14 @@ export interface DeviceItem {
   updated_at: string
 }
 
+export interface DevicePackagesResult {
+  device_id: number
+  serial: string
+  current_package: string | null
+  current_activity: string | null
+  packages: string[]
+}
+
 export interface DeviceGroupItem {
   id: number
   name: string
@@ -2325,6 +2333,10 @@ export const deviceApi = {
     http.post(`/devices/${id}/tap`, data, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   uiTarget: (id: number, data: { x: number; y: number }) =>
     http.get<unknown, { target: AndroidUiTarget | null; diagnostic?: AndroidUiTargetDiagnostic }>(`/devices/${id}/ui-target`, { params: data }),
+  packages: (id: number, options?: { includeSystem?: boolean }) =>
+    http.get<unknown, DevicePackagesResult>(`/devices/${id}/packages`, {
+      params: options?.includeSystem ? { include_system: true } : undefined,
+    }),
   swipe: (id: number, data: { x1: number; y1: number; x2: number; y2: number; duration_ms?: number }, leaseToken?: string | null) =>
     http.post(`/devices/${id}/swipe`, data, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   keyevent: (id: number, keycode: string | number, leaseToken?: string | null) =>

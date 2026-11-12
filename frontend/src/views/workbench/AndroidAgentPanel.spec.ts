@@ -17,6 +17,7 @@ const {
   messageSuccess,
   messageInfo,
   runSession,
+  devicePackages,
 } = vi.hoisted(() => ({
   compileDraft: vi.fn(),
   control: vi.fn(),
@@ -30,6 +31,7 @@ const {
   messageSuccess: vi.fn(),
   messageInfo: vi.fn(),
   runSession: vi.fn(),
+  devicePackages: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -52,6 +54,7 @@ vi.mock('@/api', () => ({
     startReplay,
     startSession,
   },
+  deviceApi: { packages: devicePackages },
 }))
 
 const passthrough = (name: string) =>
@@ -78,6 +81,7 @@ const globalStubs = {
       ),
   }),
   AInput: passthrough('AInput'),
+  AAutoComplete: passthrough('AAutoComplete'),
   AInputNumber: passthrough('AInputNumber'),
   ASelect: defineComponent({
     name: 'ASelect',
@@ -167,6 +171,13 @@ beforeEach(() => {
   startReplay.mockResolvedValue({ replay: { id: 9, draft_id: 3, draft_version: 1, status: 'queued', case_id: 100, run_id: 200 }, case_id: 100, run_id: 200, frozen_snapshot: {} })
   runSession.mockResolvedValue({ status: 'needs_review', reason: 'cannot_progress', steps: 2, model_calls: 3, tokens: 90 })
   publishDraft.mockResolvedValue({ draft_id: 3, draft_version: 1, case_id: 100, verified_replay_id: 9, published: true, idempotent_replay: false })
+  devicePackages.mockResolvedValue({
+    device_id: 5,
+    serial: 'emulator-5554',
+    current_package: null,
+    current_activity: null,
+    packages: [],
+  })
 })
 
 function mountPanel(overrides: Record<string, unknown> = {}) {
@@ -202,6 +213,43 @@ describe('AndroidAgentPanel', () => {
     expect(events).toHaveBeenCalledWith(1, 11, 0, 200)
     expect(wrapper.text()).toContain('android_agent.steps_used')
     expect(wrapper.findAll('.agent-event-row')).toHaveLength(1)
+  })
+
+  it('选择设备后读取该设备已安装包名并回填当前前台应用', async () => {
+    devicePackages.mockResolvedValue({
+      device_id: 5,
+      serial: 'emulator-5554',
+      current_package: 'com.hopesen.aiphytraining',
+      current_activity: '.view.list.ExaminationListActivity',
+      packages: ['com.hopesen.aiphytraining', 'com.mgtv.tv'],
+    })
+    const wrapper = mountPanel()
+    wrapper.vm.formDeviceId = 5
+    await flushPromises()
+
+    expect(devicePackages).toHaveBeenCalledWith(5)
+    expect(wrapper.vm.formPackage).toBe('com.hopesen.aiphytraining')
+    expect(wrapper.vm.devicePackages).toEqual(['com.hopesen.aiphytraining', 'com.mgtv.tv'])
+    expect(wrapper.text()).toContain('android_agent.foreground_hint')
+  })
+
+  it('已手动填写包名时读取设备包名不覆盖用户输入', async () => {
+    devicePackages.mockResolvedValue({
+      device_id: 5,
+      serial: 'emulator-5554',
+      current_package: 'com.hopesen.aiphytraining',
+      current_activity: '.MainActivity',
+      packages: ['com.hopesen.aiphytraining'],
+    })
+    const wrapper = mountPanel()
+    wrapper.vm.formDeviceId = 5
+    wrapper.vm.formPackage = 'com.example.custom'
+    await flushPromises()
+
+    await wrapper.vm.loadDevicePackages()
+    await flushPromises()
+
+    expect(wrapper.vm.formPackage).toBe('com.example.custom')
   })
 
   it('暂停请求携带当前版本号，用于服务端乐观并发校验', async () => {

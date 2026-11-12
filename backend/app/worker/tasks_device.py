@@ -112,14 +112,19 @@ def run_android_device_operation(operation: str, serial: str, params: dict | Non
     队列落到 Windows Worker，返回值只包含 JSON 可序列化的数据。
     """
     params = params or {}
-    if operation not in {"screenshot", "tap", "swipe", "ui_target", "keyevent", "text"}:
+    if operation not in {"screenshot", "tap", "swipe", "ui_target", "keyevent", "text", "packages"}:
         return {"ok": False, "error": f"不支持的 Android 设备操作: {operation}"}
     if not serial.strip():
         return {"ok": False, "error": "设备 serial 不能为空"}
 
     try:
         # 延迟导入避免 Celery 启动时把 FastAPI 路由模块作为强依赖加载。
-        from app.api.v1.device_mirror import _adb_input, _adb_screenshot, _adb_ui_target_diagnostic
+        from app.api.v1.device_mirror import (
+            _adb_device_packages,
+            _adb_input,
+            _adb_screenshot,
+            _adb_ui_target_diagnostic,
+        )
 
         if operation == "screenshot":
             data = _adb_screenshot(serial)
@@ -133,6 +138,11 @@ def run_android_device_operation(operation: str, serial: str, params: dict | Non
             target, diagnostic = _adb_ui_target_diagnostic(serial, int(params["x"]), int(params["y"]))
             return {"ok": True, "target": target, "diagnostic": diagnostic}
 
+        if operation == "packages":
+            info = _adb_device_packages(serial, include_system=bool(params.get("include_system", False)))
+            if info is None:
+                return {"ok": False, "error": "ADB 获取设备包名列表失败"}
+            return {"ok": True, **info}
         if operation == "tap":
             args = ["tap", str(int(params["x"])), str(int(params["y"]))]
         elif operation in {"keyevent", "text"}:

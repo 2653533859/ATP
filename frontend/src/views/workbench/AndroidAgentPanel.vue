@@ -53,7 +53,19 @@
         </div>
         <div class="form-group">
           <label>{{ t('android_agent.package_label') }}</label>
-          <a-input v-model:value="formPackage" :placeholder="t('android_agent.package_placeholder')" size="small" />
+          <div class="agent-package-row">
+            <a-auto-complete
+              v-model:value="formPackage"
+              :options="packageOptions"
+              :placeholder="t('android_agent.package_placeholder')"
+              size="small"
+              class="agent-package-input"
+            />
+            <a-button size="small" :loading="packagesLoading" :disabled="formDeviceId === undefined" @click="loadDevicePackages">
+              {{ t('android_agent.load_packages') }}
+            </a-button>
+          </div>
+          <span v-if="packageHint" class="form-hint">{{ packageHint }}</span>
         </div>
         <div class="form-group">
           <label>{{ t('android_agent.budget_label') }}</label>
@@ -204,7 +216,7 @@ import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
 
-import { androidAgentApi, type AgentDraftItem, type AgentEventItem, type AgentSessionItem } from '@/api'
+import { androidAgentApi, deviceApi, type AgentDraftItem, type AgentEventItem, type AgentSessionItem } from '@/api'
 
 const props = defineProps<{
   projectId: number | null
@@ -233,6 +245,9 @@ const errorMessage = ref('')
 
 const formDeviceId = ref<number | undefined>(undefined)
 const formPackage = ref('')
+const devicePackages = ref<string[]>([])
+const packagesLoading = ref(false)
+const foregroundPackage = ref<string | null>(null)
 const formGoal = ref('')
 const formOutcome = ref('')
 const formMaxSteps = ref(30)
@@ -249,6 +264,23 @@ const deviceOptions = computed(() =>
   })),
 )
 const moduleOptions = computed(() => props.modules.map((module) => ({ value: module.id, label: module.name })))
+const packageOptions = computed(() =>
+  devicePackages.value.map((pkg) => ({
+    value: pkg,
+    label: pkg === foregroundPackage.value
+      ? `${pkg} · ${t('android_agent.foreground_tag')}`
+      : pkg,
+  })),
+)
+const packageHint = computed(() => {
+  if (foregroundPackage.value) {
+    return t('android_agent.foreground_hint', { package: foregroundPackage.value })
+  }
+  if (devicePackages.value.length) {
+    return t('android_agent.packages_loaded', { count: devicePackages.value.length })
+  }
+  return ''
+})
 
 const statusValue = computed(() => session.value?.status ?? '')
 const canCreate = computed(
@@ -339,6 +371,39 @@ async function refreshEvents() {
   const page = await androidAgentApi.events(props.projectId, sessionId.value, 0, 200)
   events.value = page.items
 }
+
+async function loadDevicePackages() {
+  const deviceId = formDeviceId.value
+  if (deviceId === undefined) {
+    devicePackages.value = []
+    foregroundPackage.value = null
+    return
+  }
+  packagesLoading.value = true
+  try {
+    const result = await deviceApi.packages(deviceId)
+    devicePackages.value = result.packages
+    foregroundPackage.value = result.current_package
+    if (!formPackage.value.trim() && result.current_package) {
+      formPackage.value = result.current_package
+    }
+  } catch {
+    devicePackages.value = []
+    foregroundPackage.value = null
+    message.warning(t('android_agent.packages_failed'))
+  } finally {
+    packagesLoading.value = false
+  }
+}
+
+watch(
+  () => formDeviceId.value,
+  () => {
+    devicePackages.value = []
+    foregroundPackage.value = null
+    void loadDevicePackages()
+  },
+)
 
 async function refreshSession() {
   if (!props.projectId || !sessionId.value) return
@@ -573,6 +638,9 @@ defineExpose({
   publishDraft,
   formDeviceId,
   formPackage,
+  devicePackages,
+  packagesLoading,
+  loadDevicePackages,
   formGoal,
   formOutcome,
   session,
@@ -680,6 +748,23 @@ defineExpose({
 .agent-budget-row {
   display: flex;
   gap: 8px;
+}
+
+.agent-package-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.agent-package-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.form-hint {
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .agent-form-actions {

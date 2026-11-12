@@ -97,6 +97,7 @@
             :placeholder="t('mobile_special.form.select_device')"
             :options="deviceOptions"
             allow-clear
+            @change="loadDevicePackages"
           />
         </a-form-item>
 
@@ -117,12 +118,14 @@
         </a-form-item>
 
         <a-form-item :label="t('mobile_special.form.app_package')">
-          <a-input
+          <a-auto-complete
             v-model:value="form.app_package"
+            :options="packageOptions"
             :placeholder="t('mobile_special.form.app_package_placeholder')"
             :disabled="Boolean(form.apk_id && selectedApkPackage)"
           />
           <span class="form-hint">{{ t('mobile_special.form.app_package_hint') }}</span>
+          <span v-if="packageHint" class="form-hint">{{ packageHint }}</span>
         </a-form-item>
 
         <a-divider>{{ t('mobile_special.form.standard_setup') }}</a-divider>
@@ -412,6 +415,55 @@ const form = ref<TaskForm>({
 })
 const selectedApkPackage = computed(() => findMobileApkPackage(apkOptions.value, form.value.apk_id))
 
+const devicePackages = ref<string[]>([])
+const deviceForeground = ref<string | null>(null)
+const packageOptions = computed(() => {
+  const options: SelectOption<string>[] = []
+  const seen = new Set<string>()
+  if (selectedApkPackage.value && !seen.has(selectedApkPackage.value)) {
+    seen.add(selectedApkPackage.value)
+    options.push({ label: selectedApkPackage.value, value: selectedApkPackage.value })
+  }
+  for (const packageName of devicePackages.value) {
+    if (seen.has(packageName)) continue
+    seen.add(packageName)
+    options.push({
+      label: packageName === deviceForeground.value
+        ? `${packageName} · ${t('mobile_special.form.device_foreground_tag')}`
+        : packageName,
+      value: packageName,
+    })
+  }
+  return options
+})
+const packageHint = computed(() => {
+  if (!devicePackages.value.length) return ''
+  if (deviceForeground.value) {
+    return t('mobile_special.form.device_foreground_hint', { package: deviceForeground.value })
+  }
+  return t('mobile_special.form.device_packages_loaded', { count: devicePackages.value.length })
+})
+
+async function loadDevicePackages(deviceIdArg?: unknown) {
+  const deviceId = typeof deviceIdArg === 'number' ? deviceIdArg : form.value.device_id
+  if (!deviceId) {
+    devicePackages.value = []
+    deviceForeground.value = null
+    return
+  }
+  try {
+    const result = await deviceApi.packages(deviceId)
+    devicePackages.value = result.packages
+    deviceForeground.value = result.current_package
+    if (!form.value.app_package.trim() && result.current_package) {
+      form.value.app_package = result.current_package
+    }
+  } catch {
+    devicePackages.value = []
+    deviceForeground.value = null
+  }
+}
+
 onMounted(async () => {
   try {
     const list = await projectApi.list()
@@ -557,6 +609,9 @@ function openEdit(task: MobileSpecialTaskItem) {
   }
   if (!form.value.app_package) {
     handleApkChange(form.value.apk_id)
+  }
+  if (form.value.device_scope_type === 'single_device') {
+    void loadDevicePackages()
   }
   drawerVisible.value = true
 }

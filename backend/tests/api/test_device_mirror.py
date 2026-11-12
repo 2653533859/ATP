@@ -450,3 +450,86 @@ def test_screenshot_route_returns_jpeg_when_requested(monkeypatch):
 
     assert response.media_type == "image/jpeg"
     assert len(response.body) < 200_000
+
+
+# --------------------------- 设备已安装包名与前台包名 ---------------------------
+
+
+def test_parse_package_list_and_foreground_app():
+    pm_out = """
+    package:com.hopesen.aiphytraining
+    package:/data/app/~~abc/com.alibaba.android.rimet-1/base.apk=com.alibaba.android.rimet
+    package:invalid_single_segment
+    """
+    win_out = """
+      mCurrentFocus=Window{8ef51a2 u0 StatusBar}
+      mFocusedApp=ActivityRecord{77bb13e u0 com.hopesen.aiphytraining/.view.list.ExaminationListActivity} t141}
+    """
+    assert device_mirror._parse_package_list(pm_out) == [
+        "com.alibaba.android.rimet",
+        "com.hopesen.aiphytraining",
+    ]
+    assert device_mirror._parse_foreground_app(win_out) == (
+        "com.hopesen.aiphytraining",
+        ".view.list.ExaminationListActivity",
+    )
+
+
+def test_device_packages_endpoint_places_current_foreground_first(monkeypatch):
+    class _Proc:
+        def __init__(self, returncode: int, stdout: str):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = ""
+
+    def fake_run(cmd, **_kwargs):
+        if "pm" in cmd:
+            return _Proc(0, "package:com.mgtv.tv\npackage:com.hopesen.aiphytraining\n")
+        return _Proc(
+            0,
+            "  mCurrentFocus=Window{8ef51a2 u0 com.hopesen.aiphytraining/com.hopesen.aiphytraining.MainActivity}\n",
+        )
+
+    monkeypatch.setattr(device_mirror.settings, "ADB_SCAN_MODE", "local")
+    monkeypatch.setattr(device_mirror.subprocess, "run", fake_run)
+
+    out = asyncio.run(
+        device_mirror.device_packages(
+            device_id=7,
+            include_system=False,
+            db=_FakeDB(_online_device("172.16.101.11:5555")),
+            _=None,
+        )
+    )
+    assert out.device_id == 7
+    assert out.serial == "172.16.101.11:5555"
+    assert out.current_package == "com.hopesen.aiphytraining"
+    assert out.current_activity == "com.hopesen.aiphytraining.MainActivity"
+    assert out.packages == ["com.hopesen.aiphytraining", "com.mgtv.tv"]
+
+
+def test_device_packages_worker_mode_dispatches_to_worker(monkeypatch):
+    async def fake_dispatch(operation, serial, params=None):
+        assert operation == "packages"
+        assert serial == "WIN-DEV"
+        assert params == {"include_system": True}
+        return {
+            "ok": True,
+            "current_package": "com.demo.shop",
+            "current_activity": ".MainActivity",
+            "packages": ["com.demo.shop", "com.android.settings"],
+        }
+
+    monkeypatch.setattr(device_mirror.settings, "ADB_SCAN_MODE", "worker")
+    monkeypatch.setattr(device_mirror, "_dispatch_worker_operation", fake_dispatch)
+
+    out = asyncio.run(
+        device_mirror.device_packages(
+            device_id=3,
+            include_system=True,
+            db=_FakeDB(_online_device("WIN-DEV")),
+            _=None,
+        )
+    )
+    assert out.current_package == "com.demo.shop"
+    assert out.packages == ["com.demo.shop", "com.android.settings"]

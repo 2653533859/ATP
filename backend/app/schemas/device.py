@@ -125,3 +125,11 @@ class DeviceKeyEventIn(BaseModel):
 
 class DeviceTextInputIn(BaseModel):
     text: str = Field(min_length=1, max_length=1000, description="向设备输入的文本")
+
+
+class DevicePackagesOut(BaseModel):
+    device_id: int
+    serial: str
+    current_package: str | None = None
+    current_activity: str | None = None
+    packages: list[str] = Field(default_factory=list)
