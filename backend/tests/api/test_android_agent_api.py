@@ -11,6 +11,7 @@ from app.api.v1.android_agent import (
     create_agent_session,
     get_agent_session,
     get_agent_session_events,
+    list_agent_sessions,
     manual_action_agent_session,
     start_agent_session,
 )
@@ -345,5 +346,13 @@ async def test_api_get_events_pagination(tmp_path: Path):
             )
             assert len(events_page2.items) == 1
             assert events_page2.has_more is False
+
+            # 获取项目下的会话列表（按 id 降序，且跨项目隔离）
+            sessions_p1 = await list_agent_sessions(project_id=1, limit=20, db=db, current_user=user)
+            assert len(sessions_p1) == 1
+            assert sessions_p1[0].id == created.id
+
+            sessions_p2 = await list_agent_sessions(project_id=2, limit=20, db=db, current_user=user)
+            assert sessions_p2 == []
     finally:
         await engine.dispose()

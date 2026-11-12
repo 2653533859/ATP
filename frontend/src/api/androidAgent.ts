@@ -34,6 +34,7 @@ export interface AgentSessionItem {
   total_tokens: number
   error_code: string | null
   context_values: Record<string, string>
+  terminal_assertions?: Array<{ type: 'element_visible' | 'element_absent'; resource_id: string }>
   started_at: string | null
   finished_at: string | null
   created_at: string
@@ -71,6 +72,42 @@ export interface AgentControlResult {
   control_epoch: number
   version: number
   message: string
+}
+
+export interface AgentAssertionItem {
+  type: 'element_visible' | 'element_absent'
+  resource_id: string
+}
+
+export interface AgentCompletePayload {
+  terminal_assertion_confirmed: boolean
+  terminal_assertions: AgentAssertionItem[]
+  summary?: string
+  outcome?: 'success' | 'partial'
+}
+
+export interface AgentManualActionPayload {
+  action: 'tap' | 'input' | 'back' | 'wait' | 'swipe'
+  params?: Record<string, unknown>
+  idempotency_key?: string
+  reason?: string
+}
+
+export interface AgentManualActionResult {
+  command_id: number
+  session_id: number
+  seq: number
+  control_epoch: number
+  action: string
+  status: string
+  idempotency_key: string
+}
+
+export interface AgentDraftPatchPayload {
+  expected_version: number
+  steps?: Array<Record<string, unknown>>
+  assertions?: Array<Record<string, unknown>>
+  preconditions?: string[]
 }
 
 export interface AgentSessionCreatePayload {
@@ -140,6 +177,8 @@ export interface AgentPublishResult {
 const base = (projectId: number) => `/projects/${projectId}/android-agent`
 
 export const androidAgentApi = {
+  listSessions: (projectId: number, limit = 30) =>
+    http.get<unknown, AgentSessionItem[]>(`${base(projectId)}/sessions`, { params: { limit } }),
   createSession: (projectId: number, payload: AgentSessionCreatePayload, idempotencyKey: string) =>
     http.post<unknown, AgentSessionItem>(`${base(projectId)}/sessions`, payload, {
       headers: { 'Idempotency-Key': idempotencyKey },
@@ -152,6 +191,8 @@ export const androidAgentApi = {
     http.post<unknown, AgentRunResult>(`${base(projectId)}/sessions/${sessionId}/run`, undefined, {
       params: { max_rounds: maxRounds },
     }),
+  completeSession: (projectId: number, sessionId: number, payload: AgentCompletePayload) =>
+    http.post<unknown, AgentSessionItem>(`${base(projectId)}/sessions/${sessionId}/complete`, payload),
   events: (projectId: number, sessionId: number, afterSeq = 0, limit = 100) =>
     http.get<unknown, AgentEventsPage>(`${base(projectId)}/sessions/${sessionId}/events`, {
       params: { after_seq: afterSeq, limit },
@@ -168,10 +209,16 @@ export const androidAgentApi = {
       expected_version: expectedVersion,
       reason,
     }),
+  manualAction: (projectId: number, sessionId: number, payload: AgentManualActionPayload) =>
+    http.post<unknown, AgentManualActionResult>(`${base(projectId)}/sessions/${sessionId}/manual-action`, payload),
+  listSessionDrafts: (projectId: number, sessionId: number) =>
+    http.get<unknown, AgentDraftItem[]>(`${base(projectId)}/sessions/${sessionId}/drafts`),
   compileDraft: (projectId: number, sessionId: number) =>
     http.post<unknown, AgentDraftItem>(`${base(projectId)}/sessions/${sessionId}/drafts`, {}),
   getDraft: (projectId: number, draftId: number) =>
     http.get<unknown, AgentDraftItem>(`${base(projectId)}/drafts/${draftId}`),
+  updateDraft: (projectId: number, draftId: number, payload: AgentDraftPatchPayload) =>
+    http.patch<unknown, AgentDraftItem>(`${base(projectId)}/drafts/${draftId}`, payload),
   replayPreview: (projectId: number, draftId: number) =>
     http.get<unknown, AgentReplayPreview>(`${base(projectId)}/drafts/${draftId}/replay-preview`),
   startReplay: (
@@ -179,6 +226,8 @@ export const androidAgentApi = {
     draftId: number,
     payload: { initial_state_confirmed: boolean; module_id: number; device_id?: number; idempotency_key: string },
   ) => http.post<unknown, AgentReplayHandoff>(`${base(projectId)}/drafts/${draftId}/replays`, payload),
+  getReplay: (projectId: number, replayId: number) =>
+    http.get<unknown, AgentReplayItem>(`${base(projectId)}/replays/${replayId}`),
   publishDraft: (projectId: number, draftId: number, idempotencyKey: string) =>
     http.post<unknown, AgentPublishResult>(`${base(projectId)}/drafts/${draftId}/publish`, undefined, {
       headers: { 'Idempotency-Key': idempotencyKey },

@@ -100,6 +100,27 @@ async def _get_project_session(
     return session
 
 
+@router.get(
+    "/sessions",
+    response_model=list[AgentSessionResponse],
+    summary="分页查询项目下的 Android Agent 会话列表",
+)
+async def list_agent_sessions(
+    project_id: int = Path(..., ge=1),
+    limit: int = Query(30, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[AndroidAgentSession]:
+    await assert_project_access(db, current_user, project_id, ProjectRole.viewer)
+    stmt = (
+        select(AndroidAgentSession)
+        .where(AndroidAgentSession.project_id == project_id)
+        .order_by(AndroidAgentSession.id.desc())
+        .limit(limit)
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
 @router.post(
     "/sessions",
     response_model=AgentSessionResponse,
@@ -466,6 +487,31 @@ def _hash_draft_payload(
         separators=(",", ":"),
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+@router.get(
+    "/sessions/{session_id}/drafts",
+    response_model=list[AgentDraftResponse],
+    summary="查询指定会话的所有草稿版本（按版本号降序）",
+)
+async def list_agent_session_drafts(
+    project_id: int = Path(..., ge=1),
+    session_id: int = Path(..., ge=1),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[AgentDraftResponse]:
+    await assert_project_access(db, current_user, project_id, ProjectRole.viewer)
+    await _get_project_session(db, project_id, session_id)
+    stmt = (
+        select(AndroidAgentDraft)
+        .where(
+            AndroidAgentDraft.project_id == project_id,
+            AndroidAgentDraft.session_id == session_id,
+        )
+        .order_by(AndroidAgentDraft.version.desc())
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+    return [_serialize_draft(row) for row in rows]
 
 
 @router.post(

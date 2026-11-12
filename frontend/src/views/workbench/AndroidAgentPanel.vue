@@ -6,7 +6,22 @@
         <h2>{{ t('android_agent.title') }}</h2>
       </div>
       <div class="agent-head-actions">
-        <a-button size="small" :loading="loading" @click="refreshAll">{{ t('android_agent.refresh') }}</a-button>
+        <a-select
+          v-if="sessions.length"
+          :value="sessionId ?? undefined"
+          :placeholder="t('android_agent.session_select_placeholder')"
+          size="small"
+          class="session-select"
+          allow-clear
+          @change="handleSessionSelect"
+        >
+          <a-select-option v-for="s in sessions" :key="s.id" :value="s.id">
+            {{ s.title }} (#{{ s.id }})
+          </a-select-option>
+        </a-select>
+        <a-button size="small" :loading="loading" @click="refreshAll">
+          <ReloadOutlined /> {{ t('android_agent.refresh') }}
+        </a-button>
       </div>
     </div>
     <p class="agent-description">{{ t('android_agent.description') }}</p>
@@ -21,13 +36,13 @@
       @close="errorMessage = ''"
     />
 
-    <div v-if="!sessions.length && !loading" class="agent-empty">
+    <div v-if="!sessions.length && !session && !loading" class="agent-empty">
       <span>{{ t('android_agent.empty_session') }}</span>
     </div>
 
     <div class="agent-form">
       <div class="agent-form-grid">
-        <div>
+        <div class="form-group">
           <label>{{ t('android_agent.device_label') }}</label>
           <a-select
             v-model:value="formDeviceId"
@@ -36,11 +51,11 @@
             size="small"
           />
         </div>
-        <div>
+        <div class="form-group">
           <label>{{ t('android_agent.package_label') }}</label>
           <a-input v-model:value="formPackage" :placeholder="t('android_agent.package_placeholder')" size="small" />
         </div>
-        <div>
+        <div class="form-group">
           <label>{{ t('android_agent.budget_label') }}</label>
           <div class="agent-budget-row">
             <a-input-number v-model:value="formMaxSteps" :min="1" :max="100" size="small" />
@@ -48,10 +63,14 @@
           </div>
         </div>
       </div>
-      <label>{{ t('android_agent.goal_label') }}</label>
-      <a-input v-model:value="formGoal" :placeholder="t('android_agent.goal_placeholder')" size="small" />
-      <label>{{ t('android_agent.outcome_label') }}</label>
-      <a-input v-model:value="formOutcome" :placeholder="t('android_agent.outcome_placeholder')" size="small" />
+      <div class="form-group">
+        <label>{{ t('android_agent.goal_label') }}</label>
+        <a-input v-model:value="formGoal" :placeholder="t('android_agent.goal_placeholder')" size="small" />
+      </div>
+      <div class="form-group">
+        <label>{{ t('android_agent.outcome_label') }}</label>
+        <a-input v-model:value="formOutcome" :placeholder="t('android_agent.outcome_placeholder')" size="small" />
+      </div>
       <div class="agent-form-actions">
         <a-button
           type="primary"
@@ -70,7 +89,7 @@
         <div class="agent-session-meta">
           <a-tag :color="statusColor(session?.status)">{{ session?.status || '-' }}</a-tag>
           <span class="agent-controller">{{ t('android_agent.controller_label') }}: {{ session?.controller || '-' }}</span>
-          <span class="agent-usage">{{ usageLabel }}</span>
+          <span class="agent-usage tabular-nums">{{ usageLabel }}</span>
         </div>
         <div class="agent-controls">
           <a-button size="small" :disabled="!canStart" :loading="acting" @click="startSession">
@@ -110,7 +129,7 @@
           <li v-for="event in events" :key="event.seq" class="agent-event-row" :data-seq="event.seq">
             <span class="agent-event-seq">#{{ event.seq }}</span>
             <span class="agent-event-type">{{ event.event_type }}</span>
-            <span class="agent-event-time">{{ formatTime(event.created_at) }}</span>
+            <span class="agent-event-time tabular-nums">{{ formatTime(event.created_at) }}</span>
           </li>
         </ul>
       </div>
@@ -125,7 +144,7 @@
         <template v-if="draft">
           <div class="agent-draft-status">
             <a-tag :color="draft.status === 'blocked' ? 'red' : 'green'">{{ draftStatusLabel }}</a-tag>
-            <span class="agent-draft-hash">{{ draft.content_hash.slice(0, 12) }}</span>
+            <span class="agent-draft-hash tabular-nums">{{ draft.content_hash.slice(0, 12) }}</span>
           </div>
           <div v-if="draft.blocking_issues.length" class="agent-blocking">
             <span>{{ t('android_agent.blocking_issues') }}</span>
@@ -169,7 +188,7 @@
                 {{ item.code }}: {{ item.message }}
               </span>
             </p>
-            <p v-if="publishedCaseId" class="agent-published">
+            <p v-if="publishedCaseId" class="agent-published tabular-nums">
               {{ t('android_agent.published_case', { id: publishedCaseId }) }}
             </p>
           </div>
@@ -180,9 +199,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
+import { ReloadOutlined } from '@ant-design/icons-vue'
 
 import { androidAgentApi, type AgentDraftItem, type AgentEventItem, type AgentSessionItem } from '@/api'
 
@@ -326,11 +346,48 @@ async function refreshSession() {
   await refreshEvents()
 }
 
+async function refreshSessionsList() {
+  if (!props.projectId) {
+    sessions.value = []
+    return
+  }
+  try {
+    sessions.value = await androidAgentApi.listSessions(props.projectId)
+  } catch {
+    // 忽略加载历史列表异常
+  }
+}
+
+async function handleSessionSelect(val: unknown) {
+  const sid = typeof val === 'number' ? val : Number(val)
+  if (!sid || isNaN(sid)) {
+    session.value = null
+    events.value = []
+    draft.value = null
+    previewItems.value = []
+    publishedCaseId.value = null
+    return
+  }
+  if (!props.projectId) return
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    session.value = await androidAgentApi.getSession(props.projectId, sid)
+    await refreshEvents()
+    startPolling()
+  } catch (error) {
+    errorMessage.value = describeError(error)
+  } finally {
+    loading.value = false
+  }
+}
+
 async function refreshAll() {
   if (!props.projectId) return
   loading.value = true
   errorMessage.value = ''
   try {
+    await refreshSessionsList()
     if (sessionId.value) await refreshSession()
   } catch {
     errorMessage.value = t('android_agent.error_generic')
@@ -494,12 +551,17 @@ watch(
     draft.value = null
     previewItems.value = []
     publishedCaseId.value = null
+    void refreshSessionsList()
   },
 )
 
+onMounted(() => {
+  void refreshSessionsList()
+})
+
 onBeforeUnmount(stopPolling)
 
-// 暴露给父组件与单测的契约面：动作方法 + 关键状态，避免测试直接摸内部实现
+// 暴露给父组件与单测的契约面
 defineExpose({
   refreshAll,
   createSession,
@@ -527,23 +589,74 @@ defineExpose({
 <style scoped>
 .agent-panel {
   margin-top: 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-kicker {
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.panel-head h2 {
+  margin: 4px 0 0;
+  color: var(--c-text);
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .agent-head-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
+.session-select {
+  width: 220px;
+}
+
 .agent-description {
-  margin: 0 0 12px;
-  color: var(--atp-text-muted, #6b7280);
+  margin: 8px 0 16px;
+  color: var(--c-text-secondary);
   font-size: 13px;
+  line-height: 1.5;
+}
+
+.agent-alert {
+  margin-bottom: 16px;
+  border-radius: var(--radius-sm);
+}
+
+.agent-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+  background: var(--c-bg-subtle);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
 }
 
 .agent-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  background: var(--c-bg-subtle);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--c-border-subtle);
 }
 
 .agent-form-grid {
@@ -552,24 +665,33 @@ defineExpose({
   gap: 12px;
 }
 
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .agent-budget-row {
   display: flex;
   gap: 8px;
 }
 
-.agent-form-actions,
-.agent-controls,
-.agent-replay-row {
+.agent-form-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
+  justify-content: flex-end;
+  margin-top: 4px;
 }
 
 .agent-session {
-  margin-top: 16px;
-  border-top: 1px solid var(--atp-border, #e5e7eb);
-  padding-top: 12px;
+  margin-top: 20px;
+  border-top: 1px solid var(--c-border);
+  padding-top: 16px;
 }
 
 .agent-session-head {
@@ -582,75 +704,207 @@ defineExpose({
 
 .agent-session-meta {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
   font-size: 13px;
 }
 
-.agent-hint,
-.agent-events-note,
-.agent-events-empty {
-  color: var(--atp-text-muted, #6b7280);
+.tabular-nums {
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-controller {
+  color: var(--c-text-secondary);
   font-size: 12px;
 }
 
+.agent-usage {
+  color: var(--c-text-tertiary);
+  font-size: 12px;
+}
+
+.agent-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.agent-hint {
+  color: var(--c-text-tertiary);
+  font-size: 12px;
+  margin: 8px 0 16px;
+}
+
+.agent-events {
+  margin-bottom: 20px;
+}
+
+.agent-events-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.agent-events-head strong {
+  font-size: 13px;
+  color: var(--c-text);
+}
+
+.agent-events-note {
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+}
+
+.agent-events-empty {
+  color: var(--c-text-tertiary);
+  font-size: 12px;
+  padding: 12px 0;
+  text-align: center;
+}
+
 .agent-event-list {
-  max-height: 220px;
+  max-height: 240px;
   overflow-y: auto;
-  margin: 8px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
+  border: 1px solid var(--c-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-subtle);
 }
 
 .agent-event-row {
   display: grid;
-  grid-template-columns: 56px 1fr 90px;
-  gap: 8px;
+  grid-template-columns: 60px 1fr 100px;
+  gap: 12px;
   font-size: 12px;
-  padding: 2px 0;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--c-border-subtle);
+  align-items: center;
+}
+
+.agent-event-row:last-child {
+  border-bottom: none;
+}
+
+.agent-event-seq {
+  color: var(--c-text-tertiary);
+  font-family: 'JetBrains Mono', monospace, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-event-type {
+  color: var(--c-text);
+  font-weight: 500;
+}
+
+.agent-event-time {
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+  text-align: right;
 }
 
 .agent-draft {
   margin-top: 16px;
-  border-top: 1px solid var(--atp-border, #e5e7eb);
-  padding-top: 12px;
+  border-top: 1px solid var(--c-border-subtle);
+  padding-top: 16px;
 }
 
 .agent-draft-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 12px;
 }
 
-.agent-draft-status,
-.agent-blocking,
-.agent-steps,
-.agent-replay {
-  margin-top: 8px;
+.agent-draft-head strong {
   font-size: 13px;
+  color: var(--c-text);
 }
 
-.agent-blocking ul,
+.agent-draft-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.agent-draft-hash {
+  color: var(--c-text-tertiary);
+  font-size: 12px;
+}
+
+.agent-blocking {
+  background: var(--c-error-soft, rgba(220, 38, 38, 0.08));
+  border: 1px solid var(--c-error, #dc2626);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  color: var(--c-error, #dc2626);
+  font-size: 12px;
+}
+
+.agent-blocking ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.agent-steps {
+  margin-bottom: 16px;
+  background: var(--c-bg-subtle);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
 .agent-steps ol {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   padding-left: 20px;
+  color: var(--c-text);
+}
+
+.agent-steps li {
+  margin-bottom: 4px;
+}
+
+.agent-replay {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-replay-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.agent-preview-items {
+  margin-top: 8px;
+  font-size: 12px;
 }
 
 .agent-preview-item {
   display: block;
-  font-size: 12px;
+  margin-bottom: 4px;
 }
 
 .agent-preview-item.fail {
-  color: #cf1322;
+  color: var(--c-error, #dc2626);
 }
 
 .agent-preview-item.warn {
-  color: #d46b08;
+  color: var(--c-warning, #d97706);
 }
 
 .agent-published {
-  color: #389e0d;
+  color: var(--c-success, #059669);
   font-size: 12px;
+  font-weight: 500;
+  margin-top: 4px;
 }
 </style>
