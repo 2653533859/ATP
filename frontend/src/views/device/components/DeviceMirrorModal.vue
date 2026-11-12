@@ -222,6 +222,7 @@
               </template>
               <template v-else-if="mirrorSrc">
                 <span class="status-dot dot-fallback">●</span> 截图降级模式
+                <span v-if="streamFallbackReason" class="fallback-reason">· {{ streamFallbackReason }}</span>
               </template>
               <template v-else-if="mirrorError">
                 <span class="status-dot dot-error">●</span> 画面获取失败
@@ -435,6 +436,13 @@ const screenImgRef = ref<HTMLImageElement | null>(null)
 const scrcpyCanvasRef = ref<HTMLCanvasElement | null>(null)
 const mirrorSrc = ref<string | null>(null)
 const mirrorError = ref('')
+const streamFallbackReason = ref('')
+
+function describeStreamFallback(): string {
+  if (typeof window === 'undefined') return ''
+  if (!window.isSecureContext) return '实时流需 HTTPS 或 localhost 访问'
+  return '当前浏览器不支持 WebCodecs'
+}
 let mirrorObjectUrl: string | null = null
 let mirrorTimer: ReturnType<typeof setInterval> | null = null
 let mirrorSession = 0
@@ -537,9 +545,11 @@ function initScrcpyStream(serial: string) {
   closeScrcpyStream()
   const activeSession = mirrorSession
   if (!isWebCodecsSupported() || !scrcpyCanvasRef.value) {
+    streamFallbackReason.value = describeStreamFallback()
     triggerScreenshotFallback(activeSession)
     return
   }
+  streamFallbackReason.value = ''
 
   scrcpyDecoder = useWebCodecsDecoder({
     canvas: scrcpyCanvasRef.value,
@@ -1254,6 +1264,7 @@ onBeforeUnmount(() => {
 }
 .dot-live { color: #52c41a; font-size: 9px; }
 .dot-fallback { color: #faad14; font-size: 9px; }
+.fallback-reason { color: var(--c-text-tertiary, #8c8c8c); font-size: 11px; }
 .dot-error { color: #ff4d4f; font-size: 9px; }
 .dot-connecting { color: #1677ff; font-size: 9px; }
 </style>

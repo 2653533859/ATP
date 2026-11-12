@@ -3,6 +3,7 @@ import { defineComponent, h, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DeviceMirrorModal from './DeviceMirrorModal.vue'
+import { isWebCodecsSupported } from '@/composables/useWebCodecsDecoder'
 
 const {
   screenshotMock,
@@ -51,7 +52,7 @@ vi.mock('@/api', () => ({
 }))
 
 vi.mock('@/composables/useWebCodecsDecoder', () => ({
-  isWebCodecsSupported: () => true,
+  isWebCodecsSupported: vi.fn(() => true),
   useWebCodecsDecoder: vi.fn(() => ({
     push: vi.fn(),
     destroy: vi.fn(),
@@ -124,6 +125,7 @@ function mountModal(props: { open: boolean; device: any; recordable?: boolean; l
 describe('DeviceMirrorModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(isWebCodecsSupported).mockReturnValue(true)
     screenshotMock.mockResolvedValue(new Blob(['img'], { type: 'image/jpeg' }))
     tapMock.mockResolvedValue({})
     uiTargetMock.mockResolvedValue({ target: { resourceId: 'com.example:id/login' } })
@@ -365,5 +367,20 @@ describe('DeviceMirrorModal', () => {
     expect(screenshotMock).toHaveBeenCalledTimes(2)
     wrapper.unmount()
     vi.useRealTimers()
+  })
+
+  it('explains that the live stream needs a secure origin when WebCodecs is unavailable', async () => {
+    vi.mocked(isWebCodecsSupported).mockReturnValue(false)
+    const device = { id: 1, serial: 'DEV-1', brand: 'OPPO', model: 'OPPO R11', resolution: '1080x1920', status: 'online' }
+    const wrapper = mountModal({ open: true, device, leaseToken: 'device-lease' })
+    await flushPromises()
+    const vm = wrapper.vm as unknown as { refreshMirror: () => Promise<void> }
+    await vm.refreshMirror()
+    await flushPromises()
+
+    const pill = wrapper.find('.stream-status-pill')
+    await vi.waitFor(() => expect(pill.text()).toContain('实时流需 HTTPS 或 localhost 访问'))
+    expect(pill.text()).toContain('截图降级模式')
+    wrapper.unmount()
   })
 })
