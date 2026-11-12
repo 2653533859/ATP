@@ -240,12 +240,13 @@
 
         <section class="agent-draft">
           <div class="agent-draft-head">
-          <strong>{{ draft ? t('android_agent.draft_title', { version: draft.version }) : t('android_agent.compile_draft') }}</strong>
-          <a-button size="small" :disabled="!canCompile" :loading="compiling" @click="compileDraft">
-            {{ t('android_agent.compile_draft') }}
-          </a-button>
-        </div>
-        <template v-if="draft">
+            <strong>{{ draft ? t('android_agent.draft_title', { version: draft.version }) : t('android_agent.draft_section') }}</strong>
+            <a-button size="small" :disabled="!canCompile" :loading="compiling" @click="compileDraft">
+              {{ t('android_agent.compile_draft') }}
+            </a-button>
+          </div>
+          <p v-if="!draft" class="agent-draft-empty">{{ t('android_agent.draft_empty') }}</p>
+          <template v-if="draft">
           <div class="agent-draft-status">
             <a-tag :color="draft.status === 'blocked' ? 'red' : 'green'">{{ draftStatusLabel }}</a-tag>
             <span class="agent-draft-hash tabular-nums">{{ draft.content_hash.slice(0, 12) }}</span>
@@ -1251,6 +1252,14 @@ defineExpose({
 .agent-draft-head strong {
   font-size: 13px;
   color: var(--c-text);
+}
+
+.agent-draft-empty {
+  margin: 0;
+  padding: var(--space-3) 0;
+  color: var(--c-text-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .agent-draft-status {

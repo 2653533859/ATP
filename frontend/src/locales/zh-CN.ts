@@ -636,6 +636,8 @@ export default {
     events_empty: '还没有事件。',
     events_order: '按事件序号升序，刷新后可续读。',
     compile_draft: '生成草稿',
+    draft_section: '用例草稿',
+    draft_empty: '会话结束后生成草稿，独立回放通过后可保存为正式用例。',
     draft_title: '草稿 v{version}',
     draft_status: '草稿状态',
     draft_replayable: '可回放',

@@ -636,6 +636,8 @@ export default {
     events_empty: 'No events yet.',
     events_order: 'Ordered by event sequence; polling resumes after a refresh.',
     compile_draft: 'Compile draft',
+    draft_section: 'Case draft',
+    draft_empty: 'Compile a draft after the session settles; save it as a formal case once standalone replay passes.',
     draft_title: 'Draft v{version}',
     draft_status: 'Draft status',
     draft_replayable: 'Replayable',
