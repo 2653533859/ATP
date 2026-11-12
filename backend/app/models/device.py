@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey, Table, Column
+from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey, Table, Column, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from app.models.base import Base, TimestampMixin
@@ -44,6 +44,24 @@ class Device(Base, TimestampMixin):
     port: Mapped[int | None] = mapped_column(Integer)
     description: Mapped[str | None] = mapped_column(Text)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DevicePackageSnapshot(Base, TimestampMixin):
+    """设备已安装应用包名的读取快照，保留历史供页面秒开与追溯。"""
+
+    __tablename__ = "device_package_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True, nullable=False)
+    serial: Mapped[str] = mapped_column(String(128), nullable=False)
+    current_package: Mapped[str | None] = mapped_column(String(128))
+    current_activity: Mapped[str | None] = mapped_column(String(256))
+    packages: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
+    triggered_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    device = relationship("Device")
 
 
 class DeviceLease(Base):

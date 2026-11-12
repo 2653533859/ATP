@@ -18,6 +18,8 @@ const {
   messageInfo,
   runSession,
   devicePackages,
+  refreshPackages,
+  packageHistory,
 } = vi.hoisted(() => ({
   compileDraft: vi.fn(),
   control: vi.fn(),
@@ -32,6 +34,8 @@ const {
   messageInfo: vi.fn(),
   runSession: vi.fn(),
   devicePackages: vi.fn(),
+  refreshPackages: vi.fn(),
+  packageHistory: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -54,7 +58,7 @@ vi.mock('@/api', () => ({
     startReplay,
     startSession,
   },
-  deviceApi: { packages: devicePackages },
+  deviceApi: { packages: devicePackages, refreshPackages, packageHistory },
 }))
 
 const passthrough = (name: string) =>
@@ -82,6 +86,12 @@ const globalStubs = {
   }),
   AInput: passthrough('AInput'),
   AAutoComplete: passthrough('AAutoComplete'),
+  APopover: defineComponent({
+    name: 'APopover',
+    props: ['open'],
+    emits: ['open-change'],
+    setup: (props, { slots }) => () => h('div', [slots.default?.(), props.open ? slots.content?.() : null]),
+  }),
   AInputNumber: passthrough('AInputNumber'),
   ASelect: defineComponent({
     name: 'ASelect',
@@ -177,7 +187,12 @@ beforeEach(() => {
     current_package: null,
     current_activity: null,
     packages: [],
+    read_at: null,
+    stale: true,
+    source: null,
   })
+  refreshPackages.mockResolvedValue({ status: 'queued', device_id: 5, serial: 'emulator-5554' })
+  packageHistory.mockResolvedValue([])
 })
 
 function mountPanel(overrides: Record<string, unknown> = {}) {
@@ -222,15 +237,20 @@ describe('AndroidAgentPanel', () => {
       current_package: 'com.hopesen.aiphytraining',
       current_activity: '.view.list.ExaminationListActivity',
       packages: ['com.hopesen.aiphytraining', 'com.mgtv.tv'],
+      read_at: '2026-11-12T09:30:00Z',
+      stale: false,
+      source: 'refresh',
     })
     const wrapper = mountPanel()
     wrapper.vm.formDeviceId = 5
     await flushPromises()
 
     expect(devicePackages).toHaveBeenCalledWith(5)
+    expect(refreshPackages).not.toHaveBeenCalled()
     expect(wrapper.vm.formPackage).toBe('com.hopesen.aiphytraining')
     expect(wrapper.vm.devicePackages).toEqual(['com.hopesen.aiphytraining', 'com.mgtv.tv'])
     expect(wrapper.text()).toContain('android_agent.foreground_hint')
+    expect(wrapper.text()).toContain('android_agent.read_at')
   })
 
   it('已手动填写包名时读取设备包名不覆盖用户输入', async () => {
@@ -240,16 +260,82 @@ describe('AndroidAgentPanel', () => {
       current_package: 'com.hopesen.aiphytraining',
       current_activity: '.MainActivity',
       packages: ['com.hopesen.aiphytraining'],
+      read_at: '2026-11-12T09:30:00Z',
+      stale: false,
+      source: 'refresh',
     })
     const wrapper = mountPanel()
     wrapper.vm.formDeviceId = 5
     wrapper.vm.formPackage = 'com.example.custom'
     await flushPromises()
 
-    await wrapper.vm.loadDevicePackages()
+    await wrapper.vm.loadDevicePackages(true)
     await flushPromises()
 
     expect(wrapper.vm.formPackage).toBe('com.example.custom')
+  })
+
+  it('没有快照时异步触发刷新并轮询到读取结果', async () => {
+    vi.useFakeTimers()
+    devicePackages
+      .mockResolvedValueOnce({
+        device_id: 5,
+        serial: 'emulator-5554',
+        current_package: null,
+        current_activity: null,
+        packages: [],
+        read_at: null,
+        stale: true,
+        source: null,
+      })
+      .mockResolvedValueOnce({
+        device_id: 5,
+        serial: 'emulator-5554',
+        current_package: 'com.hopesen.aiphytraining',
+        current_activity: '.MainActivity',
+        packages: ['com.hopesen.aiphytraining'],
+        read_at: '2026-11-12T09:40:00Z',
+        stale: false,
+        source: 'refresh',
+      })
+    const wrapper = mountPanel()
+    wrapper.vm.formDeviceId = 5
+    await flushPromises()
+
+    expect(refreshPackages).toHaveBeenCalledWith(5)
+
+    await vi.advanceTimersByTimeAsync(900)
+    await flushPromises()
+
+    expect(wrapper.vm.formPackage).toBe('com.hopesen.aiphytraining')
+    expect(wrapper.vm.packageReadAt).toBe('2026-11-12T09:40:00Z')
+    vi.useRealTimers()
+  })
+
+  it('历史记录可回看并应用旧快照', async () => {
+    const historyItem = {
+      id: 9,
+      device_id: 5,
+      serial: 'emulator-5554',
+      current_package: 'com.mgtv.tv',
+      current_activity: '.MainActivity',
+      packages: ['com.mgtv.tv', 'com.android.chrome'],
+      source: 'refresh',
+      triggered_by: 1,
+      read_at: '2026-11-12T08:00:00Z',
+    }
+    packageHistory.mockResolvedValue([historyItem])
+    const wrapper = mountPanel()
+    wrapper.vm.formDeviceId = 5
+    await flushPromises()
+
+    await wrapper.vm.openPackageHistory()
+    expect(packageHistory).toHaveBeenCalledWith(5, 8)
+    expect(wrapper.vm.packageHistory).toEqual([historyItem])
+
+    wrapper.vm.applyHistory(historyItem)
+    expect(wrapper.vm.formPackage).toBe('com.mgtv.tv')
+    expect(wrapper.vm.devicePackages).toEqual(['com.mgtv.tv', 'com.android.chrome'])
   })
 
   it('暂停请求携带当前版本号，用于服务端乐观并发校验', async () => {

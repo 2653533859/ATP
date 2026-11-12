@@ -287,6 +287,7 @@ import {
   type DeviceScopeType,
 } from '@/api'
 import { buildMobileApkOptions, findMobileApkPackage, type MobileApkOption } from '@/utils/mobileSpecialForm'
+import { loadDevicePackagesAsync } from '@/utils/devicePackages'
 import { getRuntimeMode } from '@/runtimeMode'
 
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
@@ -452,7 +453,8 @@ async function loadDevicePackages(deviceIdArg?: unknown) {
     return
   }
   try {
-    const result = await deviceApi.packages(deviceId)
+    const result = await loadDevicePackagesAsync(deviceId)
+    if (form.value.device_id !== deviceId) return
     devicePackages.value = result.packages
     deviceForeground.value = result.current_package
     if (!form.value.app_package.trim() && result.current_package) {

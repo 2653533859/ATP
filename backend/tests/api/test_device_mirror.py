@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -46,9 +46,9 @@ from app.api.v1 import device_mirror
 
 
 class _FakeDB:
-    """最小 AsyncSession 替身，仅实现 device_mirror 用到的 get。"""
+    """最小 AsyncSession 替身，仅实现 device_mirror 用到的 get/scalar/execute。"""
 
-    def __init__(self, device, lease_token="test-lease-token"):
+    def __init__(self, device, lease_token="test-lease-token", scalar_result=None, rows=None):
         self._device = device
         self._lease = (
             types.SimpleNamespace(
@@ -58,11 +58,18 @@ class _FakeDB:
             if lease_token
             else None
         )
+        self._scalar = scalar_result
+        self._rows = rows
 
     async def get(self, _model, _id):
         return self._device
 
+    async def scalar(self, _statement):
+        return self._scalar
+
     async def execute(self, _statement):
+        if self._rows is not None:
+            return types.SimpleNamespace(scalars=lambda: types.SimpleNamespace(all=lambda: self._rows))
         return types.SimpleNamespace(scalar_one_or_none=lambda: self._lease)
 
 
@@ -475,61 +482,185 @@ def test_parse_package_list_and_foreground_app():
     )
 
 
-def test_device_packages_endpoint_places_current_foreground_first(monkeypatch):
-    class _Proc:
-        def __init__(self, returncode: int, stdout: str):
-            self.returncode = returncode
-            self.stdout = stdout
-            self.stderr = ""
+def _snapshot(read_at, packages=None, current_package=None, source="refresh"):
+    return types.SimpleNamespace(
+        id=1,
+        device_id=7,
+        serial="172.16.101.11:5555",
+        current_package=current_package,
+        current_activity=".view.list.ExaminationListActivity",
+        packages=packages or [],
+        source=source,
+        triggered_by=3,
+        read_at=read_at,
+    )
 
-    def fake_run(cmd, **_kwargs):
-        if "pm" in cmd:
-            return _Proc(0, "package:com.mgtv.tv\npackage:com.hopesen.aiphytraining\n")
-        return _Proc(
-            0,
-            "  mCurrentFocus=Window{8ef51a2 u0 com.hopesen.aiphytraining/com.hopesen.aiphytraining.MainActivity}\n",
-        )
 
-    monkeypatch.setattr(device_mirror.settings, "ADB_SCAN_MODE", "local")
-    monkeypatch.setattr(device_mirror.subprocess, "run", fake_run)
-
+def test_packages_endpoint_returns_empty_snapshot_before_first_read():
     out = asyncio.run(
         device_mirror.device_packages(
             device_id=7,
-            include_system=False,
             db=_FakeDB(_online_device("172.16.101.11:5555")),
             _=None,
         )
     )
+
     assert out.device_id == 7
     assert out.serial == "172.16.101.11:5555"
-    assert out.current_package == "com.hopesen.aiphytraining"
-    assert out.current_activity == "com.hopesen.aiphytraining.MainActivity"
-    assert out.packages == ["com.hopesen.aiphytraining", "com.mgtv.tv"]
+    assert out.packages == []
+    assert out.read_at is None
+    assert out.stale is True
 
 
-def test_device_packages_worker_mode_dispatches_to_worker(monkeypatch):
-    async def fake_dispatch(operation, serial, params=None):
-        assert operation == "packages"
-        assert serial == "WIN-DEV"
-        assert params == {"include_system": True}
-        return {
-            "ok": True,
-            "current_package": "com.demo.shop",
-            "current_activity": ".MainActivity",
-            "packages": ["com.demo.shop", "com.android.settings"],
-        }
-
-    monkeypatch.setattr(device_mirror.settings, "ADB_SCAN_MODE", "worker")
-    monkeypatch.setattr(device_mirror, "_dispatch_worker_operation", fake_dispatch)
-
+def test_packages_endpoint_serves_cached_snapshot_with_stale_flag():
+    fresh = _snapshot(
+        datetime.now(timezone.utc) - timedelta(seconds=30),
+        packages=["com.hopesen.aiphytraining", "com.mgtv.tv"],
+        current_package="com.hopesen.aiphytraining",
+    )
     out = asyncio.run(
-        device_mirror.device_packages(
-            device_id=3,
-            include_system=True,
-            db=_FakeDB(_online_device("WIN-DEV")),
+        device_mirror.device_packages(device_id=7, db=_FakeDB(_online_device(), scalar_result=fresh), _=None)
+    )
+
+    assert out.current_package == "com.hopesen.aiphytraining"
+    assert out.packages == ["com.hopesen.aiphytraining", "com.mgtv.tv"]
+    assert out.stale is False
+    assert out.source == "refresh"
+
+
+def test_packages_endpoint_marks_old_snapshot_stale():
+    old = _snapshot(datetime.now(timezone.utc) - timedelta(minutes=11), packages=["com.demo"])
+    out = asyncio.run(
+        device_mirror.device_packages(device_id=7, db=_FakeDB(_online_device(), scalar_result=old), _=None)
+    )
+    assert out.stale is True
+
+
+def test_packages_history_endpoint_lists_snapshots():
+    rows = [_snapshot(datetime.now(timezone.utc)), _snapshot(datetime.now(timezone.utc) - timedelta(hours=1))]
+    result = asyncio.run(
+        device_mirror.device_package_history(
+            device_id=7,
+            limit=10,
+            db=_FakeDB(_online_device(), rows=rows),
             _=None,
         )
     )
-    assert out.current_package == "com.demo.shop"
-    assert out.packages == ["com.demo.shop", "com.android.settings"]
+    assert [item.id for item in result] == [1, 1]
+    assert result[0].read_at is not None
+
+
+def test_refresh_endpoint_queues_background_capture(monkeypatch):
+    queued = []
+
+    async def fake_capture(device_id, serial, user_id, include_system):
+        queued.append((device_id, serial, user_id, include_system))
+
+    monkeypatch.setattr(device_mirror, "_capture_device_packages", fake_capture)
+    tasks = BackgroundTasks()
+    result = asyncio.run(
+        device_mirror.refresh_device_packages(
+            device_id=7,
+            background=tasks,
+            include_system=False,
+            db=_FakeDB(_online_device("172.16.101.11:5555")),
+            current_user=types.SimpleNamespace(id=3),
+        )
+    )
+
+    assert result == {"status": "queued", "device_id": 7, "serial": "172.16.101.11:5555"}
+    assert len(tasks.tasks) == 1
+    asyncio.run(tasks.tasks[0]())
+    assert queued == [(7, "172.16.101.11:5555", 3, False)]
+
+
+def test_refresh_endpoint_rejects_offline_device():
+    offline = types.SimpleNamespace(serial="X", status=DeviceStatus.offline)
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            device_mirror.refresh_device_packages(
+                device_id=7,
+                background=BackgroundTasks(),
+                include_system=False,
+                db=_FakeDB(offline),
+                current_user=types.SimpleNamespace(id=3),
+            )
+        )
+    assert exc.value.status_code == 400
+
+
+class _StoreDB:
+    def __init__(self):
+        self.added = []
+        self.deleted = []
+        self.committed = 0
+
+    def add(self, value):
+        self.added.append(value)
+
+    async def flush(self):
+        return None
+
+    async def execute(self, statement):
+        if statement.is_delete:
+            self.deleted.append(statement)
+        return types.SimpleNamespace(scalars=lambda: types.SimpleNamespace(all=lambda: []))
+
+    async def commit(self):
+        self.committed += 1
+
+
+class _SessionCtx:
+    def __init__(self, db):
+        self.db = db
+
+    async def __aenter__(self):
+        return self.db
+
+    async def __aexit__(self, *_exc):
+        return False
+
+
+def test_background_capture_persists_snapshot(monkeypatch):
+    async def fake_read(serial, include_system=False):
+        assert serial == "172.16.101.11:5555"
+        assert include_system is True
+        return {
+            "current_package": "com.hopesen.aiphytraining",
+            "current_activity": ".MainActivity",
+            "packages": ["com.hopesen.aiphytraining", "com.mgtv.tv"],
+        }
+
+    store = _StoreDB()
+    monkeypatch.setattr(device_mirror, "_read_device_packages", fake_read)
+    monkeypatch.setattr(sys.modules["app.core.database"], "AsyncSessionLocal", lambda: _SessionCtx(store))
+    device_mirror._package_captures.discard(7)
+
+    asyncio.run(device_mirror._capture_device_packages(7, "172.16.101.11:5555", 3, True))
+
+    assert store.committed == 1
+    saved = store.added[0]
+    assert saved.device_id == 7
+    assert saved.current_package == "com.hopesen.aiphytraining"
+    assert saved.packages == ["com.hopesen.aiphytraining", "com.mgtv.tv"]
+    assert saved.triggered_by == 3
+
+
+def test_background_capture_deduplicates_same_device(monkeypatch):
+    calls = []
+
+    async def slow_read(serial, include_system=False):
+        calls.append(serial)
+        return {"packages": []}
+
+    store = _StoreDB()
+    monkeypatch.setattr(device_mirror, "_read_device_packages", slow_read)
+    monkeypatch.setattr(sys.modules["app.core.database"], "AsyncSessionLocal", lambda: _SessionCtx(store))
+    device_mirror._package_captures.add(7)
+    try:
+        asyncio.run(device_mirror._capture_device_packages(7, "SERIAL", None, False))
+    finally:
+        device_mirror._package_captures.discard(7)
+
+    assert calls == []
+    assert store.committed == 0

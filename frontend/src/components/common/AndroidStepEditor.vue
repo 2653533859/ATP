@@ -412,6 +412,7 @@ import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
 import { deviceApi, type AndroidUiTarget, type AndroidUiTargetDiagnostic } from '@/api'
+import { loadDevicePackagesAsync } from '@/utils/devicePackages'
 import { buildAndroidRecordedClickParams, buildAndroidRecordedSwipeParams } from '@/utils/androidRecording'
 import { androidLocatorWarning } from '@/utils/androidLocatorDiagnostics'
 
@@ -476,7 +477,8 @@ async function loadDevicePackages(deviceId?: number | null) {
     return
   }
   try {
-    const result = await deviceApi.packages(deviceId)
+    const result = await loadDevicePackagesAsync(deviceId)
+    if (props.deviceId !== deviceId) return
     devicePackages.value = result.packages
     deviceForeground.value = result.current_package
   } catch {

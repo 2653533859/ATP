@@ -61,9 +61,33 @@
               size="small"
               class="agent-package-input"
             />
-            <a-button size="small" :loading="packagesLoading" :disabled="formDeviceId === undefined" @click="loadDevicePackages">
+            <a-button size="small" :loading="packagesLoading" :disabled="formDeviceId === undefined" @click="loadDevicePackages(true)">
               {{ t('android_agent.load_packages') }}
             </a-button>
+            <a-popover
+              :open="historyOpen"
+              trigger="click"
+              placement="bottomRight"
+              @open-change="handleHistoryOpen"
+            >
+              <template #content>
+                <div class="package-history">
+                  <p v-if="!packageHistory.length" class="form-hint">{{ t('android_agent.history_empty') }}</p>
+                  <button
+                    v-for="item in packageHistory"
+                    :key="item.id"
+                    type="button"
+                    class="package-history-item"
+                    @click="applyHistory(item)"
+                  >
+                    <span class="tabular-nums">{{ formatTime(item.read_at) }}</span>
+                    <span class="tabular-nums">{{ item.packages.length }}</span>
+                    <span v-if="item.current_package" class="package-history-foreground">{{ item.current_package }}</span>
+                  </button>
+                </div>
+              </template>
+              <a-button size="small" :disabled="formDeviceId === undefined">{{ t('android_agent.history') }}</a-button>
+            </a-popover>
           </div>
           <span v-if="packageHint" class="form-hint">{{ packageHint }}</span>
         </div>
@@ -216,7 +240,8 @@ import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
 
-import { androidAgentApi, deviceApi, type AgentDraftItem, type AgentEventItem, type AgentSessionItem } from '@/api'
+import { androidAgentApi, deviceApi, type AgentDraftItem, type AgentEventItem, type AgentSessionItem, type DevicePackageSnapshotItem } from '@/api'
+import { loadDevicePackagesAsync } from '@/utils/devicePackages'
 
 const props = defineProps<{
   projectId: number | null
@@ -248,6 +273,9 @@ const formPackage = ref('')
 const devicePackages = ref<string[]>([])
 const packagesLoading = ref(false)
 const foregroundPackage = ref<string | null>(null)
+const packageReadAt = ref<string | null>(null)
+const packageHistory = ref<DevicePackageSnapshotItem[]>([])
+const historyOpen = ref(false)
 const formGoal = ref('')
 const formOutcome = ref('')
 const formMaxSteps = ref(30)
@@ -273,13 +301,16 @@ const packageOptions = computed(() =>
   })),
 )
 const packageHint = computed(() => {
+  const parts: string[] = []
   if (foregroundPackage.value) {
-    return t('android_agent.foreground_hint', { package: foregroundPackage.value })
+    parts.push(t('android_agent.foreground_hint', { package: foregroundPackage.value }))
+  } else if (devicePackages.value.length) {
+    parts.push(t('android_agent.packages_loaded', { count: devicePackages.value.length }))
   }
-  if (devicePackages.value.length) {
-    return t('android_agent.packages_loaded', { count: devicePackages.value.length })
+  if (packageReadAt.value) {
+    parts.push(t('android_agent.read_at', { time: formatTime(packageReadAt.value) }))
   }
-  return ''
+  return parts.join(' · ')
 })
 
 const statusValue = computed(() => session.value?.status ?? '')
@@ -372,27 +403,64 @@ async function refreshEvents() {
   events.value = page.items
 }
 
-async function loadDevicePackages() {
+function applyPackageSnapshot(snapshot: {
+  packages: string[]
+  current_package: string | null
+  read_at: string | null
+}) {
+  devicePackages.value = snapshot.packages
+  foregroundPackage.value = snapshot.current_package
+  packageReadAt.value = snapshot.read_at
+  if (!formPackage.value.trim() && snapshot.current_package) {
+    formPackage.value = snapshot.current_package
+  }
+}
+
+async function loadDevicePackages(force = false) {
   const deviceId = formDeviceId.value
   if (deviceId === undefined) {
     devicePackages.value = []
     foregroundPackage.value = null
+    packageReadAt.value = null
+    packageHistory.value = []
     return
   }
   packagesLoading.value = true
   try {
-    const result = await deviceApi.packages(deviceId)
-    devicePackages.value = result.packages
-    foregroundPackage.value = result.current_package
-    if (!formPackage.value.trim() && result.current_package) {
-      formPackage.value = result.current_package
-    }
+    const snapshot = await loadDevicePackagesAsync(deviceId, { force })
+    if (formDeviceId.value !== deviceId) return
+    applyPackageSnapshot(snapshot)
   } catch {
-    devicePackages.value = []
-    foregroundPackage.value = null
-    message.warning(t('android_agent.packages_failed'))
+    if (formDeviceId.value === deviceId) {
+      message.warning(t('android_agent.packages_failed'))
+    }
   } finally {
-    packagesLoading.value = false
+    if (formDeviceId.value === deviceId) {
+      packagesLoading.value = false
+    }
+  }
+}
+
+async function openPackageHistory() {
+  const deviceId = formDeviceId.value
+  if (deviceId === undefined) return
+  try {
+    packageHistory.value = await deviceApi.packageHistory(deviceId, 8)
+  } catch {
+    packageHistory.value = []
+  }
+}
+
+function handleHistoryOpen(open: boolean) {
+  historyOpen.value = open
+  if (open) void openPackageHistory()
+}
+
+function applyHistory(item: DevicePackageSnapshotItem) {
+  historyOpen.value = false
+  applyPackageSnapshot(item)
+  if (item.current_package) {
+    formPackage.value = item.current_package
   }
 }
 
@@ -401,7 +469,9 @@ watch(
   () => {
     devicePackages.value = []
     foregroundPackage.value = null
-    void loadDevicePackages()
+    packageReadAt.value = null
+    packageHistory.value = []
+    void loadDevicePackages(false)
   },
 )
 
@@ -641,6 +711,10 @@ defineExpose({
   devicePackages,
   packagesLoading,
   loadDevicePackages,
+  packageHistory,
+  packageReadAt,
+  openPackageHistory,
+  applyHistory,
   formGoal,
   formOutcome,
   session,
@@ -765,6 +839,41 @@ defineExpose({
   color: var(--c-text-tertiary);
   font-size: 11px;
   line-height: 1.4;
+}
+
+.package-history {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 260px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.package-history-item {
+  display: grid;
+  grid-template-columns: 76px 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.package-history-item:hover {
+  background: var(--c-bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.package-history-foreground {
+  overflow: hidden;
+  color: var(--c-text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-form-actions {

@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 22
+CURRENT_LOCAL_SCHEMA_VERSION = 23
 
 
 def _create_sync_outbox(connection: Connection) -> None:
@@ -705,6 +705,31 @@ def _add_android_agent_terminal_assertions(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[22] = _add_android_agent_terminal_assertions
+
+
+def _create_device_package_snapshots(connection: Connection) -> None:
+    """v23：设备包名读取快照（对应 Alembic 20261111_0090）。"""
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS device_package_snapshots ("
+        "id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "
+        "device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE, "
+        "serial VARCHAR(128) NOT NULL, "
+        "current_package VARCHAR(128), "
+        "current_activity VARCHAR(256), "
+        "packages JSON NOT NULL DEFAULT '[]', "
+        "source VARCHAR(32) NOT NULL DEFAULT 'manual', "
+        "triggered_by INTEGER REFERENCES users(id) ON DELETE SET NULL, "
+        "read_at DATETIME NOT NULL, "
+        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_device_package_snapshots_device_id " "ON device_package_snapshots(device_id)"
+    )
+
+
+LOCAL_MIGRATIONS[23] = _create_device_package_snapshots
 
 
 def _read_version(connection: Connection) -> int:

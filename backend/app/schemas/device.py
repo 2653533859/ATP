@@ -133,3 +133,20 @@ class DevicePackagesOut(BaseModel):
     current_package: str | None = None
     current_activity: str | None = None
     packages: list[str] = Field(default_factory=list)
+    read_at: datetime | None = None
+    stale: bool = True
+    source: str | None = None
+
+
+class DevicePackageSnapshotOut(BaseModel):
+    id: int
+    device_id: int
+    serial: str
+    current_package: str | None = None
+    current_activity: str | None = None
+    packages: list[str] = Field(default_factory=list)
+    source: str
+    triggered_by: int | None = None
+    read_at: datetime
+
+    model_config = {"from_attributes": True}

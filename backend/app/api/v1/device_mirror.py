@@ -15,7 +15,7 @@ import os
 import re
 import subprocess
 from defusedxml import ElementTree as ET
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse, Response
 from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,10 +23,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.config import settings
 from app.models.device import Device, DeviceStatus
+from app.models.user import User
 from app.api.deps import get_current_user, require_engineer
 from app.services.device_leases import get_active_device_lease
+from app.services.device_packages import latest_snapshot, list_snapshots, save_snapshot, serialize_snapshot
 from app.schemas.device import (
     DeviceKeyEventIn,
+    DevicePackageSnapshotOut,
     DevicePackagesOut,
     DeviceSwipeIn,
     DeviceTapIn,
@@ -390,48 +393,111 @@ async def device_ui_target(
     return {"target": target, "diagnostic": diagnostic}
 
 
+async def _get_device_record(db: AsyncSession, device_id: int) -> Device:
+    """读快照不要求设备在线：历史与缓存离线也要能看。"""
+    device = await db.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    return device
+
+
+_package_captures: set[int] = set()
+
+
+async def _read_device_packages(serial: str, include_system: bool = False) -> dict[str, object] | None:
+    if _use_android_worker():
+        try:
+            result = await _dispatch_worker_operation("packages", serial, {"include_system": include_system})
+        except HTTPException as exc:
+            logger.warning("Android Worker packages read failed for %s: %s", serial, exc.detail)
+            return None
+        raw = result.get("packages")
+        return {
+            "current_package": result.get("current_package"),
+            "current_activity": result.get("current_activity"),
+            "packages": raw if isinstance(raw, list) else [],
+        }
+    return await asyncio.to_thread(_adb_device_packages, serial, include_system)
+
+
+async def _capture_device_packages(
+    device_id: int,
+    serial: str,
+    user_id: int | None,
+    include_system: bool,
+) -> None:
+    """后台执行 ADB 读取并落库；同一设备并发点击只跑一次。"""
+    if device_id in _package_captures:
+        return
+    _package_captures.add(device_id)
+    try:
+        payload = await _read_device_packages(serial, include_system)
+        if payload is None:
+            logger.warning("Device package capture failed: device=%s serial=%s", device_id, serial)
+            return
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            await save_snapshot(
+                db,
+                device_id=device_id,
+                serial=serial,
+                payload=payload,
+                source="refresh",
+                triggered_by=user_id,
+            )
+            await db.commit()
+    except Exception:
+        logger.exception("Device package capture crashed: device=%s", device_id)
+    finally:
+        _package_captures.discard(device_id)
+
+
 @router.get("/devices/{device_id}/packages", response_model=DevicePackagesOut)
 async def device_packages(
     device_id: int,
-    include_system: bool = Query(default=False, description="是否包含系统预装包名"),
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """获取当前选择设备已安装的应用包名列表及前台应用包名。"""
+    """读取最近一次设备包名快照；没有快照时返回空列表并标记 stale。"""
+    device = await _get_device_record(db, device_id)
+    snapshot = await latest_snapshot(db, device_id)
+    if snapshot is None:
+        return DevicePackagesOut(device_id=device_id, serial=device.serial)
+    return DevicePackagesOut(**serialize_snapshot(snapshot))
+
+
+@router.get("/devices/{device_id}/packages/history", response_model=list[DevicePackageSnapshotOut])
+async def device_package_history(
+    device_id: int,
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """按时间倒序返回设备包名读取历史。"""
+    await _get_device_record(db, device_id)
+    rows = await list_snapshots(db, device_id, limit)
+    return [DevicePackageSnapshotOut.model_validate(row) for row in rows]
+
+
+@router.post("/devices/{device_id}/packages/refresh", status_code=202)
+async def refresh_device_packages(
+    device_id: int,
+    background: BackgroundTasks,
+    include_system: bool = Query(default=False, description="是否包含系统预装包名"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_engineer),
+):
+    """异步触发一次设备包名读取；结果写入快照历史，前端轮询 GET。"""
     device = await _get_online_device(device_id, db)
-    if _use_android_worker():
-        result = await _dispatch_worker_operation(
-            "packages",
-            device.serial,
-            {"include_system": include_system},
-        )
-        raw_packages = result.get("packages")
-        packages = (
-            [str(item) for item in raw_packages if isinstance(item, str)] if isinstance(raw_packages, list) else []
-        )
-        current_pkg = result.get("current_package")
-        current_act = result.get("current_activity")
-        return DevicePackagesOut(
-            device_id=device_id,
-            serial=device.serial,
-            current_package=str(current_pkg) if isinstance(current_pkg, str) and current_pkg else None,
-            current_activity=str(current_act) if isinstance(current_act, str) and current_act else None,
-            packages=packages,
-        )
-    payload = await asyncio.to_thread(_adb_device_packages, device.serial, include_system)
-    if payload is None:
-        raise HTTPException(status_code=503, detail="获取设备应用包名失败，请检查设备连接")
-    raw_list = payload.get("packages")
-    pkg_list = [str(item) for item in raw_list if isinstance(item, str)] if isinstance(raw_list, list) else []
-    cur_pkg = payload.get("current_package")
-    cur_act = payload.get("current_activity")
-    return DevicePackagesOut(
-        device_id=device_id,
-        serial=device.serial,
-        current_package=str(cur_pkg) if isinstance(cur_pkg, str) and cur_pkg else None,
-        current_activity=str(cur_act) if isinstance(cur_act, str) and cur_act else None,
-        packages=pkg_list,
+    background.add_task(
+        _capture_device_packages,
+        device_id,
+        device.serial,
+        current_user.id,
+        include_system,
     )
+    return {"status": "queued", "device_id": device_id, "serial": device.serial}
 
 
 @router.post("/devices/{device_id}/swipe")

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AndroidStepEditor from './AndroidStepEditor.vue'
 
-const { packages } = vi.hoisted(() => ({ packages: vi.fn() }))
+const { packages, refreshPackages } = vi.hoisted(() => ({ packages: vi.fn(), refreshPackages: vi.fn() }))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
@@ -13,7 +13,7 @@ vi.mock('ant-design-vue', () => ({
   message: { warning: vi.fn(), success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('@/api', () => ({
-  deviceApi: { packages },
+  deviceApi: { packages, refreshPackages },
 }))
 
 const draggableStub = defineComponent({
@@ -69,6 +69,9 @@ describe('AndroidStepEditor package suggestions', () => {
       current_package: 'com.hopesen.aiphytraining',
       current_activity: '.view.list.ExaminationListActivity',
       packages: ['com.hopesen.aiphytraining', 'com.mgtv.tv'],
+      read_at: '2026-11-12T09:30:00Z',
+      stale: false,
+      source: 'refresh',
     })
   })
 

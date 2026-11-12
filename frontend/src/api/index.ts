@@ -228,6 +228,21 @@ export interface DevicePackagesResult {
   current_package: string | null
   current_activity: string | null
   packages: string[]
+  read_at: string | null
+  stale: boolean
+  source?: string | null
+}
+
+export interface DevicePackageSnapshotItem {
+  id: number
+  device_id: number
+  serial: string
+  current_package: string | null
+  current_activity: string | null
+  packages: string[]
+  source: string
+  triggered_by: number | null
+  read_at: string
 }
 
 export interface DeviceGroupItem {
@@ -2337,6 +2352,12 @@ export const deviceApi = {
     http.get<unknown, DevicePackagesResult>(`/devices/${id}/packages`, {
       params: options?.includeSystem ? { include_system: true } : undefined,
     }),
+  refreshPackages: (id: number, options?: { includeSystem?: boolean }) =>
+    http.post<unknown, { status: string; device_id: number; serial: string }>(`/devices/${id}/packages/refresh`, undefined, {
+      params: options?.includeSystem ? { include_system: true } : undefined,
+    }),
+  packageHistory: (id: number, limit = 10) =>
+    http.get<unknown, DevicePackageSnapshotItem[]>(`/devices/${id}/packages/history`, { params: { limit } }),
   swipe: (id: number, data: { x1: number; y1: number; x2: number; y2: number; duration_ms?: number }, leaseToken?: string | null) =>
     http.post(`/devices/${id}/swipe`, data, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   keyevent: (id: number, keycode: string | number, leaseToken?: string | null) =>

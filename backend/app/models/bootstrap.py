@@ -8,7 +8,7 @@ def load_all_models() -> None:
     from app.models.project import Project, Module
     from app.models.case import TestCase, CaseStep, TestRun, StepResult, CaseSnapshot
     from app.models.environment import Environment, EnvVariable
-    from app.models.device import Device, DeviceGroup, DeviceLease
+    from app.models.device import Device, DeviceGroup, DeviceLease, DevicePackageSnapshot
     from app.models.apk import Apk
     from app.models.suite import TestSuite, SuiteRun
     from app.models.notification import NotificationConfig, NotificationDelivery
@@ -87,6 +87,7 @@ def load_all_models() -> None:
         Device,
         DeviceGroup,
         DeviceLease,
+        DevicePackageSnapshot,
         Apk,
         TestSuite,
         SuiteRun,
