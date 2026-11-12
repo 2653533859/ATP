@@ -101,6 +101,18 @@ netstat -ano | findstr :5037   # 期望 0.0.0.0:5037 LISTENING
 
 注意：之后任何 `adb kill-server` 或由普通 adb 客户端自动拉起的 server 都会退回回环绑定，需要重新执行上述步骤。`adb forward` 的端口在 Windows 上绑定 `0.0.0.0`，因此远端 scrcpy 流会连接 ADB server 主机而不是容器回环（见 `backend/app/device_stream/manager.py` 的 `_adb_forward_host`）。
 
+### 浏览器实时流（WebCodecs）与安全上下文
+
+投屏的 60FPS 极速流依赖浏览器 `VideoDecoder`（WebCodecs），该 API **只在安全上下文暴露**（HTTPS、`http://localhost`、`file://`）。用 `http://<局域网IP>:8080` 打开时 `window.isSecureContext === false`、`VideoDecoder` 为 `undefined`，前端会自动降级为截图轮询，并在状态栏标注原因。
+
+要让浏览器走实时流，任选其一：
+
+1. 本地 SSH 隧道（无需证书）：`ssh -N -L 18081:192.168.3.196:8080 mylinux`，然后访问 `http://localhost:18081`。
+2. Chrome/Edge 旗标：`chrome://flags/#unsafely-treat-insecure-origin-as-secure` 加入 `http://192.168.3.196:8080`（仅本机生效，重启浏览器）。
+3. 给 Web 入口配置 TLS（自签或正式证书），以 `https://` 访问。
+
+桌面端自带软件能跑 60FPS，是因为它运行在 `localhost` 安全上下文，或直接使用原生 scrcpy/FFmpeg 解码，不经过浏览器这一限制；与“Linux 后端 + Windows adb server”的拓扑无关——该拓扑下 H.264 帧已实测可送达（见 `docs/evidence/device-mirror-control-remote-adb-20261111.md`）。
+
 ---
 
 ## 四、平台内验证步骤
