@@ -162,7 +162,7 @@
               <h2>{{ t('app_workbench.launch_title') }}</h2>
               <p>{{ t(localMode ? 'app_workbench.launch_description_local' : 'app_workbench.launch_description') }}</p>
             </div>
-            <div class="launch-signal"><span class="signal-line" />{{ t('app_workbench.local_execution') }}</div>
+            <div class="launch-signal">{{ t('app_workbench.local_execution') }}</div>
           </div>
 
           <div class="mode-switch" role="tablist">
@@ -1279,13 +1279,13 @@ onUnmounted(() => {
   margin-top: 13px;
 }
 
-.launch-panel { min-width: 0; }.launch-head p { max-width: 630px; margin: 7px 0 0; color: #84919f; font-size: 12px; line-height: 1.6; }.launch-signal { display: flex; align-items: center; gap: 7px; color: #78909a; font-size: 10px; font-weight: 600; white-space: nowrap; }.signal-line { width: 20px; height: 2px; background: var(--app-copper); }
+.launch-panel { min-width: 0; }.launch-head p { max-width: 630px; margin: 8px 0 0; color: var(--c-text-secondary); font-size: 12px; line-height: 1.6; }.launch-signal { color: var(--c-text-tertiary); font-size: 11px; white-space: nowrap; }
 .mode-switch {
   display: inline-flex;
   gap: 4px;
   margin: 24px 0 20px;
   padding: 4px;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--c-bg-subtle);
 }
 .mode-switch button {
@@ -1333,10 +1333,10 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-top: 14px;
-  padding: 14px 16px;
+  margin-top: 16px;
+  padding: 16px;
   border: 1px dashed var(--c-border);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--c-bg-subtle);
   transition: border-color 0.2s ease;
 }
@@ -1389,11 +1389,10 @@ onUnmounted(() => {
   width: 100%;
 }
 .selection-card {
-  margin-top: 14px;
-  padding: 14px;
+  margin-top: 16px;
+  padding: 16px;
   border: 1px solid var(--c-border);
-  border-left: 3px solid var(--app-cyan);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--c-bg-subtle);
 }
 .selection-title {
