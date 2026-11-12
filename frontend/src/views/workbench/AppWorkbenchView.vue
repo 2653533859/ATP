@@ -88,7 +88,6 @@
         <aside class="device-panel panel">
           <div class="panel-head">
             <div>
-              <div class="panel-kicker">{{ t('app_workbench.device_kicker') }}</div>
               <h2>{{ t('app_workbench.device_pool') }}</h2>
             </div>
             <a-button size="small" :loading="scanning" :disabled="!canModify" @click="scanDevices">
@@ -160,7 +159,6 @@
         <main class="launch-panel panel">
           <div class="panel-head launch-head">
             <div>
-              <div class="panel-kicker">{{ t('app_workbench.launch_kicker') }}</div>
               <h2>{{ t('app_workbench.launch_title') }}</h2>
               <p>{{ t(localMode ? 'app_workbench.launch_description_local' : 'app_workbench.launch_description') }}</p>
             </div>
@@ -295,7 +293,6 @@
         <div class="activity-panel panel">
           <div class="panel-head compact-head">
             <div>
-              <div class="panel-kicker">{{ t('app_workbench.activity_kicker') }}</div>
               <h2>{{ t('app_workbench.activity_title') }}</h2>
             </div>
             <a-button type="link" size="small" @click="openSpecialReports">{{ t('app_workbench.view_all_runs') }}</a-button>
@@ -316,7 +313,6 @@
         <div class="asset-panel panel">
           <div class="panel-head compact-head">
             <div>
-              <div class="panel-kicker">{{ t('app_workbench.asset_kicker') }}</div>
               <h2>{{ t('app_workbench.asset_title') }}</h2>
             </div>
             <a-button type="link" size="small" @click="openApks">{{ t('app_workbench.manage_apks') }}</a-button>

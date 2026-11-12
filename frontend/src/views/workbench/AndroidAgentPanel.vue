@@ -47,11 +47,7 @@
 
     <section class="agent-setup" :aria-label="t('android_agent.setup_title')">
       <div class="section-head">
-        <span class="section-index tabular-nums">01</span>
-        <div class="section-heading">
-          <strong>{{ t('android_agent.setup_title') }}</strong>
-          <span>{{ t('android_agent.setup_note') }}</span>
-        </div>
+        <strong class="section-title">{{ t('android_agent.setup_title') }}</strong>
       </div>
 
       <div class="setup-fields">
@@ -96,6 +92,11 @@
               <template #content>
                 <div class="package-history">
                   <p v-if="!packageHistory.length" class="form-hint">{{ t('android_agent.history_empty') }}</p>
+                  <div v-else class="package-history-head" aria-hidden="true">
+                    <span>{{ t('android_agent.history_time') }}</span>
+                    <span>{{ t('android_agent.history_apps') }}</span>
+                    <span>{{ t('android_agent.history_package') }}</span>
+                  </div>
                   <button
                     v-for="item in packageHistory"
                     :key="item.id"
@@ -180,17 +181,25 @@
 
     <div v-if="sessionId" class="agent-session">
       <div class="section-head session-head">
-        <span class="section-index tabular-nums">02</span>
-        <div class="section-heading">
-          <strong>{{ t('android_agent.session_title') }}</strong>
-          <span class="session-title-text">{{ session?.title || '' }}</span>
-        </div>
+        <strong class="section-title">{{ t('android_agent.session_title') }}</strong>
+        <span class="session-title-text">{{ session?.title || '' }}</span>
         <a-tag :color="statusColor(session?.status)">{{ statusLabel }}</a-tag>
       </div>
 
       <div class="session-meta-row">
-        <span class="agent-controller">{{ t('android_agent.controller_label') }}: {{ session?.controller || '-' }}</span>
-        <span class="agent-usage tabular-nums">{{ usageLabel }}</span>
+        <span class="meta-item">{{ t('android_agent.controller_label') }}: {{ controllerLabel }}</span>
+        <span class="meta-sep" aria-hidden="true" />
+        <span class="meta-item tabular-nums">
+          {{ t('android_agent.steps_used', { used: session?.steps_count ?? 0, total: session?.budget_max_steps ?? 0 }) }}
+        </span>
+        <span class="meta-sep" aria-hidden="true" />
+        <span class="meta-item tabular-nums">
+          {{ t('android_agent.calls_used', { used: session?.model_calls_count ?? 0, total: session?.budget_max_calls ?? 0 }) }}
+        </span>
+        <span class="meta-sep" aria-hidden="true" />
+        <span class="meta-item tabular-nums">
+          {{ t('android_agent.tokens_used', { used: session?.total_tokens ?? 0 }) }}
+        </span>
       </div>
 
       <div class="agent-controls-bar" role="toolbar" :aria-label="t('android_agent.session_title')">
@@ -374,8 +383,6 @@ const packageHint = computed(() => {
   const parts: string[] = []
   if (foregroundPackage.value) {
     parts.push(t('android_agent.foreground_hint', { package: foregroundPackage.value }))
-  } else if (devicePackages.value.length) {
-    parts.push(t('android_agent.packages_loaded', { count: devicePackages.value.length }))
   }
   if (packageReadAt.value) {
     parts.push(t('android_agent.read_at', { time: formatTime(packageReadAt.value) }))
@@ -415,14 +422,13 @@ const canStartReplay = computed(
     replayModuleId.value !== undefined,
 )
 const canPublish = computed(() => props.canModify && Boolean(draft.value) && draft.value?.status !== 'blocked')
-const usageLabel = computed(() => {
-  const item = session.value
-  if (!item) return ''
-  return [
-    t('android_agent.steps_used', { used: item.steps_count, total: item.budget_max_steps }),
-    t('android_agent.calls_used', { used: item.model_calls_count, total: item.budget_max_calls }),
-    t('android_agent.tokens_used', { used: item.total_tokens }),
-  ].join(' · ')
+
+const controllerLabel = computed(() => {
+  const value = session.value?.controller
+  if (!value) return '-'
+  const key = `android_agent.controller_map.${value}`
+  const label = t(key)
+  return label === key ? value : label
 })
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -872,51 +878,23 @@ defineExpose({
 .agent-setup {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  background: var(--c-bg-subtle);
-  padding: var(--space-4);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--c-border-subtle);
+  gap: 0;
 }
 
 .section-head {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--c-border-subtle);
+  margin-bottom: var(--space-4);
 }
 
-.section-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  border-radius: var(--radius-sm);
-  background: var(--c-bg-elevated);
-  border: 1px solid var(--c-border);
-  color: var(--c-text-tertiary);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.section-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.section-heading strong {
+.section-title {
   color: var(--c-text);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.4;
-}
-
-.section-heading span {
-  color: var(--c-text-tertiary);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .setup-fields {
@@ -1002,9 +980,20 @@ defineExpose({
   overflow: auto;
 }
 
+.package-history-head {
+  display: grid;
+  grid-template-columns: 76px 40px minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 6px 4px;
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+  border-bottom: 1px solid var(--c-border-subtle);
+  margin-bottom: 2px;
+}
+
 .package-history-item {
   display: grid;
-  grid-template-columns: 76px 28px minmax(0, 1fr);
+  grid-template-columns: 76px 40px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   padding: 4px 6px;
@@ -1064,22 +1053,18 @@ defineExpose({
 }
 
 .agent-session {
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--c-border);
+  margin-top: var(--space-5);
 }
 
 .session-head {
-  align-items: center;
-}
-
-.session-head .section-heading {
-  flex: 1;
+  align-items: baseline;
+  margin-bottom: var(--space-3);
 }
 
 .session-title-text {
+  flex: 1;
   overflow: hidden;
-  color: var(--c-text-secondary) !important;
+  color: var(--c-text-tertiary) !important;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1092,19 +1077,21 @@ defineExpose({
 .session-meta-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-4);
-  margin-top: var(--space-2);
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
-.agent-controller {
-  color: var(--c-text-secondary);
-  font-size: 12px;
-}
-
-.agent-usage {
+.meta-item {
   color: var(--c-text-tertiary);
   font-size: 12px;
+  line-height: 1.5;
+}
+
+.meta-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--c-border);
 }
 
 .agent-controls-bar {
@@ -1112,11 +1099,9 @@ defineExpose({
   flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
-  margin-top: var(--space-3);
-  padding: var(--space-2);
-  border: 1px solid var(--c-border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--c-bg-elevated);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--c-border-subtle);
+  border-bottom: 1px solid var(--c-border-subtle);
 }
 
 .control-sep {
@@ -1146,10 +1131,11 @@ defineExpose({
 .agent-events,
 .agent-draft {
   min-width: 0;
-  padding: var(--space-4);
-  border: 1px solid var(--c-border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--c-bg-elevated);
+  padding: var(--space-4) 0 0;
+  border: 0;
+  border-top: 1px solid var(--c-border-subtle);
+  border-radius: 0;
+  background: transparent;
 }
 
 @media (max-width: 1180px) {
@@ -1291,7 +1277,7 @@ defineExpose({
 
 .agent-steps {
   margin-bottom: 16px;
-  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border-subtle);
   padding: 12px 16px;
   border-radius: var(--radius-sm);
   font-size: 12px;
