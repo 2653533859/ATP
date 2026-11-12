@@ -62,7 +62,7 @@
 
     <template v-else>
       <section class="signal-grid" aria-label="Android workspace summary">
-        <div class="signal-card signal-card-primary">
+        <div class="signal-card">
           <span class="signal-label">{{ t('app_workbench.signals.online_devices') }}</span>
           <strong>{{ onlineDeviceCount }}<small>/{{ devices.length }}</small></strong>
           <span class="signal-note">{{ t('app_workbench.signals.device_pool') }}</span>
@@ -77,7 +77,7 @@
           <strong>{{ apks.length }}</strong>
           <span class="signal-note">{{ t('app_workbench.signals.package_ready') }}</span>
         </div>
-        <div class="signal-card signal-card-run">
+        <div class="signal-card">
           <span class="signal-label">{{ t('app_workbench.signals.active_runs') }}</span>
           <strong>{{ activeRunCount }}</strong>
           <span class="signal-note">{{ t(localMode ? 'app_workbench.signals.local_queue' : 'app_workbench.signals.worker_queue') }}</span>
@@ -1150,49 +1150,31 @@ onUnmounted(() => {
 .readonly-alert { margin-top: 16px; }
 .project-empty { min-height: 320px; padding: 100px 0; }
 
-.signal-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
-.signal-card { position: relative; min-height: 112px; overflow: hidden; padding: 17px 18px; border: 1px solid var(--app-line); border-radius: 12px; background: var(--c-bg-elevated); }
-.signal-card::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 45px;
-  height: 3px;
-  background: var(--c-border-strong);
-  content: '';
-}
-.signal-card-primary {
-  border-color: var(--c-primary);
-  background: var(--c-primary-soft);
-}
-.signal-card-primary::after {
-  background: var(--app-cyan);
-}
-.signal-card-run::after {
-  background: var(--app-copper);
-}
-.signal-label { display: block; color: var(--app-muted); font-size: 11px; font-weight: 500; }
-.signal-card strong { display: block; margin-top: 10px; color: var(--c-text); font-size: 28px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }.signal-card strong small { margin-left: 3px; color: #8d9da5; font-size: 14px; font-weight: 600; letter-spacing: 0; }
-.signal-note { display: block; margin-top: 6px; color: #8997a4; font-size: 11px; }
+.signal-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+.signal-card { min-height: 112px; padding: 16px 20px; border: 1px solid var(--app-line); border-radius: 12px; background: var(--c-bg-elevated); }
+.signal-label { display: block; color: var(--c-text-tertiary); font-size: 12px; font-weight: 500; }
+.signal-card strong { display: block; margin-top: 10px; color: var(--c-text); font-size: 28px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.signal-card strong small { margin-left: 3px; color: var(--c-text-tertiary); font-size: 14px; font-weight: 400; }
+.signal-note { display: block; margin-top: 6px; color: var(--c-text-tertiary); font-size: 12px; }
 
 .workspace-grid { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); gap: 16px; }
 .lower-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 16px; margin-top: 16px; }
 .panel { border: 1px solid var(--app-line); border-radius: var(--radius-lg); background: var(--c-bg-elevated); box-shadow: var(--shadow-xs); }
 .device-panel, .launch-panel, .activity-panel, .asset-panel { padding: 20px; }
-.panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }.panel-head h2 { margin: 4px 0 0; color: var(--c-text); font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }.compact-head { align-items: center; }.compact-head h2 { font-size: 16px; font-weight: 600; }.panel-caption { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0 12px; color: var(--c-text-secondary); font-size: 11px; line-height: 1.5; }.count-pill { padding: 2px 8px; border-radius: var(--radius-xs); background: var(--c-primary-soft); color: var(--c-primary); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.device-list { display: flex; flex-direction: column; gap: 6px; max-height: 330px; overflow: auto; }
+.panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }.panel-head h2 { margin: 4px 0 0; color: var(--c-text); font-size: 18px; font-weight: 600; letter-spacing: 0; }.compact-head { align-items: center; }.compact-head h2 { font-size: 16px; font-weight: 600; }.panel-caption { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0 12px; color: var(--c-text-secondary); font-size: 12px; line-height: 1.5; }.count-pill { color: var(--c-text-tertiary); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.device-list { display: flex; flex-direction: column; gap: 4px; max-height: 330px; overflow: auto; }
 .device-row {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
-  padding: 10px 9px;
+  padding: 8px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--c-bg-subtle);
   color: inherit;
   text-align: left;
-  transition: border-color .16s, background .16s, transform .16s;
+  transition: background-color 150ms ease, border-color 150ms ease;
 }
 .device-row:hover {
   border-color: var(--app-cyan);
@@ -1220,20 +1202,20 @@ onUnmounted(() => {
   box-shadow: none;
 }
 .status-online {
-  background: #35b890;
+  background: var(--c-success);
 }
 .status-busy {
-  background: var(--app-copper);
+  background: var(--c-warning);
 }
 .status-offline {
-  background: #adb9c0;
+  background: var(--c-text-tertiary);
 }
 .device-row-main {
   display: flex;
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 .device-row-main strong {
   overflow: hidden;
@@ -1510,6 +1492,19 @@ onUnmounted(() => {
 
 
 @media (max-width: 1050px) { .app-hero { flex-direction: column; }.hero-controls { flex-basis: auto; width: min(100%, 360px); }.signal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.lower-grid { grid-template-columns: 1fr; } }
-@media (max-width: 760px) { .workspace-grid { display: block; }.launch-panel { margin-top: 16px; }.app-hero { padding: 23px 20px; }.device-panel, .launch-panel, .activity-panel, .asset-panel { padding: 17px; }.launch-two-col { grid-template-columns: 1fr; }.signal-grid { gap: 8px; }.signal-card { min-height: 100px; padding: 14px; }.signal-card strong { font-size: 23px; }.launch-signal { display: none; } }
+@media (max-width: 760px) { .workspace-grid { display: block; }.launch-panel { margin-top: 16px; }.app-hero { padding: 16px 20px; }.device-panel, .launch-panel, .activity-panel, .asset-panel { padding: 16px; }.launch-two-col { grid-template-columns: 1fr; }.signal-grid { gap: 8px; }.signal-card { min-height: 96px; padding: 16px; }.signal-card strong { font-size: 24px; }.launch-signal { display: none; } }
 @media (prefers-reduced-motion: reduce) { .device-row { transition: none; } }
+
+.device-panel :deep(.ant-empty-image),
+.activity-panel :deep(.ant-empty-image),
+.asset-panel :deep(.ant-empty-image) {
+  display: none;
+}
+
+.device-panel :deep(.ant-empty-description),
+.activity-panel :deep(.ant-empty-description),
+.asset-panel :deep(.ant-empty-description) {
+  margin-top: 0;
+  color: var(--c-text-tertiary);
+}
 </style>

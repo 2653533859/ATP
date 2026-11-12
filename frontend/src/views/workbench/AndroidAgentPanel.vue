@@ -854,7 +854,7 @@ defineExpose({
 }
 
 .agent-description {
-  margin: 6px 0 0;
+  margin: 6px 0 var(--space-4);
   color: var(--c-text-secondary);
   font-size: 13px;
   line-height: 1.5;
