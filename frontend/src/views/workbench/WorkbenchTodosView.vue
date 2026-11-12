@@ -70,15 +70,20 @@
           <template v-else-if="column.key === 'item'">
             <div class="todo-title-row">
               <span class="todo-title">{{ record.title }}</span>
-              <a-tag v-if="record.is_snoozed" color="default">{{ t('workbench.snoozed_badge') }}</a-tag>
+              <a-tag v-if="record.is_snoozed" color="default">
+                {{ record.snoozed_until ? t('workbench.snoozed_badge') : t('workbench.ignored_badge') }}
+              </a-tag>
             </div>
             <div class="todo-description">{{ record.description || '-' }}</div>
-            <div v-if="record.is_snoozed && (record.snooze_reason || record.snoozed_until)" class="snooze-info">
+            <div v-if="record.is_snoozed && (record.snooze_reason || record.snoozed_until !== undefined)" class="snooze-info">
               <span v-if="record.snooze_reason" class="snooze-reason">
                 {{ record.snooze_reason }}
               </span>
               <span v-if="record.snoozed_until" class="snooze-until">
                 {{ t('workbench.snoozed_until_prefix') }}{{ formatTime(record.snoozed_until) }}
+              </span>
+              <span v-else class="snooze-until">
+                {{ t('workbench.snooze_duration_forever_hint') }}
               </span>
             </div>
           </template>
@@ -107,6 +112,21 @@
               >
                 {{ t('workbench.snooze') }}
               </a-button>
+              <a-popconfirm
+                v-if="!record.is_snoozed"
+                :title="record.kind === 'device_anomaly' ? t('workbench.ignore_device_confirm') : t('workbench.ignore_todo_confirm')"
+                :ok-text="t('common.confirm', '确定')"
+                :cancel-text="t('common.cancel', '取消')"
+                @confirm="handleQuickIgnore(asTodo(record))"
+              >
+                <a-button
+                  type="link"
+                  size="small"
+                  class="action-ignore-btn"
+                >
+                  {{ t('workbench.ignore') }}
+                </a-button>
+              </a-popconfirm>
               <a-button
                 v-else
                 type="link"
@@ -292,7 +312,7 @@ const columns = computed(() => [
   { title: t('workbench.columns.item'), key: 'item', width: 420 },
   { title: t('workbench.columns.project'), key: 'project', width: 180 },
   { title: t('workbench.columns.created_at'), key: 'created_at', width: 180 },
-  { title: t('workbench.columns.action'), key: 'action', width: 180 },
+  { title: t('workbench.columns.action'), key: 'action', width: 220 },
 ])
 
 function toProjectId(value: unknown) {
@@ -464,6 +484,22 @@ async function handleSnoozeSubmit() {
     message.error(t('workbench.action_failed', '操作失败'))
   } finally {
     snoozeSubmitting.value = false
+  }
+}
+
+async function handleQuickIgnore(todo: WorkbenchTodoItem) {
+  try {
+    const reason = todo.kind === 'device_anomaly'
+      ? t('workbench.ignore_reason_device_offline')
+      : t('workbench.ignore_reason_default')
+    await workbenchApi.snoozeTodo(todo.id, {
+      duration_hours: -1,
+      reason,
+    })
+    message.success(t('workbench.ignore_success'))
+    await loadOverview()
+  } catch {
+    message.error(t('workbench.action_failed', '操作失败'))
   }
 }
 
@@ -707,6 +743,13 @@ h1 {
   background: #f5f5f5;
   padding: 1px 6px;
   border-radius: 4px;
+}
+
+.action-ignore-btn {
+  color: var(--c-text-tertiary, #8c8c8c);
+}
+.action-ignore-btn:hover {
+  color: var(--c-text-secondary, #595959);
 }
 
 .quick-review-content {

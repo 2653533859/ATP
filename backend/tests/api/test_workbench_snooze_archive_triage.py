@@ -369,3 +369,64 @@ def test_update_run_triage(monkeypatch):
     assert triage["triaged_by_name"] == "user_7"
     assert db.commits == 1
     assert db.refreshes == 1
+
+
+def test_snooze_device_anomaly_creates_indefinite_snooze():
+    fake_device = SimpleNamespace(id=42, serial="device-42", status="offline")
+    objects = {
+        ("Device", 42): fake_device,
+    }
+    db = _FakeDB([_FakeResult(rows=[])], objects=objects)
+    user = _user(7, role=UserRole.engineer)
+    body = WorkbenchTodoSnoozeIn(duration_hours=-1, reason="主动离线 / 忽略提醒")
+
+    out = asyncio.run(
+        workbench.snooze_workbench_todo(
+            todo_id="device:42",
+            body=body,
+            db=db,
+            current_user=user,
+        )
+    )
+
+    assert out.todo_id == "device:42"
+    assert out.user_id == 7
+    assert out.reason == "主动离线 / 忽略提醒"
+    assert out.snoozed_until is None  # -1 represents indefinite ignore
+    assert len(db.added) == 1
+    assert db.added[0].project_id is None
+    assert db.commits == 1
+
+
+def test_count_todos_with_device_anomaly_snooze_excluded(monkeypatch):
+    async def fake_count_tasks(*_args, **_kwargs):
+        return 0
+
+    monkeypatch.setattr(workbench, "_count_tasks", fake_count_tasks)
+
+    snooze_row = SimpleNamespace(id=1, todo_id="device:42", user_id=7, project_id=None, snoozed_until=None)
+    # db sequence when project_id is None: snooze_stmt, review_stmt, overdue_stmt, device_stmt
+    db = _FakeDB(
+        [
+            _FakeResult(rows=[snooze_row]),  # snooze map
+            _FakeResult(scalar=0),  # review count
+            _FakeResult(scalar=0),  # overdue plans
+            _FakeResult(scalar=0),  # device anomalies (excluded device:42)
+        ]
+    )
+    user = _user(7, role=UserRole.admin)
+
+    res = asyncio.run(
+        workbench._count_todos(
+            db=db,
+            user=user,
+            project_id=None,
+            snooze_filter="exclude",
+        )
+    )
+
+    assert res["snoozed_todos"] == 1
+    assert res["device_anomalies"] == 0
+    # Check that device_stmt added not_in constraint
+    device_stmt_str = str(db.statements[-1])
+    assert "devices.id NOT IN" in device_stmt_str

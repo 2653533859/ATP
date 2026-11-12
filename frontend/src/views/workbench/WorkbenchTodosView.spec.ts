@@ -17,6 +17,8 @@ const {
   failureDiagnosis,
   generateFailureDiagnosis,
   modalConfirm,
+  snoozeTodo,
+  unsnoozeTodo,
 } = vi.hoisted(() => ({
   overview: vi.fn(),
   tasks: vi.fn(),
@@ -29,6 +31,8 @@ const {
   failureDiagnosis: vi.fn(),
   generateFailureDiagnosis: vi.fn(),
   modalConfirm: vi.fn(),
+  snoozeTodo: vi.fn(),
+  unsnoozeTodo: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -53,6 +57,8 @@ vi.mock('@/api', () => ({
     stop,
     batchAction,
     failureDiagnosis,
+    snoozeTodo,
+    unsnoozeTodo,
   },
 }))
 
@@ -110,6 +116,17 @@ const globalStubs = {
   AForm: passthrough('AForm'),
   AFormItem: passthrough('AFormItem'),
   ATextarea: passthrough('ATextarea'),
+  APopconfirm: defineComponent({
+    name: 'APopconfirm',
+    props: { title: String },
+    emits: ['confirm'],
+    setup(_props, { slots, emit }) {
+      return () => h('div', { class: 'a-popconfirm-stub' }, [
+        slots.default?.(),
+        h('button', { class: 'popconfirm-confirm-btn', onClick: () => emit('confirm') }, 'confirm'),
+      ])
+    },
+  }),
   ReloadOutlined: true,
   PlusOutlined: true,
 }
@@ -178,6 +195,88 @@ describe('WorkbenchTodosView', () => {
       task_limit: 100,
     })
     expect(wrapper.text()).toContain('workbench.todos_title')
+
+    wrapper.unmount()
+  })
+
+  it('supports quick ignoring a device anomaly todo with indefinite duration', async () => {
+    snoozeTodo.mockResolvedValue({
+      todo_id: 'device:42',
+      user_id: 1,
+      reason: '主动离线 / 忽略提醒',
+      snoozed_until: null,
+      created_at: '2026-11-12T10:00:00Z',
+    })
+    overview.mockResolvedValueOnce({
+      generated_at: '2026-11-12T10:00:00Z',
+      project_id: null,
+      counts: { pending_reviews: 0, failed_runs: 0, overdue_plans: 0, device_anomalies: 1, total_todos: 1 },
+      todos: [
+        {
+          id: 'device:42',
+          kind: 'device_anomaly',
+          priority: 'medium',
+          title: '设备异常：OPPO R11',
+          description: '设备最近曾在线但当前离线',
+          is_snoozed: false,
+          created_at: '2026-11-12T09:00:00Z',
+          path: '/devices',
+        },
+      ],
+      tasks: [],
+      has_more_todos: false,
+      has_more_tasks: false,
+    })
+
+    const wrapper = mount(WorkbenchTodosView, { global: { stubs: globalStubs } })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('设备异常：OPPO R11')
+    expect(wrapper.text()).toContain('workbench.ignore')
+
+    const confirmBtn = wrapper.find('.popconfirm-confirm-btn')
+    expect(confirmBtn.exists()).toBe(true)
+    await confirmBtn.trigger('click')
+    await flushPromises()
+
+    expect(snoozeTodo).toHaveBeenCalledWith('device:42', {
+      duration_hours: -1,
+      reason: 'workbench.ignore_reason_device_offline',
+    })
+
+    wrapper.unmount()
+  })
+
+  it('renders ignored badge when todo is snoozed indefinitely', async () => {
+    overview.mockResolvedValueOnce({
+      generated_at: '2026-11-12T10:00:00Z',
+      project_id: null,
+      counts: { pending_reviews: 0, failed_runs: 0, overdue_plans: 0, device_anomalies: 1, total_todos: 1, snoozed_todos: 1 },
+      todos: [
+        {
+          id: 'device:42',
+          kind: 'device_anomaly',
+          priority: 'medium',
+          title: '设备异常：OPPO R11',
+          description: '设备最近曾在线但当前离线',
+          is_snoozed: true,
+          snooze_reason: '主动离线 / 忽略提醒',
+          snoozed_until: null,
+          created_at: '2026-11-12T09:00:00Z',
+          path: '/devices',
+        },
+      ],
+      tasks: [],
+      has_more_todos: false,
+      has_more_tasks: false,
+    })
+
+    const wrapper = mount(WorkbenchTodosView, { global: { stubs: globalStubs } })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('workbench.ignored_badge')
+    expect(wrapper.text()).toContain('workbench.snooze_duration_forever_hint')
+    expect(wrapper.text()).toContain('workbench.unsnooze')
 
     wrapper.unmount()
   })
