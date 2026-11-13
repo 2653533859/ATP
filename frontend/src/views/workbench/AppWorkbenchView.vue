@@ -340,6 +340,7 @@
         :project-id="selectedProjectId"
         :devices="devices"
         :modules="agentModuleOptions"
+        :apks="apks"
         :can-modify="canModify"
       />
     </template>

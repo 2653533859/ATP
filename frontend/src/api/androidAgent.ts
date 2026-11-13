@@ -101,6 +101,7 @@ export interface AgentManualActionResult {
   action: string
   status: string
   idempotency_key: string
+  error_code?: string | null
 }
 
 export interface AgentDraftPatchPayload {
@@ -174,9 +175,20 @@ export interface AgentPublishResult {
   idempotent_replay: boolean
 }
 
+export interface AgentVisionModelItem {
+  id: number
+  name: string
+  provider: string
+  model_name: string
+  enabled: boolean
+  supports_vision: boolean
+  description?: string | null
+}
+
 const base = (projectId: number) => `/projects/${projectId}/android-agent`
 
 export const androidAgentApi = {
+  listModels: (projectId: number) => http.get<unknown, AgentVisionModelItem[]>(`${base(projectId)}/models`),
   listSessions: (projectId: number, limit = 30) =>
     http.get<unknown, AgentSessionItem[]>(`${base(projectId)}/sessions`, { params: { limit } }),
   createSession: (projectId: number, payload: AgentSessionCreatePayload, idempotencyKey: string) =>

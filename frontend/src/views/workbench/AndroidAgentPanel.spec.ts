@@ -6,14 +6,20 @@ import AndroidAgentPanel from './AndroidAgentPanel.vue'
 
 const {
   compileDraft,
+  completeSession,
   control,
   createSession,
   events,
+  getReplay,
   getSession,
+  listModels,
+  listSessionDrafts,
+  manualAction,
   publishDraft,
   replayPreview,
   startReplay,
   startSession,
+  updateDraft,
   messageSuccess,
   messageInfo,
   runSession,
@@ -22,14 +28,20 @@ const {
   packageHistory,
 } = vi.hoisted(() => ({
   compileDraft: vi.fn(),
+  completeSession: vi.fn(),
   control: vi.fn(),
   createSession: vi.fn(),
   events: vi.fn(),
+  getReplay: vi.fn(),
   getSession: vi.fn(),
+  listModels: vi.fn(),
+  listSessionDrafts: vi.fn(),
+  manualAction: vi.fn(),
   publishDraft: vi.fn(),
   replayPreview: vi.fn(),
   startReplay: vi.fn(),
   startSession: vi.fn(),
+  updateDraft: vi.fn(),
   messageSuccess: vi.fn(),
   messageInfo: vi.fn(),
   runSession: vi.fn(),
@@ -48,15 +60,21 @@ vi.mock('ant-design-vue', () => ({
 vi.mock('@/api', () => ({
   androidAgentApi: {
     compileDraft,
+    completeSession,
     control,
     createSession,
     events,
+    getReplay,
     getSession,
+    listModels,
+    listSessionDrafts,
+    manualAction,
     publishDraft,
     replayPreview,
     runSession,
     startReplay,
     startSession,
+    updateDraft,
   },
   deviceApi: { packages: devicePackages, refreshPackages, packageHistory },
 }))
@@ -65,7 +83,11 @@ const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
 
 const globalStubs = {
-  AAlert: passthrough('AAlert'),
+  AAlert: defineComponent({
+    name: 'AAlert',
+    props: ['message', 'type'],
+    setup: (props, { slots }) => () => h('div', { class: 'a-alert-stub', 'data-type': props.type }, [props.message, slots.default?.()]),
+  }),
   AButton: defineComponent({
     name: 'AButton',
     props: ['disabled', 'loading', 'danger', 'type'],
@@ -194,6 +216,29 @@ beforeEach(() => {
   })
   refreshPackages.mockResolvedValue({ status: 'queued', device_id: 5, serial: 'emulator-5554' })
   packageHistory.mockResolvedValue([])
+  listModels.mockResolvedValue([])
+  completeSession.mockResolvedValue({ ...sessionFixture, status: 'completed' })
+  manualAction.mockResolvedValue({ command_id: 71, session_id: 11, seq: 6, control_epoch: 1, action: 'tap', status: 'succeeded', idempotency_key: 'm-1' })
+  listSessionDrafts.mockResolvedValue([])
+  updateDraft.mockResolvedValue({
+    id: 4,
+    project_id: 1,
+    session_id: 11,
+    version: 2,
+    schema_version: 1,
+    status: 'replayable',
+    content_hash: 'b'.repeat(64),
+    steps: [{ action: 'start_app', params: { package_name: 'com.example.shop' } }],
+    assertions: [{ type: 'element_visible', resource_id: 'com.example.shop:id/updated' }],
+    preconditions: [],
+    variables: ['keyword'],
+    blocking_issues: [],
+    source_map: {},
+    environment_snapshot: {},
+    published_case_id: null,
+    created_at: '2026-11-11T02:05:00Z',
+  })
+  getReplay.mockResolvedValue({ id: 9, draft_id: 3, draft_version: 1, status: 'passed', case_id: 100, run_id: 200 })
 })
 
 function mountPanel(overrides: Record<string, unknown> = {}) {
@@ -210,6 +255,31 @@ function mountPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('AndroidAgentPanel', () => {
+  it('会话切换或修改断言时要求重新确认终态', async () => {
+    const wrapper = mountPanel()
+    wrapper.vm.session = { ...sessionFixture, status: 'paused' }
+    wrapper.vm.completeAssertions = [{ type: 'element_visible', resource_id: 'com.example:id/first' }]
+    wrapper.vm.completeConfirmed = true
+    wrapper.vm.completeAssertions[0].resource_id = 'com.example:id/changed'
+    expect(wrapper.vm.completeConfirmed).toBe(false)
+    wrapper.vm.completeConfirmed = true
+    wrapper.vm.session = { ...sessionFixture, id: 12, status: 'paused' }
+    expect(wrapper.vm.completeConfirmed).toBe(false)
+    expect(wrapper.vm.completeAssertions).toEqual([{ type: 'element_visible', resource_id: '' }])
+  })
+
+  it('人工指令请求失败后重试相同操作沿用幂等键', async () => {
+    const wrapper = mountPanel()
+    wrapper.vm.session = { ...sessionFixture, status: 'paused', controller: 'manual' }
+    wrapper.vm.manualActionType = 'tap'
+    wrapper.vm.manualResourceId = 'com.example.shop:id/search'
+    manualAction.mockRejectedValueOnce('network error')
+    await wrapper.vm.submitManualAction()
+    await wrapper.vm.submitManualAction()
+    const first = manualAction.mock.calls[0][2] as { idempotency_key: string }
+    const second = manualAction.mock.calls[1][2] as { idempotency_key: string }
+    expect(first.idempotency_key).toBe(second.idempotency_key)
+  })
   it('创建会话后展示状态、用量与轨迹事件', async () => {
     const wrapper = mountPanel()
     wrapper.vm.formDeviceId = 5
@@ -445,5 +515,137 @@ describe('AndroidAgentPanel loop', () => {
     expect(runSession).toHaveBeenCalledWith(1, 11)
     expect(messageInfo).toHaveBeenCalled()
     expect(getSession).toHaveBeenCalledWith(1, 11)
+  })
+
+  it('加载视觉模型并支持 APK 快捷填充、标题与运行变量创建会话', async () => {
+    listModels.mockResolvedValueOnce([
+      { id: 8, name: 'GPT-4o Vision', provider: 'openai', model_name: 'gpt-4o', enabled: true, supports_vision: true },
+    ])
+    const wrapper = mountPanel({
+      apks: [{ id: 1, filename: 'shop.apk', package_name: 'com.example.quick', version_name: '1.0' }],
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.formLlmConfigId).toBe(8)
+    expect(wrapper.text()).toContain('android_agent.sensitive_hint')
+
+    await wrapper.find('.apk-quick-chip').trigger('click')
+    expect(wrapper.vm.formPackage).toBe('com.example.quick')
+
+    wrapper.vm.formTitle = '自定义任务'
+    wrapper.vm.formDeviceId = 5
+    wrapper.vm.formGoal = '登录'
+    wrapper.vm.formOutcome = '进入首页'
+    wrapper.vm.formVars = [{ key: 'keyword', value: 'sunny' }, { key: '  ', value: 'skip' }]
+    await wrapper.vm.createSession()
+    await flushPromises()
+
+    expect(createSession).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        title: '自定义任务',
+        llm_config_id: 8,
+        package_name: 'com.example.quick',
+        context_values: { keyword: 'sunny' },
+      }),
+      expect.stringContaining('agent-session-'),
+    )
+  })
+
+  it('开关停用返回 android_agent_disabled 时显示停用横幅并锁定创建与恢复', async () => {
+    createSession.mockRejectedValueOnce('android_agent_disabled: Android Agent 功能已停用')
+    const wrapper = mountPanel()
+    wrapper.vm.formDeviceId = 5
+    wrapper.vm.formPackage = 'com.example.shop'
+    wrapper.vm.formGoal = 'g'
+    wrapper.vm.formOutcome = 'o'
+
+    await wrapper.vm.createSession()
+    await flushPromises()
+
+    expect(wrapper.vm.agentDisabled).toBe(true)
+    expect(wrapper.vm.errorMessage).toBe('android_agent.error_disabled')
+    expect(wrapper.text()).toContain('android_agent.disabled_notice')
+    wrapper.vm.session = { ...sessionFixture, status: 'running' }
+    await flushPromises()
+    expect(wrapper.vm.canRunLoop).toBe(false)
+  })
+
+  it('人工接管状态下渲染单步控制台并提交 manualAction', async () => {
+    const wrapper = mountPanel()
+    wrapper.vm.session = { ...sessionFixture, status: 'paused', controller: 'manual' }
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="agent-manual-console"]').exists()).toBe(true)
+    wrapper.vm.manualActionType = 'input'
+    wrapper.vm.manualResourceId = 'com.example.shop:id/search'
+    wrapper.vm.manualValue = '手机'
+
+    await wrapper.vm.submitManualAction()
+    await flushPromises()
+
+    expect(manualAction).toHaveBeenCalledWith(
+      1,
+      11,
+      expect.objectContaining({
+        action: 'input',
+        params: { resource_id: 'com.example.shop:id/search', text: '手机' },
+      }),
+    )
+    expect(messageSuccess).toHaveBeenCalled()
+  })
+
+  it('人工确认终态断言后可收敛会话为 completed 并加载草稿', async () => {
+    const wrapper = mountPanel()
+    wrapper.vm.session = { ...sessionFixture, status: 'paused', controller: 'agent' }
+    await flushPromises()
+
+    wrapper.vm.showCompleteForm = true
+    wrapper.vm.completeAssertions = [{ type: 'element_visible', resource_id: 'com.example.shop:id/stock' }]
+    wrapper.vm.completeConfirmed = true
+    wrapper.vm.completeSummary = '已到货详情页'
+
+    await wrapper.vm.completeSession()
+    await flushPromises()
+
+    expect(completeSession).toHaveBeenCalledWith(1, 11, {
+      terminal_assertion_confirmed: true,
+      terminal_assertions: [{ type: 'element_visible', resource_id: 'com.example.shop:id/stock' }],
+      summary: '已到货详情页',
+    })
+    expect(wrapper.vm.session?.status).toBe('completed')
+    expect(wrapper.vm.showCompleteForm).toBe(false)
+  })
+
+  it('支持编辑草稿断言升版、刷新回放状态并展示结果跳转按钮', async () => {
+    const wrapper = mountPanel()
+    wrapper.vm.session = { ...sessionFixture, status: 'completed' }
+    await wrapper.vm.compileDraft()
+    await flushPromises()
+
+    wrapper.vm.startEditDraft()
+    wrapper.vm.editAssertions = [{ type: 'element_visible', resource_id: 'com.example.shop:id/updated' }]
+    await wrapper.vm.saveDraftEdits()
+    await flushPromises()
+
+    expect(updateDraft).toHaveBeenCalledWith(1, 3, {
+      expected_version: 1,
+      assertions: [{ type: 'element_visible', resource_id: 'com.example.shop:id/updated' }],
+    })
+    expect(wrapper.vm.draft?.version).toBe(2)
+
+    wrapper.vm.replayStateConfirmed = true
+    wrapper.vm.replayModuleId = 1
+    await wrapper.vm.startReplay()
+    await wrapper.vm.refreshReplayStatus()
+    await flushPromises()
+
+    expect(getReplay).toHaveBeenCalledWith(1, 9)
+    expect(wrapper.vm.latestReplay?.status).toBe('passed')
+    expect(wrapper.text()).toContain('android_agent.open_replay_run')
+
+    await wrapper.vm.publishDraft()
+    await flushPromises()
+    expect(wrapper.text()).toContain('android_agent.open_published_case')
   })
 })
