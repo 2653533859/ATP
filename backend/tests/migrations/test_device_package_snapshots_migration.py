@@ -51,7 +51,7 @@ def test_device_package_snapshots_upgrade_and_downgrade(tmp_path, monkeypatch):
 def test_local_sqlite_v23_migration_creates_snapshot_table(tmp_path):
     from app.core.local_schema import CURRENT_LOCAL_SCHEMA_VERSION, LOCAL_MIGRATIONS
 
-    assert CURRENT_LOCAL_SCHEMA_VERSION == 23
+    assert CURRENT_LOCAL_SCHEMA_VERSION >= 23
     assert 23 in LOCAL_MIGRATIONS
 
     engine = create_engine(f"sqlite:///{(tmp_path / 'local.sqlite').as_posix()}")

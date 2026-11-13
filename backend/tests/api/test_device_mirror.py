@@ -664,3 +664,108 @@ def test_background_capture_deduplicates_same_device(monkeypatch):
 
     assert calls == []
     assert store.committed == 0
+
+
+def test_parse_ui_anchors_extracts_stable_text_resource_and_ignores_system_and_noise():
+    xml = """<hierarchy rotation="0">
+      <node index="0" package="com.android.systemui" class="android.widget.TextView"
+            text="12:34" resource-id="com.android.systemui:id/clock" bounds="[0,0][200,60]" />
+      <node index="1" package="com.demo" class="android.widget.FrameLayout"
+            resource-id="android:id/content" bounds="[0,60][1080,1920]">
+        <node index="0" package="com.demo" class="android.widget.TextView"
+              text="隐藏标题" resource-id="com.demo:id/hidden" visible-to-user="false" bounds="[40,80][400,120]" />
+        <node index="1" package="com.demo" class="android.widget.TextView"
+              text="99+" clickable="false" bounds="[40,120][140,170]" />
+        <node index="2" package="com.demo" class="android.widget.TextView"
+              text="欢迎使用" clickable="false" bounds="[40,180][420,240]" />
+        <node index="3" package="com.demo" class="android.widget.EditText"
+              text="alice" resource-id="com.demo:id/username" clickable="true" bounds="[40,280][600,360]" />
+        <node index="4" package="com.demo" class="android.widget.ImageView"
+              content-desc="课程封面" clickable="false" bounds="[40,400][300,600]" />
+        <node index="5" package="com.demo" class="android.widget.Button"
+              text="开始训练" resource-id="com.demo:id/btn_start" clickable="true" bounds="[80,700][500,820]" />
+      </node>
+    </hierarchy>"""
+
+    anchors = device_mirror._parse_ui_anchors(xml)
+
+    assert anchors == {
+        "text": "欢迎使用",
+        "resourceId": "com.demo:id/btn_start",
+        "contentDesc": "课程封面",
+        "packageName": "com.demo",
+    }
+
+
+def test_parse_ui_anchors_returns_none_when_only_system_or_hidden_nodes_exist():
+    xml = """<hierarchy rotation="0">
+      <node index="0" package="com.android.systemui" class="android.widget.TextView"
+            text="WLAN" resource-id="com.android.systemui:id/wifi" bounds="[0,0][100,50]" />
+      <node index="1" package="com.demo" class="android.widget.TextView"
+            text="隐藏" resource-id="com.demo:id/hidden" visible-to-user="false" bounds="[0,60][200,120]" />
+    </hierarchy>"""
+
+    assert device_mirror._parse_ui_anchors(xml) is None
+
+
+def test_adb_ui_anchors_diagnostic_handles_found_not_found_and_unavailable(monkeypatch):
+    valid_xml = (
+        b'<hierarchy><node package="com.demo" class="android.widget.TextView" '
+        b'text="\xe9\xa6\x96\xe9\xa1\xb5" resource-id="com.demo:id/home_title" '
+        b'bounds="[10,100][300,180]" /></hierarchy>'
+    )
+    processes = iter(
+        [
+            types.SimpleNamespace(returncode=0, stdout=b"UI hierchary dumped", stderr=b""),
+            types.SimpleNamespace(returncode=0, stdout=valid_xml, stderr=b""),
+            types.SimpleNamespace(returncode=0, stdout=b"UI hierchary dumped", stderr=b""),
+            types.SimpleNamespace(returncode=0, stdout=b"<hierarchy></hierarchy>", stderr=b""),
+            types.SimpleNamespace(returncode=1, stdout=b"", stderr=b"ERROR: dump failed"),
+        ]
+    )
+    monkeypatch.setattr(device_mirror.subprocess, "run", lambda *_args, **_kwargs: next(processes))
+
+    found_anchors, found_diag = device_mirror._adb_ui_anchors_diagnostic("DEV1")
+    missing_anchors, missing_diag = device_mirror._adb_ui_anchors_diagnostic("DEV1")
+    failed_anchors, failed_diag = device_mirror._adb_ui_anchors_diagnostic("DEV1")
+
+    assert found_anchors == {
+        "text": "首页",
+        "resourceId": "com.demo:id/home_title",
+        "contentDesc": None,
+        "packageName": "com.demo",
+    }
+    assert found_diag == {"status": "found", "code": None}
+    assert missing_anchors is None
+    assert missing_diag == {"status": "not_found", "code": "anchor_not_found"}
+    assert failed_anchors is None
+    assert failed_diag == {"status": "unavailable", "code": "uiautomator_dump_failed"}
+
+
+def test_ui_anchors_endpoint_supports_local_and_worker_modes(monkeypatch):
+    assert _dep_of(device_mirror.device_ui_anchors) is _noop_current_user
+
+    anchors = {"text": "工作台", "resourceId": "com.demo:id/tab_home", "contentDesc": None, "packageName": "com.demo"}
+    monkeypatch.setattr(
+        device_mirror,
+        "_adb_ui_anchors_diagnostic",
+        lambda serial: (anchors, {"status": "found", "code": None}),
+    )
+
+    local_result = asyncio.run(device_mirror.device_ui_anchors(device_id=1, db=_FakeDB(_online_device("DEV1")), _=None))
+    assert local_result == {"anchors": anchors, "diagnostic": {"status": "found", "code": None}}
+
+    calls = []
+
+    async def fake_dispatch(operation, serial, params=None):
+        calls.append((operation, serial, params))
+        return {"ok": True, "anchors": anchors, "diagnostic": {"status": "found", "code": None}}
+
+    monkeypatch.setattr(device_mirror.settings, "ADB_SCAN_MODE", "worker")
+    monkeypatch.setattr(device_mirror, "_dispatch_worker_operation", fake_dispatch)
+
+    worker_result = asyncio.run(
+        device_mirror.device_ui_anchors(device_id=1, db=_FakeDB(_online_device("WIN-DEV")), _=None)
+    )
+    assert worker_result == {"anchors": anchors, "diagnostic": {"status": "found", "code": None}}
+    assert calls == [("ui_anchors", "WIN-DEV", None)]

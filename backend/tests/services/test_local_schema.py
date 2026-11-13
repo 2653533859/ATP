@@ -241,3 +241,21 @@ def test_version_eighteen_to_nineteen_creates_android_agent_tables(tmp_path) -> 
         assert "android_agent_sessions" in table_names
         assert "android_agent_events" in table_names
         assert "android_agent_commands" in table_names
+
+
+def test_version_twenty_three_to_twenty_four_creates_recording_records_table(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'v23.sqlite3'}")
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE recording_records")
+        connection.exec_driver_sql("PRAGMA user_version=23")
+
+    with engine.connect() as connection:
+        assert "recording_records" not in inspect(connection).get_table_names()
+
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.connect() as connection:
+        inspector = inspect(connection)
+        assert "recording_records" in inspector.get_table_names()
+        columns = {col["name"] for col in inspector.get_columns("recording_records")}
+        assert {"id", "project_id", "kind", "source", "session_id", "status", "steps", "artifacts"} <= columns

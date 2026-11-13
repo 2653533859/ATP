@@ -36,6 +36,7 @@ def load_all_models() -> None:
     from app.models.performance_node import PerformanceNode
     from app.models.dataset import TestDataset, TestDatasetVersion
     from app.models.web_assets import WebElementAsset, WebPageObject, WebVisualBaseline
+    from app.models.recording_record import RecordingRecord
     from app.models.api_schema import ApiSchemaAsset
     from app.models.api_contract_asset import ApiContractAsset
     from app.models.ios import IosApp, IosDevice, IosDeviceLease
@@ -96,6 +97,7 @@ def load_all_models() -> None:
         WebElementAsset,
         WebPageObject,
         WebVisualBaseline,
+        RecordingRecord,
         ApiSchemaAsset,
         ApiContractAsset,
         IosApp,

@@ -34,6 +34,7 @@ from app.api.v1 import (
     user_settings,
     performance,
     web_recordings,
+    recording_records,
     api_request_files,
     api_contracts,
     web_assets,
@@ -102,6 +103,7 @@ router.include_router(ai_healing_iter5.router)
 router.include_router(user_settings.router)
 router.include_router(performance.router)
 router.include_router(web_recordings.router)
+router.include_router(recording_records.router)
 router.include_router(api_request_files.router)
 router.include_router(api_contracts.router)
 router.include_router(web_assets.router)

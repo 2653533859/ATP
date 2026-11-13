@@ -168,3 +168,29 @@ def test_android_worker_forwards_mirror_key_and_text(monkeypatch):
     assert runner("text", "WIN-DEVICE", {"text": "hello%sworld"}) == {"ok": True, "error": None}
     assert runner("keyevent", "WIN-DEVICE", {})["ok"] is False
     assert calls == [("WIN-DEVICE", ("keyevent", "3")), ("WIN-DEVICE", ("text", "hello%sworld"))]
+
+
+def test_android_worker_handles_ui_anchors_operation(monkeypatch):
+    from app.worker import tasks_device
+
+    fake_mirror = types.SimpleNamespace(
+        _adb_ui_anchors_diagnostic=lambda serial: (
+            {"text": "工作台", "resourceId": "com.demo:id/home", "contentDesc": None, "packageName": serial},
+            {"status": "found", "code": None},
+        )
+    )
+    monkeypatch.setitem(sys.modules, "app.api.v1.device_mirror", fake_mirror)
+    runner = getattr(tasks_device.run_android_device_operation, "run", tasks_device.run_android_device_operation)
+
+    result = runner("ui_anchors", "WIN-DEVICE", {})
+
+    assert result == {
+        "ok": True,
+        "anchors": {
+            "text": "工作台",
+            "resourceId": "com.demo:id/home",
+            "contentDesc": None,
+            "packageName": "WIN-DEVICE",
+        },
+        "diagnostic": {"status": "found", "code": None},
+    }

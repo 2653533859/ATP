@@ -112,21 +112,16 @@ def run_android_device_operation(operation: str, serial: str, params: dict | Non
     队列落到 Windows Worker，返回值只包含 JSON 可序列化的数据。
     """
     params = params or {}
-    if operation not in {"screenshot", "tap", "swipe", "ui_target", "keyevent", "text", "packages"}:
+    if operation not in {"screenshot", "tap", "swipe", "ui_target", "ui_anchors", "keyevent", "text", "packages"}:
         return {"ok": False, "error": f"不支持的 Android 设备操作: {operation}"}
     if not serial.strip():
         return {"ok": False, "error": "设备 serial 不能为空"}
 
     try:
-        # 延迟导入避免 Celery 启动时把 FastAPI 路由模块作为强依赖加载。
-        from app.api.v1.device_mirror import (
-            _adb_device_packages,
-            _adb_input,
-            _adb_screenshot,
-            _adb_ui_target_diagnostic,
-        )
-
+        # 延迟导入避免 Celery 启动时把 FastAPI 路由模块作为强依赖加载，也便于按操作隔离测试替身。
         if operation == "screenshot":
+            from app.api.v1.device_mirror import _adb_screenshot
+
             data = _adb_screenshot(serial)
             return {
                 "ok": bool(data),
@@ -135,14 +130,27 @@ def run_android_device_operation(operation: str, serial: str, params: dict | Non
             }
 
         if operation == "ui_target":
+            from app.api.v1.device_mirror import _adb_ui_target_diagnostic
+
             target, diagnostic = _adb_ui_target_diagnostic(serial, int(params["x"]), int(params["y"]))
             return {"ok": True, "target": target, "diagnostic": diagnostic}
 
+        if operation == "ui_anchors":
+            from app.api.v1.device_mirror import _adb_ui_anchors_diagnostic
+
+            anchors, diagnostic = _adb_ui_anchors_diagnostic(serial)
+            return {"ok": True, "anchors": anchors, "diagnostic": diagnostic}
+
         if operation == "packages":
+            from app.api.v1.device_mirror import _adb_device_packages
+
             info = _adb_device_packages(serial, include_system=bool(params.get("include_system", False)))
             if info is None:
                 return {"ok": False, "error": "ADB 获取设备包名列表失败"}
             return {"ok": True, **info}
+
+        from app.api.v1.device_mirror import _adb_input
+
         if operation == "tap":
             args = ["tap", str(int(params["x"])), str(int(params["y"]))]
         elif operation in {"keyevent", "text"}:

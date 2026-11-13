@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["设备镜像"])
 
 _BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
+_ANCHOR_NOISE_RE = re.compile(r"^(?:\d{1,2}:\d{2}(?::\d{2})?|\d+(?:\.\d+)?%|\d+\+?|[\W_]+)$")
+_SYSTEM_ANCHOR_PACKAGES = {"com.android.systemui"}
 _PACKAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
 _FOCUS_COMPONENT_RE = re.compile(
     r"(?:mCurrentFocus|mFocusedApp|topResumedActivity|mResumedActivity)"
@@ -193,6 +195,84 @@ def _parse_ui_target(output: str, x: int, y: int) -> dict[str, object] | None:
     return target
 
 
+def _is_noisy_anchor_text(text: str) -> bool:
+    """过滤不适合作为断言文本的空白、超长、纯数字、时钟、电量或符号内容。"""
+    stripped = text.strip()
+    if len(stripped) < 2 or len(stripped) > 40 or "\n" in stripped or "\r" in stripped:
+        return True
+    return bool(_ANCHOR_NOISE_RE.fullmatch(stripped))
+
+
+def _parse_ui_anchors(output: str) -> dict[str, object] | None:
+    """从 UIAutomator XML 提取适合自动断言的文本、资源 ID 与描述锚点。"""
+    hierarchy_xml = _extract_hierarchy_xml(output)
+    if not hierarchy_xml:
+        return None
+
+    try:
+        root = ET.fromstring(hierarchy_xml)
+    except ET.ParseError:
+        return None
+
+    text_candidates: list[tuple[tuple[int, ...], str]] = []
+    resource_candidates: list[tuple[tuple[int, ...], str]] = []
+    desc_candidates: list[tuple[tuple[int, ...], str]] = []
+    package_counts: dict[str, int] = {}
+
+    for node in root.iter("node"):
+        if node.attrib.get("visible-to-user") == "false":
+            continue
+        bounds = _parse_bounds(node.attrib.get("bounds"))
+        if not bounds:
+            continue
+        pkg = node.attrib.get("package", "").strip()
+        if pkg in _SYSTEM_ANCHOR_PACKAGES:
+            continue
+        if pkg:
+            package_counts[pkg] = package_counts.get(pkg, 0) + 1
+
+        left, top, right, bottom = bounds
+        class_name = node.attrib.get("class", "").strip()
+        is_edit = "EditText" in class_name
+        clickable = node.attrib.get("clickable") == "true"
+        enabled = node.attrib.get("enabled", "true") != "false"
+
+        text = " ".join(node.attrib.get("text", "").split())
+        if text and not is_edit and not _is_noisy_anchor_text(text):
+            text_candidates.append(((int(enabled), int(not clickable), int(len(text) <= 20), -top, -left), text))
+
+        resource_id = node.attrib.get("resource-id", "").strip()
+        if (
+            resource_id
+            and ":id/" in resource_id
+            and not resource_id.startswith(("android:id/", "com.android.systemui:id/"))
+        ):
+            has_label = bool(text or node.attrib.get("content-desc", "").strip())
+            resource_candidates.append(
+                ((int(enabled), int(not is_edit), int(has_label), int(clickable), -top, -left), resource_id)
+            )
+
+        content_desc = " ".join(node.attrib.get("content-desc", "").split())
+        if content_desc and not _is_noisy_anchor_text(content_desc):
+            desc_candidates.append(
+                ((int(enabled), int(clickable), int(len(content_desc) <= 20), -top, -left), content_desc)
+            )
+
+    best_text = max(text_candidates, key=lambda item: item[0])[1] if text_candidates else None
+    best_resource_id = max(resource_candidates, key=lambda item: item[0])[1] if resource_candidates else None
+    best_content_desc = max(desc_candidates, key=lambda item: item[0])[1] if desc_candidates else None
+    dominant_package = max(package_counts.items(), key=lambda item: item[1])[0] if package_counts else None
+
+    if not any((best_text, best_resource_id, best_content_desc)):
+        return None
+    return {
+        "text": best_text,
+        "resourceId": best_resource_id,
+        "contentDesc": best_content_desc,
+        "packageName": dominant_package,
+    }
+
+
 def _adb_screenshot(serial: str, timeout: int = 10) -> bytes | None:
     """通过 adb 截图，返回 PNG 字节"""
     cmd = ["adb", "-s", serial, "exec-out", "screencap", "-p"]
@@ -241,10 +321,8 @@ def _ui_target_diagnostic(status: str, code: str | None = None) -> dict[str, str
     return {"status": status, "code": code}
 
 
-def _adb_ui_target_diagnostic(
-    serial: str, x: int, y: int, timeout: int = 10
-) -> tuple[dict[str, object] | None, dict[str, str | None]]:
-    """通过 UIAutomator dump 查找控件，并返回可供前端解释的脱敏状态。"""
+def _read_ui_hierarchy_xml(serial: str, timeout: int = 10) -> tuple[str | None, dict[str, str | None]]:
+    """通过 UIAutomator dump 并读取层级 XML，返回原始内容及脱敏诊断。"""
     hierarchy_path = "/sdcard/atp-ui-hierarchy.xml"
     dump_cmd = ["adb", "-s", serial, "shell", "uiautomator", "dump", hierarchy_path]
     cat_cmd = ["adb", "-s", serial, "shell", "cat", hierarchy_path]
@@ -260,11 +338,32 @@ def _adb_ui_target_diagnostic(
             logger.warning("adb ui hierarchy read failed for %s", serial)
             return None, _ui_target_diagnostic("unavailable", "uiautomator_read_failed")
         output = ((cat_proc.stdout or b"") + (cat_proc.stderr or b"")).decode("utf-8", errors="replace")
-        target = _parse_ui_target(output, x, y)
-        return target, _ui_target_diagnostic("found" if target else "not_found", None if target else "target_not_found")
+        return output, _ui_target_diagnostic("found")
     except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
         logger.warning("adb ui hierarchy failed for %s: %s", serial, e)
         return None, _ui_target_diagnostic("unavailable", "uiautomator_request_failed")
+
+
+def _adb_ui_target_diagnostic(
+    serial: str, x: int, y: int, timeout: int = 10
+) -> tuple[dict[str, object] | None, dict[str, str | None]]:
+    """通过 UIAutomator dump 查找控件，并返回可供前端解释的脱敏状态。"""
+    output, diagnostic = _read_ui_hierarchy_xml(serial, timeout=timeout)
+    if output is None:
+        return None, diagnostic
+    target = _parse_ui_target(output, x, y)
+    return target, _ui_target_diagnostic("found" if target else "not_found", None if target else "target_not_found")
+
+
+def _adb_ui_anchors_diagnostic(
+    serial: str, timeout: int = 10
+) -> tuple[dict[str, object] | None, dict[str, str | None]]:
+    """提取当前屏幕的稳定 UI 断言锚点，并返回可供前端解释的脱敏状态。"""
+    output, diagnostic = _read_ui_hierarchy_xml(serial, timeout=timeout)
+    if output is None:
+        return None, diagnostic
+    anchors = _parse_ui_anchors(output)
+    return anchors, _ui_target_diagnostic("found" if anchors else "not_found", None if anchors else "anchor_not_found")
 
 
 def _adb_ui_target(serial: str, x: int, y: int, timeout: int = 10) -> dict[str, object] | None:
@@ -391,6 +490,24 @@ async def device_ui_target(
         return response
     target, diagnostic = await asyncio.to_thread(_adb_ui_target_diagnostic, device.serial, x, y)
     return {"target": target, "diagnostic": diagnostic}
+
+
+@router.get("/devices/{device_id}/ui-anchors")
+async def device_ui_anchors(
+    device_id: int,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """提取设备当前屏幕可用于自动断言的稳定控件锚点。"""
+    device = await _get_online_device(device_id, db)
+    if _use_android_worker():
+        result = await _dispatch_worker_operation("ui_anchors", device.serial)
+        response: dict[str, object] = {"anchors": result.get("anchors")}
+        if result.get("diagnostic") is not None:
+            response["diagnostic"] = result["diagnostic"]
+        return response
+    anchors, diagnostic = await asyncio.to_thread(_adb_ui_anchors_diagnostic, device.serial)
+    return {"anchors": anchors, "diagnostic": diagnostic}
 
 
 async def _get_device_record(db: AsyncSession, device_id: int) -> Device:

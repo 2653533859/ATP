@@ -41,6 +41,7 @@ def load_all_models() -> None:
     from app.models.performance import PerformanceTest, PerformanceRun, PerformanceMetricSample
     from app.models.performance_node import PerformanceNode
     from app.models.web_assets import WebElementAsset, WebPageObject, WebVisualBaseline
+    from app.models.recording_record import RecordingRecord
     from app.models.requirement import TestRequirement, RequirementCaseLink
     from app.models.knowledge import KnowledgeEntry
     from app.models.configuration_revision import ConfigurationRevision
@@ -129,6 +130,7 @@ def load_all_models() -> None:
         WebElementAsset,
         WebPageObject,
         WebVisualBaseline,
+        RecordingRecord,
         TestRequirement,
         RequirementCaseLink,
         KnowledgeEntry,

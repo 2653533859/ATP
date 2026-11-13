@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 23
+CURRENT_LOCAL_SCHEMA_VERSION = 24
 
 
 def _create_sync_outbox(connection: Connection) -> None:
@@ -730,6 +730,44 @@ def _create_device_package_snapshots(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[23] = _create_device_package_snapshots
+
+
+def _create_recording_records(connection: Connection) -> None:
+    """v24：录制历史、未保存草稿与 Web Trace/HAR 记录表（对应 Alembic 20261113_0091）。"""
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS recording_records ("
+        "id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "
+        "project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, "
+        "owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL, "
+        "kind VARCHAR(16) NOT NULL, "
+        "source VARCHAR(32) NOT NULL DEFAULT 'workbench', "
+        "session_id VARCHAR(64), "
+        "title VARCHAR(255) NOT NULL, "
+        "target_url VARCHAR(1024), "
+        "browser VARCHAR(32), "
+        "device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL, "
+        "device_serial VARCHAR(128), "
+        "case_id INTEGER REFERENCES test_cases(id) ON DELETE SET NULL, "
+        "status VARCHAR(24) NOT NULL DEFAULT 'draft', "
+        "steps JSON NOT NULL DEFAULT '[]', "
+        "asset_ids JSON NOT NULL DEFAULT '[]', "
+        "artifacts JSON NOT NULL DEFAULT '{}', "
+        "summary JSON NOT NULL DEFAULT '{}', "
+        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "CONSTRAINT uq_recording_records_project_kind_session_id UNIQUE (project_id, kind, session_id)"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_recording_records_project_kind_updated "
+        "ON recording_records(project_id, kind, updated_at)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_recording_records_owner_updated " "ON recording_records(owner_id, updated_at)"
+    )
+
+
+LOCAL_MIGRATIONS[24] = _create_recording_records
 
 
 def _read_version(connection: Connection) -> int:

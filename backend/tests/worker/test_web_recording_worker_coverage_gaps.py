@@ -513,3 +513,36 @@ def test_main_skips_platform_missing_signals(monkeypatch):
     asyncio.run(worker_module.main())
 
     assert created and created[0].ran is True
+
+
+def test_worker_start_propagates_auto_assert_flag(monkeypatch):
+    worker = worker_module.WebRecordingWorker(worker_id="w-auto-assert")
+    created = []
+
+    class _FakeAutoSession:
+        def __init__(self, **kwargs):
+            created.append(kwargs)
+            self.session_id = kwargs["session_id"]
+            self.auto_assert = kwargs["auto_assert"]
+
+        async def start(self):
+            return None
+
+        def snapshot(self):
+            return {"session_id": self.session_id, "status": "recording", "auto_assert": self.auto_assert}
+
+    monkeypatch.setattr(worker_module, "WebRecordingSession", _FakeAutoSession)
+
+    result = asyncio.run(
+        worker._start(
+            {
+                "session_id": "s-no-assert",
+                "owner_id": 7,
+                "payload": {"start_url": "https://example.com", "project_id": 1, "auto_assert": False},
+            }
+        )
+    )
+
+    assert result["ok"] is True
+    assert created[0]["auto_assert"] is False
+    assert result["snapshot"]["auto_assert"] is False

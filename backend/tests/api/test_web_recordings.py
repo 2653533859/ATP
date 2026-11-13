@@ -926,3 +926,251 @@ def test_recording_current_url_falls_back_when_page_is_closed():
     session.page = DummyClosedPage()  # type: ignore[assignment]
     session.steps = [{"action": "goto", "name": "step 1", "params": {"url": "https://example.com/login"}}]
     assert session.current_url() == "https://example.com/login"
+
+
+def test_recording_auto_assert_captures_navigation_and_stop_without_duplicates(monkeypatch):
+    import app.api.v1.web_recordings as web_recordings
+
+    class _Frame:
+        def __init__(self, url="https://example.com/login"):
+            self.url = url
+
+    class _Page:
+        def __init__(self):
+            self.main_frame = _Frame()
+            self.url = self.main_frame.url
+            self.handlers = {}
+            self.anchor_state = {
+                "url": "https://example.com/login",
+                "anchorSelector": '[data-testid="login-form"]',
+                "anchorText": "欢迎登录",
+            }
+
+        async def goto(self, url, **_kwargs):
+            self.main_frame.url = url
+            self.url = url
+
+        async def expose_binding(self, *_args, **_kwargs):
+            return None
+
+        async def add_init_script(self, *_args, **_kwargs):
+            return None
+
+        async def evaluate(self, _script):
+            return dict(self.anchor_state)
+
+        def on(self, event, handler):
+            self.handlers[event] = handler
+
+        def is_closed(self):
+            return False
+
+    class _Context:
+        def __init__(self):
+            self.page = _Page()
+
+        async def route(self, *_args, **_kwargs):
+            return None
+
+        async def new_page(self):
+            return self.page
+
+        async def close(self):
+            return None
+
+    class _Browser:
+        def __init__(self):
+            self.context = _Context()
+
+        async def new_context(self, **_kwargs):
+            return self.context
+
+        async def close(self):
+            return None
+
+    class _Launcher:
+        def __init__(self):
+            self.browser = _Browser()
+
+        async def launch(self, **_kwargs):
+            return self.browser
+
+    class _Playwright:
+        def __init__(self):
+            self.chromium = _Launcher()
+
+        async def stop(self):
+            return None
+
+    class _Factory:
+        def __init__(self):
+            self.playwright = _Playwright()
+
+        async def start(self):
+            return self.playwright
+
+    factory = _Factory()
+    monkeypatch.setattr(web_recordings, "async_playwright", lambda: factory)
+    monkeypatch.setattr(web_recordings.settings, "WEB_RECORDER_DISPLAY", ":99")
+
+    session = WebRecordingSession(
+        session_id="auto-assert-session",
+        owner_id=1,
+        project_id=2,
+        start_url="https://example.com/login",
+        viewport_width=1280,
+        viewport_height=720,
+        auto_assert=True,
+    )
+
+    async def scenario():
+        await session.start()
+        # 模拟用户点击登录并跳转到工作台页
+        session._append_event({"type": "click", "selector": "button[type=submit]"})
+        page = factory.playwright.chromium.browser.context.page
+        page.anchor_state = {
+            "url": "https://example.com/dashboard",
+            "anchorSelector": '[data-testid="dashboard-title"]',
+            "anchorText": "工作台",
+        }
+        nav_frame = _Frame("https://example.com/dashboard")
+        page.main_frame = nav_frame
+        page.url = "https://example.com/dashboard"
+        session._handle_navigation(nav_frame)
+        session._handle_load()
+        await asyncio.sleep(0.08)
+        await session.stop()
+
+    asyncio.run(scenario())
+
+    assert session.snapshot()["auto_assert"] is True
+    assert [(step["action"], step["params"]) for step in session.steps] == [
+        ("goto", {"url": "https://example.com/login"}),
+        ("assert_visible", {"selector": '[data-testid="login-form"]'}),
+        ("assert_text", {"text": "欢迎登录"}),
+        ("click", {"selector": "button[type=submit]"}),
+        ("goto", {"url": "https://example.com/dashboard"}),
+        ("assert_visible", {"selector": '[data-testid="dashboard-title"]'}),
+        ("assert_text", {"text": "工作台"}),
+    ]
+
+
+def test_recording_auto_assert_false_skips_automatic_assertions():
+    class _Page:
+        async def evaluate(self, _script):
+            raise AssertionError("auto_assert=False 时不应探测 DOM 断言")
+
+        def is_closed(self):
+            return False
+
+    session = WebRecordingSession(
+        session_id="no-assert-session",
+        owner_id=1,
+        start_url="https://example.com",
+        viewport_width=1280,
+        viewport_height=720,
+        status="recording",
+        auto_assert=False,
+        page=_Page(),
+    )
+
+    asyncio.run(session._capture_page_assertions())
+    asyncio.run(session.stop())
+
+    assert session.steps == []
+    snapshot = session.snapshot()
+    assert snapshot["auto_assert"] is False
+    rebuilt = web_recordings_module_session_from_snapshot(snapshot)
+    assert rebuilt.auto_assert is False
+
+
+def web_recordings_module_session_from_snapshot(snapshot):
+    from app.api.v1.web_recordings import _session_from_snapshot
+
+    return _session_from_snapshot(snapshot, owner_id=1)
+
+
+def test_recording_replay_single_step_handles_assertions_and_swallows_timeout():
+    locator_calls = []
+
+    class _Locator:
+        def __init__(self, selector, should_fail=False):
+            self.selector = selector
+            self.should_fail = should_fail
+            self.first = self
+
+        async def wait_for(self, state="visible", timeout=None):
+            locator_calls.append((self.selector, state, timeout))
+            if self.should_fail:
+                raise TimeoutError("locator timeout")
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator(selector, should_fail="missing" in selector)
+
+    session = WebRecordingSession(
+        session_id="replay-assert-session",
+        owner_id=1,
+        start_url="https://example.com",
+        viewport_width=1280,
+        viewport_height=720,
+        page=_Page(),
+    )
+
+    asyncio.run(session._replay_single_step("assert_visible", {"selector": "#title", "timeout_ms": 12000}))
+    asyncio.run(session._replay_single_step("assert_text", {"text": "missing text", "timeout_ms": 8000}))
+
+    assert locator_calls == [
+        ("#title", "visible", 5000),
+        ("text=missing text", "visible", 5000),
+    ]
+
+
+def test_recording_persist_assets_links_assert_visible_selectors():
+    class _Rows:
+        def scalars(self):
+            return self
+
+        def all(self):
+            return []
+
+    class _DB:
+        def __init__(self):
+            self.items = []
+            self.commits = 0
+
+        async def execute(self, _query):
+            return _Rows()
+
+        def add(self, item):
+            item.id = len(self.items) + 1
+            self.items.append(item)
+
+        async def flush(self):
+            return None
+
+        async def commit(self):
+            self.commits += 1
+
+    session = WebRecordingSession(
+        session_id="persist-assert-visible",
+        owner_id=1,
+        project_id=9,
+        start_url="https://example.com/dashboard",
+        viewport_width=1280,
+        viewport_height=720,
+        status="stopped",
+        steps=[
+            {"action": "assert_visible", "name": "断言可见 #title", "params": {"selector": "#title"}},
+            {"action": "assert_text", "name": "断言文本 工作台", "params": {"text": "工作台"}},
+        ],
+    )
+    db = _DB()
+
+    asyncio.run(_persist_recorded_assets(db, session))
+
+    assert db.commits == 1
+    assert len(db.items) == 1
+    assert db.items[0].locator == {"strategy": "css", "value": "#title"}
+    assert session.steps[0]["params"]["element_asset_id"] == 1
+    assert session.asset_ids == [1]

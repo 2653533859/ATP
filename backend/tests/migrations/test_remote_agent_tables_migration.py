@@ -26,9 +26,11 @@ def test_site_revision_is_ancestor_of_single_head():
     config.set_main_option("script_location", str(VERSIONS.parent))
     scripts = ScriptDirectory.from_config(config)
     # 单一迁移头；新增迁移时同步更新此处，确保线上库可按单链升级
-    assert scripts.get_heads() == ["20261111_0089"]
+    assert scripts.get_heads() == ["20261113_0091"]
     revisions = [revision.revision for revision in scripts.iterate_revisions("head", "20261026_0082")]
     assert revisions == [
+        "20261113_0091",
+        "20261111_0090",
         "20261111_0089",
         "20261111_0088",
         "20261110_0087",

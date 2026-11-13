@@ -305,7 +305,7 @@ def test_start_tolerates_page_without_close_support(monkeypatch):
         @property
         def on(self):
             self._on_accesses += 1
-            if self._on_accesses >= 7:
+            if self._on_accesses >= 9:
                 raise AttributeError("on")
             return super().on
 

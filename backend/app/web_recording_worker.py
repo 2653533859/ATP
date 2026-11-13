@@ -101,6 +101,8 @@ class WebRecordingWorker:
             project_id=payload.project_id,
             browser_name=payload.browser,
             replay_steps=payload.replay_steps,
+            auto_assert=payload.auto_assert,
+            source=payload.source,
         )
         self.pending_sessions.add(session_id)
         try:

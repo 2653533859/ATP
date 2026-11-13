@@ -18,6 +18,7 @@ import sys
 import tempfile
 import time
 import uuid
+import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -38,6 +39,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.models.web_assets import WebElementAsset
+from app.services.recording_records import get_recording_record_by_session, upsert_web_recording_record
 from app.services.web_network_guard import guard_browser_request, sanitize_network_url, validate_browser_request_url
 from app.services.web_recording_transport import (
     RemoteWebRecordingManager,
@@ -243,7 +245,127 @@ _RECORDING_SCRIPT = r"""
 """
 
 
+_PAGE_ASSERTION_SCRIPT = r"""
+(() => {
+  const isVisible = (el) => {
+    if (!(el instanceof Element)) return false;
+    const style = window.getComputedStyle(el);
+    if (!style || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    return rect.width >= 4 && rect.height >= 4;
+  };
+
+  const isUnique = (selector) => {
+    if (!selector) return false;
+    try {
+      const matches = document.querySelectorAll(selector);
+      return matches.length === 1 && isVisible(matches[0]);
+    } catch {
+      return false;
+    }
+  };
+
+  const quote = (value) => String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const isDynamicId = (id) => {
+    if (!id || typeof id !== 'string') return true;
+    if (/^el-(?:id|tooltip|popper)-/i.test(id)) return true;
+    if (/^(?:rc[_-]|ant-|_|:r[0-9a-z]+:)/i.test(id)) return true;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(id) || /^[a-z]+[-_][0-9]{4,}/i.test(id)) return true;
+    return false;
+  };
+
+  const buildUniqueSelector = (el) => {
+    if (!(el instanceof Element)) return '';
+    const tag = el.tagName.toLowerCase();
+    const testId = el.getAttribute('data-testid') || el.getAttribute('data-test-id');
+    if (testId) {
+      const s = `[data-testid="${quote(testId)}"]`;
+      if (isUnique(s)) return s;
+    }
+    if (el.id && !isDynamicId(el.id)) {
+      const s = `#${CSS.escape(el.id)}`;
+      if (isUnique(s)) return s;
+    }
+    const ariaLabel = el.getAttribute('aria-label');
+    if (ariaLabel) {
+      const s = `${tag}[aria-label="${quote(ariaLabel)}"]`;
+      if (isUnique(s)) return s;
+    }
+    const parts = [];
+    let node = el;
+    while (node && node !== document.body && parts.length < 5) {
+      let part = node.tagName.toLowerCase();
+      if (node.id && !isDynamicId(node.id)) {
+        parts.unshift(`#${CSS.escape(node.id)}`);
+        const candidate = parts.join(' > ');
+        if (isUnique(candidate)) return candidate;
+      } else {
+        const parent = node.parentElement;
+        if (parent) {
+          const siblings = Array.from(parent.children).filter((item) => item.tagName === node.tagName);
+          if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+        }
+        parts.unshift(part);
+        const candidate = parts.join(' > ');
+        if (isUnique(candidate)) return candidate;
+      }
+      node = node.parentElement;
+    }
+    const full = parts.join(' > ');
+    return isUnique(full) ? full : '';
+  };
+
+  const cleanText = (el) => {
+    if (!el) return '';
+    const raw = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (raw.length < 2 || raw.length > 48) return '';
+    if (/^[\d\W_]+$/.test(raw)) return '';
+    return raw;
+  };
+
+  const anchorCandidates = Array.from(
+    document.querySelectorAll(
+      '[data-testid], [data-test-id], main h1, [role="main"] h1, h1, main h2, [role="main"] h2, h2, [role="heading"], [role="alert"], main, form'
+    )
+  );
+  let anchorSelector = '';
+  for (const el of anchorCandidates) {
+    if (!isVisible(el)) continue;
+    const sel = buildUniqueSelector(el);
+    if (sel) {
+      anchorSelector = sel;
+      break;
+    }
+  }
+
+  const textCandidates = Array.from(
+    document.querySelectorAll(
+      'main h1, [role="main"] h1, main h2, [role="main"] h2, main h3, [role="heading"], h1, h2, [role="alert"], .ant-message-notice, .el-message, h3'
+    )
+  );
+  let anchorText = '';
+  for (const el of textCandidates) {
+    if (!isVisible(el)) continue;
+    const txt = cleanText(el);
+    if (txt) {
+      anchorText = txt;
+      break;
+    }
+  }
+
+  return {
+    url: window.location.href || '',
+    anchorSelector,
+    anchorText,
+  };
+})()
+"""
+
+
 WebRecordingBrowser = Literal["chromium", "firefox", "webkit"]
+WebRecordingSource = Literal["workbench", "case_drawer", "resume", "assets"]
 
 
 class WebRecordingStart(BaseModel):
@@ -253,6 +375,8 @@ class WebRecordingStart(BaseModel):
     viewport_width: int = Field(default=1280, ge=320, le=3840)
     viewport_height: int = Field(default=720, ge=240, le=2160)
     replay_steps: list[dict[str, Any]] = Field(default_factory=list)
+    auto_assert: bool = True
+    source: WebRecordingSource = "workbench"
 
     @field_validator("start_url")
     @classmethod
@@ -278,8 +402,14 @@ class WebRecordingSession:
     status: str = "starting"
     error: str | None = None
     replay_steps: list[dict[str, Any]] = field(default_factory=list)
+    auto_assert: bool = True
+    source: str = "workbench"
+    recording_record_id: int | None = None
     replayed_step_count: int = 0
     is_resuming: bool = False
+    _replaying_prefix: bool = False
+    _pending_assert_tasks: set[asyncio.Task[Any]] = field(default_factory=set, repr=False)
+    _assert_lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
     steps: list[dict[str, Any]] = field(default_factory=list)
     blocked_requests: list[dict[str, Any]] = field(default_factory=list)
     console_messages: list[dict[str, Any]] = field(default_factory=list)
@@ -344,10 +474,16 @@ class WebRecordingSession:
             self.page = await self.context.new_page()
             if self.replay_steps:
                 self.is_resuming = True
-                await self._replay_recorded_prefix()
+                self._replaying_prefix = True
+                try:
+                    await self._replay_recorded_prefix()
+                finally:
+                    self._replaying_prefix = False
             else:
                 self._append_step("goto", f"打开 {self.start_url}", {"url": self.start_url})
                 await self.page.goto(self.start_url, wait_until="domcontentloaded", timeout=30_000)
+                if self.auto_assert:
+                    await self._capture_page_assertions()
 
             await self.page.expose_binding("atpRecordEvent", self._handle_binding)
             await self.page.add_init_script(_RECORDING_SCRIPT)
@@ -355,6 +491,8 @@ class WebRecordingSession:
                 with contextlib.suppress(Exception):
                     await self.page.evaluate(_RECORDING_SCRIPT)
             self.page.on("framenavigated", self._handle_navigation)
+            if hasattr(self.page, "on"):
+                self.page.on("load", self._handle_load)
             self.page.on("console", self._handle_console)
             self.page.on("pageerror", self._handle_page_error)
             self.page.on("request", self._handle_request)
@@ -425,11 +563,26 @@ class WebRecordingSession:
             key = str(params.get("key") or "").strip()
             if key:
                 await self.page.keyboard.press(key)
+        elif action == "assert_visible":
+            selector = str(params.get("selector") or "").strip()
+            if selector and hasattr(self.page, "locator"):
+                with contextlib.suppress(Exception):
+                    await self.page.locator(selector).wait_for(state="visible", timeout=min(timeout_ms, 5_000))
+        elif action == "assert_text":
+            text = str(params.get("text") or "").strip()
+            if text and hasattr(self.page, "locator"):
+                with contextlib.suppress(Exception):
+                    await self.page.locator(f"text={text}").first.wait_for(
+                        state="visible", timeout=min(timeout_ms, 5_000)
+                    )
         await asyncio.sleep(0.2)
 
     async def stop(self) -> None:
         if self.status not in {"stopped", "error"}:
             self.status = "stopping"
+            await self._flush_pending_assertions()
+            if self.auto_assert:
+                await self._capture_page_assertions()
             await self.close()
             self.status = "stopped"
             self.finished_at = time.monotonic()
@@ -654,6 +807,7 @@ class WebRecordingSession:
                     "filename": path.name,
                     "content_type": content_type,
                     "size": path.stat().st_size,
+                    "object_name": object_name,
                     "url": url,
                 }
             except Exception as exc:
@@ -672,6 +826,7 @@ class WebRecordingSession:
                     "filename": self.report_path.name,
                     "content_type": "application/json",
                     "size": self.report_path.stat().st_size,
+                    "object_name": object_name,
                     "url": url,
                 }
             except Exception as exc:
@@ -707,7 +862,85 @@ class WebRecordingSession:
             "error": self.error,
             "replayed_step_count": self.replayed_step_count,
             "is_resuming": self.is_resuming,
+            "auto_assert": self.auto_assert,
+            "source": self.source,
+            "recording_record_id": self.recording_record_id,
+            "assets_persisted": self.assets_persisted,
         }
+
+    def _append_assertion_step(self, action: str, name: str, params: dict[str, Any]) -> None:
+        for existing in reversed(self.steps):
+            if existing.get("action") in {"goto", "click", "fill", "select", "press"}:
+                break
+            if existing.get("action") == action and existing.get("params") == params:
+                return
+        self._append_step(action, name, params)
+
+    async def _probe_dom_assertions(self) -> dict[str, str]:
+        if (
+            not self.auto_assert
+            or self.page is None
+            or getattr(self.page, "is_closed", lambda: False)()
+            or not callable(getattr(self.page, "evaluate", None))
+        ):
+            return {}
+        try:
+            result = await self.page.evaluate(_PAGE_ASSERTION_SCRIPT)
+        except Exception:
+            return {}
+        if not isinstance(result, dict):
+            return {}
+        return {
+            "url": str(result.get("url") or "").strip(),
+            "anchorSelector": str(result.get("anchorSelector") or "").strip(),
+            "anchorText": str(result.get("anchorText") or "").strip(),
+        }
+
+    async def _capture_page_assertions(self) -> None:
+        async with self._assert_lock:
+            probed = await self._probe_dom_assertions()
+            if not probed:
+                return
+            selector = probed.get("anchorSelector", "")
+            if selector:
+                self._append_assertion_step("assert_visible", f"断言可见 {selector}", {"selector": selector})
+            text = probed.get("anchorText", "")
+            if text:
+                self._append_assertion_step("assert_text", f"断言文本 {text}", {"text": text})
+
+    def _schedule_page_assertions(self, delay: float = 0.2) -> None:
+        if not self.auto_assert or self.status != "recording" or self._replaying_prefix:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        async def _run() -> None:
+            try:
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                if self.status == "recording" and not self._replaying_prefix:
+                    await self._capture_page_assertions()
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                return
+
+        task = loop.create_task(_run())
+        self._pending_assert_tasks.add(task)
+        task.add_done_callback(self._pending_assert_tasks.discard)
+
+    async def _flush_pending_assertions(self) -> None:
+        tasks = list(self._pending_assert_tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._pending_assert_tasks.clear()
+
+    def _handle_load(self, _page: Any = None) -> None:
+        self._schedule_page_assertions(delay=0.05)
 
     def _handle_navigation(self, frame: Frame) -> None:
         if self.page is None or frame != self.page.main_frame:
@@ -729,6 +962,8 @@ class WebRecordingSession:
             if url.rstrip("/") == last_replayed_url.rstrip("/"):
                 return
         self._append_step("goto", f"打开 {url}", {"url": url})
+        if self.auto_assert and not self._replaying_prefix:
+            self._schedule_page_assertions(delay=0.25)
 
     def _handle_binding(self, _source: object, payload: Any) -> None:
         if isinstance(payload, dict):
@@ -799,6 +1034,8 @@ class WebRecordingManager:
                 project_id=payload.project_id,
                 browser_name=payload.browser,
                 replay_steps=payload.replay_steps,
+                auto_assert=payload.auto_assert,
+                source=payload.source,
             )
             self.sessions[session.session_id] = session
         try:
@@ -838,6 +1075,7 @@ def _session_from_snapshot(snapshot: dict[str, Any], owner_id: int) -> WebRecord
         viewport_width=int(snapshot.get("viewport_width") or 1280),
         viewport_height=int(snapshot.get("viewport_height") or 720),
         project_id=int(snapshot["project_id"]) if snapshot.get("project_id") is not None else None,
+        browser_name=str(snapshot.get("browser") or "chromium"),
         status=str(snapshot.get("status") or "stopped"),
         error=str(snapshot["error"]) if snapshot.get("error") else None,
         steps=list(snapshot.get("steps") or []),
@@ -850,6 +1088,14 @@ def _session_from_snapshot(snapshot: dict[str, Any], owner_id: int) -> WebRecord
         asset_ids=[int(value) for value in snapshot.get("asset_ids") or [] if str(value).isdigit()],
         artifacts=dict(snapshot.get("artifacts") or {}),
         artifact_error=str(snapshot["artifact_error"]) if snapshot.get("artifact_error") else None,
+        replayed_step_count=int(snapshot.get("replayed_step_count") or 0),
+        is_resuming=bool(snapshot.get("is_resuming")),
+        auto_assert=bool(snapshot.get("auto_assert", True)),
+        source=str(snapshot.get("source") or "workbench"),
+        recording_record_id=(
+            int(snapshot["recording_record_id"]) if snapshot.get("recording_record_id") is not None else None
+        ),
+        assets_persisted=bool(snapshot.get("assets_persisted")),
     )
 
 
@@ -862,7 +1108,11 @@ async def _persist_recorded_assets(db: AsyncSession, session: WebRecordingSessio
     for step in session.steps:
         params = step.get("params") if isinstance(step.get("params"), dict) else {}
         selector = str(params.get("selector") or "").strip()
-        if selector and selector not in seen and step.get("action") in {"click", "fill", "select", "press"}:
+        if (
+            selector
+            and selector not in seen
+            and step.get("action") in {"click", "fill", "select", "press", "assert_visible"}
+        ):
             seen.add(selector)
             selectors.append(selector)
     if not selectors:
@@ -988,14 +1238,84 @@ async def start_recording(
     return session.snapshot()
 
 
+_PERSIST_LOCKS: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
+
+
+def _get_persist_lock(session_id: str) -> asyncio.Lock:
+    """Serialize concurrent GET poll and POST /stop finalization for the same session."""
+    lock = _PERSIST_LOCKS.get(session_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _PERSIST_LOCKS[session_id] = lock
+    return lock
+
+
+def _is_async_db_session(db: Any) -> bool:
+    """Ignore FastAPI Depends placeholders or minimal mock DBs used in unit tests."""
+    return all(callable(getattr(db, attr, None)) for attr in ("execute", "add", "commit"))
+
+
+async def _persist_terminal_recording(
+    db: AsyncSession,
+    session: WebRecordingSession,
+    owner_id: int,
+    *,
+    force_record_upsert: bool = False,
+) -> dict[str, Any]:
+    """Persist assets + durable RecordingRecord idempotently once a session reaches a terminal state."""
+    async with _get_persist_lock(session.session_id):
+        if session.status not in {"stopped", "error"}:
+            return session.snapshot()
+        if session.recording_record_id is not None and session.assets_persisted and not force_record_upsert:
+            return session.snapshot()
+        if _is_async_db_session(db):
+            existing = await get_recording_record_by_session(
+                db, "web", session.session_id, project_id=session.project_id
+            )
+            if existing is not None:
+                session.recording_record_id = existing.id
+                if existing.asset_ids and not session.asset_ids:
+                    session.asset_ids = list(existing.asset_ids)
+                if existing.asset_ids or not any(
+                    isinstance(step.get("params"), dict) and str(step["params"].get("selector") or "").strip()
+                    for step in session.steps
+                ):
+                    session.assets_persisted = True
+                if not force_record_upsert:
+                    return session.snapshot()
+        if not session.assets_persisted:
+            await _persist_recorded_assets(db, session)
+        snapshot = session.snapshot()
+        if _is_async_db_session(db):
+            try:
+                record = await upsert_web_recording_record(db, snapshot, owner_id=owner_id)
+                if record is not None:
+                    session.recording_record_id = record.id
+                    snapshot = {**snapshot, "recording_record_id": record.id}
+            except Exception as exc:
+                logger.warning("持久化 Web 录制记录失败 (session=%s): %s", session.session_id, exc)
+        return snapshot
+
+
 @router.get("/{session_id}")
-async def get_recording(session_id: str, user: User = Depends(get_current_user)):
+async def get_recording(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     if settings.WEB_RECORDER_MODE.strip().lower() == "worker":
         try:
-            return await remote_manager.get(session_id, user.id)
+            snapshot = await remote_manager.get(session_id, user.id)
         except WebRecordingTransportError as exc:
             raise _recording_http_error(exc) from exc
-    return manager.get(session_id, user.id).snapshot()
+        if snapshot.get("status") in {"stopped", "error"} and _is_async_db_session(db):
+            session = _session_from_snapshot(snapshot, user.id)
+            return await _persist_terminal_recording(db, session, user.id)
+        return snapshot
+    session = manager.get(session_id, user.id)
+    if session.status in {"stopped", "error"} and session.recording_record_id is None and _is_async_db_session(db):
+        return await _persist_terminal_recording(db, session, user.id)
+    return session.snapshot()
 
 
 @router.post("/{session_id}/screenshot", response_class=Response)
@@ -1026,12 +1346,10 @@ async def stop_recording(
         except WebRecordingTransportError as exc:
             raise _recording_http_error(exc) from exc
         session = _session_from_snapshot(snapshot, user.id)
-        await _persist_recorded_assets(db, session)
-        return session.snapshot()
+        return await _persist_terminal_recording(db, session, user.id, force_record_upsert=True)
     session = manager.get(session_id, user.id)
     await session.stop()
-    await _persist_recorded_assets(db, session)
-    return session.snapshot()
+    return await _persist_terminal_recording(db, session, user.id, force_record_upsert=True)
 
 
 async def close_all_recordings() -> None:
