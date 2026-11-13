@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.core.tracing import get_trace_id
+from app.core.config import settings
 from app.models.android_agent import AndroidAgentCommand, AndroidAgentSession
 from app.schemas.android_agent import AgentErrorCode, AgentSessionStatus
 from app.services.ai_case.llm_client import LLMRequest
@@ -59,6 +60,7 @@ PAUSING_REASONS = frozenset(
         "cannot_progress",
         "observation_unavailable",
         "num_actions_limit",
+        "android_agent_disabled",
     }
 )
 _ACTION_TIMEOUT_SECONDS = 120
@@ -247,6 +249,8 @@ class _SessionScopedGate(DeviceControlGate):
         self.session_id = session_id
 
     async def check(self, captured_epoch: int) -> None:
+        if not settings.ANDROID_AGENT_ENABLED:
+            raise ControlRejected("android_agent_disabled")
         await super().check(captured_epoch)
         async with self.session_factory() as db:
             session = await db.get(AndroidAgentSession, self.session_id)
@@ -320,6 +324,14 @@ async def run_agent_session(
 
     local_steps = 0
     for _ in range(max_rounds):
+        if not settings.ANDROID_AGENT_ENABLED:
+            return await _finish(
+                "android_agent_disabled",
+                session_id,
+                session_factory,
+                coordinator,
+                LoopResult("needs_review", "android_agent_disabled"),
+            )
         async with session_factory() as db:
             session = await db.get(AndroidAgentSession, session_id)
             if session is None:

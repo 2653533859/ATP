@@ -117,6 +117,12 @@ async def lifespan(app: FastAPI):
 
     # 启动时执行业务初始化
     await _init_admin()
+    if not getattr(settings, "ANDROID_AGENT_ENABLED", True):
+        from app.services.android_agent.coordinator import AgentCoordinator
+
+        async with AsyncSessionLocal() as db:
+            await AgentCoordinator().pause_disabled_sessions(db)
+            await db.commit()
     if settings.ATP_LOCAL_MODE:
         from app.core.local_workspace import ensure_local_workspace
         from app.services.local_jobs import start_local_runner

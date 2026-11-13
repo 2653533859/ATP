@@ -18,6 +18,7 @@ from app.models.device import Device, DeviceLease
 from app.models.project import Project
 from app.models.user import User
 from app.services.android_agent.loop import AgentLoopError
+from app.services.device_leases import acquire_device_lease, release_device_lease
 
 load_all_models()
 
@@ -70,6 +71,9 @@ async def _session(factory, *, status_value: str = "running") -> int:
             controller="agent",
         )
         db.add(session)
+        if status_value == "running":
+            lease = await acquire_device_lease(db, 5, owner_id=1, owner_label="agent-test")
+            session.lease_token = lease.lease_token
         await db.commit()
         return session.id
 
@@ -130,6 +134,9 @@ async def test_run_endpoint_returns_loop_result(tmp_path: Path, monkeypatch):
             await db.commit()
             session = await db.get(AndroidAgentSession, session_id)
             session.llm_config_id = 1
+            # 已取得租约的设备正常显示为 busy，不能被误判为离线。
+            device = await db.get(Device, 5)
+            device.status = "busy"
             await db.commit()
 
         monkeypatch.setattr(agent_api, "decrypt", lambda _value: "plain-key")
@@ -198,5 +205,33 @@ async def test_run_endpoint_maps_loop_rejection_to_409(tmp_path: Path, monkeypat
                 )
             assert exc_info.value.status_code == 409
             assert "lease_missing" in exc_info.value.detail
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_run_endpoint_rejects_lost_lease_before_connecting(tmp_path: Path, monkeypatch):
+    engine, factory = await _setup(tmp_path)
+    try:
+        session_id = await _session(factory)
+        async with factory() as db:
+            session = await db.get(AndroidAgentSession, session_id)
+            await release_device_lease(db, 5, session.lease_token)
+            await db.commit()
+            user = await db.get(User, 1)
+
+            async def fake_model(*args):
+                return object()
+
+            monkeypatch.setattr(agent_api, "_build_llm_request", fake_model)
+            monkeypatch.setattr(
+                agent_api, "_build_device_adapter", lambda *args: pytest.fail("connected without lease")
+            )
+            with pytest.raises(HTTPException) as exc_info:
+                await agent_api.run_agent_session_endpoint(
+                    project_id=1, session_id=session_id, max_rounds=5, db=db, current_user=user
+                )
+            assert exc_info.value.status_code == 409
+            assert "lease_lost" in exc_info.value.detail
     finally:
         await engine.dispose()

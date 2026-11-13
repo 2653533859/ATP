@@ -303,3 +303,17 @@ class AgentCompleteRequest(BaseModel):
     terminal_assertions: list[AgentAssertion] = Field(default_factory=list)
     summary: str = Field(default="", max_length=500)
     outcome: Literal["success", "partial"] = "success"
+
+
+class AgentVisionModelOut(BaseModel):
+    """供工作台选择视觉模型的脱敏只读配置（不暴露密钥与供应商端点）。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    provider: str
+    model_name: str
+    enabled: bool
+    supports_vision: bool
+    description: Optional[str] = None

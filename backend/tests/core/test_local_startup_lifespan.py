@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -90,10 +91,18 @@ async def test_local_lifespan_starts_schema_workspace_and_queue(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_server_lifespan_checks_alembic_without_local_queue(monkeypatch):
+@pytest.mark.parametrize("agent_enabled", [True, False])
+async def test_server_lifespan_checks_alembic_without_local_queue(monkeypatch, agent_enabled):
     events = []
     monkeypatch.setattr(
-        main, "settings", SimpleNamespace(ATP_LOCAL_MODE=False, OTEL_SERVICE_NAME="test", APP_AUTO_CREATE_TABLES=False)
+        main,
+        "settings",
+        SimpleNamespace(
+            ATP_LOCAL_MODE=False,
+            OTEL_SERVICE_NAME="test",
+            APP_AUTO_CREATE_TABLES=False,
+            ANDROID_AGENT_ENABLED=agent_enabled,
+        ),
     )
     monkeypatch.setattr(main, "setup_logging", lambda: None)
     monkeypatch.setattr(main, "verify_alembic_head_or_warn", lambda: events.append("alembic"))
@@ -102,6 +111,17 @@ async def test_server_lifespan_checks_alembic_without_local_queue(monkeypatch):
     monkeypatch.setattr(main, "ensure_bucket", lambda: None)
     monkeypatch.setattr(main, "_init_admin", AsyncMock())
     monkeypatch.setattr(main, "engine", SimpleNamespace(dispose=AsyncMock()))
+    from app.services.android_agent.coordinator import AgentCoordinator
+
+    @asynccontextmanager
+    async def fake_session():
+        yield SimpleNamespace(commit=AsyncMock(side_effect=lambda: events.append("commit")))
+
+    async def pause_sessions(_self, _db):
+        events.append("pause_agent")
+
+    monkeypatch.setattr(main, "AsyncSessionLocal", fake_session)
+    monkeypatch.setattr(AgentCoordinator, "pause_disabled_sessions", pause_sessions)
     from app.api.v1 import web_recordings
 
     monkeypatch.setattr(web_recordings, "close_all_recordings", AsyncMock())
@@ -119,7 +139,9 @@ async def test_server_lifespan_checks_alembic_without_local_queue(monkeypatch):
 
     async with main.lifespan(main.app):
         # 服务器模式不启动本地队列，但共用投递器仍随 API 生命周期启动。
-        assert events == ["alembic", "dispatch_start"]
+        assert events == (
+            ["alembic", "dispatch_start"] if agent_enabled else ["alembic", "pause_agent", "commit", "dispatch_start"]
+        )
 
     # 服务器模式的 API 进程不持有池化浏览器，退出时不应触发关闭。
     assert "browsers" not in events

@@ -197,6 +197,12 @@ def _patch_probe(monkeypatch):
         raise AssertionError("测试必须显式 patch probe")
 
     monkeypatch.setattr(loop_module, "probe_model", fake_probe)
+    from app.services.android_agent import coordinator
+
+    async def no_publish(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(coordinator, "_safe_publish_agent_event", no_publish)
     return monkeypatch
 
 
@@ -350,6 +356,60 @@ async def test_loop_aborts_before_action_when_epoch_changes(tmp_path: Path):
         assert result.reason in {"control_epoch_changed", "write_cancelled"}
         assert adapter.actions == []
         assert calls["n"] == 1
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_disabling_during_model_call_pauses_before_device_write(tmp_path: Path, monkeypatch):
+    engine, factory = await _setup_db(tmp_path, tag="disabled")
+    try:
+        session_id = await _running_session(factory)
+        tap = _decision(
+            "tap",
+            target={"node_id": "n2"},
+            expected_observation={"type": "element_visible", "resource_id": f"{PACKAGE}:id/search"},
+        )
+        probe, _ = _decisions([tap])
+
+        async def disable_during_probe(request, **kwargs):
+            result = await probe(request, **kwargs)
+            monkeypatch.setattr(loop_module.settings, "ANDROID_AGENT_ENABLED", False)
+            return result
+
+        monkeypatch.setattr(loop_module, "probe_model", disable_during_probe)
+        adapter = FakeAdapter()
+        result = await run_agent_session(factory, session_id, adapter=adapter, llm_request=LLM_REQUEST)
+        assert result.reason == "android_agent_disabled"
+        assert adapter.actions == []
+        async with factory() as db:
+            session = await db.get(AndroidAgentSession, session_id)
+            assert session.status == "paused"
+            assert session.lease_token
+            events = (await db.execute(select(AndroidAgentEvent))).scalars().all()
+            assert any(
+                e.event_type == "session_paused" and e.payload["reason"] == "android_agent_disabled" for e in events
+            )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_disabled_startup_sweep_invalidates_running_session_and_retains_lease(tmp_path: Path):
+    engine, factory = await _setup_db(tmp_path, tag="disabled-sweep")
+    try:
+        session_id = await _running_session(factory)
+        async with factory() as db:
+            session = await db.get(AndroidAgentSession, session_id)
+            old_epoch, old_token = session.control_epoch, session.lease_token
+            assert await AgentCoordinator().pause_disabled_sessions(db) == [session_id]
+            await db.commit()
+        async with factory() as db:
+            session = await db.get(AndroidAgentSession, session_id)
+            assert session.status == "paused"
+            assert session.control_epoch == old_epoch + 1
+            assert session.lease_token == old_token
+            assert await AgentCoordinator().pause_disabled_sessions(db) == []
     finally:
         await engine.dispose()
 

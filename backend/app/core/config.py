@@ -280,6 +280,10 @@ class Settings(BaseSettings):
     # 默认关闭——这是唯一会修改用例数据的自愈路径，须显式开启后 apply 接口才生效。
     AI_HEALING_APPLY_ENABLED: bool = False
 
+    # Android 自然语言自动化独立开关（M4/A42 灰度与安全回退）
+    # 关闭后拒绝创建或启动新会话，存量会话仅允许安全暂停、取消与留存证据查看
+    ANDROID_AGENT_ENABLED: bool = True
+
     # OpenTelemetry / Jaeger
     # OTEL_EXPORTER_OTLP_ENDPOINT 留空时跳过 OTel 初始化（向后兼容纯 trace_id 模式）
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""

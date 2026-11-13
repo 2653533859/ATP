@@ -51,10 +51,54 @@ def _stub_replay_dispatch(monkeypatch):
     """回放派发依赖 Celery 队列；单测只验证记录与幂等，不实际投递任务。"""
     calls: list[int] = []
     monkeypatch.setattr(android_agent_api, "_enqueue_replay_run", lambda run, case, session: calls.append(run.id))
+    from app.services.android_agent import coordinator
+
+    async def no_publish(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(coordinator, "_safe_publish_agent_event", no_publish)
     return calls
 
 
 PACKAGE = "com.example.shop"
+
+
+def test_manual_input_and_fixed_wait_remain_blocked_until_draft_review():
+    events = [
+        SimpleNamespace(
+            seq=1,
+            event_type="step_executed",
+            payload={
+                "action": "input",
+                "action_status": "succeeded",
+                "controller": "manual",
+                "node": {"resource_id": f"{PACKAGE}:id/search"},
+                "params": {},
+            },
+        ),
+        SimpleNamespace(
+            seq=2,
+            event_type="step_executed",
+            payload={
+                "action": "wait",
+                "action_status": "succeeded",
+                "controller": "manual",
+                "params": {"duration_ms": 1000},
+            },
+        ),
+        SimpleNamespace(seq=3, event_type="session_completed", payload={}),
+    ]
+    draft = compile_session_draft(
+        session_id=1,
+        package_name=PACKAGE,
+        goal="Search",
+        expected_outcome="Result",
+        events=events,
+        terminal_assertions=[{"type": "element_visible", "resource_id": f"{PACKAGE}:id/result"}],
+    )
+    codes = {issue["code"] for issue in draft.blocking_issues}
+    assert {"step_unsafe_input", "step_needs_manual_review"} <= codes
+    assert not draft.replayable
 
 
 async def _setup_db(tmp_path: Path, *, tag: str = "base"):
@@ -80,8 +124,10 @@ async def _setup_db(tmp_path: Path, *, tag: str = "base"):
         DeviceLease.__table__,
         AndroidAgentSession.__table__,
         AndroidAgentEvent.__table__,
+        Base.metadata.tables["android_agent_commands"],
         AndroidAgentDraft.__table__,
         AndroidAgentReplay.__table__,
+        Base.metadata.tables["audit_logs"],
     ]
     async with engine.begin() as conn:
         await conn.run_sync(lambda c: Base.metadata.create_all(c, tables=tables))
@@ -763,5 +809,81 @@ async def test_complete_endpoint_rejects_terminal_state(tmp_path: Path):
                     current_user=user,
                 )
             assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_api_publish_records_audit_log_once_across_idempotent_replay(tmp_path: Path):
+    from sqlalchemy import select
+
+    from app.models.audit import AuditLog
+    from app.models.base import Base
+
+    engine, factory, user = await _setup_db(tmp_path, tag="publish-audit")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(lambda c: Base.metadata.create_all(c, tables=[AuditLog.__table__]))
+
+        session_id = await _seed_session(factory)
+        async with factory() as db:
+            draft = await create_agent_draft(
+                project_id=1,
+                session_id=session_id,
+                payload=AgentDraftCreateRequest(),
+                db=db,
+                current_user=user,
+            )
+            handoff = await start_agent_draft_replay(
+                project_id=1,
+                draft_id=draft.id,
+                payload=AgentReplayStartRequest(initial_state_confirmed=True, module_id=1, idempotency_key="pub-aud-1"),
+                db=db,
+                current_user=user,
+            )
+
+        async with factory() as verify_db:
+            verify_db.add(
+                AndroidAgentReplay(
+                    project_id=1,
+                    session_id=session_id,
+                    idempotency_key="seed-verify-aud",
+                    draft_id=draft.id,
+                    draft_version=draft.version,
+                    content_hash=draft.content_hash,
+                    status="passed",
+                    module_id=1,
+                    case_id=handoff.case_id,
+                    run_id=handoff.run_id,
+                )
+            )
+            await verify_db.commit()
+
+        async with factory() as db:
+            published = await publish_agent_draft(
+                project_id=1,
+                draft_id=draft.id,
+                idempotency_key="publish-aud-1",
+                db=db,
+                current_user=user,
+            )
+            assert published.published is True
+            again = await publish_agent_draft(
+                project_id=1,
+                draft_id=draft.id,
+                idempotency_key="publish-aud-1",
+                db=db,
+                current_user=user,
+            )
+            assert again.idempotent_replay is True
+
+            logs = list(
+                (await db.execute(select(AuditLog).where(AuditLog.action == "android_agent_draft_publish"))).scalars()
+            )
+            assert len(logs) == 1
+            assert logs[0].resource_type == "android_agent_draft"
+            assert logs[0].resource_id == draft.id
+            assert logs[0].project_id == 1
+            assert f"case_id={published.case_id}" in (logs[0].detail or "")
     finally:
         await engine.dispose()

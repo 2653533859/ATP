@@ -517,6 +517,8 @@ class AgentCoordinator:
         db: AsyncSession,
         session_id: int,
         reason: str = "",
+        *,
+        retain_lease: bool = False,
     ) -> AndroidAgentSession:
         session = await self.get_session(db, session_id)
         if session.status in TERMINAL_STATUSES:
@@ -528,7 +530,7 @@ class AgentCoordinator:
         session.control_epoch += 1
         session.version += 1
 
-        if session.device_id and session.lease_token:
+        if session.device_id and session.lease_token and not retain_lease:
             try:
                 await release_device_lease(db, session.device_id, session.lease_token)
             except Exception:
@@ -646,6 +648,29 @@ class AgentCoordinator:
                 recovered_ids.append(session.id)
 
         return recovered_ids
+
+    async def pause_disabled_sessions(self, db: AsyncSession) -> list[int]:
+        """停用时作废运行中决策，保留租约直至原执行者退出或租约到期。"""
+        stmt = (
+            select(AndroidAgentSession)
+            .where(AndroidAgentSession.status.in_(["prechecking", "running", "pause_requested"]))
+            .with_for_update()
+        )
+        sessions = (await db.execute(stmt)).scalars().all()
+        ids = []
+        for session in sessions:
+            session.status = AgentSessionStatus.paused.value
+            session.control_epoch += 1
+            session.version += 1
+            await db.flush()
+            await self.append_event(
+                db,
+                session.id,
+                event_type="session_paused",
+                payload={"reason": "android_agent_disabled", "control_epoch": session.control_epoch},
+            )
+            ids.append(session.id)
+        return ids
 
     async def list_events(
         self,

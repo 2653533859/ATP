@@ -3,22 +3,25 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import asyncio
 import hashlib
 import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.models.android_agent import (
     AndroidAgentDraft,
+    AndroidAgentCommand,
     AndroidAgentReplay,
     AndroidAgentSession,
 )
 from app.models.case import CaseStatus, TestCase, TestRun
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.encryption import decrypt
 from app.models.ai_llm_config import AILLMConfig
@@ -44,7 +47,9 @@ from app.schemas.android_agent import (
     AgentSessionCreate,
     AgentSessionStatus,
     AgentSessionResponse,
+    AgentVisionModelOut,
 )
+from app.models.audit import AuditLog
 from app.services.ai_case.llm_client import LLMRequest
 from app.services.android_agent.compiler import compile_session_draft
 from app.services.android_agent.coordinator import (
@@ -55,15 +60,70 @@ from app.services.android_agent.coordinator import (
     UnauthorizedControllerError,
 )
 from app.services.android_agent.loop import AgentLoopError, run_agent_session
+from app.services.android_agent.control import ControlRejected, ControlState, DeviceControlGate
+from app.services.android_agent.device_adapter import DeviceAdapterError, UiTarget
 from app.services.android_agent.replay import (
     build_replay_preview,
     find_published_case,
     find_verified_replay,
     start_replay,
 )
+from app.services.device_leases import get_active_device_lease, release_device_lease
 
 router = APIRouter(prefix="/projects/{project_id}/android-agent", tags=["Android Agent"])
 coordinator = AgentCoordinator()
+
+
+async def _lock_agent_session(db: AsyncSession, session_id: int) -> AndroidAgentSession:
+    # SQLite ignores FOR UPDATE. A no-op write serializes manual dispatch with
+    # resume/cancel/complete there; PostgreSQL holds the row lock until commit.
+    await db.execute(
+        update(AndroidAgentSession)
+        .where(AndroidAgentSession.id == session_id)
+        .values(version=AndroidAgentSession.version, updated_at=AndroidAgentSession.updated_at)
+        .execution_options(synchronize_session=False)
+    )
+    return (
+        await db.execute(
+            select(AndroidAgentSession)
+            .where(AndroidAgentSession.id == session_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
+
+
+def _require_android_agent_enabled() -> None:
+    if not settings.ANDROID_AGENT_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="android_agent_disabled: Android Agent 功能已停用，现有会话仍可查看或取消",
+        )
+
+
+async def _record_agent_audit(
+    db: AsyncSession,
+    *,
+    action: str,
+    resource_type: str,
+    resource_id: int | None,
+    user: User,
+    project_id: int,
+    detail: str | None = None,
+) -> None:
+    """审计与业务变更同事务提交；写入失败时由调用方回滚。"""
+    db.add(
+        AuditLog(
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            user_id=getattr(user, "id", None),
+            username=getattr(user, "username", ""),
+            detail=detail,
+            project_id=project_id,
+        )
+    )
+    await db.flush()
 
 
 def _enqueue_replay_run(run: TestRun, case: TestCase, session: AndroidAgentSession) -> None:
@@ -121,6 +181,25 @@ async def list_agent_sessions(
     return list((await db.execute(stmt)).scalars().all())
 
 
+@router.get(
+    "/models",
+    response_model=list[AgentVisionModelOut],
+    summary="列出项目可用的已启用模型配置（脱敏，不含密钥）",
+)
+async def list_agent_models(
+    project_id: int = Path(..., ge=1),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[AILLMConfig]:
+    await assert_project_access(db, current_user, project_id, ProjectRole.viewer)
+    stmt = (
+        select(AILLMConfig)
+        .where(AILLMConfig.enabled.is_(True))
+        .order_by(AILLMConfig.supports_vision.desc(), AILLMConfig.id.desc())
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
 @router.post(
     "/sessions",
     response_model=AgentSessionResponse,
@@ -134,6 +213,7 @@ async def create_agent_session(
     current_user: User = Depends(get_current_user),
 ) -> AndroidAgentSession:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
+    _require_android_agent_enabled()
     session = await coordinator.create_session(db, project_id, payload)
     await db.commit()
     await db.refresh(session)
@@ -152,6 +232,7 @@ async def start_agent_session(
     current_user: User = Depends(get_current_user),
 ) -> AndroidAgentSession:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
+    _require_android_agent_enabled()
     await _get_project_session(db, project_id, session_id)
     try:
         session = await coordinator.start_session(db, session_id)
@@ -200,7 +281,12 @@ async def control_agent_session(
     current_user: User = Depends(get_current_user),
 ) -> AgentControlResponse:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
-    session = await _get_project_session(db, project_id, session_id)
+    await _get_project_session(db, project_id, session_id)
+    session = await _lock_agent_session(db, session_id)
+    if payload.action.value == "resume":
+        _require_android_agent_enabled()
+    if payload.action.value == "resume":
+        await _require_no_manual_dispatch(db, session_id)
 
     # 乐观并发版本检查
     if payload.expected_version is not None and payload.expected_version != session.version:
@@ -210,11 +296,28 @@ async def control_agent_session(
         )
 
     try:
-        updated = await coordinator.control_session(
+        inflight = await _manual_dispatch_inflight(db, session_id) if payload.action.value == "cancel" else False
+        if inflight:
+            # 作废后续写入，但不能在正在进行的设备 RPC 结束前把租约交给其他人。
+            updated = await coordinator.cancel_session(db, session_id, reason=payload.reason or "", retain_lease=True)
+        else:
+            updated = await coordinator.control_session(
+                db,
+                session_id,
+                action=payload.action,
+                reason=payload.reason or "",
+            )
+        await _record_agent_audit(
             db,
-            session_id,
-            action=payload.action,
-            reason=payload.reason or "",
+            action=f"android_agent_session_{payload.action.value}",
+            resource_type="android_agent_session",
+            resource_id=updated.id,
+            user=current_user,
+            project_id=project_id,
+            detail=(
+                f"status={updated.status}; controller={updated.controller}; "
+                f"control_epoch={updated.control_epoch}; reason={payload.reason or ''}"
+            ),
         )
         await db.commit()
         await db.refresh(updated)
@@ -252,25 +355,175 @@ async def manual_action_agent_session(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
+    _require_android_agent_enabled()
     await _get_project_session(db, project_id, session_id)
     try:
-        cmd = await coordinator.manual_action(db, session_id, payload)
+        # Serialize manual dispatches on the session row. An in-flight or
+        # interrupted command must never be silently sent a second time.
+        session = await _lock_agent_session(db, session_id)
+        if payload.idempotency_key:
+            existing = (
+                await db.execute(
+                    select(AndroidAgentCommand).where(
+                        AndroidAgentCommand.session_id == session_id,
+                        AndroidAgentCommand.idempotency_key == payload.idempotency_key,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing is not None:
+                return _manual_response(existing)
+        inflight = await db.scalar(
+            select(AndroidAgentCommand.id)
+            .where(AndroidAgentCommand.session_id == session_id, AndroidAgentCommand.status == "dispatching")
+            .limit(1)
+        )
+        if inflight is not None:
+            raise HTTPException(status_code=409, detail="manual_command_in_progress: 请先核实前一指令结果")
+        raw_params = dict(payload.params)
+        params = {key: raw_params[key] for key in ("resource_id", "direction", "duration_ms") if key in raw_params}
+        safe_payload = payload.model_copy(update={"params": params})
+        cmd = await coordinator.manual_action(db, session_id, safe_payload)
+        cmd.status = "dispatching"
+        command_id, epoch = cmd.id, session.control_epoch
+        device_id, lease_token, package_name = session.device_id, session.lease_token, session.package_name
+        await _record_agent_audit(
+            db,
+            action="android_agent_manual_action",
+            resource_type="android_agent_session",
+            resource_id=session_id,
+            user=current_user,
+            project_id=project_id,
+            detail=f"command_id={cmd.id}; seq={cmd.seq}; control_epoch={cmd.control_epoch}; action={cmd.action}",
+        )
+        await db.commit()
+        result, error = await _execute_manual_action(
+            session_id, device_id, lease_token, epoch, package_name, payload.action, raw_params
+        )
+        cmd = await db.get(AndroidAgentCommand, command_id)
+        assert cmd is not None
+        cmd.status, cmd.error_message = result, error
+        current = await _lock_agent_session(db, session_id)
+        if current.status == "cancelled" and current.device_id == device_id and current.lease_token == lease_token:
+            if device_id and lease_token:
+                await release_device_lease(db, device_id, lease_token)
+            current.lease_token = None
+        await coordinator.append_event(
+            db,
+            session_id,
+            event_type="step_executed",
+            payload={
+                "command_id": command_id,
+                "action": payload.action,
+                "action_status": result,
+                "control_epoch": epoch,
+                "node": {"resource_id": params.get("resource_id", "")},
+                "params": params,
+                "error_code": error,
+                "controller": "manual",
+            },
+        )
         await db.commit()
         await db.refresh(cmd)
-        return {
-            "command_id": cmd.id,
-            "session_id": cmd.session_id,
-            "seq": cmd.seq,
-            "control_epoch": cmd.control_epoch,
-            "action": cmd.action,
-            "status": cmd.status,
-            "idempotency_key": cmd.idempotency_key,
-        }
+        return _manual_response(cmd)
     except UnauthorizedControllerError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
+
+
+def _manual_response(cmd: AndroidAgentCommand) -> dict[str, Any]:
+    return {
+        "command_id": cmd.id,
+        "session_id": cmd.session_id,
+        "seq": cmd.seq,
+        "control_epoch": cmd.control_epoch,
+        "action": cmd.action,
+        "status": cmd.status,
+        "idempotency_key": cmd.idempotency_key,
+        "error_code": cmd.error_message,
+    }
+
+
+async def _manual_dispatch_inflight(db: AsyncSession, session_id: int) -> bool:
+    inflight = await db.scalar(
+        select(AndroidAgentCommand.id)
+        .where(AndroidAgentCommand.session_id == session_id, AndroidAgentCommand.status == "dispatching")
+        .limit(1)
+    )
+    return inflight is not None
+
+
+async def _require_no_manual_dispatch(db: AsyncSession, session_id: int) -> None:
+    if await _manual_dispatch_inflight(db, session_id):
+        raise HTTPException(status_code=409, detail="manual_command_in_progress: 请先核实前一指令结果")
+
+
+async def _execute_manual_action(
+    session_id: int,
+    device_id: int | None,
+    lease_token: str | None,
+    epoch: int,
+    package_name: str,
+    action: str,
+    params: dict[str, Any],
+) -> tuple[str, str | None]:
+    """设备写入前复核持有人和代次；异常结果不自动重试。"""
+    if device_id is None or not lease_token:
+        return "cancelled", "lease_missing"
+
+    class ManualGate(DeviceControlGate):
+        async def check(self, captured_epoch: int) -> None:
+            if not settings.ANDROID_AGENT_ENABLED:
+                raise ControlRejected("android_agent_disabled")
+            await super().check(captured_epoch)
+            async with self.session_factory() as check_db:
+                current = await check_db.get(AndroidAgentSession, session_id)
+                if (
+                    current is None
+                    or current.status != "paused"
+                    or current.controller not in ("manual", "human")
+                    or current.control_epoch != captured_epoch
+                ):
+                    raise ControlRejected("manual_control_changed")
+
+    gate = ManualGate(AsyncSessionLocal, device_id=device_id, lease_token=lease_token, state=ControlState(epoch))
+    try:
+        await gate.check(epoch)
+        async with AsyncSessionLocal() as lookup_db:
+            device = await lookup_db.get(Device, device_id)
+            if device is None or device.status == DeviceStatus.offline:
+                return "failed", "device_unavailable"
+            adapter = await asyncio.to_thread(_build_device_adapter, device, package_name)
+        allow = gate.sync_check(epoch, asyncio.get_running_loop())
+        resource_id = params.get("resource_id")
+        if action in ("tap", "input") and (not isinstance(resource_id, str) or not resource_id):
+            return "failed", "resource_id_required"
+        if action == "tap":
+            await asyncio.to_thread(adapter.tap, UiTarget(resource_id=resource_id), assert_write_allowed=allow)
+        elif action == "input":
+            value = params.get("text")
+            if not isinstance(value, str) or not value:
+                return "failed", "input_value_required"
+            await asyncio.to_thread(adapter.replace_text, resource_id, value, assert_write_allowed=allow)
+        elif action == "swipe":
+            await asyncio.to_thread(adapter.swipe, params.get("direction", "up"), 0.5, assert_write_allowed=allow)
+        elif action == "back":
+            await asyncio.to_thread(adapter.press_back, assert_write_allowed=allow)
+        elif action == "wait":
+            duration = params.get("duration_ms", 1000)
+            if type(duration) is not int or not 100 <= duration <= 30000:
+                return "failed", "invalid_wait_budget"
+            await asyncio.sleep(duration / 1000)
+            await gate.check(epoch)
+        return "succeeded", None
+    except ControlRejected as exc:
+        return "cancelled", str(exc)
+    except DeviceAdapterError as exc:
+        code = str(exc).split(":", 1)[0]
+        return ("outcome_unknown" if code in {"write_outcome_unknown", "input_outcome_unknown"} else "failed"), code
+    except Exception:
+        return "outcome_unknown", "manual_action_outcome_unknown"
 
 
 async def _build_llm_request(db: AsyncSession, session: AndroidAgentSession) -> LLMRequest:
@@ -316,7 +569,9 @@ async def complete_agent_session(
     current_user: User = Depends(get_current_user),
 ) -> AndroidAgentSession:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
-    session = await _get_project_session(db, project_id, session_id)
+    await _get_project_session(db, project_id, session_id)
+    session = await _lock_agent_session(db, session_id)
+    await _require_no_manual_dispatch(db, session_id)
     if not payload.terminal_assertion_confirmed:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -343,6 +598,18 @@ async def complete_agent_session(
             outcome=payload.outcome,
             terminal_assertions=[item.model_dump() for item in payload.terminal_assertions],
         )
+        await _record_agent_audit(
+            db,
+            action="android_agent_session_complete",
+            resource_type="android_agent_session",
+            resource_id=completed.id,
+            user=current_user,
+            project_id=project_id,
+            detail=(
+                f"outcome={payload.outcome}; assertions={len(payload.terminal_assertions)}; "
+                f"summary={payload.summary or ''}"
+            ),
+        )
         await db.commit()
         await db.refresh(completed)
         return completed
@@ -363,6 +630,7 @@ async def run_agent_session_endpoint(
     current_user: User = Depends(get_current_user),
 ) -> AgentRunResultResponse:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
+    _require_android_agent_enabled()
     session = await _get_project_session(db, project_id, session_id)
     if session.status != AgentSessionStatus.running.value:
         raise HTTPException(
@@ -372,10 +640,12 @@ async def run_agent_session_endpoint(
     if session.device_id is None:
         raise HTTPException(status_code=409, detail="device_unavailable: 会话未绑定设备")
     device = await db.get(Device, session.device_id)
-    if device is None or device.status != DeviceStatus.online:
+    if device is None or device.status == DeviceStatus.offline:
         raise HTTPException(status_code=409, detail="device_offline: 所选设备不在线")
 
     llm_request = await _build_llm_request(db, session)
+    if not session.lease_token or not await get_active_device_lease(db, device.id, session.lease_token):
+        raise HTTPException(status_code=409, detail="lease_lost: 会话未持有有效的设备租约")
     adapter = _build_device_adapter(device, session.package_name)
     values = {key: str(value) for key, value in (session.context_values or {}).items()}
 
@@ -875,6 +1145,18 @@ async def publish_agent_draft(
             "case_id": replay_case.id,
             "verified_replay_id": verified.id,
         },
+    )
+    await _record_agent_audit(
+        db,
+        action="android_agent_draft_publish",
+        resource_type="android_agent_draft",
+        resource_id=draft.id,
+        user=current_user,
+        project_id=project_id,
+        detail=(
+            f"session_id={draft.session_id}; draft_version={draft.version}; "
+            f"case_id={replay_case.id}; replay_id={verified.id}"
+        ),
     )
     await db.commit()
     return AgentPublishResponse(

@@ -29,13 +29,18 @@ LOCAL_FEATURES = [
 
 @router.get("/capabilities")
 def get_runtime_capabilities() -> dict:
+    features = list(LOCAL_FEATURES) if settings.ATP_LOCAL_MODE else [*LOCAL_FEATURES, "ios", "schedules", "nodes"]
+    android_agent_enabled = bool(getattr(settings, "ANDROID_AGENT_ENABLED", True))
+    if android_agent_enabled:
+        features.append("android_agent")
     return {
         "mode": "local" if settings.ATP_LOCAL_MODE else "server",
-        "features": LOCAL_FEATURES if settings.ATP_LOCAL_MODE else [*LOCAL_FEATURES, "ios", "schedules", "nodes"],
+        "features": features,
         "group_execution": "sequential" if settings.ATP_LOCAL_MODE else "configurable",
         "group_cancellation": "after_current_child" if settings.ATP_LOCAL_MODE else "server",
         "schedule": not settings.ATP_LOCAL_MODE,
         "remote_nodes": not settings.ATP_LOCAL_MODE,
+        "android_agent": android_agent_enabled,
     }
 
 

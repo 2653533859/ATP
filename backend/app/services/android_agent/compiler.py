@@ -221,6 +221,8 @@ def compile_session_draft(
 
         seq = int(getattr(event, "seq", 0))
         action_name = str(payload.get("action") or "").lower()
+        if payload.get("controller") == "manual" and action_name == "wait":
+            issues.append(_issue("step_needs_manual_review", "人工固定等待需要整理为可验证的条件等待", source_seq=seq))
         source_events.append({"seq": seq, "action": payload.get("action")})
 
         # 终止建议轮（finish / request_help）不执行设备动作，action_status 记为
