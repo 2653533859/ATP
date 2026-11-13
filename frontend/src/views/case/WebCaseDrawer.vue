@@ -4,7 +4,7 @@
     :title="isEdit ? t('case.drawer.web.edit_title') : t('case.drawer.web.new_title')"
     width="960"
     :destroy-on-close="true"
-    @close="emit('close')"
+    @close="handleClose"
   >
     <a-form :model="form" layout="vertical" ref="formRef">
       <a-divider orientation="left">{{ t('case.detail.basic_info') }}</a-divider>
@@ -184,6 +184,9 @@
             <a-button size="small" @click="recorderOpen = true">
               {{ t('case.drawer.web.record_steps') }}
             </a-button>
+            <a-button v-if="projectId" size="small" @click="historyDrawerOpen = true">
+              <HistoryOutlined /> {{ t('recording_history.import_button') }}
+            </a-button>
             <a-button size="small" :disabled="!lowcodeSteps.length" @click="openGeneratedScriptPreview">
               <CodeOutlined /> {{ t('case.drawer.generate_script') }}
             </a-button>
@@ -255,8 +258,17 @@
       :initial-url="resumeStartUrl"
       :replay-steps="resumeReplaySteps"
       :resume-target-index="resumeTargetIndex"
+      :source="resumeTargetIndex !== null ? 'resume' : 'case_drawer'"
       @close="closeRecorderModal"
       @recorded="handleRecordedSteps"
+      @stopped="handleRecorderStopped"
+    />
+    <RecordingHistoryDrawer
+      v-model:open="historyDrawerOpen"
+      :project-id="projectId"
+      kind="web"
+      mode="pick"
+      @restore="handleImportHistoryRecord"
     />
     <GeneratedScriptModal
       :open="scriptPreviewOpen"
@@ -273,7 +285,7 @@
           {{ t('case.drawer.auto_approve_label') }}
         </a-checkbox>
         <a-space>
-          <a-button @click="emit('close')">{{ t('common.cancel') }}</a-button>
+          <a-button @click="handleClose">{{ t('common.cancel') }}</a-button>
           <a-button type="primary" :loading="saving" @click="handleSave">
             {{ localCaseId ? t('case.drawer.save_config') : t('case.drawer.create_case') }}
           </a-button>
@@ -286,23 +298,28 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { CodeOutlined, UploadOutlined, CheckCircleOutlined } from '@ant-design/icons-vue'
+import { CodeOutlined, HistoryOutlined, UploadOutlined, CheckCircleOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import {
   caseApi,
+  recordingRecordApi,
   scriptApi,
   webAssetsApi,
   type CaseLevel,
   type CasePriority,
   type CaseSummaryItem,
+  type RecordingRecordItem,
   type WebElementAssetItem,
   type WebPageObjectItem,
+  type WebRecordingItem,
 } from '@/api'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
 import LowcodeStepEditor from '@/components/common/LowcodeStepEditor.vue'
+import RecordingHistoryDrawer from '@/components/common/RecordingHistoryDrawer.vue'
 import WebRecorderModal from '@/components/common/WebRecorderModal.vue'
 import GeneratedScriptModal from '@/components/common/GeneratedScriptModal.vue'
 import { generateWebPythonScript } from '@/utils/pythonScriptGenerator'
+import { clearLocalRecordingDraft, saveLocalRecordingDraft } from '@/utils/recordingDraft'
 import CaseDatasetBinding from '@/components/common/CaseDatasetBinding.vue'
 import { buildCaseDatasetConfig, createCaseDatasetBinding, type CaseDatasetBinding as CaseDatasetBindingState } from '@/types/caseDataset'
 
@@ -337,9 +354,11 @@ const props = defineProps<{
   initialName?: string
   initialDescription?: string
   initialSteps?: LowcodeStep[]
+  initialAssetIds?: number[]
+  recordingRecordId?: number | null
   initialResumeStepIndex?: number | null
 }>()
-const emit = defineEmits<{ close: []; saved: [] }>()
+const emit = defineEmits<{ close: []; saved: [caseId?: number] }>()
 const { t } = useI18n()
 
 const isEdit = ref(false)
@@ -382,6 +401,13 @@ const useStorageStateName = ref('default')
 const autoApproveChecked = ref(true)
 const lowcodeSteps = ref<LowcodeStep[]>([])
 const recorderOpen = ref(false)
+const historyDrawerOpen = ref(false)
+const activeRecordingRecordId = ref<number | null>(null)
+const recordedInDrawer = ref(false)
+const recordedAssetIds = ref<number[]>([])
+const lastRecordedTargetUrl = ref('')
+const drawerSessionId = ref('')
+const initialStepSignature = ref('')
 const scriptPreviewOpen = ref(false)
 const generatedScriptContent = ref('')
 const pendingGeneratedScript = ref('')
@@ -435,6 +461,13 @@ function resetDrawerState() {
   lowcodeSteps.value = []
   editMode.value = 'lowcode'
   recorderOpen.value = false
+  historyDrawerOpen.value = false
+  activeRecordingRecordId.value = null
+  recordedInDrawer.value = false
+  recordedAssetIds.value = []
+  lastRecordedTargetUrl.value = ''
+  drawerSessionId.value = ''
+  initialStepSignature.value = ''
   scriptPreviewOpen.value = false
   generatedScriptContent.value = ''
   pendingGeneratedScript.value = ''
@@ -447,6 +480,12 @@ function applyInitialDraft() {
   if (props.editCase) return
   if (props.initialName?.trim()) form.name = props.initialName.trim()
   if (props.initialDescription?.trim()) form.description = props.initialDescription.trim()
+  if (props.recordingRecordId) {
+    activeRecordingRecordId.value = props.recordingRecordId
+  }
+  if (props.initialAssetIds?.length) {
+    recordedAssetIds.value = [...props.initialAssetIds]
+  }
   if (props.initialSteps?.length) {
     lowcodeSteps.value = props.initialSteps.map((step) => ({
       action: step.action,
@@ -454,6 +493,7 @@ function applyInitialDraft() {
       params: { ...step.params },
     }))
   }
+  initialStepSignature.value = JSON.stringify(lowcodeSteps.value)
 }
 
 function resolveEditMode(config: WebCaseConfig) {
@@ -541,6 +581,7 @@ watch(() => props.open, async (v) => {
       }
       scriptPath.value = c.script_path ?? null
       lowcodeSteps.value = Array.isArray(c.steps) ? c.steps : []
+      initialStepSignature.value = JSON.stringify(lowcodeSteps.value)
       editMode.value = resolveEditMode(c)
       saveStorageStateEnabled.value = Boolean(c.save_storage_state)
       saveStorageStateName.value = typeof c.save_storage_state === 'string' ? c.save_storage_state : 'default'
@@ -730,7 +771,133 @@ function closeRecorderModal() {
   resumeStartUrl.value = ''
 }
 
-function handleRecordedSteps(steps: LowcodeStep[]) {
+function inferFirstTargetUrl(): string | undefined {
+  const gotoStep = lowcodeSteps.value.find((s) => s.action === 'goto' && typeof s.params?.url === 'string')
+  const raw = gotoStep ? String(gotoStep.params?.url || '').trim() : ''
+  return lastRecordedTargetUrl.value || raw || undefined
+}
+
+function persistLocalWebDraft() {
+  if (!props.projectId || !lowcodeSteps.value.length) return
+  saveLocalRecordingDraft({
+    kind: 'web',
+    projectId: props.projectId,
+    recordId: activeRecordingRecordId.value,
+    title: form.name.trim() || undefined,
+    targetUrl: inferFirstTargetUrl(),
+    browser: cfg.browser,
+    assetIds: recordedAssetIds.value,
+    steps: lowcodeSteps.value.map((step) => ({
+      action: step.action,
+      name: step.name,
+      params: { ...(step.params || {}) },
+    })),
+  })
+}
+
+async function persistDraftBeforeClose(): Promise<boolean> {
+  if (!props.projectId || editMode.value !== 'lowcode' || !lowcodeSteps.value.length) return false
+  const stepsChanged = JSON.stringify(lowcodeSteps.value) !== initialStepSignature.value
+  const shouldPersist = recordedInDrawer.value || (!isEdit.value && stepsChanged)
+  if (!shouldPersist) return false
+
+  persistLocalWebDraft()
+  try {
+    if (activeRecordingRecordId.value) {
+      await recordingRecordApi.update(activeRecordingRecordId.value, {
+        title: form.name.trim() || undefined,
+        steps: lowcodeSteps.value,
+      })
+    } else {
+      if (!drawerSessionId.value) {
+        drawerSessionId.value = `web-drawer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      }
+      const created = await recordingRecordApi.create({
+        project_id: props.projectId,
+        kind: 'web',
+        source: 'case_drawer',
+        session_id: drawerSessionId.value,
+        title: form.name.trim() || undefined,
+        target_url: inferFirstTargetUrl(),
+        browser: cfg.browser,
+        case_id: localCaseId.value ?? undefined,
+        status: 'draft',
+        steps: lowcodeSteps.value,
+        asset_ids: recordedAssetIds.value,
+      })
+      activeRecordingRecordId.value = created.id
+      persistLocalWebDraft()
+    }
+    return true
+  } catch {
+    return true
+  }
+}
+
+async function handleClose() {
+  const savedDraft = await persistDraftBeforeClose()
+  if (savedDraft) {
+    message.info(t('recording_history.draft_saved_on_close', { count: lowcodeSteps.value.length }))
+  }
+  emit('close')
+}
+
+function handleRecorderStopped(recording: WebRecordingItem) {
+  if (recording.recording_record_id) {
+    activeRecordingRecordId.value = recording.recording_record_id
+  }
+  if (recording.start_url) {
+    lastRecordedTargetUrl.value = recording.start_url
+  }
+  if (recording.asset_ids?.length) {
+    recordedAssetIds.value = Array.from(new Set([...recordedAssetIds.value, ...recording.asset_ids]))
+  }
+}
+
+function handleImportHistoryRecord(record: RecordingRecordItem) {
+  historyDrawerOpen.value = false
+  if (!record.steps.length) return
+  const wasEmpty = lowcodeSteps.value.length === 0
+  const canLinkRecord = record.status !== 'saved' && !record.case_id && !isEdit.value
+  const imported = record.steps.map((step) => ({
+    action: step.action,
+    name: step.name,
+    params: { ...(step.params || {}) },
+  }))
+  if (wasEmpty) {
+    lowcodeSteps.value = imported
+    if (!isEdit.value && !form.name.trim() && record.title) {
+      form.name = record.title
+    }
+    initialStepSignature.value = JSON.stringify(lowcodeSteps.value)
+    activeRecordingRecordId.value = canLinkRecord ? record.id : null
+    recordedInDrawer.value = false
+  } else {
+    lowcodeSteps.value = [...lowcodeSteps.value, ...imported]
+    if (!canLinkRecord && activeRecordingRecordId.value === record.id) {
+      activeRecordingRecordId.value = null
+    }
+  }
+  if (record.target_url) {
+    lastRecordedTargetUrl.value = record.target_url
+  }
+  if (record.asset_ids?.length) {
+    recordedAssetIds.value = Array.from(new Set([...recordedAssetIds.value, ...record.asset_ids]))
+  }
+  if (canLinkRecord || !wasEmpty) {
+    persistLocalWebDraft()
+  }
+  message.success(t('recording_history.imported_msg', { count: imported.length }))
+}
+
+function handleRecordedSteps(steps: LowcodeStep[], assetIds: number[] = [], recordingRecordId?: number | null) {
+  if (recordingRecordId) {
+    activeRecordingRecordId.value = recordingRecordId
+  }
+  if (assetIds.length) {
+    recordedAssetIds.value = Array.from(new Set([...recordedAssetIds.value, ...assetIds]))
+  }
+  recordedInDrawer.value = true
   if (resumeTargetIndex.value != null) {
     const idx = resumeTargetIndex.value
     const before = lowcodeSteps.value.slice(0, idx)
@@ -762,12 +929,30 @@ function handleRecordedSteps(steps: LowcodeStep[]) {
     }
 
     lowcodeSteps.value = [...before, ...cleanSteps, ...after]
+    persistLocalWebDraft()
     message.success(t('case.drawer.web.recorder.resume_apply_success') || '已成功将现场续录的新步骤插入到用例中')
     closeRecorderModal()
   } else {
     lowcodeSteps.value = [...lowcodeSteps.value, ...steps]
+    persistLocalWebDraft()
     message.success(t('case.drawer.web.recorder.imported', { count: steps.length }))
   }
+}
+
+async function markLinkedRecordingSaved(savedCaseId: number) {
+  if (activeRecordingRecordId.value) {
+    try {
+      await recordingRecordApi.update(activeRecordingRecordId.value, {
+        status: 'saved',
+        case_id: savedCaseId,
+      })
+    } catch {
+      // ignore non-blocking history status sync failure
+    }
+  }
+  recordedInDrawer.value = false
+  activeRecordingRecordId.value = null
+  clearLocalRecordingDraft(props.projectId, 'web')
 }
 
 async function handleSave() {
@@ -793,8 +978,10 @@ async function handleSave() {
         config,
         auto_approve: autoApproveChecked.value,
       })
+      const savedCaseId = localCaseId.value
+      await markLinkedRecordingSaved(savedCaseId)
       message.success(t('common.success'))
-      emit('saved')
+      emit('saved', savedCaseId)
       emit('close')
     } else {
       const newCase = await caseApi.create({
@@ -823,8 +1010,9 @@ async function handleSave() {
           message.error(errorMessage(error, t('case.drawer.msg.save_failed')))
         }
       }
+      await markLinkedRecordingSaved(newCase.id)
       message.success(t('case.drawer.msg.case_created'))
-      emit('saved')
+      emit('saved', newCase.id)
       if (editMode.value === 'lowcode') {
         emit('close')
       }

@@ -4,6 +4,12 @@
       <a-button type="dashed" @click="addStep">
         <PlusOutlined /> {{ t('case.step_editor.add_step') }}
       </a-button>
+      <a-button type="dashed" class="add-assert-text-btn" @click="appendAssertion('assert_text')">
+        <CheckCircleOutlined /> {{ t('case.lowcode_editor.add_assert_text') }}
+      </a-button>
+      <a-button type="dashed" class="add-assert-visible-btn" @click="appendAssertion('assert_visible')">
+        <CheckCircleOutlined /> {{ t('case.lowcode_editor.add_assert_visible') }}
+      </a-button>
       <span style="color: #999; font-size: 12px; margin-left: 8px">
         {{ t('case.lowcode_editor.drag_hint') }}
       </span>
@@ -25,11 +31,14 @@
       @end="emitUpdate"
     >
       <template #item="{ element: step, index }">
-        <a-card size="small" class="step-card" :key="step._key">
+        <a-card size="small" class="step-card" :class="{ 'is-assertion': isAssertionStep(step.action) }" :key="step._key">
           <template #title>
             <div class="step-header">
               <HolderOutlined class="drag-handle" />
               <span class="step-index">#{{ index + 1 }}</span>
+              <a-tag v-if="isAssertionStep(step.action)" color="green" class="assertion-tag">
+                {{ t('case.lowcode_editor.assertion_tag') }}
+              </a-tag>
               <a-input
                 v-model:value="step.name"
                 size="small"
@@ -44,6 +53,17 @@
                 :options="actionOptions"
                 @change="() => onActionChange(step)"
               />
+              <a-dropdown :trigger="['click']">
+                <a-button type="link" size="small" class="insert-assert-btn">
+                  <CheckCircleOutlined /> {{ t('case.lowcode_editor.insert_assert') }}
+                </a-button>
+                <template #overlay>
+                  <a-menu @click="({ key }) => insertAssertionAfter(index, String(key) as WebAssertionAction)">
+                    <a-menu-item key="assert_text">{{ t('case.lowcode_editor.actions.assert_text') }}</a-menu-item>
+                    <a-menu-item key="assert_visible">{{ t('case.lowcode_editor.actions.assert_visible') }}</a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
               <a-tooltip :title="t('case.drawer.web.recorder.resume_from_here_tip')">
                 <a-button
                   type="link"
@@ -324,7 +344,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { PlusOutlined, DeleteOutlined, HolderOutlined, PlayCircleOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DeleteOutlined, HolderOutlined, PlayCircleOutlined, CheckCircleOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
 import { environmentApi, webAssetsApi, webFilesApi, webVisualApi, type EnvironmentItem, type WebElementAssetItem, type WebPageObjectItem, type WebVisualBaselineItem } from '@/api'
@@ -332,6 +352,11 @@ import VariableReferenceInput, { type VariableReference } from './VariableRefere
 
 type StepParams = Record<string, unknown>
 type ExternalStep = { action: string; name: string; params: StepParams }
+type WebAssertionAction = 'assert_text' | 'assert_visible'
+
+function isAssertionStep(action: string) {
+  return action.startsWith('assert_') || action === 'visual_assert'
+}
 
 interface StepDef {
   action: string
@@ -580,6 +605,37 @@ function addStep() {
   emitUpdate()
 }
 
+function createAssertionStep(action: WebAssertionAction, baseStep?: StepDef): StepDef {
+  const params = defaultParams[action]()
+  if (action === 'assert_visible' && baseStep && ['fill', 'select', 'hover'].includes(baseStep.action)) {
+    const selector = String(baseStep.params?.selector || '').trim()
+    if (selector) {
+      params.selector = selector
+    }
+    if (typeof baseStep.params?.element_asset_id === 'number') {
+      params.element_asset_id = baseStep.params.element_asset_id
+    }
+  }
+  return {
+    action,
+    name: t(`case.lowcode_editor.actions.${action}`),
+    params,
+    _key: keyCounter++,
+  }
+}
+
+function appendAssertion(action: WebAssertionAction) {
+  steps.value = [...steps.value, createAssertionStep(action)]
+  emitUpdate()
+}
+
+function insertAssertionAfter(index: number, action: WebAssertionAction) {
+  const next = [...steps.value]
+  next.splice(index + 1, 0, createAssertionStep(action, steps.value[index]))
+  steps.value = next
+  emitUpdate()
+}
+
 function removeStep(index: number) {
   steps.value = steps.value.filter((_, i) => i !== index)
   emitUpdate()
@@ -617,6 +673,8 @@ async function uploadWebFile(file: File, step: StepDef) {
 .step-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 8px;
 }
 .variable-library-status {
@@ -634,6 +692,19 @@ async function uploadWebFile(file: File, step: StepDef) {
 }
 .step-card {
   margin-bottom: 8px;
+}
+.step-card.is-assertion {
+  border-left: 3px solid #52c41a;
+}
+.assertion-tag {
+  margin-inline-end: 0;
+}
+.insert-assert-btn {
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
 }
 .step-card :deep(.ant-card-head) {
   min-height: 40px;

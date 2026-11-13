@@ -3,7 +3,8 @@ import { defineComponent, h, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import UiWorkbenchView from './UiWorkbenchView.vue'
-import type { WebRecordingStep } from '@/api'
+import type { RecordingRecordItem, WebRecordingStep } from '@/api'
+import { saveLocalRecordingDraft } from '@/utils/recordingDraft'
 
 const {
   baselineList,
@@ -14,6 +15,7 @@ const {
   moduleList,
   pageObjectList,
   projectList,
+  recordingRecordList,
   routerPush,
   routerReplace,
   runList,
@@ -27,6 +29,7 @@ const {
   moduleList: vi.fn(),
   pageObjectList: vi.fn(),
   projectList: vi.fn(),
+  recordingRecordList: vi.fn(),
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   runList: vi.fn(),
@@ -60,6 +63,7 @@ vi.mock('@/stores/auth', () => ({
 vi.mock('@/api', () => ({
   caseApi: { get: caseGet, list: caseList, run: caseRun },
   projectApi: { getModules: moduleList, list: projectList },
+  recordingRecordApi: { list: recordingRecordList },
   runApi: { list: runList },
   webAssetsApi: { listElements: elementList, listPageObjects: pageObjectList },
   webRecordingApi: { workers: workerStatus },
@@ -87,6 +91,7 @@ const globalStubs = {
   ASpin: passthrough('ASpin'),
   ATag: passthrough('ATag'),
   ModuleTree: passthrough('ModuleTree'),
+  RecordingHistoryDrawer: passthrough('RecordingHistoryDrawer'),
   WebCaseDrawer: passthrough('WebCaseDrawer'),
   WebRecorderModal: passthrough('WebRecorderModal'),
   CheckCircleOutlined: true,
@@ -122,6 +127,7 @@ const webCase = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   projectList.mockResolvedValue([{ id: 1, name: '核心项目', current_user_role: 'owner' }])
   moduleList.mockResolvedValue([{ id: 7, name: '登录模块', project_id: 1, parent_id: null, sort_order: 1, created_at: '', children: [] }])
   caseList.mockResolvedValue([webCase, { ...webCase, id: 52, case_type: 'api', name: '接口用例' }])
@@ -130,6 +136,7 @@ beforeEach(() => {
   elementList.mockResolvedValue([{ id: 12, name: '登录按钮', locator: { strategy: 'role', value: 'button' }, fallback_locators: [], version: 1, project_id: 1, created_at: '', updated_at: '' }])
   pageObjectList.mockResolvedValue([])
   baselineList.mockResolvedValue([])
+  recordingRecordList.mockResolvedValue([])
   workerStatus.mockResolvedValue({ mode: 'worker', ready: true, workers: [], registered_count: 1, available_count: 1 })
   caseRun.mockResolvedValue({ id: 701 })
   routerPush.mockResolvedValue(undefined)
@@ -261,6 +268,239 @@ describe('UiWorkbenchView', () => {
 
     expect(vm.recentRuns).toEqual([{ id: 2, case_id: 52, status: 'passed', created_at: '2026-08-24T10:00:00Z' }])
     expect(vm.selectedCaseDetail?.id).toBe(52)
+    wrapper.unmount()
+  })
+
+  it('hydrates recoverable Web draft and Trace/HAR links after reload and restores into case creation', async () => {
+    const serverDraft: RecordingRecordItem = {
+      id: 88,
+      project_id: 1,
+      owner_id: 1,
+      kind: 'web',
+      source: 'workbench',
+      session_id: 'sess-88',
+      title: 'Web 录制 · demo.local',
+      status: 'draft',
+      target_url: 'https://demo.local/login',
+      browser: 'chromium',
+      device_id: null,
+      device_serial: null,
+      case_id: null,
+      steps: [
+        { action: 'goto', name: '打开页面', params: { url: 'https://demo.local/login' } },
+        { action: 'assert_url_contains', name: '断言登录页', params: { expected: '/login' } },
+      ],
+      asset_ids: [12],
+      steps_count: 2,
+      assertion_count: 1,
+      artifacts: {
+        trace: {
+          kind: 'trace',
+          filename: 'trace.zip',
+          content_type: 'application/zip',
+          size: 1024,
+          object_name: 'traces/recordings/1/sess-88/trace.zip',
+          url: 'https://minio.local/trace.zip?sig=1',
+        },
+        har: {
+          kind: 'har',
+          filename: 'network.har',
+          content_type: 'application/json',
+          size: 512,
+          object_name: 'reports/recordings/1/sess-88/network.har',
+          url: 'https://minio.local/network.har?sig=2',
+        },
+      },
+      summary: {},
+      created_at: '2026-11-13T08:00:00Z',
+      updated_at: '2026-11-13T08:01:00Z',
+    }
+    recordingRecordList.mockResolvedValue([serverDraft])
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      webDraftCount: number
+      recoverableDraftBanner: {
+        id: number | null
+        traceUrl: string | null
+        harUrl: string | null
+        stepsCount: number
+      } | null
+      restoreRecoverableDraft: () => void
+      handleCaseSaved: () => void
+      caseDrawerOpen: boolean
+      initialCaseSteps: WebRecordingStep[]
+      initialCaseAssetIds: number[]
+      activeRecordingRecordId: number | null
+    }
+
+    expect(recordingRecordList).toHaveBeenCalledWith({ project_id: 1, kind: 'web', limit: 30 })
+    expect(vm.webDraftCount).toBe(1)
+    expect(vm.recoverableDraftBanner?.id).toBe(88)
+    expect(vm.recoverableDraftBanner?.traceUrl).toBe('https://minio.local/trace.zip?sig=1')
+    expect(vm.recoverableDraftBanner?.harUrl).toBe('https://minio.local/network.har?sig=2')
+
+    vm.restoreRecoverableDraft()
+    expect(vm.caseDrawerOpen).toBe(true)
+    expect(vm.initialCaseSteps).toHaveLength(2)
+    expect(vm.initialCaseAssetIds).toEqual([12])
+    expect(vm.activeRecordingRecordId).toBe(88)
+
+    vm.handleCaseSaved()
+    expect(vm.caseDrawerOpen).toBe(false)
+    expect(vm.activeRecordingRecordId).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('falls back to localStorage draft when backend has no unsaved Web records', async () => {
+    saveLocalRecordingDraft({
+      kind: 'web',
+      projectId: 1,
+      title: '本地草稿',
+      targetUrl: 'https://local.test/app?token=secret',
+      steps: [{ action: 'click', name: '点击提交', params: { selector: '#submit' } }],
+    })
+    recordingRecordList.mockResolvedValue([])
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      webDraftCount: number
+      recoverableDraftBanner: { title: string; stepsCount: number } | null
+    }
+    expect(vm.webDraftCount).toBe(1)
+    expect(vm.recoverableDraftBanner?.stepsCount).toBe(1)
+    wrapper.unmount()
+  })
+
+  it('uses source="assets" for baseline capture, drops unsafe artifact URLs, and avoids hijacking saved history on restore', async () => {
+    localStorage.clear()
+    recordingRecordList.mockResolvedValue([
+      {
+        id: 61,
+        project_id: 1,
+        kind: 'web',
+        source: 'assets',
+        session_id: 'baseline-1',
+        title: '基线截图录制',
+        status: 'stopped',
+        target_url: 'https://example.test/home',
+        browser: 'chromium',
+        case_id: null,
+        steps: [{ action: 'goto', name: '打开首页', params: { url: 'https://example.test/home' } }],
+        steps_count: 1,
+        assertion_count: 0,
+        asset_ids: [],
+        artifacts: {
+          trace: {
+            kind: 'trace',
+            filename: 't.zip',
+            content_type: 'application/zip',
+            size: 10,
+            url: 'javascript:alert(1)',
+          },
+        },
+        summary: {},
+        created_at: '',
+        updated_at: '',
+      },
+      {
+        id: 62,
+        project_id: 1,
+        kind: 'web',
+        source: 'workbench',
+        session_id: 'workbench-62',
+        title: '工作台含不安全链接草稿',
+        status: 'draft',
+        target_url: 'https://example.test/login',
+        browser: 'chromium',
+        case_id: null,
+        steps: [{ action: 'goto', name: '打开登录页', params: { url: 'https://example.test/login' } }],
+        steps_count: 1,
+        assertion_count: 0,
+        asset_ids: [],
+        artifacts: {
+          trace: {
+            kind: 'trace',
+            filename: 't.zip',
+            content_type: 'application/zip',
+            size: 10,
+            url: 'javascript:alert(1)',
+          },
+          har: {
+            kind: 'har',
+            filename: 'net.har',
+            content_type: 'application/json',
+            size: 20,
+            url: 'https://minio.local/net.har',
+          },
+        },
+        summary: {},
+        created_at: '',
+        updated_at: '',
+      },
+    ])
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      webDraftCount: number
+      activeRecordingRecordId: number | null
+      recoverableDraftBanner: { id: number; traceUrl: string | null; harUrl: string | null } | null
+      openRecorder: (mode: 'case' | 'baseline') => void
+    }
+    expect(vm.webDraftCount).toBe(1)
+    expect(vm.recoverableDraftBanner?.id).toBe(62)
+    expect(vm.recoverableDraftBanner?.traceUrl).toBeNull()
+    expect(vm.recoverableDraftBanner?.harUrl).toBe('https://minio.local/net.har')
+
+    const baselineRecorder = wrapper.findComponent({ name: 'WebRecorderModal' })
+    vm.openRecorder('baseline')
+    await wrapper.vm.$nextTick()
+    expect(baselineRecorder.attributes('source')).toBe('assets')
+
+    baselineRecorder.vm.$emit('stopped', {
+      id: 'baseline-sess-1',
+      status: 'stopped',
+      source: 'assets',
+      start_url: 'https://example.test/home',
+      browser: 'chromium',
+      steps: [{ action: 'goto', name: '打开首页', params: { url: 'https://example.test/home' } }],
+      asset_ids: [],
+      recording_record_id: 99,
+    })
+    await flushPromises()
+    expect(vm.activeRecordingRecordId).toBeNull()
+    expect(localStorage.length).toBe(0)
+
+    const historyDrawer = wrapper.findComponent({ name: 'RecordingHistoryDrawer' })
+    expect(historyDrawer.vm.$attrs['can-modify'] ?? historyDrawer.vm.$attrs.canModify).toBe(true)
+    historyDrawer.vm.$emit('restore', {
+      id: 777,
+      project_id: 1,
+      kind: 'web',
+      source: 'workbench',
+      session_id: 'saved-777',
+      title: '已保存历史录制',
+      status: 'saved',
+      target_url: 'https://example.test/done',
+      browser: 'chromium',
+      case_id: 45,
+      steps: [{ action: 'goto', name: '打开目标页', params: { url: 'https://example.test/done' } }],
+      steps_count: 1,
+      assertion_count: 0,
+      asset_ids: [],
+      artifacts: {},
+      summary: {},
+      created_at: '',
+      updated_at: '',
+    })
+    await flushPromises()
+    expect(vm.activeRecordingRecordId).toBeNull()
     wrapper.unmount()
   })
 })

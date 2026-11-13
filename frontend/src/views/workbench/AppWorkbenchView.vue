@@ -33,6 +33,15 @@
         </a-button>
         <a-button
           v-if="selectedProjectId"
+          size="small"
+          class="toolbar-btn"
+          @click="historyDrawerOpen = true"
+        >
+          <HistoryOutlined />
+          {{ appDraftCount ? t('recording_history.open_button_with_count', { count: appDraftCount }) : t('recording_history.open_button') }}
+        </a-button>
+        <a-button
+          v-if="selectedProjectId"
           type="primary"
           size="small"
           class="toolbar-btn"
@@ -353,6 +362,7 @@
       recordable
       @close="closePreview"
       @recorded="handleMirrorRecorded"
+      @draft-captured="handleMirrorDraftCaptured"
     />
     <AndroidCaseDrawer
       :open="caseDrawerOpen"
@@ -361,8 +371,20 @@
       :edit-case="editingCase"
       :initial-steps="usingRecordedDraft ? recordedDraftSteps : null"
       :initial-device-serial="usingRecordedDraft ? recordedDeviceSerial : null"
+      :recording-record-id="usingRecordedDraft ? activeRecordingRecordId : null"
       @close="closeCaseDrawer"
       @saved="handleCaseSaved"
+    />
+    <RecordingHistoryDrawer
+      v-model:open="historyDrawerOpen"
+      :project-id="selectedProjectId"
+      kind="android"
+      mode="manage"
+      :can-modify="canModify"
+      @restore="handleRestoreFromHistory"
+      @open-case="openCaseById"
+      @loaded="syncRecordingRecords"
+      @deleted="handleRecordDeleted"
     />
   </div>
 </template>
@@ -375,6 +397,7 @@ import {
   AppstoreOutlined,
   EditOutlined,
   EyeOutlined,
+  HistoryOutlined,
   MobileOutlined,
   PlayCircleOutlined,
   PlusOutlined,
@@ -391,6 +414,7 @@ import {
   deviceApi,
   mobileSpecialApi,
   projectApi,
+  recordingRecordApi,
   runApi,
   type ApkItem,
   type AndroidWorkerItem,
@@ -403,21 +427,38 @@ import {
   type MobileSpecialTaskItem,
   type ModuleTreeItem,
   type ProjectItem,
+  type RecordingRecordItem,
+  type RecordingSource,
   type RunDetailItem,
   type TaskType,
 } from '@/api'
 import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { canEditProjectByRole } from '@/utils/permissions'
+import {
+  clearLocalRecordingDraft,
+  loadLocalRecordingDraft,
+  saveLocalRecordingDraft,
+} from '@/utils/recordingDraft'
 import { useAuthStore } from '@/stores/auth'
 import { getRuntimeMode } from '@/runtimeMode'
 import DeviceMirrorModal from '@/views/device/components/DeviceMirrorModal.vue'
 import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
 import AndroidAgentPanel from '@/views/workbench/AndroidAgentPanel.vue'
+import RecordingHistoryDrawer from '@/components/common/RecordingHistoryDrawer.vue'
 import type { AndroidRecordedStepDraft } from '@/utils/androidRecording'
 
 type LaunchMode = 'case' | 'special'
 const localMode = getRuntimeMode()?.mode === 'local'
 type ErrorLike = { response?: { data?: { detail?: unknown } }; message?: unknown }
+
+const recordingRecords = ref<RecordingRecordItem[]>([])
+const historyDrawerOpen = ref(false)
+const activeRecordingRecordId = ref<number | null>(null)
+const appDraftCount = computed(() => {
+  const serverDrafts = recordingRecords.value.filter((item) => item.status === 'draft' && item.steps_count > 0).length
+  if (serverDrafts > 0) return serverDrafts
+  return recordedDraftSteps.value.length > 0 && recordedDraftProjectId.value === selectedProjectId.value ? 1 : 0
+})
 type SelectOption<T extends string | number> = { label: string; value: T }
 type ActivityItem = {
   key: string
@@ -642,6 +683,8 @@ async function loadProjectData() {
     specialRuns.value = []
     androidRuns.value = []
     projectModules.value = []
+    recordingRecords.value = []
+    activeRecordingRecordId.value = null
     selectedDeviceId.value = null
     return
   }
@@ -655,6 +698,7 @@ async function loadProjectData() {
       loadSpecialTasks(projectId, sequence),
       loadSpecialRuns(projectId, sequence),
       loadProjectModules(projectId, sequence),
+      loadRecordingRecords(projectId, sequence),
     ])
     if (!isCurrentProjectData(sequence, projectId)) return
     await loadAndroidRuns(projectId, sequence)
@@ -966,7 +1010,94 @@ function openCreateCase() {
   }
   editingCase.value = null
   usingRecordedDraft.value = false
+  activeRecordingRecordId.value = null
   caseDrawerOpen.value = true
+}
+
+function hydrateRecoverableAppDraft(projectId: number) {
+  const canRefreshOpenDraft = !caseDrawerOpen.value && !previewOpen.value
+  const serverDraft = recordingRecords.value.find((item) => item.status === 'draft' && item.steps_count > 0)
+  if (recordedDraftSteps.value.length && recordedDraftProjectId.value === projectId && !canRefreshOpenDraft) return
+  if (serverDraft) {
+    recordedDraftSteps.value = serverDraft.steps.map((step) => ({
+      action: step.action,
+      name: step.name,
+      params: { ...(step.params || {}) },
+    }))
+    recordedDeviceSerial.value = serverDraft.device_serial ?? null
+    recordedDraftProjectId.value = projectId
+    activeRecordingRecordId.value = serverDraft.id
+    return
+  }
+  if (recordedDraftSteps.value.length && recordedDraftProjectId.value === projectId) return
+  const localDraft = loadLocalRecordingDraft(projectId, 'android', auth.user?.id)
+  if (localDraft?.steps.length) {
+    recordedDraftSteps.value = localDraft.steps.map((step) => ({
+      action: step.action,
+      name: step.name,
+      params: { ...(step.params || {}) },
+    }))
+    recordedDeviceSerial.value = localDraft.deviceSerial ?? null
+    recordedDraftProjectId.value = projectId
+    activeRecordingRecordId.value = localDraft.recordId ?? null
+  }
+}
+
+async function loadRecordingRecords(projectId: number, sequence: number) {
+  try {
+    const result = await recordingRecordApi.list({ project_id: projectId, kind: 'android', limit: 30 })
+    if (!isCurrentProjectData(sequence, projectId)) return
+    recordingRecords.value = Array.isArray(result) ? result : []
+    hydrateRecoverableAppDraft(projectId)
+  } catch {
+    if (isCurrentProjectData(sequence, projectId)) {
+      recordingRecords.value = []
+      hydrateRecoverableAppDraft(projectId)
+    }
+  }
+}
+
+async function persistAndroidRecordingDraft(
+  steps: AndroidRecordedStepDraft[],
+  source: RecordingSource,
+  device: DeviceItem | null,
+): Promise<number | null> {
+  const projectId = selectedProjectId.value
+  if (!projectId || !steps.length) return null
+  const cloned = steps.map((step) => ({ ...step, params: { ...step.params } }))
+  saveLocalRecordingDraft({
+    kind: 'android',
+    projectId,
+    deviceId: device?.id ?? null,
+    deviceSerial: device?.serial ?? null,
+    steps: cloned,
+  }, auth.user?.id)
+  if (!canModify.value) return null
+  try {
+    const saved = await recordingRecordApi.create({
+      project_id: projectId,
+      kind: 'android',
+      source,
+      device_id: device?.id ?? null,
+      device_serial: device?.serial ?? null,
+      status: 'draft',
+      steps: cloned,
+      summary: device ? { device_name: device.model || device.name || device.serial } : {},
+    })
+    activeRecordingRecordId.value = saved.id
+    saveLocalRecordingDraft({
+      kind: 'android',
+      projectId,
+      recordId: saved.id,
+      deviceId: device?.id ?? null,
+      deviceSerial: device?.serial ?? null,
+      steps: cloned,
+    }, auth.user?.id)
+    recordingRecords.value = [saved, ...recordingRecords.value.filter((item) => item.id !== saved.id)]
+    return saved.id
+  } catch {
+    return null
+  }
 }
 
 async function handleMirrorRecorded(steps: AndroidRecordedStepDraft[]) {
@@ -974,8 +1105,19 @@ async function handleMirrorRecorded(steps: AndroidRecordedStepDraft[]) {
   recordedDraftSteps.value = steps.map((step) => ({ ...step, params: { ...step.params } }))
   recordedDeviceSerial.value = selectedDevice.value.serial
   recordedDraftProjectId.value = selectedProjectId.value
+  await persistAndroidRecordingDraft(steps, 'mirror', selectedDevice.value)
   closePreview()
   await openRecordedDraft()
+}
+
+async function handleMirrorDraftCaptured(steps: AndroidRecordedStepDraft[], device: DeviceItem | null) {
+  if (!canModify.value || !steps.length || !selectedProjectId.value) return
+  const targetDevice = device ?? selectedDevice.value ?? null
+  recordedDraftSteps.value = steps.map((step) => ({ ...step, params: { ...step.params } }))
+  recordedDeviceSerial.value = targetDevice?.serial ?? null
+  recordedDraftProjectId.value = selectedProjectId.value
+  await persistAndroidRecordingDraft(steps, 'mirror', targetDevice)
+  message.info(t('recording_history.draft_saved_on_close', { count: steps.length }))
 }
 
 async function openRecordedDraft() {
@@ -991,9 +1133,61 @@ async function openRecordedDraft() {
   caseDrawerOpen.value = true
 }
 
+function handleRestoreFromHistory(record: RecordingRecordItem) {
+  if (!selectedProjectId.value) return
+  historyDrawerOpen.value = false
+  if (record.case_id && !record.steps.length) {
+    void openCaseById(record.case_id)
+    return
+  }
+  if (!canModify.value) return
+  const recoverableRecordId = record.status !== 'saved' && !record.case_id ? record.id : null
+  recordedDraftSteps.value = record.steps.map((step) => ({
+    action: step.action,
+    name: step.name,
+    params: { ...(step.params || {}) },
+  }))
+  recordedDeviceSerial.value = record.device_serial ?? null
+  recordedDraftProjectId.value = selectedProjectId.value
+  activeRecordingRecordId.value = recoverableRecordId
+  void openRecordedDraft()
+}
+
+async function openCaseById(caseId: number) {
+  if (!canModify.value) return
+  historyDrawerOpen.value = false
+  try {
+    const detail = await caseApi.get(caseId)
+    editingCase.value = detail
+    usingRecordedDraft.value = false
+    activeRecordingRecordId.value = null
+    caseDrawerOpen.value = true
+  } catch (err: unknown) {
+    message.error(errorMessage(err, t('app_workbench.load_case_failed')))
+  }
+}
+
+function syncRecordingRecords(items: RecordingRecordItem[]) {
+  recordingRecords.value = items
+}
+
+function handleRecordDeleted(recordId: number) {
+  recordingRecords.value = recordingRecords.value.filter((item) => item.id !== recordId)
+  if (activeRecordingRecordId.value === recordId) {
+    recordedDraftSteps.value = []
+    recordedDeviceSerial.value = null
+    recordedDraftProjectId.value = null
+    activeRecordingRecordId.value = null
+    clearLocalRecordingDraft(selectedProjectId.value, 'android', auth.user?.id)
+  }
+}
+
 function closeCaseDrawer() {
   caseDrawerOpen.value = false
   usingRecordedDraft.value = false
+  if (selectedProjectId.value) {
+    void loadRecordingRecords(selectedProjectId.value, projectDataSequence)
+  }
 }
 
 async function openEditCase() {
@@ -1002,6 +1196,7 @@ async function openEditCase() {
     const detail = await caseApi.get(selectedAndroidCase.value.id)
     editingCase.value = detail
     usingRecordedDraft.value = false
+    activeRecordingRecordId.value = null
     caseDrawerOpen.value = true
   } catch (err: unknown) {
     message.error(errorMessage(err, t('app_workbench.load_case_failed')))
@@ -1016,7 +1211,9 @@ async function handleCaseSaved() {
     recordedDraftSteps.value = []
     recordedDeviceSerial.value = null
     recordedDraftProjectId.value = null
+    clearLocalRecordingDraft(selectedProjectId.value, 'android', auth.user?.id)
   }
+  activeRecordingRecordId.value = null
   usingRecordedDraft.value = false
   if (selectedProjectId.value) {
     if (!wasEdit) {

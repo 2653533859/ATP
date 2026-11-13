@@ -31,6 +31,14 @@
         <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
+        <a-button v-if="selectedProjectId" size="small" class="toolbar-btn" @click="historyDrawerOpen = true">
+          <HistoryOutlined />
+          {{
+            webDraftCount
+              ? t('recording_history.open_button_with_count', { count: webDraftCount })
+              : t('recording_history.open_button')
+          }}
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="() => openAssets()">
           <SettingOutlined /> {{ t('ui_workbench.asset_management') }}
         </a-button>
@@ -56,6 +64,75 @@
     <a-empty v-if="!selectedProjectId" class="project-empty" :description="t('ui_workbench.select_project_hint')" />
 
     <template v-else>
+      <a-alert
+        v-if="recoverableDraftBanner && !draftBannerDismissed"
+        class="recording-draft-alert"
+        type="info"
+        show-icon
+        :message="t('recording_history.draft_banner_title', { title: recoverableDraftBanner.title })"
+      >
+        <template #description>
+          <div class="draft-banner-body">
+            <span>
+              {{
+                t('recording_history.draft_banner_meta', {
+                  steps: recoverableDraftBanner.stepsCount,
+                  assertions: recoverableDraftBanner.assertionCount,
+                })
+              }}
+            </span>
+            <span
+              v-if="recoverableDraftBanner.traceUrl || recoverableDraftBanner.harUrl || recoverableDraftBanner.reportUrl"
+              class="draft-banner-artifacts"
+            >
+              <a
+                v-if="recoverableDraftBanner.traceUrl"
+                :href="recoverableDraftBanner.traceUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="draft-artifact-link"
+              >
+                {{ t('recording_history.artifact_trace') }}
+              </a>
+              <a
+                v-if="recoverableDraftBanner.harUrl"
+                :href="recoverableDraftBanner.harUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="draft-artifact-link"
+              >
+                {{ t('recording_history.artifact_har') }}
+              </a>
+              <a
+                v-if="recoverableDraftBanner.reportUrl"
+                :href="recoverableDraftBanner.reportUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="draft-artifact-link"
+              >
+                {{ t('recording_history.artifact_report') }}
+              </a>
+            </span>
+            <a-space size="small" wrap class="draft-banner-actions">
+              <a-button
+                type="primary"
+                size="small"
+                :disabled="!canModify || !recoverableDraftBanner.stepsCount"
+                @click="restoreRecoverableDraft"
+              >
+                {{ t('recording_history.restore_to_case') }}
+              </a-button>
+              <a-button size="small" @click="historyDrawerOpen = true">
+                {{ t('recording_history.open_button') }}
+              </a-button>
+              <a-button size="small" type="text" @click="dismissDraftBanner">
+                {{ t('recording_history.dismiss_banner') }}
+              </a-button>
+            </a-space>
+          </div>
+        </template>
+      </a-alert>
+
       <section class="signal-grid" aria-label="UI workspace summary">
         <div class="signal-card signal-card-primary">
           <span class="signal-label">{{ t('ui_workbench.signals.web_cases') }}</span>
@@ -237,8 +314,10 @@
       :initial-url="recordingUrl"
       :show-capture="recorderMode === 'baseline'"
       :auto-apply="false"
+      :source="recorderMode === 'baseline' ? 'assets' : 'workbench'"
       @close="handleRecorderClose"
       @recorded="handleRecorded"
+      @stopped="handleRecorderStopped"
       @captured="handleScreenshotCaptured"
     />
     <WebCaseDrawer
@@ -249,8 +328,21 @@
       :initial-name="initialCaseName"
       :initial-description="initialCaseDescription"
       :initial-steps="initialCaseSteps"
-      @close="caseDrawerOpen = false"
+      :initial-asset-ids="initialCaseAssetIds"
+      :recording-record-id="activeRecordingRecordId"
+      @close="handleCaseDrawerClose"
       @saved="handleCaseSaved"
+    />
+    <RecordingHistoryDrawer
+      v-model:open="historyDrawerOpen"
+      :project-id="selectedProjectId"
+      kind="web"
+      mode="manage"
+      :can-modify="canModify"
+      @restore="handleRestoreFromHistory"
+      @open-case="openCaseById"
+      @deleted="handleRecordDeleted"
+      @loaded="syncRecordingRecords"
     />
     <a-modal v-model:open="baselineModalOpen" :title="t('ui_workbench.baseline_modal_title')" :confirm-loading="baselineSaving" @ok="saveBaseline">
       <a-form layout="vertical">
@@ -286,6 +378,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   caseApi,
   projectApi,
+  recordingRecordApi,
   runApi,
   webAssetsApi,
   webRecordingApi,
@@ -295,16 +388,26 @@ import {
   type CaseType,
   type ModuleTreeItem,
   type ProjectItem,
+  type RecordingRecordItem,
   type RunDetailItem,
   type WebElementAssetItem,
   type WebPageObjectItem,
+  type WebRecordingItem,
   type WebRecordingStep,
   type WebRecordingWorkersResponse,
   type WebVisualBaselineItem,
 } from '@/api'
 import ModuleTree from '@/components/common/ModuleTree.vue'
+import RecordingHistoryDrawer from '@/components/common/RecordingHistoryDrawer.vue'
 import WebRecorderModal from '@/components/common/WebRecorderModal.vue'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
+import {
+  clearLocalRecordingDraft,
+  loadLocalRecordingDraft,
+  safeArtifactUrl,
+  saveLocalRecordingDraft,
+  type LocalRecordingDraft,
+} from '@/utils/recordingDraft'
 import { canEditProjectByRole } from '@/utils/permissions'
 import { useAuthStore } from '@/stores/auth'
 
@@ -419,6 +522,199 @@ function formatTime(value?: string | null) {
   return value ? value.slice(0, 19).replace('T', ' ') : '—'
 }
 
+const recordingRecords = ref<RecordingRecordItem[]>([])
+const historyDrawerOpen = ref(false)
+const draftBannerDismissed = ref(false)
+const activeRecordingRecordId = ref<number | null>(null)
+const localDraftRecord = ref<LocalRecordingDraft | null>(null)
+const recordedAssetIds = ref<number[]>([])
+const initialCaseAssetIds = ref<number[]>([])
+let recordLoadSequence = 0
+
+function isAssertionAction(action: unknown) {
+  return String(action || '').startsWith('assert_')
+}
+
+function hasRecordArtifacts(record: RecordingRecordItem) {
+  return Boolean(
+    safeArtifactUrl(record.artifacts?.trace?.url)
+    || safeArtifactUrl(record.artifacts?.har?.url)
+    || safeArtifactUrl(record.artifacts?.report?.url),
+  )
+}
+
+const webDraftCount = computed(() => {
+  const serverDrafts = recordingRecords.value.filter(
+    (item) => item.kind === 'web' && item.source !== 'assets' && item.status === 'draft',
+  ).length
+  if (serverDrafts > 0) return serverDrafts
+  return localDraftRecord.value?.steps.length ? 1 : 0
+})
+
+const recoverableDraftBanner = computed(() => {
+  const projectId = selectedProjectId.value
+  if (!projectId) return null
+  const serverDraft = recordingRecords.value.find(
+    (item) =>
+      item.kind === 'web'
+      && item.source !== 'assets'
+      && !item.case_id
+      && (item.steps_count > 0 || hasRecordArtifacts(item)),
+  )
+  if (serverDraft) {
+    return {
+      id: serverDraft.id,
+      title: serverDraft.title,
+      steps: serverDraft.steps,
+      stepsCount: serverDraft.steps_count,
+      assertionCount: serverDraft.assertion_count,
+      assetIds: serverDraft.asset_ids || [],
+      traceUrl: safeArtifactUrl(serverDraft.artifacts?.trace?.url),
+      harUrl: safeArtifactUrl(serverDraft.artifacts?.har?.url),
+      reportUrl: safeArtifactUrl(serverDraft.artifacts?.report?.url),
+    }
+  }
+  const local = localDraftRecord.value
+  if (local && local.projectId === projectId && local.steps.length > 0) {
+    const assertionCount = local.steps.filter((step) => isAssertionAction(step.action)).length
+    return {
+      id: local.recordId ?? null,
+      title: local.title || local.targetUrl || t('ui_workbench.recorded_case_prefix'),
+      steps: local.steps,
+      stepsCount: local.steps.length,
+      assertionCount,
+      assetIds: local.assetIds || [],
+      traceUrl: null,
+      harUrl: null,
+      reportUrl: null,
+    }
+  }
+  return null
+})
+
+async function loadRecordingRecords(projectId: number) {
+  const sequence = ++recordLoadSequence
+  try {
+    const result = await recordingRecordApi.list({ project_id: projectId, kind: 'web', limit: 30 })
+    if (sequence === recordLoadSequence && selectedProjectId.value === projectId) {
+      recordingRecords.value = result
+    }
+  } catch {
+    if (sequence === recordLoadSequence && selectedProjectId.value === projectId) {
+      recordingRecords.value = []
+    }
+  }
+}
+
+function hydrateRecoverableWebDraft(projectId: number) {
+  const draft = loadLocalRecordingDraft(projectId, 'web', auth.user?.id)
+  localDraftRecord.value = draft
+  if (draft?.recordId && !activeRecordingRecordId.value) {
+    activeRecordingRecordId.value = draft.recordId
+  }
+}
+
+function ensureTargetModuleForRestore(): number | null {
+  if (selectedModuleId.value) return selectedModuleId.value
+  const firstId = Object.keys(moduleNameMap.value)
+    .map(Number)
+    .find((id) => Number.isInteger(id) && id > 0) ?? null
+  if (firstId) {
+    selectedModuleId.value = firstId
+    return firstId
+  }
+  return null
+}
+
+function openDraftInCaseDrawer(payload: {
+  recordId: number | null
+  steps: WebRecordingStep[]
+  assetIds?: number[]
+  title?: string
+}) {
+  if (!payload.steps.length) return
+  if (!ensureTargetModuleForRestore()) {
+    message.warning(t('ui_workbench.select_module_first'))
+    return
+  }
+  editingCase.value = null
+  activeRecordingRecordId.value = payload.recordId
+  initialCaseName.value = payload.title || t('ui_workbench.recorded_case_prefix')
+  initialCaseDescription.value = t('ui_workbench.recorded_case_description', {
+    count: payload.assetIds?.length || 0,
+  })
+  initialCaseSteps.value = payload.steps.map((step) => ({
+    ...step,
+    params: { ...(step.params || {}) },
+  }))
+  initialCaseAssetIds.value = [...(payload.assetIds || [])]
+  caseDrawerOpen.value = true
+}
+
+function restoreRecoverableDraft() {
+  if (!canModify.value || !recoverableDraftBanner.value) return
+  openDraftInCaseDrawer({
+    recordId: recoverableDraftBanner.value.id,
+    steps: recoverableDraftBanner.value.steps,
+    assetIds: recoverableDraftBanner.value.assetIds,
+    title: recoverableDraftBanner.value.title,
+  })
+}
+
+function dismissDraftBanner() {
+  draftBannerDismissed.value = true
+}
+
+function handleRestoreFromHistory(record: RecordingRecordItem) {
+  historyDrawerOpen.value = false
+  if (record.case_id && !record.steps.length) {
+    void openCaseById(record.case_id)
+    return
+  }
+  if (!canModify.value) return
+  const recoverableRecordId = record.status !== 'saved' && !record.case_id ? record.id : null
+  openDraftInCaseDrawer({
+    recordId: recoverableRecordId,
+    steps: record.steps,
+    assetIds: record.asset_ids || [],
+    title: record.title,
+  })
+}
+
+async function openCaseById(caseId: number) {
+  historyDrawerOpen.value = false
+  try {
+    const detail = await caseApi.get(caseId)
+    editingCase.value = detail
+    activeRecordingRecordId.value = null
+    initialCaseName.value = ''
+    initialCaseDescription.value = ''
+    initialCaseSteps.value = []
+    initialCaseAssetIds.value = []
+    caseDrawerOpen.value = true
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('ui_workbench.detail_failed')))
+  }
+}
+
+function syncRecordingRecords(items: RecordingRecordItem[]) {
+  recordingRecords.value = items
+}
+
+function handleRecordDeleted(recordId: number) {
+  recordingRecords.value = recordingRecords.value.filter((item) => item.id !== recordId)
+  if (activeRecordingRecordId.value === recordId) {
+    activeRecordingRecordId.value = null
+    recordedDraftSteps.value = []
+    recordedAssetCount.value = 0
+    recordedAssetIds.value = []
+  }
+  if (localDraftRecord.value?.recordId === recordId) {
+    localDraftRecord.value = null
+    clearLocalRecordingDraft(selectedProjectId.value, 'web', auth.user?.id)
+  }
+}
+
 function runStatusLabel(status: string) {
   const key = ['pending', 'running', 'passed', 'failed', 'error', 'cancelled', 'stopped'].includes(status) ? status : 'unknown'
   return t(`ui_workbench.run_status.${key}`)
@@ -512,12 +808,21 @@ async function loadAssets(projectId: number) {
 function clearProjectData() {
   loadSequence += 1
   detailSequence += 1
+  recordLoadSequence += 1
   moduleNameMap.value = {}
   webCases.value = []
   recentRuns.value = []
   elements.value = []
   pageObjects.value = []
   baselines.value = []
+  recordingRecords.value = []
+  localDraftRecord.value = null
+  activeRecordingRecordId.value = null
+  recordedDraftSteps.value = []
+  recordedAssetCount.value = 0
+  recordedAssetIds.value = []
+  initialCaseAssetIds.value = []
+  draftBannerDismissed.value = false
   workerStatus.value = null
   workerStatusError.value = ''
   selectedCaseId.value = null
@@ -531,8 +836,15 @@ async function loadProjectData() {
     return
   }
   loading.value = true
+  hydrateRecoverableWebDraft(projectId)
   try {
-    await Promise.all([loadModules(projectId), loadCases(projectId), loadAssets(projectId), loadWorkerStatus()])
+    await Promise.all([
+      loadModules(projectId),
+      loadCases(projectId),
+      loadAssets(projectId),
+      loadWorkerStatus(),
+      loadRecordingRecords(projectId),
+    ])
   } finally {
     loading.value = false
   }
@@ -601,18 +913,22 @@ function openCreateCase() {
     return
   }
   editingCase.value = null
+  activeRecordingRecordId.value = null
   initialCaseName.value = ''
   initialCaseDescription.value = ''
   initialCaseSteps.value = []
+  initialCaseAssetIds.value = []
   caseDrawerOpen.value = true
 }
 
 function openEditCase() {
   if (!selectedCase.value) return
   editingCase.value = selectedCase.value
+  activeRecordingRecordId.value = null
   initialCaseName.value = ''
   initialCaseDescription.value = ''
   initialCaseSteps.value = []
+  initialCaseAssetIds.value = []
   caseDrawerOpen.value = true
 }
 
@@ -625,10 +941,49 @@ function openRecorder(mode: RecorderMode) {
   recorderOpen.value = true
 }
 
-function handleRecorded(steps: WebRecordingStep[], assetIds: number[]) {
+function handleRecorded(steps: WebRecordingStep[], assetIds: number[], recordingRecordId?: number | null) {
   recordedDraftSteps.value = steps.map((step) => ({ ...step, params: { ...step.params } }))
   recordedAssetCount.value = assetIds.length
+  recordedAssetIds.value = [...assetIds]
+  if (recordingRecordId) {
+    activeRecordingRecordId.value = recordingRecordId
+  }
+  if (selectedProjectId.value && steps.length) {
+    localDraftRecord.value = saveLocalRecordingDraft({
+      kind: 'web',
+      projectId: selectedProjectId.value,
+      recordId: activeRecordingRecordId.value,
+      targetUrl: recordingUrl.value || undefined,
+      assetIds,
+      steps: recordedDraftSteps.value,
+    }, auth.user?.id)
+    draftBannerDismissed.value = false
+  }
   message.success(t('ui_workbench.recorded_steps', { count: steps.length }))
+}
+
+function handleRecorderStopped(recording: WebRecordingItem) {
+  const isBaselineCapture = recorderMode.value === 'baseline' || recording.source === 'assets'
+  if (!isBaselineCapture) {
+    if (recording.recording_record_id) {
+      activeRecordingRecordId.value = recording.recording_record_id
+    }
+    if (selectedProjectId.value && recording.steps?.length) {
+      localDraftRecord.value = saveLocalRecordingDraft({
+        kind: 'web',
+        projectId: selectedProjectId.value,
+        recordId: recording.recording_record_id ?? activeRecordingRecordId.value,
+        targetUrl: recording.start_url,
+        browser: recording.browser,
+        assetIds: recording.asset_ids || [],
+        steps: recording.steps,
+      }, auth.user?.id)
+      draftBannerDismissed.value = false
+    }
+  }
+  if (selectedProjectId.value) {
+    void loadRecordingRecords(selectedProjectId.value)
+  }
 }
 
 function handleRecorderClose() {
@@ -637,11 +992,15 @@ function handleRecorderClose() {
   if (!selectedModuleId.value) {
     message.warning(t('ui_workbench.select_module_first'))
     recordedDraftSteps.value = []
+    if (selectedProjectId.value) {
+      void loadRecordingRecords(selectedProjectId.value)
+    }
     return
   }
   initialCaseName.value = t('ui_workbench.recorded_case_prefix')
   initialCaseDescription.value = t('ui_workbench.recorded_case_description', { count: recordedAssetCount.value })
   initialCaseSteps.value = recordedDraftSteps.value
+  initialCaseAssetIds.value = [...recordedAssetIds.value]
   editingCase.value = null
   caseDrawerOpen.value = true
   recordedDraftSteps.value = []
@@ -697,9 +1056,21 @@ async function runSelectedCase() {
 
 const canRunSelected = computed(() => Boolean(canModify.value && selectedCase.value?.is_ready_for_execution && !runLoading.value))
 
+function handleCaseDrawerClose() {
+  caseDrawerOpen.value = false
+  if (selectedProjectId.value) {
+    void loadRecordingRecords(selectedProjectId.value)
+  }
+}
+
 function handleCaseSaved() {
   caseDrawerOpen.value = false
   recordedAssetCount.value = 0
+  recordedAssetIds.value = []
+  initialCaseAssetIds.value = []
+  activeRecordingRecordId.value = null
+  localDraftRecord.value = null
+  clearLocalRecordingDraft(selectedProjectId.value, 'web', auth.user?.id)
   if (selectedProjectId.value) void loadProjectData()
 }
 
@@ -855,4 +1226,9 @@ button:focus-visible, a:focus-visible, :deep(.ant-btn:focus-visible), :deep(.ant
 @media (max-width: 480px) { .signal-grid, .asset-band-grid { grid-template-columns: 1fr; }.browser-console, .module-rail, .observe-rail, .asset-band { padding: 14px; }.ui-hero h1 { font-size: 25px; } }
 @media (prefers-reduced-motion: reduce) { .case-row, .asset-card { transition: none; } }
 .signal-note { color: #9aa3a0; }
+.recording-draft-alert { margin-bottom: 14px; }
+.draft-banner-body { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.draft-banner-artifacts { display: inline-flex; flex-wrap: wrap; gap: 10px; }
+.draft-artifact-link { font-size: 12px; text-decoration: underline; }
+.draft-banner-actions { margin-left: auto; }
 </style>

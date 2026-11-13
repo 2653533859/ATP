@@ -4,6 +4,12 @@
       <a-button type="dashed" @click="addStep">
         <PlusOutlined /> {{ t('case.step_editor.add_step') }}
       </a-button>
+      <a-button type="dashed" class="add-assert-text-btn" @click="appendAssertion('assert_text')">
+        <CheckCircleOutlined /> {{ t('case.android_editor.add_assert_text') }}
+      </a-button>
+      <a-button type="dashed" class="add-assert-element-btn" @click="appendAssertion('assert_element')">
+        <CheckCircleOutlined /> {{ t('case.android_editor.add_assert_element') }}
+      </a-button>
       <span style="color: #999; font-size: 12px; margin-left: 8px">
         {{ t('case.lowcode_editor.drag_hint') }}
       </span>
@@ -11,9 +17,25 @@
 
     <a-card size="small" class="visual-recorder" :title="t('case.android_editor.visual_title')">
       <template #extra>
-        <a-button size="small" :loading="screenshotLoading" :disabled="!props.deviceId" @click="refreshScreenshot">
-          {{ t('case.android_editor.refresh_screen') }}
-        </a-button>
+        <a-space size="small" wrap>
+          <a-radio-group v-model:value="visualMode" size="small" :disabled="!props.deviceId || recordingAction">
+            <a-radio-button value="record">{{ t('case.android_editor.visual_mode_record') }}</a-radio-button>
+            <a-radio-button value="assert_text">{{ t('case.android_editor.visual_mode_assert_text') }}</a-radio-button>
+            <a-radio-button value="assert_element">{{ t('case.android_editor.visual_mode_assert_element') }}</a-radio-button>
+          </a-radio-group>
+          <a-button
+            size="small"
+            class="capture-screen-assert-btn"
+            :loading="capturingAnchors"
+            :disabled="!props.deviceId || recordingAction"
+            @click="captureScreenAssertions"
+          >
+            {{ t('case.android_editor.capture_screen_assert') }}
+          </a-button>
+          <a-button size="small" :loading="screenshotLoading" :disabled="!props.deviceId" @click="refreshScreenshot">
+            {{ t('case.android_editor.refresh_screen') }}
+          </a-button>
+        </a-space>
       </template>
       <a-alert
         v-if="!props.deviceId"
@@ -22,7 +44,7 @@
         :message="t('case.android_editor.visual_no_device')"
       />
       <template v-else>
-        <div class="visual-hint">{{ t('case.android_editor.visual_hint') }}</div>
+        <div class="visual-hint">{{ visualHint }}</div>
         <div
           class="screen-canvas"
           :class="{ 'is-busy': recordingAction }"
@@ -54,11 +76,14 @@
       @end="emitUpdate"
     >
       <template #item="{ element: step, index }">
-        <a-card size="small" class="step-card" :key="step._key">
+        <a-card size="small" class="step-card" :class="{ 'is-assertion': isAssertionStep(step.action) }" :key="step._key">
           <template #title>
             <div class="step-header">
               <HolderOutlined class="drag-handle" />
               <span class="step-index">#{{ index + 1 }}</span>
+              <a-tag v-if="isAssertionStep(step.action)" color="green" class="assertion-tag">
+                {{ t('case.android_editor.assertion_tag') }}
+              </a-tag>
               <a-input
                 v-model:value="step.name"
                 size="small"
@@ -73,6 +98,17 @@
                 :options="actionOptions"
                 @change="() => onActionChange(step)"
               />
+              <a-dropdown :trigger="['click']">
+                <a-button type="link" size="small" class="insert-assert-btn">
+                  <CheckCircleOutlined /> {{ t('case.android_editor.insert_assert') }}
+                </a-button>
+                <template #overlay>
+                  <a-menu @click="({ key }) => insertAssertionAfter(index, String(key) as AndroidRecordedAssertionMode)">
+                    <a-menu-item key="assert_text">{{ t('case.android_editor.actions.assert_text') }}</a-menu-item>
+                    <a-menu-item key="assert_element">{{ t('case.android_editor.actions.assert_element') }}</a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
               <a-button
                 type="text"
                 danger
@@ -408,12 +444,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DeleteOutlined, HolderOutlined, CheckCircleOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
 import { deviceApi, type AndroidUiTarget, type AndroidUiTargetDiagnostic } from '@/api'
 import { loadDevicePackagesAsync } from '@/utils/devicePackages'
-import { buildAndroidRecordedClickParams, buildAndroidRecordedSwipeParams } from '@/utils/androidRecording'
+import {
+  buildAndroidAssertionStepFromTarget,
+  buildAndroidAutoAssertionSteps,
+  buildAndroidRecordedClickParams,
+  buildAndroidRecordedSwipeParams,
+  type AndroidRecordedAssertionMode,
+} from '@/utils/androidRecording'
 import { androidLocatorWarning } from '@/utils/androidLocatorDiagnostics'
 
 type StepParams = Record<string, unknown>
@@ -440,6 +482,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: ExternalStep[]]
+  'visual-recorded': []
 }>()
 const { t } = useI18n()
 const strictReplay = computed(() => props.strictReplay === true)
@@ -573,9 +616,21 @@ const steps = ref<StepDef[]>([])
 const screenshotUrl = ref<string | null>(null)
 const screenshotLoading = ref(false)
 const recordingAction = ref(false)
+const capturingAnchors = ref(false)
+const visualMode = ref<'record' | AndroidRecordedAssertionMode>('record')
 const screenImageRef = ref<HTMLImageElement | null>(null)
 const dragStart = ref<{ x: number; y: number } | null>(null)
 let screenshotObjectUrl: string | null = null
+
+const visualHint = computed(() => {
+  if (visualMode.value === 'assert_text') return t('case.android_editor.visual_hint_assert_text')
+  if (visualMode.value === 'assert_element') return t('case.android_editor.visual_hint_assert_element')
+  return t('case.android_editor.visual_hint')
+})
+
+function isAssertionStep(action: string) {
+  return action.startsWith('assert_') || action === 'wait_until'
+}
 
 type UiTargetResolution = {
   target: AndroidUiTarget | null
@@ -605,6 +660,27 @@ function emitUpdate() {
 function addStep() {
   const action = 'click'
   appendStep(action, defaultParams[action]())
+}
+
+function createAssertionStep(action: AndroidRecordedAssertionMode): StepDef {
+  return {
+    action,
+    name: t(`case.android_editor.actions.${action}`),
+    params: defaultParams[action](),
+    _key: keyCounter++,
+  }
+}
+
+function appendAssertion(action: AndroidRecordedAssertionMode) {
+  steps.value = [...steps.value, createAssertionStep(action)]
+  emitUpdate()
+}
+
+function insertAssertionAfter(index: number, action: AndroidRecordedAssertionMode) {
+  const next = [...steps.value]
+  next.splice(index + 1, 0, createAssertionStep(action))
+  steps.value = next
+  emitUpdate()
 }
 
 function removeStep(index: number) {
@@ -690,6 +766,35 @@ function onScreenPointerDown(event: PointerEvent) {
   dragStart.value = eventToDevicePoint(event)
 }
 
+async function captureScreenAssertions() {
+  if (!props.deviceId || capturingAnchors.value) return
+  capturingAnchors.value = true
+  try {
+    const result = await deviceApi.uiAnchors(props.deviceId)
+    const generated = buildAndroidAutoAssertionSteps(result.anchors, toExternal(steps.value))
+    if (!generated.length) {
+      message.warning(t('case.android_editor.capture_screen_assert_empty'))
+      return
+    }
+    steps.value = [
+      ...steps.value,
+      ...generated.map((item) => ({
+        action: item.action,
+        name: item.name,
+        params: { ...item.params },
+        _key: keyCounter++,
+      })),
+    ]
+    emitUpdate()
+    emit('visual-recorded')
+    message.success(t('case.android_editor.capture_screen_assert_added', { count: generated.length }))
+  } catch {
+    message.warning(t('case.android_editor.capture_screen_assert_empty'))
+  } finally {
+    capturingAnchors.value = false
+  }
+}
+
 async function onScreenPointerUp(event: PointerEvent) {
   ;(event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId)
   const start = dragStart.value
@@ -698,6 +803,47 @@ async function onScreenPointerUp(event: PointerEvent) {
   if (!start || !end || !props.deviceId || recordingAction.value) return
 
   const distance = Math.hypot(end.x - start.x, end.y - start.y)
+  if (visualMode.value !== 'record') {
+    if (distance >= 12) {
+      message.warning(t('case.android_editor.visual_assert_drag_hint'))
+      return
+    }
+    recordingAction.value = true
+    try {
+      const resolution = await resolveUiTarget(start)
+      const built = buildAndroidAssertionStepFromTarget(visualMode.value, resolution.target)
+      if (!built) {
+        message.warning(
+          t(
+            visualMode.value === 'assert_element'
+              ? 'case.android_editor.visual_assert_resource_missing'
+              : 'case.android_editor.visual_assert_text_missing',
+          ),
+        )
+        return
+      }
+      steps.value = [
+        ...steps.value,
+        {
+          action: built.action,
+          name: built.name,
+          params: { ...built.params },
+          _key: keyCounter++,
+        },
+      ]
+      emitUpdate()
+      emit('visual-recorded')
+      message.success(
+        built.action === 'assert_element'
+          ? t('case.android_editor.visual_assert_element_added', { resourceId: String(built.params.resourceId || '') })
+          : t('case.android_editor.visual_assert_text_added', { text: String(built.params.text || '') }),
+      )
+    } finally {
+      recordingAction.value = false
+    }
+    return
+  }
+
   if (distance < 12) {
     const resolution = await resolveUiTarget(start)
     const target = resolution.target
@@ -707,6 +853,7 @@ async function onScreenPointerUp(event: PointerEvent) {
     }
     const params = locatorParams(start, target)
     appendStep('click', params)
+    emit('visual-recorded')
     const label = locatorLabel(target)
     await performLiveAction(
       () => deviceApi.tap(props.deviceId!, { x: start.x, y: start.y }, props.leaseToken),
@@ -723,6 +870,7 @@ async function onScreenPointerUp(event: PointerEvent) {
     { width: screenImageRef.value?.naturalWidth ?? 0, height: screenImageRef.value?.naturalHeight ?? 0 },
   )
   appendStep('swipe', swipeParams)
+  emit('visual-recorded')
   await performLiveAction(
     () => deviceApi.swipe(props.deviceId!, {
       x1: start.x,
@@ -752,6 +900,7 @@ async function performLiveAction(action: () => Promise<unknown>, successMessage:
 watch(
   () => props.deviceId,
   (deviceId) => {
+    visualMode.value = 'record'
     revokeScreenshotUrl()
     screenshotUrl.value = null
     if (deviceId) {
@@ -784,10 +933,25 @@ defineExpose({
 .step-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 8px;
 }
 .step-card {
   margin-bottom: 8px;
+}
+.step-card.is-assertion {
+  border-left: 3px solid #52c41a;
+}
+.assertion-tag {
+  margin-inline-end: 0;
+}
+.insert-assert-btn {
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
 }
 .visual-recorder {
   margin-bottom: 8px;

@@ -33,6 +33,12 @@
         </a-select>
         <div class="form-hint">{{ t('case.drawer.web.recorder.browser_hint') }}</div>
       </a-form-item>
+      <a-form-item v-if="!props.showCapture" :label="t('case.drawer.web.recorder.auto_assert')">
+        <div class="auto-assert-row">
+          <a-switch v-model:checked="autoAssert" :disabled="active || starting" />
+          <span class="form-hint auto-assert-hint">{{ t('case.drawer.web.recorder.auto_assert_hint') }}</span>
+        </div>
+      </a-form-item>
     </a-form>
 
     <a-alert
@@ -80,7 +86,7 @@
 
     <a-list v-if="steps.length" size="small" bordered style="max-height: 280px; overflow: auto">
       <a-list-item v-for="(step, index) in steps" :key="`${step.action}-${index}`">
-        <a-tag color="blue">{{ actionLabel(step.action) }}</a-tag>
+        <a-tag :color="isAssertionAction(step.action) ? 'green' : 'blue'">{{ actionLabel(step.action) }}</a-tag>
         <span class="step-name">{{ step.name }}</span>
       </a-list-item>
     </a-list>
@@ -135,7 +141,14 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { normalizeRecordingUrl, recordingErrorMessage } from '@/utils/webRecording'
-import { webRecordingApi, type WebRecordingStatus, type WebRecordingStep, type WebRecordingWorkersResponse } from '@/api'
+import {
+  webRecordingApi,
+  type WebRecordingItem,
+  type WebRecordingSource,
+  type WebRecordingStatus,
+  type WebRecordingStep,
+  type WebRecordingWorkersResponse,
+} from '@/api'
 
 const props = defineProps<{
   open: boolean
@@ -145,17 +158,21 @@ const props = defineProps<{
   autoApply?: boolean
   replaySteps?: Array<Record<string, unknown>>
   resumeTargetIndex?: number | null
+  source?: WebRecordingSource
 }>()
 const emit = defineEmits<{
   close: []
-  recorded: [steps: WebRecordingStep[], assetIds: number[]]
+  recorded: [steps: WebRecordingStep[], assetIds: number[], recordingRecordId?: number | null]
+  stopped: [recording: WebRecordingItem]
   captured: [file: File, pageUrl: string]
 }>()
 const { t } = useI18n()
 
 const startUrl = ref('')
 const browser = ref<'chromium' | 'firefox' | 'webkit'>('chromium')
+const autoAssert = ref(true)
 const recordingId = ref<string | null>(null)
+const recordingRecordId = ref<number | null>(null)
 const status = ref<WebRecordingStatus>('stopped')
 const steps = ref<WebRecordingStep[]>([])
 const assetIds = ref<number[]>([])
@@ -170,6 +187,11 @@ const workerStatusError = ref('')
 const workerStatusLoading = ref(false)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 
+const recordingSource = computed<WebRecordingSource | undefined>(() => {
+  if (props.source) return props.source
+  if (props.replaySteps?.length) return 'resume'
+  return undefined
+})
 const active = computed(() => status.value === 'starting' || status.value === 'recording' || status.value === 'stopping')
 const workerUnavailable = computed(() => workerStatus.value?.mode === 'worker' && !workerStatus.value.ready)
 const workerStatusMessage = computed(() => {
@@ -210,7 +232,9 @@ function reset() {
   }
   startUrl.value = initial
   browser.value = 'chromium'
+  autoAssert.value = true
   recordingId.value = null
+  recordingRecordId.value = null
   status.value = 'stopped'
   steps.value = []
   assetIds.value = []
@@ -236,6 +260,10 @@ function actionLabel(action: string) {
   return t(`case.lowcode_editor.actions.${action}`, action)
 }
 
+function isAssertionAction(action: string) {
+  return action.startsWith('assert_')
+}
+
 function artifactLabel(kind: string) {
   return t(`case.drawer.web.recorder.artifacts.${kind}`, kind)
 }
@@ -244,13 +272,23 @@ function formatEvidence(value: unknown) {
   return JSON.stringify(value ?? [], null, 2)
 }
 
-function applyRecordingResult(result: import('@/api').WebRecordingItem) {
+function applyRecordingResult(result: WebRecordingItem) {
+  const previousStatus = status.value
   status.value = result.status
   steps.value = result.steps ?? []
   assetIds.value = result.asset_ids ?? assetIds.value
   currentUrl.value = result.current_url ?? currentUrl.value
+  if (result.recording_record_id !== undefined) {
+    recordingRecordId.value = result.recording_record_id ?? null
+  }
   evidence.value = result
   if (result.error) error.value = result.error
+  if (
+    previousStatus !== result.status &&
+    (result.status === 'stopped' || result.status === 'error')
+  ) {
+    emit('stopped', result)
+  }
 }
 
 async function loadWorkerStatus() {
@@ -293,6 +331,8 @@ async function startRecording() {
       project_id: props.projectId,
       browser: browser.value,
       replay_steps: props.replaySteps,
+      ...(props.showCapture ? {} : { auto_assert: autoAssert.value }),
+      ...(recordingSource.value ? { source: recordingSource.value } : {}),
     })
     recordingId.value = result.id
     assetIds.value = []
@@ -376,7 +416,12 @@ async function captureScreenshot() {
 
 function applySteps() {
   if (!steps.value.length) return
-  emit('recorded', steps.value.map((step) => ({ ...step, params: { ...step.params } })), [...assetIds.value])
+  emit(
+    'recorded',
+    steps.value.map((step) => ({ ...step, params: { ...step.params } })),
+    [...assetIds.value],
+    recordingRecordId.value,
+  )
   reset()
   emit('close')
 }
@@ -444,6 +489,16 @@ onBeforeUnmount(() => clearPoll())
   font-size: 12px;
   line-height: 1.5;
   margin-top: 4px;
+}
+
+.auto-assert-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auto-assert-hint {
+  margin-top: 0;
 }
 
 .worker-status-actions {

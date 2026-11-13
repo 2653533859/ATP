@@ -13,6 +13,7 @@ const {
   messageSuccess,
   tapMock,
   uiTargetMock,
+  uiAnchorsMock,
   acquireLeaseMock,
   heartbeatLeaseMock,
   releaseLeaseMock,
@@ -24,6 +25,7 @@ const {
   messageSuccess: vi.fn(),
   tapMock: vi.fn(),
   uiTargetMock: vi.fn(),
+  uiAnchorsMock: vi.fn(),
   acquireLeaseMock: vi.fn(),
   heartbeatLeaseMock: vi.fn(),
   releaseLeaseMock: vi.fn(),
@@ -45,6 +47,7 @@ vi.mock('@/api', () => ({
     tap: tapMock,
     swipe: vi.fn(),
     uiTarget: uiTargetMock,
+    uiAnchors: uiAnchorsMock,
     acquireLease: acquireLeaseMock,
     heartbeatLease: heartbeatLeaseMock,
     releaseLease: releaseLeaseMock,
@@ -93,19 +96,54 @@ function mountModal(props: { open: boolean; device: any; recordable?: boolean; l
         AModal: modalStub,
         ATooltip: passthrough('ATooltip'),
         ASpin: passthrough('ASpin'),
+        ASwitch: defineComponent({
+          name: 'ASwitch',
+          props: ['checked', 'disabled'],
+          emits: ['update:checked'],
+          setup(props, { emit }) {
+            return () =>
+              h('input', {
+                type: 'checkbox',
+                class: 'auto-assert-switch',
+                checked: props.checked,
+                disabled: props.disabled,
+                onChange: (e: Event) => emit('update:checked', (e.target as HTMLInputElement).checked),
+              })
+          },
+        }),
         ARadioGroup: passthrough('ARadioGroup'),
         ARadioButton: passthrough('ARadioButton'),
         ATag: passthrough('ATag'),
         ASpace: passthrough('ASpace'),
+        ACheckbox: defineComponent({
+          name: 'ACheckbox',
+          props: ['checked', 'disabled'],
+          emits: ['update:checked'],
+          setup(props, { emit, slots }) {
+            return () =>
+              h('label', [
+                h('input', {
+                  type: 'checkbox',
+                  class: 'mirror-sensitive-checkbox',
+                  checked: props.checked,
+                  disabled: props.disabled,
+                  onChange: (e: Event) => emit('update:checked', (e.target as HTMLInputElement).checked),
+                }),
+                slots.default?.(),
+              ])
+          },
+        }),
         AAlert: alertStub,
         AInput: defineComponent({
           name: 'AInput',
-          props: ['value'],
+          props: ['value', 'type', 'disabled'],
           emits: ['update:value', 'pressEnter'],
           setup: (p, { emit }) => () =>
             h('input', {
               class: 'quick-input',
+              type: p.type || 'text',
               value: p.value,
+              disabled: p.disabled,
               onInput: (e: any) => emit('update:value', e.target.value),
               onKeydown: (e: KeyboardEvent) => {
                 if (e.key === 'Enter') emit('pressEnter')
@@ -129,6 +167,7 @@ describe('DeviceMirrorModal', () => {
     screenshotMock.mockResolvedValue(new Blob(['img'], { type: 'image/jpeg' }))
     tapMock.mockResolvedValue({})
     uiTargetMock.mockResolvedValue({ target: { resourceId: 'com.example:id/login' } })
+    uiAnchorsMock.mockResolvedValue({ anchors: null })
     acquireLeaseMock.mockResolvedValue({ lease_token: 'auto-test-lease', ttl_seconds: 600 })
     heartbeatLeaseMock.mockResolvedValue({ lease_token: 'auto-test-lease' })
     releaseLeaseMock.mockResolvedValue(true)
@@ -143,7 +182,11 @@ describe('DeviceMirrorModal', () => {
     const device = { id: 1, serial: 'DEV-1', brand: 'Google', model: 'Pixel', resolution: '1080x1920', status: 'online' }
     const wrapper = mountModal({ open: true, device, recordable: true, leaseToken: 'device-lease' })
     await flushPromises()
-    const vm = wrapper.vm as unknown as { refreshMirror: () => Promise<void>; startRecording: () => void; finishRecording: () => void }
+    const vm = wrapper.vm as unknown as {
+      refreshMirror: () => Promise<void>
+      startRecording: () => void
+      finishRecording: () => Promise<void>
+    }
     await vm.refreshMirror()
     await flushPromises()
     const image = wrapper.find('.mirror-img')
@@ -156,7 +199,7 @@ describe('DeviceMirrorModal', () => {
     await image.trigger('mousedown', { clientX: 100, clientY: 200 })
     await image.trigger('mouseup', { clientX: 100, clientY: 200 })
     await flushPromises()
-    vm.finishRecording()
+    await vm.finishRecording()
 
     expect(uiTargetMock).toHaveBeenCalledWith(1, { x: 200, y: 400 })
     expect(tapMock).toHaveBeenCalledWith(1, { x: 200, y: 400 }, 'device-lease')
@@ -167,12 +210,113 @@ describe('DeviceMirrorModal', () => {
     wrapper.unmount()
   })
 
+  it('auto-appends screen assertions when finishing recording and degrades cleanly if uiAnchors fails', async () => {
+    const device = { id: 1, serial: 'DEV-1', brand: 'Google', model: 'Pixel', resolution: '1080x1920', status: 'online' }
+    uiAnchorsMock.mockResolvedValueOnce({
+      anchors: { text: '工作台', resourceId: 'com.example:id/home', packageName: 'com.example' },
+    })
+    const wrapper = mountModal({ open: true, device, recordable: true, leaseToken: 'device-lease' })
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      refreshMirror: () => Promise<void>
+      startRecording: () => void
+      finishRecording: () => Promise<void>
+      autoAssert: boolean
+    }
+    await vm.refreshMirror()
+    await flushPromises()
+    const image = wrapper.find('.mirror-img')
+    Object.defineProperty(image.element, 'naturalWidth', { value: 1080 })
+    Object.defineProperty(image.element, 'naturalHeight', { value: 1920 })
+    image.element.getBoundingClientRect = () => ({ left: 0, top: 0, width: 540, height: 960, right: 540, bottom: 960 } as DOMRect)
+
+    vm.startRecording()
+    await image.trigger('mousedown', { clientX: 100, clientY: 200 })
+    await image.trigger('mouseup', { clientX: 100, clientY: 200 })
+    await flushPromises()
+    await vm.finishRecording()
+
+    expect(uiAnchorsMock).toHaveBeenCalledWith(1)
+    expect(wrapper.emitted('recorded')?.[0]?.[0]).toEqual([
+      expect.objectContaining({ action: 'click' }),
+      { action: 'assert_element', name: '断言元素 com.example:id/home', params: { resourceId: 'com.example:id/home' } },
+      { action: 'assert_text', name: '断言文本 工作台', params: { text: '工作台' } },
+    ])
+    wrapper.unmount()
+
+    // 即使 uiAnchors 请求异常也不阻断保存录制步骤
+    uiAnchorsMock.mockRejectedValueOnce(new Error('timeout'))
+    const fallbackWrapper = mountModal({ open: true, device, recordable: true, leaseToken: 'device-lease' })
+    await flushPromises()
+    const fallbackVm = fallbackWrapper.vm as unknown as {
+      refreshMirror: () => Promise<void>
+      startRecording: () => void
+      finishRecording: () => Promise<void>
+    }
+    await fallbackVm.refreshMirror()
+    await flushPromises()
+    const fallbackImg = fallbackWrapper.find('.mirror-img')
+    Object.defineProperty(fallbackImg.element, 'naturalWidth', { value: 1080 })
+    Object.defineProperty(fallbackImg.element, 'naturalHeight', { value: 1920 })
+    fallbackImg.element.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 540, height: 960, right: 540, bottom: 960 } as DOMRect)
+
+    fallbackVm.startRecording()
+    await fallbackImg.trigger('mousedown', { clientX: 50, clientY: 100 })
+    await fallbackImg.trigger('mouseup', { clientX: 50, clientY: 100 })
+    await flushPromises()
+    await fallbackVm.finishRecording()
+
+    expect(fallbackWrapper.emitted('recorded')?.[0]?.[0]).toEqual([expect.objectContaining({ action: 'click' })])
+    fallbackWrapper.unmount()
+  })
+
+  it('picks assertions on screen without tapping device when pickAssertMode is enabled', async () => {
+    const device = { id: 1, serial: 'DEV-1', brand: 'Google', model: 'Pixel', resolution: '1080x1920', status: 'online' }
+    uiTargetMock.mockResolvedValueOnce({ target: { text: '登录成功', resourceId: 'com.example:id/welcome' } })
+    const wrapper = mountModal({ open: true, device, recordable: true, leaseToken: 'device-lease' })
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      refreshMirror: () => Promise<void>
+      startRecording: () => void
+      finishRecording: () => Promise<void>
+      autoAssert: boolean
+    }
+    await vm.refreshMirror()
+    await flushPromises()
+    const image = wrapper.find('.mirror-img')
+    Object.defineProperty(image.element, 'naturalWidth', { value: 1080 })
+    Object.defineProperty(image.element, 'naturalHeight', { value: 1920 })
+    image.element.getBoundingClientRect = () => ({ left: 0, top: 0, width: 540, height: 960, right: 540, bottom: 960 } as DOMRect)
+
+    vm.autoAssert = false
+    vm.startRecording()
+    await wrapper.vm.$nextTick()
+    await wrapper.find('.pick-assert-btn').trigger('click')
+    await image.trigger('mousedown', { clientX: 120, clientY: 220 })
+    await image.trigger('mouseup', { clientX: 120, clientY: 220 })
+    await flushPromises()
+    await vm.finishRecording()
+
+    expect(tapMock).not.toHaveBeenCalled()
+    expect(uiTargetMock).toHaveBeenCalledWith(1, { x: 240, y: 440 })
+    expect(uiAnchorsMock).not.toHaveBeenCalled()
+    expect(wrapper.emitted('recorded')?.[0]?.[0]).toEqual([
+      { action: 'assert_text', name: '断言文本 登录成功', params: { text: '登录成功' } },
+    ])
+    wrapper.unmount()
+  })
+
   it('keeps failed mirror actions out of the recorded draft', async () => {
     const device = { id: 1, serial: 'DEV-1', brand: 'Google', model: 'Pixel', resolution: '1080x1920', status: 'online' }
     tapMock.mockRejectedValueOnce(new Error('device disconnected'))
     const wrapper = mountModal({ open: true, device, recordable: true })
     await flushPromises()
-    const vm = wrapper.vm as unknown as { refreshMirror: () => Promise<void>; startRecording: () => void; finishRecording: () => void }
+    const vm = wrapper.vm as unknown as {
+      refreshMirror: () => Promise<void>
+      startRecording: () => void
+      finishRecording: () => Promise<void>
+    }
     await vm.refreshMirror()
     await flushPromises()
     const image = wrapper.find('.mirror-img')
@@ -181,7 +325,7 @@ describe('DeviceMirrorModal', () => {
     await image.trigger('mousedown', { clientX: 100, clientY: 200 })
     await image.trigger('mouseup', { clientX: 100, clientY: 200 })
     await flushPromises()
-    vm.finishRecording()
+    await vm.finishRecording()
 
     expect(wrapper.emitted('recorded')).toBeUndefined()
     wrapper.unmount()
@@ -410,5 +554,69 @@ describe('DeviceMirrorModal', () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+
+  it('emits draft-captured when closing while recording steps, but not after explicit discard', async () => {
+    const device = { id: 2, serial: 'DEV-DRAFT', brand: 'Pixel', model: '8', status: 'online' }
+    const wrapper = mountModal({ open: true, device, recordable: true, leaseToken: 'lease-1' })
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      startRecording: () => void
+      discardRecording: () => void
+      handleClose: () => void
+      recordedSteps: Array<{ action: string; name: string; params: Record<string, unknown> }>
+    }
+
+    vm.startRecording()
+    vm.recordedSteps.push({ action: 'tap', name: '点击登录', params: { x: 10, y: 20 } })
+    vm.handleClose()
+
+    expect(wrapper.emitted('draft-captured')?.[0]?.[0]).toEqual([
+      { action: 'tap', name: '点击登录', params: { x: 10, y: 20 } },
+    ])
+    expect(wrapper.emitted('draft-captured')?.[0]?.[1]).toEqual(device)
+
+    vm.startRecording()
+    vm.recordedSteps.push({ action: 'tap', name: '被丢弃步骤', params: { x: 1, y: 2 } })
+    vm.discardRecording()
+    vm.handleClose()
+
+    expect(wrapper.emitted('draft-captured')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('masks sensitive quick text in recorded draft while sending plaintext to device and resets on discard', async () => {
+    inputTextMock.mockResolvedValue({ ok: true })
+    const device = { id: 2, serial: 'DEV-SEC', brand: 'Pixel', model: '8', status: 'online' }
+    const wrapper = mountModal({ open: true, device, recordable: true, leaseToken: 'lease-sec' })
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      startRecording: () => void
+      discardRecording: () => void
+      recordedSteps: Array<{ action: string; name: string; params: Record<string, unknown> }>
+    }
+
+    vm.startRecording()
+    const checkbox = wrapper.find('.mirror-sensitive-checkbox')
+    const input = wrapper.find('.quick-input')
+    expect(input.attributes('type')).toBe('text')
+
+    await checkbox.setValue(true)
+    expect(input.attributes('type')).toBe('password')
+
+    await input.setValue('MySecretPwd!99')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(inputTextMock).toHaveBeenCalledWith(2, 'MySecretPwd!99', 'lease-sec')
+    expect(vm.recordedSteps).toEqual([
+      { action: 'input', name: '输入敏感值（请手动填写）', params: { text: '', sensitive: true } },
+    ])
+
+    vm.discardRecording()
+    await wrapper.vm.$nextTick()
+    expect((checkbox.element as HTMLInputElement).checked).toBe(false)
+    expect(input.attributes('type')).toBe('text')
+    wrapper.unmount()
   })
 })

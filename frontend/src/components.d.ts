@@ -99,6 +99,7 @@ declare module 'vue' {
     LowcodeStepEditor: typeof import('./components/common/LowcodeStepEditor.vue')['default']
     ModuleTree: typeof import('./components/common/ModuleTree.vue')['default']
     MonacoEditor: typeof import('./components/common/MonacoEditor.vue')['default']
+    RecordingHistoryDrawer: typeof import('./components/common/RecordingHistoryDrawer.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     VariableReferenceInput: typeof import('./components/common/VariableReferenceInput.vue')['default']

@@ -5,7 +5,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AndroidCaseDrawer from './AndroidCaseDrawer.vue'
 import CaseDatasetBinding from '@/components/common/CaseDatasetBinding.vue'
 
-const { caseCreate, caseGet, caseUpdate, casePrecheck, casePrecheckDraft, deviceList, apkList, datasetList, versionList } = vi.hoisted(() => ({
+const {
+  caseCreate,
+  caseGet,
+  caseUpdate,
+  casePrecheck,
+  casePrecheckDraft,
+  deviceList,
+  apkList,
+  datasetList,
+  recordingRecordCreate,
+  recordingRecordUpdate,
+  versionList,
+} = vi.hoisted(() => ({
   caseCreate: vi.fn(),
   caseGet: vi.fn(),
   caseUpdate: vi.fn(),
@@ -14,6 +26,8 @@ const { caseCreate, caseGet, caseUpdate, casePrecheck, casePrecheckDraft, device
   deviceList: vi.fn(),
   apkList: vi.fn(),
   datasetList: vi.fn(),
+  recordingRecordCreate: vi.fn(),
+  recordingRecordUpdate: vi.fn(),
   versionList: vi.fn(),
 }))
 
@@ -42,23 +56,83 @@ vi.mock('@/api', () => ({
   },
   deviceApi: { list: deviceList },
   datasetApi: { list: datasetList, listVersions: versionList },
+  recordingRecordApi: { create: recordingRecordCreate, update: recordingRecordUpdate },
   scriptApi: { get: vi.fn(), upload: vi.fn(), saveContent: vi.fn() },
+}))
+
+vi.mock('@/components/common/RecordingHistoryDrawer.vue', () => ({
+  default: defineComponent({
+    name: 'RecordingHistoryDrawer',
+    props: ['open'],
+    emits: ['update:open', 'restore'],
+    setup(_props, { emit }) {
+      return () =>
+        h(
+          'button',
+          {
+            'data-test': 'import-android-history',
+            onClick: () =>
+              emit('restore', {
+                id: 88,
+                project_id: 11,
+                owner_id: 1,
+                kind: 'android',
+                source: 'mirror',
+                session_id: 'app-88',
+                title: '真机录制草稿',
+                status: 'draft',
+                target_url: null,
+                browser: null,
+                device_id: 10,
+                device_serial: 'emulator-5554',
+                case_id: null,
+                steps: [
+                  { action: 'click', name: '点按登录', params: { resource_id: 'com.demo:id/login' } },
+                  { action: 'assert_text_exists', name: '断言登录成功', params: { text: '欢迎' } },
+                ],
+                asset_ids: [],
+                steps_count: 2,
+                assertion_count: 1,
+                artifacts: {},
+                summary: {},
+                created_at: '',
+                updated_at: '',
+              }),
+          },
+          'import android history',
+        )
+    },
+  }),
 }))
 
 vi.mock('@/components/common/AndroidStepEditor.vue', () => ({
   default: defineComponent({
     name: 'AndroidStepEditor',
     props: ['modelValue'],
-    emits: ['update:modelValue'],
+    emits: ['update:modelValue', 'visual-recorded'],
     setup(_props, { emit }) {
-      return () => h('button', {
-        'data-test': 'add-android-step',
-        onClick: () => emit('update:modelValue', [{
-          action: 'start_app',
-          name: '启动应用',
-          params: { package: 'com.example.app' },
-        }]),
-      }, 'add android step')
+      return () => h('div', [
+        h('button', {
+          'data-test': 'add-android-step',
+          onClick: () => emit('update:modelValue', [{
+            action: 'start_app',
+            name: '启动应用',
+            params: { package: 'com.example.app' },
+          }]),
+        }, 'add android step'),
+        h('button', {
+          'data-test': 'visual-record-android-step',
+          onClick: () => {
+            const step = {
+              action: 'assert_text_exists',
+              name: '屏幕断言欢迎语',
+              params: { text: '欢迎' },
+            }
+            emit('update:modelValue', [step])
+            emit('visual-recorded', step)
+          },
+        }, 'visual record step'),
+      ])
     },
   }),
 }))
@@ -143,6 +217,7 @@ function mountDrawer(editCase: { id: number } | null = null, initialSteps: Array
         AUpload: passthrough('AUpload'),
         CheckCircleOutlined: true,
         CodeOutlined: true,
+        HistoryOutlined: true,
         UploadOutlined: true,
       },
     },
@@ -151,6 +226,7 @@ function mountDrawer(editCase: { id: number } | null = null, initialSteps: Array
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   deviceList.mockResolvedValue([])
   apkList.mockResolvedValue([])
   datasetList.mockResolvedValue([])
@@ -160,6 +236,8 @@ beforeEach(() => {
   ])
   caseCreate.mockResolvedValue({ id: 201 })
   caseUpdate.mockResolvedValue({})
+  recordingRecordCreate.mockResolvedValue({ id: 801 })
+  recordingRecordUpdate.mockResolvedValue({ id: 801 })
 })
 
 describe('AndroidCaseDrawer low-code flow', () => {
@@ -336,5 +414,116 @@ describe('AndroidCaseDrawer low-code flow', () => {
         ]),
       }),
     )
+  })
+
+  it('imports steps from RecordingHistoryDrawer and marks the record saved when created', async () => {
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    await wrapper.get('[data-test="import-android-history"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text() === 'case.drawer.create_case')?.trigger('click')
+    await flushPromises()
+
+    expect(caseCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '真机录制草稿',
+        config: expect.objectContaining({
+          device_serial: 'emulator-5554',
+          steps: expect.arrayContaining([
+            expect.objectContaining({ action: 'click' }),
+            expect.objectContaining({ action: 'assert_text_exists' }),
+          ]),
+        }),
+      }),
+    )
+    expect(recordingRecordUpdate).toHaveBeenCalledWith(88, { status: 'saved', case_id: 201 })
+  })
+
+  it('persists visual-editor recorded steps as a backend and local draft when closing without saving', async () => {
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    await wrapper.get('[data-test="visual-record-android-step"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text() === 'common.cancel')?.trigger('click')
+    await flushPromises()
+
+    expect(caseCreate).not.toHaveBeenCalled()
+    expect(recordingRecordCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: 11,
+        kind: 'android',
+        source: 'visual_editor',
+        status: 'draft',
+        steps: [expect.objectContaining({ action: 'assert_text_exists' })],
+      }),
+    )
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('imports a saved case-linked history record without mutating or hijacking it on cancel, edit+close, or save', async () => {
+    const savedRecord = {
+      id: 666,
+      project_id: 11,
+      kind: 'android',
+      source: 'mirror',
+      session_id: 'saved-app-666',
+      title: '已保存真机流程',
+      status: 'saved',
+      device_id: 10,
+      device_serial: 'emulator-5554',
+      case_id: 77,
+      steps: [
+        { action: 'click', name: '点按登录', params: { resource_id: 'com.demo:id/login' } },
+        { action: 'assert_text_exists', name: '断言欢迎', params: { text: '欢迎' } },
+      ],
+      asset_ids: [],
+      steps_count: 2,
+      assertion_count: 1,
+      artifacts: {},
+      summary: {},
+      created_at: '',
+      updated_at: '',
+    }
+
+    const wrapper1 = mountDrawer(null)
+    await flushPromises()
+    wrapper1.findComponent({ name: 'RecordingHistoryDrawer' }).vm.$emit('restore', savedRecord)
+    await flushPromises()
+
+    const cancelBtn1 = wrapper1.findAll('button').find((b) => b.text().includes('common.cancel'))
+    await cancelBtn1?.trigger('click')
+    await flushPromises()
+    expect(recordingRecordUpdate).not.toHaveBeenCalled()
+    expect(recordingRecordCreate).not.toHaveBeenCalled()
+
+    await wrapper1.get('[data-test="add-android-step"]').trigger('click')
+    await cancelBtn1?.trigger('click')
+    await flushPromises()
+    expect(recordingRecordUpdate).not.toHaveBeenCalled()
+    expect(recordingRecordCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: 11,
+        kind: 'android',
+        status: 'draft',
+      }),
+    )
+    wrapper1.unmount()
+
+    vi.clearAllMocks()
+    const wrapper2 = mountDrawer(null)
+    await flushPromises()
+    wrapper2.findComponent({ name: 'RecordingHistoryDrawer' }).vm.$emit('restore', savedRecord)
+    await flushPromises()
+
+    const createBtn = wrapper2.findAll('button').find((b) => b.text() === 'case.drawer.create_case')
+    await createBtn?.trigger('click')
+    await flushPromises()
+    expect(caseCreate).toHaveBeenCalled()
+    expect(recordingRecordUpdate).not.toHaveBeenCalled()
+    wrapper2.unmount()
   })
 })

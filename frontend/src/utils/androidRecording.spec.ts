@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildAndroidRecordedClickParams, buildAndroidRecordedSwipeParams } from './androidRecording'
+import {
+  buildAndroidAssertionStepFromTarget,
+  buildAndroidAutoAssertionSteps,
+  buildAndroidBestAssertionStepFromTarget,
+  buildAndroidRecordedClickParams,
+  buildAndroidRecordedSwipeParams,
+} from './androidRecording'
 
 describe('buildAndroidRecordedClickParams', () => {
   it('keeps semantic properties and coordinate fallback together', () => {
@@ -48,5 +54,96 @@ describe('buildAndroidRecordedClickParams', () => {
       screenWidth: 1080,
       screenHeight: 2400,
     })
+  })
+})
+
+describe('android assertion builders', () => {
+  it('builds assert_element and assert_text from screen anchors and avoids trailing duplicates', () => {
+    const anchors = {
+      text: '首页',
+      resourceId: 'com.demo:id/home_title',
+      contentDesc: '主页标识',
+      packageName: 'com.demo',
+    }
+    const created = buildAndroidAutoAssertionSteps(anchors, [
+      { action: 'click', params: { text: '登录' } },
+    ])
+    expect(created).toEqual([
+      {
+        action: 'assert_element',
+        name: '断言元素 com.demo:id/home_title',
+        params: { resourceId: 'com.demo:id/home_title' },
+      },
+      {
+        action: 'assert_text',
+        name: '断言文本 首页',
+        params: { text: '首页' },
+      },
+    ])
+
+    expect(buildAndroidAutoAssertionSteps(anchors, created)).toEqual([])
+  })
+
+  it('falls back to contentDesc text only when neither resourceId nor text exists', () => {
+    expect(buildAndroidAutoAssertionSteps({ contentDesc: '播放按钮' }, [])).toEqual([
+      {
+        action: 'assert_text',
+        name: '断言文本 播放按钮',
+        params: { text: '播放按钮' },
+      },
+    ])
+    expect(buildAndroidAutoAssertionSteps(null, [])).toEqual([])
+  })
+
+  it('enforces precheck requirements when building explicit assertions from a tapped target', () => {
+    expect(buildAndroidAssertionStepFromTarget('assert_element', { text: '仅有文本' })).toBeNull()
+    expect(
+      buildAndroidAssertionStepFromTarget('assert_element', {
+        text: '提交',
+        resourceId: 'com.demo:id/btn_submit',
+      }),
+    ).toEqual({
+      action: 'assert_element',
+      name: '断言元素 com.demo:id/btn_submit',
+      params: { resourceId: 'com.demo:id/btn_submit' },
+    })
+
+    expect(
+      buildAndroidAssertionStepFromTarget('assert_text', { contentDesc: '搜索图标' }),
+    ).toEqual({
+      action: 'assert_text',
+      name: '断言文本 搜索图标',
+      params: { text: '搜索图标' },
+    })
+    expect(buildAndroidAssertionStepFromTarget('assert_text', {})).toBeNull()
+  })
+
+  it('prefers text, then resourceId, then contentDesc in best-effort pick-assert mode', () => {
+    expect(
+      buildAndroidBestAssertionStepFromTarget({
+        text: '欢迎登录',
+        resourceId: 'com.demo:id/title',
+      }),
+    ).toEqual({
+      action: 'assert_text',
+      name: '断言文本 欢迎登录',
+      params: { text: '欢迎登录' },
+    })
+    expect(
+      buildAndroidBestAssertionStepFromTarget({
+        resourceId: 'com.demo:id/avatar',
+        contentDesc: '头像',
+      }),
+    ).toEqual({
+      action: 'assert_element',
+      name: '断言元素 com.demo:id/avatar',
+      params: { resourceId: 'com.demo:id/avatar' },
+    })
+    expect(buildAndroidBestAssertionStepFromTarget({ contentDesc: '设置' })).toEqual({
+      action: 'assert_text',
+      name: '断言文本 设置',
+      params: { text: '设置' },
+    })
+    expect(buildAndroidBestAssertionStepFromTarget(null)).toBeNull()
   })
 })

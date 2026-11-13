@@ -4,7 +4,7 @@
     :title="isEdit ? t('case.drawer.android.edit_title') : t('case.drawer.android.new_title')"
     width="960"
     :destroy-on-close="true"
-    @close="emit('close')"
+    @close="handleClose"
   >
     <a-form :model="form" layout="vertical" ref="formRef">
       <a-divider orientation="left">{{ t('case.detail.basic_info') }}</a-divider>
@@ -189,9 +189,14 @@
 
       <template v-if="editMode === 'lowcode'">
         <div class="android-script-toolbar">
-          <a-button size="small" :disabled="!lowcodeSteps.length" @click="openGeneratedScriptPreview">
-            <CodeOutlined /> {{ t('case.drawer.generate_script') }}
-          </a-button>
+          <a-space>
+            <a-button v-if="resolvedProjectId" size="small" @click="historyDrawerOpen = true">
+              <HistoryOutlined /> {{ t('recording_history.import_button') }}
+            </a-button>
+            <a-button size="small" :disabled="!lowcodeSteps.length" @click="openGeneratedScriptPreview">
+              <CodeOutlined /> {{ t('case.drawer.generate_script') }}
+            </a-button>
+          </a-space>
           <span>{{ t('case.drawer.android.generate_script_hint') }}</span>
         </div>
         <a-alert
@@ -214,6 +219,7 @@
           :lease-token="editorLease?.lease_token"
           :apk-options="apks"
           :strict-replay="cfg.strict_replay"
+          @visual-recorded="handleVisualRecorded"
         />
       </template>
 
@@ -270,6 +276,13 @@
       :saving="savingGeneratedScript"
       @close="scriptPreviewOpen = false"
       @save="handleSaveGeneratedScript"
+    />
+    <RecordingHistoryDrawer
+      v-model:open="historyDrawerOpen"
+      :project-id="resolvedProjectId"
+      kind="android"
+      mode="pick"
+      @restore="handleImportHistoryRecord"
     />
     <a-modal
       v-model:open="precheckModalVisible"
@@ -352,16 +365,18 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { CheckCircleOutlined, CodeOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import { CheckCircleOutlined, CodeOutlined, HistoryOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { apkApi, caseApi, deviceApi, type DeviceGroupItem, type DeviceItem, type DeviceLeaseItem, projectApi, scriptApi, type CaseStepItem, type AndroidPrecheckResponse } from '@/api'
+import { apkApi, caseApi, deviceApi, type DeviceGroupItem, type DeviceItem, type DeviceLeaseItem, projectApi, recordingRecordApi, scriptApi, type CaseStepItem, type AndroidPrecheckResponse, type RecordingRecordItem } from '@/api'
 import CaseStepEditor from '@/components/case/CaseStepEditor.vue'
 import { buildAndroidStandardSteps } from '@/utils/androidStandardSteps'
 import type { AndroidRecordedStepDraft } from '@/utils/androidRecording'
 import AndroidStepEditor from '@/components/common/AndroidStepEditor.vue'
+import RecordingHistoryDrawer from '@/components/common/RecordingHistoryDrawer.vue'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
 import GeneratedScriptModal from '@/components/common/GeneratedScriptModal.vue'
 import { generateAndroidPythonScript } from '@/utils/pythonScriptGenerator'
+import { clearLocalRecordingDraft, saveLocalRecordingDraft } from '@/utils/recordingDraft'
 import CaseDatasetBinding from '@/components/common/CaseDatasetBinding.vue'
 import {
   buildCaseDatasetConfig,
@@ -386,9 +401,15 @@ const props = defineProps<{
   editCase?: { id: number } | null
   initialSteps?: AndroidRecordedStepDraft[] | null
   initialDeviceSerial?: string | null
+  recordingRecordId?: number | null
 }>()
 
-const emit = defineEmits<{ close: []; saved: [] }>()
+const emit = defineEmits<{ close: []; saved: [caseId?: number] }>()
+
+const resolvedProjectId = computed(() => {
+  const raw = Number(props.projectId || route.params.projectId || route.params.id || route.query.project_id || 0)
+  return Number.isInteger(raw) && raw > 0 ? raw : null
+})
 
 const isEdit = ref(false)
 const saving = ref(false)
@@ -435,6 +456,11 @@ const lowcodeSteps = ref<AndroidStepDef[]>([])
 const managementSteps = ref<CaseStepItem[]>([])
 const standardStepsDirty = ref(false)
 const syncingStandardSteps = ref(false)
+const historyDrawerOpen = ref(false)
+const activeRecordingRecordId = ref<number | null>(null)
+const hasVisualRecordingActivity = ref(false)
+const visualSessionId = ref('')
+const initialStepSignature = ref('')
 const scriptPreviewOpen = ref(false)
 const generatedScriptContent = ref('')
 const pendingGeneratedScript = ref('')
@@ -495,6 +521,11 @@ function resetDrawerState() {
   managementSteps.value = []
   standardStepsDirty.value = false
   syncingStandardSteps.value = false
+  historyDrawerOpen.value = false
+  activeRecordingRecordId.value = null
+  hasVisualRecordingActivity.value = false
+  visualSessionId.value = ''
+  initialStepSignature.value = ''
   scriptPreviewOpen.value = false
   generatedScriptContent.value = ''
   pendingGeneratedScript.value = ''
@@ -633,8 +664,107 @@ async function syncEditorLease(deviceId: number | null) {
   }
 }
 
+function persistLocalAndroidDraft() {
+  if (!resolvedProjectId.value || !lowcodeSteps.value.length) return
+  saveLocalRecordingDraft({
+    kind: 'android',
+    projectId: resolvedProjectId.value,
+    recordId: activeRecordingRecordId.value,
+    title: form.name.trim() || undefined,
+    deviceSerial: cfg.device_serial ?? null,
+    steps: lowcodeSteps.value.map((step) => ({
+      action: step.action,
+      name: step.name,
+      params: { ...(step.params || {}) },
+    })),
+  })
+}
+
+async function persistDraftBeforeClose(): Promise<boolean> {
+  if (!resolvedProjectId.value || editMode.value !== 'lowcode' || !lowcodeSteps.value.length) return false
+  const stepsChanged = JSON.stringify(lowcodeSteps.value) !== initialStepSignature.value
+  const shouldPersist = hasVisualRecordingActivity.value || (!isEdit.value && stepsChanged)
+  if (!shouldPersist) return false
+
+  persistLocalAndroidDraft()
+  try {
+    if (activeRecordingRecordId.value) {
+      await recordingRecordApi.update(activeRecordingRecordId.value, {
+        title: form.name.trim() || undefined,
+        device_serial: cfg.device_serial ?? undefined,
+        steps: lowcodeSteps.value,
+      })
+    } else {
+      if (!visualSessionId.value) {
+        visualSessionId.value = `android-drawer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      }
+      const created = await recordingRecordApi.create({
+        project_id: resolvedProjectId.value,
+        kind: 'android',
+        source: 'visual_editor',
+        session_id: visualSessionId.value,
+        title: form.name.trim() || undefined,
+        device_serial: cfg.device_serial ?? undefined,
+        case_id: localCaseId.value ?? undefined,
+        status: 'draft',
+        steps: lowcodeSteps.value,
+      })
+      activeRecordingRecordId.value = created.id
+      persistLocalAndroidDraft()
+    }
+    return true
+  } catch {
+    return true
+  }
+}
+
+function handleVisualRecorded() {
+  hasVisualRecordingActivity.value = true
+  persistLocalAndroidDraft()
+}
+
+function handleImportHistoryRecord(record: RecordingRecordItem) {
+  historyDrawerOpen.value = false
+  if (!record.steps.length) return
+  const wasEmpty = lowcodeSteps.value.length === 0
+  const canLinkRecord = record.status !== 'saved' && !record.case_id && !isEdit.value
+  const imported = record.steps.map((step) => ({
+    action: step.action,
+    name: step.name,
+    params: { ...(step.params || {}) },
+  }))
+  if (wasEmpty) {
+    lowcodeSteps.value = imported
+    if (!isEdit.value && !form.name.trim() && record.title) {
+      form.name = record.title
+    }
+    if (!isEdit.value && !form.summary.trim() && record.title) {
+      form.summary = record.title
+    }
+    initialStepSignature.value = JSON.stringify(lowcodeSteps.value)
+    activeRecordingRecordId.value = canLinkRecord ? record.id : null
+    hasVisualRecordingActivity.value = false
+  } else {
+    lowcodeSteps.value = [...lowcodeSteps.value, ...imported]
+    if (!canLinkRecord && activeRecordingRecordId.value === record.id) {
+      activeRecordingRecordId.value = null
+    }
+  }
+  if (record.device_serial && !cfg.device_serial) {
+    cfg.device_serial = record.device_serial
+  }
+  if (canLinkRecord || !wasEmpty) {
+    persistLocalAndroidDraft()
+  }
+  message.success(t('recording_history.imported_msg', { count: imported.length }))
+}
+
 async function handleClose() {
   ++editorLeaseSeq
+  const savedDraft = await persistDraftBeforeClose()
+  if (savedDraft) {
+    message.info(t('recording_history.draft_saved_on_close', { count: lowcodeSteps.value.length }))
+  }
   await releaseEditorLease()
   emit('close')
 }
@@ -652,10 +782,14 @@ watch(
     void loadApks()
 
     if (!props.editCase?.id) {
+      if (props.recordingRecordId) {
+        activeRecordingRecordId.value = props.recordingRecordId
+      }
       if (props.initialSteps?.length) {
         lowcodeSteps.value = props.initialSteps.map((step) => ({ ...step, params: { ...step.params } }))
         cfg.device_serial = props.initialDeviceSerial || undefined
       }
+      initialStepSignature.value = JSON.stringify(lowcodeSteps.value)
       return
     }
 
@@ -705,6 +839,7 @@ watch(
       deviceMatrixEnabled.value = cfg.device_matrix.length > 0
       scriptPath.value = typeof config.script_path === 'string' ? config.script_path : null
       lowcodeSteps.value = Array.isArray(config.steps) ? (config.steps as AndroidStepDef[]) : []
+      initialStepSignature.value = JSON.stringify(lowcodeSteps.value)
       editMode.value = resolveEditMode(config)
     } catch {
       if (seq !== initSeq.value || !props.open) {
@@ -875,6 +1010,23 @@ function removeDeviceVariant(index: number) {
   if (!cfg.device_matrix.length) deviceMatrixEnabled.value = false
 }
 
+async function markLinkedRecordingSaved(savedCaseId: number) {
+  if (activeRecordingRecordId.value) {
+    try {
+      await recordingRecordApi.update(activeRecordingRecordId.value, {
+        status: 'saved',
+        case_id: savedCaseId,
+      })
+    } catch {
+      // ignore non-blocking history status sync failure
+    }
+  }
+  hasVisualRecordingActivity.value = false
+  activeRecordingRecordId.value = null
+  initialStepSignature.value = JSON.stringify(lowcodeSteps.value)
+  clearLocalRecordingDraft(resolvedProjectId.value, 'android')
+}
+
 async function handleSave() {
   try {
     await formRef.value?.validate()
@@ -914,8 +1066,9 @@ async function handleSave() {
 
     if (isEdit.value && localCaseId.value) {
       await caseApi.update(localCaseId.value, payload)
+      await markLinkedRecordingSaved(localCaseId.value)
       message.success(t('common.success'))
-      emit('saved')
+      emit('saved', localCaseId.value)
       await handleClose()
       return
     }
@@ -934,8 +1087,9 @@ async function handleSave() {
         message.error(String(error ?? t('case.drawer.msg.save_failed')))
       }
     }
+    await markLinkedRecordingSaved(newCase.id)
     message.success(t('case.drawer.msg.case_created'))
-    emit('saved')
+    emit('saved', newCase.id)
     if (editMode.value === 'lowcode') {
       await handleClose()
     }

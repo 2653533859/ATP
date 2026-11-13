@@ -3,6 +3,8 @@ import { defineComponent, h, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppWorkbenchView from './AppWorkbenchView.vue'
+import type { RecordingRecordItem } from '@/api'
+import { saveLocalRecordingDraft } from '@/utils/recordingDraft'
 
 const {
   apkList,
@@ -18,6 +20,8 @@ const {
   mobileListTasks,
   mobileTriggerTask,
   projectList,
+  recordingRecordCreate,
+  recordingRecordList,
   routerPush,
   routerReplace,
   runList,
@@ -35,6 +39,8 @@ const {
   mobileListTasks: vi.fn(),
   mobileTriggerTask: vi.fn(),
   projectList: vi.fn(),
+  recordingRecordCreate: vi.fn(),
+  recordingRecordList: vi.fn(),
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   runList: vi.fn(),
@@ -74,14 +80,14 @@ vi.mock('@/views/device/components/DeviceMirrorModal.vue', () => ({
   default: defineComponent({
     name: 'DeviceMirrorModal',
     props: ['open', 'device', 'canModify', 'leaseToken'],
-    emits: ['update:open', 'close'],
+    emits: ['update:open', 'close', 'recorded', 'draft-captured'],
     setup: () => () => h('div', { class: 'device-mirror-modal-stub' }),
   }),
 }))
 vi.mock('@/views/case/AndroidCaseDrawer.vue', () => ({
   default: defineComponent({
     name: 'AndroidCaseDrawer',
-    props: ['open', 'moduleId', 'projectId', 'editCase', 'initialSteps', 'initialDeviceSerial'],
+    props: ['open', 'moduleId', 'projectId', 'editCase', 'initialSteps', 'initialDeviceSerial', 'recordingRecordId'],
     emits: ['close', 'saved'],
     setup: () => () => h('div', { class: 'android-case-drawer-stub' }),
   }),
@@ -105,6 +111,7 @@ vi.mock('@/api', () => ({
     triggerTask: mobileTriggerTask,
   },
   projectApi: { list: projectList, getModules: vi.fn().mockResolvedValue([{ id: 10, name: '默认模块' }]) },
+  recordingRecordApi: { create: recordingRecordCreate, list: recordingRecordList, update: vi.fn(), get: vi.fn(), remove: vi.fn() },
   runApi: { list: runList },
 }))
 
@@ -119,9 +126,11 @@ const globalStubs = {
   ASelect: passthrough('ASelect'),
   ASpin: passthrough('ASpin'),
   ATag: passthrough('ATag'),
+  RecordingHistoryDrawer: passthrough('RecordingHistoryDrawer'),
   AndroidOutlined: true,
   AppstoreOutlined: true,
   EyeOutlined: true,
+  HistoryOutlined: true,
   MobileOutlined: true,
   PlayCircleOutlined: true,
   ReloadOutlined: true,
@@ -171,6 +180,7 @@ enableAutoUnmount(afterEach)
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   projectList.mockResolvedValue([{ id: 1, name: '移动项目', current_user_role: 'owner' }])
   deviceList.mockResolvedValue([
     { id: 10, serial: 'emulator-5554', name: 'Pixel 7', model: 'Pixel 7', brand: 'Google', os_version: '14', sdk_version: '34', resolution: '1080x2400', status: 'online', created_at: '', updated_at: '' },
@@ -185,6 +195,8 @@ beforeEach(() => {
   caseRun.mockResolvedValue({ id: 900 })
   casePrecheck.mockResolvedValue({ ok: true, device_serial: 'emulator-5554', items: [] })
   mobileTriggerTask.mockResolvedValue({ id: 901 })
+  recordingRecordList.mockResolvedValue([])
+  recordingRecordCreate.mockResolvedValue({ id: 77 })
   deviceAcquireLease.mockResolvedValue({ device_id: 10, owner_label: 'app-workbench', acquired_at: '', heartbeat_at: '', expires_at: '2026-08-24T11:00:00Z', lease_token: 'lease-token-123456789' })
   deviceReleaseLease.mockResolvedValue(undefined)
   routerPush.mockResolvedValue(undefined)
@@ -425,6 +437,107 @@ describe('AppWorkbenchView', () => {
 
     wrapper.unmount()
   })
+
+  it('persists a draft when DeviceMirrorModal closes mid-recording without discarding', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const mirrorModal = wrapper.findComponent({ name: 'DeviceMirrorModal' })
+    const capturedSteps = [
+      { action: 'click', name: '点击登录', params: { x: 120, y: 360 } },
+      { action: 'assert_text_exists', name: '断言登录成功', params: { text: '欢迎' } },
+    ]
+    mirrorModal.vm.$emit('draft-captured', capturedSteps, { id: 10, serial: 'emulator-5554', model: 'Pixel 7' })
+    await flushPromises()
+
+    expect(recordingRecordCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: 1,
+        kind: 'android',
+        source: 'mirror',
+        device_id: 10,
+        device_serial: 'emulator-5554',
+        status: 'draft',
+        steps: capturedSteps,
+      }),
+    )
+    const vm = wrapper.vm as unknown as {
+      recordedDraftSteps: Array<{ action: string }>
+      activeRecordingRecordId: number | null
+    }
+    expect(vm.recordedDraftSteps).toHaveLength(2)
+    expect(vm.activeRecordingRecordId).toBe(77)
+    wrapper.unmount()
+  })
+
+  it('hydrates recoverable Android draft after reload and restores into AndroidCaseDrawer', async () => {
+    const serverDraft: RecordingRecordItem = {
+      id: 55,
+      project_id: 1,
+      owner_id: 1,
+      kind: 'android',
+      source: 'mirror',
+      session_id: 'app-55',
+      title: '真机录制 · Pixel 7',
+      status: 'draft',
+      target_url: null,
+      browser: null,
+      device_id: 10,
+      device_serial: 'emulator-5554',
+      case_id: null,
+      steps: [{ action: 'click', name: '点按登录', params: { resource_id: 'com.demo:id/login' } }],
+      asset_ids: [],
+      steps_count: 1,
+      assertion_count: 0,
+      artifacts: {},
+      summary: { device_name: 'Pixel 7' },
+      created_at: '2026-11-13T08:00:00Z',
+      updated_at: '2026-11-13T08:01:00Z',
+    }
+    recordingRecordList.mockResolvedValue([serverDraft])
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    expect(recordingRecordList).toHaveBeenCalledWith({ project_id: 1, kind: 'android', limit: 30 })
+    const vm = wrapper.vm as unknown as {
+      appDraftCount: number
+      recordedDraftSteps: Array<{ action: string }>
+      activeRecordingRecordId: number | null
+      caseDrawerOpen: boolean
+      handleRestoreFromHistory: (record: RecordingRecordItem) => void
+    }
+    expect(vm.appDraftCount).toBe(1)
+    expect(vm.recordedDraftSteps).toHaveLength(1)
+    expect(vm.activeRecordingRecordId).toBe(55)
+
+    vm.handleRestoreFromHistory(serverDraft)
+    await flushPromises()
+
+    expect(vm.caseDrawerOpen).toBe(true)
+    const drawer = wrapper.findComponent({ name: 'AndroidCaseDrawer' })
+    expect(drawer.props('recordingRecordId')).toBe(55)
+    expect(drawer.props('initialSteps')).toEqual(serverDraft.steps)
+    wrapper.unmount()
+  })
+
+  it('hydrates draft from localStorage fallback when backend has no unsaved App draft', async () => {
+    saveLocalRecordingDraft({
+      kind: 'android',
+      projectId: 1,
+      deviceSerial: 'emulator-5554',
+      steps: [{ action: 'input_text', name: '输入账号', params: { text: 'alice' } }],
+    })
+    recordingRecordList.mockResolvedValue([])
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as { appDraftCount: number; recordedDraftSteps: Array<{ action: string }> }
+    expect(vm.appDraftCount).toBe(1)
+    expect(vm.recordedDraftSteps).toHaveLength(1)
+    wrapper.unmount()
+  })
 })
 
 describe('AppWorkbenchView device status polling', () => {
@@ -470,5 +583,78 @@ describe('AppWorkbenchView device status polling', () => {
     document.dispatchEvent(new Event('visibilitychange'))
     await vi.advanceTimersByTimeAsync(60000)
     expect(deviceList).toHaveBeenCalledTimes(2)
+  })
+
+  it('refreshes recoverable draft steps after AndroidCaseDrawer closes and avoids hijacking saved history', async () => {
+    const initialDraft = {
+      id: 55,
+      project_id: 1,
+      kind: 'android',
+      source: 'mirror',
+      session_id: 'app-draft-55',
+      title: '旧草稿',
+      status: 'draft',
+      device_serial: 'emulator-5554',
+      case_id: null,
+      steps: [{ action: 'tap', name: '旧步骤', params: { x: 10, y: 20 } }],
+      steps_count: 1,
+      assertion_count: 0,
+      asset_ids: [],
+      artifacts: {},
+      summary: {},
+      created_at: '',
+      updated_at: '',
+    }
+    const updatedDraft = {
+      ...initialDraft,
+      steps: [
+        { action: 'tap', name: '旧步骤', params: { x: 10, y: 20 } },
+        { action: 'assert_text_exists', name: '新增断言', params: { text: '欢迎' } },
+      ],
+      steps_count: 2,
+      assertion_count: 1,
+    }
+    recordingRecordList.mockResolvedValueOnce([initialDraft]).mockResolvedValueOnce([updatedDraft])
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      recordedDraftSteps: Array<{ action: string; name: string; params: Record<string, unknown> }>
+      openRecordedDraft: () => Promise<void>
+      closeCaseDrawer: () => void
+    }
+    expect(vm.recordedDraftSteps).toHaveLength(1)
+
+    await vm.openRecordedDraft()
+    vm.closeCaseDrawer()
+    await flushPromises()
+    expect(vm.recordedDraftSteps).toHaveLength(2)
+    expect(vm.recordedDraftSteps[1].name).toBe('新增断言')
+
+    const historyDrawer = wrapper.findComponent({ name: 'RecordingHistoryDrawer' })
+    historyDrawer.vm.$emit('restore', {
+      id: 303,
+      project_id: 1,
+      kind: 'android',
+      source: 'mirror',
+      session_id: 'saved-303',
+      title: '已保存App历史',
+      status: 'saved',
+      device_serial: 'emulator-5554',
+      case_id: 88,
+      steps: [{ action: 'tap', name: '历史步骤', params: { x: 5, y: 6 } }],
+      steps_count: 1,
+      assertion_count: 0,
+      asset_ids: [],
+      artifacts: {},
+      summary: {},
+      created_at: '',
+      updated_at: '',
+    })
+    await flushPromises()
+
+    const drawer = wrapper.findComponent({ name: 'AndroidCaseDrawer' })
+    expect(drawer.props('recordingRecordId')).toBeNull()
+    wrapper.unmount()
   })
 })

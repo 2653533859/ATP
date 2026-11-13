@@ -324,6 +324,13 @@ export interface AndroidUiTargetDiagnostic {
   code?: string | null
 }
 
+export interface AndroidUiAnchors {
+  text?: string | null
+  resourceId?: string | null
+  contentDesc?: string | null
+  packageName?: string | null
+}
+
 export interface ApkItem {
   id: number
   project_id: number
@@ -496,6 +503,7 @@ export interface ApiRequestFileUploadResponse {
 }
 
 export type WebRecordingStatus = 'starting' | 'recording' | 'stopping' | 'stopped' | 'error'
+export type WebRecordingSource = 'workbench' | 'case_drawer' | 'resume' | 'assets'
 
 export interface WebRecordingStep {
   action: string
@@ -508,6 +516,7 @@ export interface WebRecordingArtifact {
   filename: string
   content_type: string
   size: number
+  object_name?: string | null
   url: string
 }
 
@@ -530,6 +539,9 @@ export interface WebRecordingItem {
   error?: string | null
   replayed_step_count?: number
   is_resuming?: boolean
+  auto_assert?: boolean
+  source?: WebRecordingSource
+  recording_record_id?: number | null
 }
 
 export interface WebRecordingStartPayload {
@@ -539,6 +551,8 @@ export interface WebRecordingStartPayload {
   viewport_width?: number
   viewport_height?: number
   replay_steps?: Array<Record<string, unknown>>
+  auto_assert?: boolean
+  source?: WebRecordingSource
 }
 
 export interface WebRecordingWorkerStatus {
@@ -547,6 +561,70 @@ export interface WebRecordingWorkerStatus {
   capacity: number
   available: boolean
   updated_at?: number | null
+}
+
+export type RecordingKind = 'web' | 'android'
+export type RecordingStatus = 'draft' | 'saved' | 'stopped' | 'error'
+export type RecordingSource = 'workbench' | 'case_drawer' | 'resume' | 'assets' | 'mirror' | 'visual_editor'
+
+export interface RecordingArtifactItem {
+  kind: 'trace' | 'har' | 'report' | string
+  filename: string
+  content_type: string
+  size: number
+  object_name?: string | null
+  url?: string | null
+}
+
+export interface RecordingRecordItem {
+  id: number
+  project_id: number
+  owner_id?: number | null
+  kind: RecordingKind
+  source: RecordingSource | string
+  session_id?: string | null
+  title: string
+  target_url?: string | null
+  browser?: string | null
+  device_id?: number | null
+  device_serial?: string | null
+  case_id?: number | null
+  status: RecordingStatus
+  steps: WebRecordingStep[]
+  steps_count: number
+  assertion_count: number
+  asset_ids: number[]
+  artifacts: Record<string, RecordingArtifactItem>
+  summary: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface RecordingRecordCreatePayload {
+  project_id: number
+  kind: RecordingKind
+  source?: RecordingSource
+  session_id?: string | null
+  title?: string | null
+  target_url?: string | null
+  browser?: string | null
+  device_id?: number | null
+  device_serial?: string | null
+  case_id?: number | null
+  status?: RecordingStatus
+  steps: Array<Record<string, unknown>>
+  asset_ids?: number[]
+  summary?: Record<string, unknown>
+}
+
+export interface RecordingRecordUpdatePayload {
+  title?: string | null
+  status?: RecordingStatus
+  case_id?: number | null
+  device_id?: number | null
+  device_serial?: string | null
+  steps?: Array<Record<string, unknown>>
+  summary?: Record<string, unknown>
 }
 
 export interface WebRecordingWorkersResponse {
@@ -2298,6 +2376,19 @@ export const environmentApi = {
     http.put(`/environments/${id}/variables`, data),
 }
 
+export const recordingRecordApi = {
+  list: (params: { project_id: number; kind?: RecordingKind; status?: RecordingStatus; limit?: number }) =>
+    http.get<unknown, RecordingRecordItem[]>('/recording-records', { params }),
+  create: (data: RecordingRecordCreatePayload) =>
+    http.post<unknown, RecordingRecordItem>('/recording-records', data),
+  get: (recordId: number) =>
+    http.get<unknown, RecordingRecordItem>(`/recording-records/${recordId}`),
+  update: (recordId: number, data: RecordingRecordUpdatePayload) =>
+    http.patch<unknown, RecordingRecordItem>(`/recording-records/${recordId}`, data),
+  delete: (recordId: number) =>
+    http.delete(`/recording-records/${recordId}`),
+}
+
 export const configurationCenterApi = {
   overview: (projectId?: number | null) =>
     http.get<unknown, ConfigurationCenterOverview>('/configuration-center/overview', {
@@ -2350,6 +2441,8 @@ export const deviceApi = {
     http.post(`/devices/${id}/tap`, data, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   uiTarget: (id: number, data: { x: number; y: number }) =>
     http.get<unknown, { target: AndroidUiTarget | null; diagnostic?: AndroidUiTargetDiagnostic }>(`/devices/${id}/ui-target`, { params: data }),
+  uiAnchors: (id: number) =>
+    http.get<unknown, { anchors: AndroidUiAnchors | null; diagnostic?: AndroidUiTargetDiagnostic }>(`/devices/${id}/ui-anchors`),
   packages: (id: number, options?: { includeSystem?: boolean }) =>
     http.get<unknown, DevicePackagesResult>(`/devices/${id}/packages`, {
       params: options?.includeSystem ? { include_system: true } : undefined,

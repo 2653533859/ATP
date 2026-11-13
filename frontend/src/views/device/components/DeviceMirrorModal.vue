@@ -151,16 +151,41 @@
         <a-button v-if="!recording" size="small" @click="startRecording">开始录制步骤</a-button>
         <template v-else>
           <span>已录制 {{ recordedSteps.length }} 步</span>
-          <a-button size="small" type="primary" :disabled="!recordedSteps.length" @click="finishRecording">编辑录制用例</a-button>
-          <a-button size="small" @click="discardRecording">丢弃录制</a-button>
+          <a-button
+            size="small"
+            class="pick-assert-btn"
+            :type="pickAssertMode ? 'primary' : 'default'"
+            :ghost="pickAssertMode"
+            :disabled="isInteracting || finishingRecording"
+            @click="pickAssertMode = !pickAssertMode"
+          >
+            {{ pickAssertMode ? '退出点选断言' : '点选断言' }}
+          </a-button>
+          <a-button
+            size="small"
+            type="primary"
+            :loading="finishingRecording"
+            :disabled="!recordedSteps.length"
+            @click="finishRecording"
+          >
+            编辑录制用例
+          </a-button>
+          <a-button size="small" :disabled="finishingRecording" @click="discardRecording">丢弃录制</a-button>
         </template>
+        <a-tooltip title="结束录制时自动根据当前屏幕提取并追加页面断言（文本/元素）">
+          <label class="mirror-auto-assert-toggle">
+            <a-switch v-model:checked="autoAssert" size="small" :disabled="finishingRecording" />
+            <span>自动断言</span>
+          </label>
+        </a-tooltip>
       </div>
 
       <!-- 快捷文本输入行 -->
       <div class="mirror-text-bar">
         <a-input
           v-model:value="quickInputText"
-          :placeholder="hasControlLease ? '输入文字按回车发送到手机' : '获取控制权后可输入文字并发送'"
+          :type="quickInputSensitive ? 'password' : 'text'"
+          :placeholder="hasControlLease ? (quickInputSensitive ? '输入敏感文本并回车（录制将自动脱敏）' : '输入文字按回车发送到手机') : '获取控制权后可输入文字并发送'"
           :disabled="!hasControlLease"
           size="small"
           allow-clear
@@ -181,6 +206,13 @@
             </a-button>
           </template>
         </a-input>
+        <a-checkbox
+          v-model:checked="quickInputSensitive"
+          class="mirror-sensitive-toggle"
+          :disabled="!hasControlLease"
+        >
+          敏感输入（脱敏）
+        </a-checkbox>
       </div>
 
       <!-- 底部状态栏 -->
@@ -257,7 +289,13 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { deviceApi, type DeviceItem } from '@/api'
 import { isWebCodecsSupported, useWebCodecsDecoder } from '@/composables/useWebCodecsDecoder'
-import { buildAndroidRecordedClickParams, buildAndroidRecordedSwipeParams, type AndroidRecordedStepDraft } from '@/utils/androidRecording'
+import {
+  buildAndroidAutoAssertionSteps,
+  buildAndroidBestAssertionStepFromTarget,
+  buildAndroidRecordedClickParams,
+  buildAndroidRecordedSwipeParams,
+  type AndroidRecordedStepDraft,
+} from '@/utils/androidRecording'
 
 const props = withDefaults(
   defineProps<{
@@ -277,6 +315,7 @@ const emit = defineEmits<{
   (e: 'update:open', val: boolean): void
   (e: 'close'): void
   (e: 'recorded', steps: AndroidRecordedStepDraft[]): void
+  (e: 'draft-captured', steps: AndroidRecordedStepDraft[], device: DeviceItem | null): void
 }>()
 
 const visible = computed({
@@ -505,25 +544,64 @@ const mirrorScreenStyle = computed(() => {
 })
 
 const quickInputText = ref('')
+const quickInputSensitive = ref(false)
 const recording = ref(false)
+const autoAssert = ref(true)
+const pickAssertMode = ref(false)
+const finishingRecording = ref(false)
 const recordedSteps = ref<AndroidRecordedStepDraft[]>([])
 
 function startRecording() {
   if (!props.canModify || !props.recordable || !props.device) return
   recordedSteps.value = []
+  pickAssertMode.value = false
   recording.value = true
 }
 
 function discardRecording() {
   recording.value = false
+  pickAssertMode.value = false
   recordedSteps.value = []
+  quickInputSensitive.value = false
 }
 
-function finishRecording() {
-  if (!recording.value || !recordedSteps.value.length) return
-  emit('recorded', recordedSteps.value.map((step) => ({ ...step, params: { ...step.params } })))
+async function finishRecording() {
+  if (!recording.value || !recordedSteps.value.length || finishingRecording.value) return
+  const nextSteps = recordedSteps.value.map((step) => ({ ...step, params: { ...step.params } }))
+  if (autoAssert.value && props.device) {
+    finishingRecording.value = true
+    try {
+      const result = await deviceApi.uiAnchors(props.device.id)
+      const assertions = buildAndroidAutoAssertionSteps(result.anchors, nextSteps)
+      nextSteps.push(...assertions)
+    } catch {
+      // 自动提取失败时不阻塞保存已录制的交互步骤。
+    } finally {
+      finishingRecording.value = false
+    }
+  }
+  emit('recorded', nextSteps)
   discardRecording()
   handleClose()
+}
+
+async function pickAssertionAtPoint(point: { x: number; y: number }) {
+  if (!props.device || !recording.value) return
+  isInteracting.value = true
+  try {
+    const response = await deviceApi.uiTarget(props.device.id, point)
+    const step = buildAndroidBestAssertionStepFromTarget(response.target)
+    if (!step) {
+      message.warning('该位置未识别到可用于断言的文本或资源 ID')
+      return
+    }
+    appendRecordedStep(step.action, step.name, step.params)
+    message.success(`已添加${step.name}`)
+  } catch {
+    message.warning('控件属性获取失败，无法提取断言')
+  } finally {
+    isInteracting.value = false
+  }
 }
 
 function appendRecordedStep(action: string, name: string, params: Record<string, unknown>) {
@@ -716,13 +794,15 @@ function onCanvasMouseDown(e: MouseEvent) {
   isMouseDown = true
   const coords = getCanvasCoords(e)
   showRipple(e.clientX, e.clientY)
-  canvasDragStart = { ...coords, time: Date.now(), sent: sendWsTouch(0, coords) }
+  const sent = recording.value && pickAssertMode.value ? false : sendWsTouch(0, coords)
+  canvasDragStart = { ...coords, time: Date.now(), sent }
   window.addEventListener('mousemove', onWindowMouseMove)
   window.addEventListener('mouseup', onWindowMouseUp)
 }
 
 function onWindowMouseMove(e: MouseEvent) {
   if (!props.device || !isMouseDown) return
+  if (recording.value && pickAssertMode.value) return
   const now = performance.now()
   if (now - lastMoveSentAt < 14) return
   lastMoveSentAt = now
@@ -737,9 +817,13 @@ function onWindowMouseUp(e: MouseEvent) {
   window.removeEventListener('mouseup', onWindowMouseUp)
   if (!props.device) return
   const coords = getCanvasCoords(e)
-  const sent = sendWsTouch(1, coords)
   const start = canvasDragStart
   canvasDragStart = null
+  if (recording.value && pickAssertMode.value && start) {
+    void pickAssertionAtPoint({ x: start.x, y: start.y })
+    return
+  }
+  const sent = sendWsTouch(1, coords)
   if (!recording.value || !start || !start.sent || !sent) return
   if (Math.hypot(coords.x - start.x, coords.y - start.y) < 12) {
     appendRecordedStep('click', '镜像点击', buildAndroidRecordedClickParams(start, null))
@@ -823,6 +907,15 @@ async function onScreenMouseUp(e: MouseEvent) {
 
   showRipple(e.clientX, e.clientY)
 
+  if (recording.value && pickAssertMode.value) {
+    if (distance < 10) {
+      await pickAssertionAtPoint({ x: realStartX, y: realStartY })
+    } else {
+      message.warning('点选断言模式下请点击目标控件，不要滑动屏幕')
+    }
+    return
+  }
+
   isInteracting.value = true
   try {
     if (!hasControlLease.value) {
@@ -895,15 +988,22 @@ async function sendQuickText() {
     message.warning('设备当前处于只读模式，请先点击右上角「获取控制权」')
     return
   }
+  const recordQuickStep = () => {
+    if (quickInputSensitive.value) {
+      appendRecordedStep('input', '输入敏感值（请手动填写）', { text: '', sensitive: true })
+    } else {
+      appendRecordedStep('input', '镜像输入文字', { text })
+    }
+  }
   if (isScrcpyLive.value && scrcpyWs && scrcpyWs.readyState === WebSocket.OPEN) {
     scrcpyWs.send(JSON.stringify({ type: 'text', text }))
-    appendRecordedStep('input', '镜像输入文字', { text })
+    recordQuickStep()
     quickInputText.value = ''
     return
   }
   try {
     await deviceApi.inputText(props.device.id, text, effectiveLeaseToken.value)
-    appendRecordedStep('input', '镜像输入文字', { text })
+    recordQuickStep()
     quickInputText.value = ''
     if (!isScrcpyLive.value) {
       scheduleActionRefresh(200)
@@ -1014,6 +1114,13 @@ function stopMirrorPolling() {
 }
 
 function handleClose() {
+  if (recording.value && recordedSteps.value.length > 0) {
+    emit(
+      'draft-captured',
+      recordedSteps.value.map((step) => ({ ...step, params: { ...step.params } })),
+      props.device ?? null,
+    )
+  }
   discardRecording()
   cleanupMirror()
   releaseInteractiveLease()
@@ -1237,13 +1344,30 @@ onBeforeUnmount(() => {
 .mirror-record-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   width: 100%;
   justify-content: center;
 }
+.mirror-auto-assert-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--c-text-secondary, #595959);
+  cursor: pointer;
+}
 .mirror-text-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  max-width: 420px;
+  max-width: 520px;
+}
+.mirror-sensitive-toggle {
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 12px;
 }
 .mirror-placeholder {
   position: absolute;

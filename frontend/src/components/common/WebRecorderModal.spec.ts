@@ -51,7 +51,7 @@ function mountRecorder() {
     },
     global: {
       stubs: Object.fromEntries([
-        'AModal', 'AForm', 'AFormItem', 'AInput', 'ASelect', 'ASelectOption', 'AAlert', 'AEmpty', 'AList', 'AListItem', 'ATag', 'AButton',
+        'AModal', 'AForm', 'AFormItem', 'AInput', 'ASelect', 'ASelectOption', 'ASwitch', 'AAlert', 'AEmpty', 'AList', 'AListItem', 'ATag', 'AButton',
       ].map((name) => [name, Passthrough])),
     },
   })
@@ -95,7 +95,53 @@ describe('WebRecorderModal', () => {
       start_url: 'https://example.com/',
       project_id: 1,
       browser: 'firefox',
+      auto_assert: true,
     })
+    wrapper.unmount()
+  })
+
+  it('allows disabling auto_assert before starting recording and highlights assertion steps', async () => {
+    recordingStart.mockResolvedValue({
+      id: 'recording-2',
+      status: 'recording',
+      steps: [
+        { action: 'goto', name: '打开 https://example.com/', params: { url: 'https://example.com/' } },
+        { action: 'assert_text', name: '断言文本 首页', params: { text: '首页' } },
+      ],
+    })
+    const wrapper = mount(WebRecorderModal, {
+      props: {
+        open: true,
+        projectId: 1,
+        autoApply: true,
+      },
+      global: {
+        stubs: {
+          ...Object.fromEntries([
+            'AModal', 'AForm', 'AFormItem', 'AInput', 'ASelect', 'ASelectOption', 'ASwitch', 'AAlert', 'AEmpty', 'AList', 'AListItem', 'AButton',
+          ].map((name) => [name, Passthrough])),
+          ATag: {
+            props: ['color'],
+            template: '<span class="tag-stub" :data-color="color"><slot /></span>',
+          },
+        },
+      },
+    })
+    const vm = wrapper.vm as any
+    vm.startUrl = 'https://example.com'
+    vm.autoAssert = false
+
+    await vm.startRecording()
+    await flushPromises()
+
+    expect(recordingStart).toHaveBeenCalledWith({
+      start_url: 'https://example.com/',
+      project_id: 1,
+      browser: 'chromium',
+      auto_assert: false,
+    })
+    const tags = wrapper.findAll('.tag-stub')
+    expect(tags.map((item) => item.attributes('data-color'))).toEqual(['blue', 'green'])
     wrapper.unmount()
   })
 
@@ -116,6 +162,54 @@ describe('WebRecorderModal', () => {
 
     expect(recordingStart).not.toHaveBeenCalled()
     expect(messageWarning).toHaveBeenCalledWith('case.drawer.web.recorder.worker_unavailable')
+    wrapper.unmount()
+  })
+
+  it('forwards recording source, emits stopped on terminal status, and passes recording_record_id on applySteps', async () => {
+    recordingStart.mockResolvedValue({
+      id: 'recording-3',
+      status: 'recording',
+      steps: [],
+      source: 'workbench',
+    })
+    recordingStop.mockResolvedValue({
+      id: 'recording-3',
+      status: 'stopped',
+      steps: [{ action: 'click', name: '点击登录', params: { selector: '#login' } }],
+      asset_ids: [15],
+      recording_record_id: 88,
+    })
+
+    const wrapper = mount(WebRecorderModal, {
+      props: {
+        open: true,
+        projectId: 1,
+        autoApply: false,
+        source: 'workbench',
+      },
+      global: {
+        stubs: Object.fromEntries([
+          'AModal', 'AForm', 'AFormItem', 'AInput', 'ASelect', 'ASelectOption', 'ASwitch', 'AAlert', 'AEmpty', 'AList', 'AListItem', 'ATag', 'AButton', 'ACollapse', 'ACollapsePanel',
+        ].map((name) => [name, Passthrough])),
+      },
+    })
+    const vm = wrapper.vm as any
+    vm.startUrl = 'https://example.com'
+
+    await vm.startRecording()
+    await flushPromises()
+    expect(recordingStart).toHaveBeenCalledWith(expect.objectContaining({ source: 'workbench' }))
+
+    await vm.stopRecording()
+    await flushPromises()
+    expect(wrapper.emitted('stopped')?.[0]?.[0]).toMatchObject({ id: 'recording-3', recording_record_id: 88 })
+
+    vm.applySteps()
+    expect(wrapper.emitted('recorded')?.[0]).toEqual([
+      [{ action: 'click', name: '点击登录', params: { selector: '#login' } }],
+      [15],
+      88,
+    ])
     wrapper.unmount()
   })
 })
