@@ -25,7 +25,13 @@
   - A32 独立回放：`POST /drafts/{id}/replays` 需 `initial_state_confirmed=true`，固定快照后创建回放用例与 `TestRun` 并走 `enqueue_case_run` 同一条 Android 低代码派发链路；`(draft_id, idempotency_key)` 唯一，重复请求返回同一回放。
   - A33 幂等保存：`POST /drafts/{id}/publish` 要求当前版本、当前内容哈希存在 `passed` 回放，保存后回填 `published_case_id`，重复请求返回同一用例；编辑/重新编译使旧验证资格失效。
   - 验证：新增 12 项后端定向回归（编译 3、API 8、迁移 1）、迁移与本地 schema 100 项通过、前端 457 项通过；真实 OpenAPI 契约冒烟 13 条路由全部声明。见[实施证据](docs/evidence/android-agent-m3-draft-replay-20261111.md)。
-- [ ] M4 / A40–A42：完整工作台、真机/模拟器试点、Windows 打包升级及回退演练。
+- [~] M4 / A40–A42（非真机工程能力与自动化回归已完成；真机试点与 Windows 打包升级/回退演练待实际机器验证）：
+  - 安全开关与回退（A42，2026-11-13）：`ANDROID_AGENT_ENABLED` 配置及 `/api/v1/runtime/capabilities` 暴露开关；关闭时对新建/启动/执行轮次/恢复控制返回 `503 android_agent_disabled`，保留只读历史、取消/暂停与非 Agent 设备/用例能力。
+  - 审计、模型清单与租约兜底（2026-11-13）：新增 `GET /api/v1/projects/{project_id}/android-agent/models` 脱敏只读列表（不含密钥与 `endpoint`）；为 `control`/`manual-action`/`complete`/首次 `publish` 写入 `AuditLog`；管理员租约接口 `POST /api/v1/devices/{device_id}/lease/force-takeover` 写入审计，原租约未释放或设备仍标记忙碌时拒绝接管；`DeviceMirrorModal.vue` 提供 `pagehide` keepalive 租约释放兜底。
+  - 审查修复（2026-11-13）：停用开关使运行中决策失效并暂停会话；人工指令经租约和控制代次门禁执行，未知结果不自动重发，执行期间取消会保留租约至设备调用结束（进程异常时等待租约到期）；终态确认随会话和断言变化重置；关键 Agent 审计失败时业务事务回滚。人工操作及多进程设备控制仍需真机、PostgreSQL 场景验收。
+  - 完整工作台收口与自动化闭环（A40，2026-11-13）：补齐 `AndroidAgentPanel.vue` 视觉模型选择、APK 快捷包名、`context_values` 变量、敏感信息提示、`paused + agent` 接管状态修复、`manualAction` 人工操作台、`completeSession` 终态断言确认、草稿版本切换与断言升版编辑、回放轮询与 `/runs/:id` `/cases/:id` 跳转（对齐 `zh-CN.ts` / `en-US.ts`），并补充 `frontend/e2e/android-agent.spec.ts` Playwright E2E。
+  - 自动化验证（Mock/SQLite，2026-11-13）：后端 `pytest` 97 passed（8 个修改测试文件合计与 standalone 逐文件独立通过）、`ruff check` / `ruff format --check`（20 文件）/ `mypy`（229 文件）通过；前端 `vue-tsc --noEmit`、`vite build`（4140 modules）、Vitest 3 文件 43 tests（`AndroidAgentPanel.spec.ts` 19、`AppWorkbenchView.spec.ts` 12、`DeviceMirrorModal.spec.ts` 12）与 Playwright E2E `e2e/android-agent.spec.ts` 1 passed。
+  - 待真实机器验证：真机/模拟器 3+ 典型流程试点、真机独立回放稳定性与 Windows 安装包升级/卸载回退实测。
 
 > 当前概况见 [`docs/project-status-2026-10-26.md`](docs/project-status-2026-10-26.md)。本文件保留 v2.7.0、v2.6.0 与历史任务的勾选和交付记录；早期 N0–N6 计划见 [`docs/development-task-plan-2026-10-07.md`](docs/development-task-plan-2026-10-07.md)。每个模块均须完成实现、测试、代码审查、修复和文档同步后再进入下一项，提交推送按用户要求执行。
 
