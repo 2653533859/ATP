@@ -2328,6 +2328,8 @@ export const deviceApi = {
     }),
   releaseLease: (id: number, leaseToken: string) =>
     http.delete(`/devices/${id}/lease`, { data: { lease_token: leaseToken } }),
+  forceTakeoverLease: (id: number, data?: { ttl_seconds?: number; owner_label?: string; reason?: string }) =>
+    http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease/force-takeover`, data ?? {}),
   scan: () => http.post<unknown, DeviceScanResult>('/devices/scan'),
   scanStatus: (scanId: string) => http.get<unknown, DeviceScanResult>(`/devices/scan/${scanId}`),
   get: (id: number) => http.get('/devices/' + id),

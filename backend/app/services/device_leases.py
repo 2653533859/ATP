@@ -78,6 +78,52 @@ async def _delete_lease_by_token(db: AsyncSession, lease_id: int, lease_token: s
     return removed.rowcount == 1
 
 
+async def _issue_device_lease(
+    db: AsyncSession,
+    device: Device,
+    *,
+    owner_id: int | None,
+    owner_label: str,
+    ttl_seconds: int,
+    now: datetime,
+) -> DeviceLease:
+    """在已校验无有效冲突后将设备置忙并原子插入新租约。"""
+    # 本地 SQLite（pysqlite 旧式事务）只在 DML 前隐式 BEGIN。先写设备状态，让下面的
+    # SAVEPOINT 嵌套在调用方事务里；否则它成为最外层事务，RELEASE 时就提前提交了租约。
+    # SQLite 下 FOR UPDATE 不生效，设备可能在读取后被置为离线或删除，这里要再判断一次。
+    marked = await db.execute(
+        update(Device)
+        .where(Device.id == device.id, Device.status != DeviceStatus.offline)
+        .values(status=DeviceStatus.busy)
+    )
+    if marked.rowcount != 1:
+        status = (await db.execute(select(Device.status).where(Device.id == device.id))).scalar_one_or_none()
+        if status is None:
+            raise LookupError("设备不存在")
+        raise DeviceLeaseConflict("设备当前离线，无法占用")
+    device.status = DeviceStatus.busy
+    lease = DeviceLease(
+        device_id=device.id,
+        lease_token=secrets.token_urlsafe(48),
+        owner_id=owner_id,
+        owner_label=owner_label,
+        acquired_at=now,
+        heartbeat_at=now,
+        expires_at=now + timedelta(seconds=ttl_seconds),
+    )
+    try:
+        # SQLite 没有行锁，互斥由 device_id 唯一约束兜底；保存点让冲突后调用方事务仍可用。
+        async with db.begin_nested():
+            db.add(lease)
+            await db.flush()
+    except IntegrityError:
+        # 只有设备确实已有租约才算占用冲突；其他完整性错误（如 owner_id 外键）原样抛出。
+        if await _device_has_lease(db, device.id):
+            raise DeviceLeaseConflict("设备已被其他任务占用") from None
+        raise
+    return lease
+
+
 async def acquire_device_lease(
     db: AsyncSession,
     device_id: int,
@@ -113,40 +159,47 @@ async def acquire_device_lease(
                 if await _device_has_lease(db, device_id):
                     raise DeviceLeaseConflict("设备已被其他任务占用")
 
-    # 本地 SQLite（pysqlite 旧式事务）只在 DML 前隐式 BEGIN。先写设备状态，让下面的
-    # SAVEPOINT 嵌套在调用方事务里；否则它成为最外层事务，RELEASE 时就提前提交了租约。
-    # SQLite 下 FOR UPDATE 不生效，设备可能在读取后被置为离线或删除，这里要再判断一次。
-    marked = await db.execute(
-        update(Device)
-        .where(Device.id == device_id, Device.status != DeviceStatus.offline)
-        .values(status=DeviceStatus.busy)
-    )
-    if marked.rowcount != 1:
-        status = (await db.execute(select(Device.status).where(Device.id == device_id))).scalar_one_or_none()
-        if status is None:
-            raise LookupError("设备不存在")
-        raise DeviceLeaseConflict("设备当前离线，无法占用")
-    device.status = DeviceStatus.busy
-    lease = DeviceLease(
-        device_id=device_id,
-        lease_token=secrets.token_urlsafe(48),
+    return await _issue_device_lease(
+        db,
+        device,
         owner_id=owner_id,
         owner_label=owner_label,
-        acquired_at=now,
-        heartbeat_at=now,
-        expires_at=now + timedelta(seconds=ttl_seconds),
+        ttl_seconds=ttl_seconds,
+        now=now,
     )
-    try:
-        # SQLite 没有行锁，互斥由 device_id 唯一约束兜底；保存点让冲突后调用方事务仍可用。
-        async with db.begin_nested():
-            db.add(lease)
-            await db.flush()
-    except IntegrityError:
-        # 只有设备确实已有租约才算占用冲突；其他完整性错误（如 owner_id 外键）原样抛出。
-        if await _device_has_lease(db, device_id):
-            raise DeviceLeaseConflict("设备已被其他任务占用") from None
-        raise
-    return lease
+
+
+async def force_takeover_device_lease(
+    db: AsyncSession,
+    device_id: int,
+    *,
+    owner_id: int | None,
+    owner_label: str,
+    ttl_seconds: int = 900,
+) -> tuple[DeviceLease, dict[str, Any] | None]:
+    """只有原持有者释放设备后才发放新租约，避免并发设备写入。"""
+    now = _now()
+    device = (await db.execute(select(Device).where(Device.id == device_id).with_for_update())).scalar_one_or_none()
+    if device is None:
+        raise LookupError("设备不存在")
+    if device.status == DeviceStatus.offline:
+        raise DeviceLeaseConflict("设备当前离线，无法占用")
+
+    current = (await db.execute(select(DeviceLease).where(DeviceLease.device_id == device_id))).scalar_one_or_none()
+    if current is not None:
+        raise DeviceLeaseConflict("设备仍有租约，请先停止原任务并等待租约释放")
+    if device.status == DeviceStatus.busy:
+        raise DeviceLeaseConflict("设备仍标记为忙碌，请先核实并停止原任务")
+
+    lease = await _issue_device_lease(
+        db,
+        device,
+        owner_id=owner_id,
+        owner_label=owner_label,
+        ttl_seconds=ttl_seconds,
+        now=now,
+    )
+    return lease, None
 
 
 async def heartbeat_device_lease(

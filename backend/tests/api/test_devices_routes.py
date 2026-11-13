@@ -12,7 +12,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from app.api.v1 import devices
 from app.models.device import DeviceStatus
 from app.schemas.device import DeviceUpdate
-from app.schemas.device_lease import DeviceLeaseAcquireIn, DeviceLeaseTokenIn
+from app.schemas.device_lease import (
+    DeviceLeaseAcquireIn,
+    DeviceLeaseForceTakeoverIn,
+    DeviceLeaseTokenIn,
+)
 from app.services.device_sync import device_scan_lock
 
 
@@ -475,3 +479,83 @@ def test_acquire_lease_forwards_takeover_flag(monkeypatch):
     assert seen["owner_id"] == 9
     assert seen["ttl_seconds"] == 90
     assert seen["takeover_own"] is True
+
+
+def test_force_takeover_lease_writes_audit_log_and_returns_token(monkeypatch):
+    lease = _lease()
+    audited: list[dict[str, object]] = []
+
+    async def fake_force_takeover(_db, _device_id, **kwargs):
+        assert kwargs == {"owner_id": 1, "owner_label": "应急运维", "ttl_seconds": 120}
+        return lease, {"lease_id": 88, "owner_id": 5, "owner_label": "worker-a"}
+
+    async def fake_write_audit_log(_db, **kwargs):
+        audited.append(kwargs)
+
+    monkeypatch.setattr(devices, "force_takeover_device_lease", fake_force_takeover)
+    monkeypatch.setattr(devices, "write_audit_log", fake_write_audit_log)
+
+    db = _DB()
+    result = asyncio.run(
+        devices.force_takeover_lease(
+            device_id=1,
+            body=DeviceLeaseForceTakeoverIn(owner_label="应急运维", ttl_seconds=120, reason="镜像卡死"),
+            request=SimpleNamespace(client=SimpleNamespace(host="127.0.0.1")),
+            db=db,
+            current_user=SimpleNamespace(id=1, username="admin"),
+        )
+    )
+
+    assert result.lease_token == lease.lease_token
+    assert db.commits == 1
+    assert len(audited) == 1
+    assert audited[0]["action"] == "device_lease_force_takeover"
+    assert audited[0]["resource_type"] == "device"
+    assert audited[0]["resource_id"] == 1
+    assert audited[0]["user_id"] == 1
+    assert audited[0]["username"] == "admin"
+    assert audited[0]["ip_address"] == "127.0.0.1"
+    detail = str(audited[0]["detail"])
+    assert "previous_lease_id=88" in detail
+    assert "previous_owner_label=worker-a" in detail
+    assert "reason=镜像卡死" in detail
+
+
+def test_force_takeover_lease_maps_missing_device_to_404(monkeypatch):
+    async def fake_force_takeover(_db, _device_id, **_kwargs):
+        raise LookupError("设备不存在")
+
+    monkeypatch.setattr(devices, "force_takeover_device_lease", fake_force_takeover)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            devices.force_takeover_lease(
+                device_id=404,
+                body=DeviceLeaseForceTakeoverIn(),
+                request=SimpleNamespace(client=None),
+                db=_DB(),
+                current_user=SimpleNamespace(id=1, username="admin"),
+            )
+        )
+
+    assert exc.value.status_code == 404
+
+
+def test_force_takeover_lease_maps_offline_conflict_to_409(monkeypatch):
+    async def fake_force_takeover(_db, _device_id, **_kwargs):
+        raise devices.DeviceLeaseConflict("设备当前离线，无法占用")
+
+    monkeypatch.setattr(devices, "force_takeover_device_lease", fake_force_takeover)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            devices.force_takeover_lease(
+                device_id=1,
+                body=DeviceLeaseForceTakeoverIn(),
+                request=SimpleNamespace(client=None),
+                db=_DB(),
+                current_user=SimpleNamespace(id=1, username="admin"),
+            )
+        )
+
+    assert exc.value.status_code == 409

@@ -2,7 +2,7 @@ import asyncio
 import os
 import time
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,18 +23,25 @@ from app.schemas.device import (
     UnifiedDeviceOut,
 )
 from app.services.ios_device_manager import get_unified_device_list
-from app.schemas.device_lease import DeviceLeaseAcquireIn, DeviceLeaseOut, DeviceLeaseTokenIn
-from app.api.deps import get_current_user, require_engineer
+from app.schemas.device_lease import (
+    DeviceLeaseAcquireIn,
+    DeviceLeaseForceTakeoverIn,
+    DeviceLeaseOut,
+    DeviceLeaseTokenIn,
+)
+from app.api.deps import get_current_user, require_admin, require_engineer
 from app.services.adb_service import (
     async_scan_devices,
     async_connect_remote_device,
     async_disconnect_remote_device,
 )
 from app.services.android_worker_registry import AndroidWorkerRegistryError, list_android_workers
+from app.services.audit import write_audit_log
 from app.services.device_sync import device_scan_lock, sync_devices_to_db_async
 from app.services.device_leases import (
     DeviceLeaseConflict,
     acquire_device_lease,
+    force_takeover_device_lease,
     heartbeat_device_lease,
     release_device_lease,
 )
@@ -426,3 +433,49 @@ async def release_lease(
     if not released:
         raise HTTPException(status_code=404, detail="设备租约不存在")
     await db.commit()
+
+
+@router.post("/devices/{device_id}/lease/force-takeover", response_model=DeviceLeaseOut)
+async def force_takeover_lease(
+    device_id: int,
+    body: DeviceLeaseForceTakeoverIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """管理员在原租约释放后获取设备控制权并写入审计日志。"""
+    try:
+        lease, previous = await force_takeover_device_lease(
+            db,
+            device_id,
+            owner_id=current_user.id,
+            owner_label=body.owner_label,
+            ttl_seconds=body.ttl_seconds,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except DeviceLeaseConflict as exc:
+        raise _lease_error(exc) from exc
+
+    detail_parts = [f"owner_label={body.owner_label}"]
+    if previous:
+        detail_parts.append(f"previous_lease_id={previous.get('lease_id')}")
+        detail_parts.append(f"previous_owner_id={previous.get('owner_id')}")
+        detail_parts.append(f"previous_owner_label={previous.get('owner_label')}")
+    reason = body.reason.strip()
+    if reason:
+        detail_parts.append(f"reason={reason}")
+    await write_audit_log(
+        db,
+        action="device_lease_force_takeover",
+        resource_type="device",
+        resource_id=device_id,
+        user_id=current_user.id,
+        username=current_user.username,
+        detail="; ".join(detail_parts),
+        ip_address=request.client.host if request.client else "",
+        raise_on_error=True,
+    )
+    await db.commit()
+    await db.refresh(lease)
+    return DeviceLeaseOut.model_validate(lease)

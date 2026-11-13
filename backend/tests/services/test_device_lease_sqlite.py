@@ -21,6 +21,7 @@ from app.models.device import Device, DeviceLease, DeviceStatus
 from app.services.device_leases import (
     DeviceLeaseConflict,
     acquire_device_lease,
+    force_takeover_device_lease,
     get_active_device_lease,
     heartbeat_device_lease,
     reclaim_expired_device_leases,
@@ -466,3 +467,78 @@ def test_sqlite_sync_reclaim_matches_the_async_rules(tmp_path, renewed_before_de
         assert (reclaimed, _rows(path)) == (0, (["old"], DeviceStatus.busy.value))
     else:
         assert (reclaimed, _rows(path)) == (1, ([], DeviceStatus.online.value))
+
+
+def test_sqlite_force_takeover_waits_for_previous_lease_release(tmp_path):
+    async def scenario():
+        path = tmp_path / "force-takeover.sqlite3"
+        engine, factory = await _sqlite(path)
+        try:
+            async with factory() as db:
+                original = await acquire_device_lease(db, 1, owner_id=None, owner_label="worker-a", ttl_seconds=300)
+                await db.commit()
+                old_id = original.id
+                old_token = original.lease_token
+
+            async with factory() as db:
+                with pytest.raises(DeviceLeaseConflict, match="停止原任务"):
+                    await force_takeover_device_lease(db, 1, owner_id=None, owner_label="admin")
+                await db.rollback()
+                assert await get_active_device_lease(db, 1, old_token) is not None
+                lease = (await db.execute(select(DeviceLease).where(DeviceLease.device_id == 1))).scalar_one()
+                lease.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+                await db.commit()
+
+            async with factory() as db:
+                with pytest.raises(DeviceLeaseConflict, match="停止原任务"):
+                    await force_takeover_device_lease(db, 1, owner_id=None, owner_label="admin")
+                await db.rollback()
+                assert await release_device_lease(db, 1, old_token)
+                await db.commit()
+
+            async with factory() as db:
+                taken, previous = await force_takeover_device_lease(
+                    db,
+                    1,
+                    owner_id=None,
+                    owner_label="admin-takeover",
+                    ttl_seconds=600,
+                )
+                await db.commit()
+                new_token = taken.lease_token
+
+            async with factory() as db:
+                assert await get_active_device_lease(db, 1, old_token) is None
+                assert await get_active_device_lease(db, 1, new_token) is not None
+                released_old = await release_device_lease(db, 1, old_token)
+                assert released_old is False
+
+            return old_id, old_token, new_token, previous
+        finally:
+            await engine.dispose()
+
+    old_id, old_token, new_token, previous = asyncio.run(scenario())
+    assert old_token != new_token
+    assert previous is None
+
+
+def test_sqlite_force_takeover_rejects_missing_or_offline_device(tmp_path):
+    async def scenario():
+        path = tmp_path / "force-takeover-errors.sqlite3"
+        engine, factory = await _sqlite(path)
+        try:
+            async with factory() as db:
+                with pytest.raises(LookupError):
+                    await force_takeover_device_lease(db, 999, owner_id=None, owner_label="admin")
+
+                device = await db.get(Device, 1)
+                assert device is not None
+                device.status = DeviceStatus.offline
+                await db.commit()
+
+                with pytest.raises(DeviceLeaseConflict):
+                    await force_takeover_device_lease(db, 1, owner_id=None, owner_label="admin")
+        finally:
+            await engine.dispose()
+
+    asyncio.run(scenario())

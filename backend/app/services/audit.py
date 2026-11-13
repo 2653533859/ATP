@@ -25,6 +25,7 @@ async def write_audit_log(
     detail: str | None = None,
     ip_address: str = "",
     project_id: int | None = None,
+    raise_on_error: bool = False,
 ) -> None:
     """写入一条审计日志记录"""
     try:
@@ -42,6 +43,8 @@ async def write_audit_log(
         await db.flush()
     except Exception:
         logger.warning("Failed to write audit log", exc_info=True)
+        if raise_on_error:
+            raise
 
 
 async def write_access_denied_audit(

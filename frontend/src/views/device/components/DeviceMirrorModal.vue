@@ -238,7 +238,7 @@
   </a-modal>
 </template>
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   AppstoreOutlined,
@@ -429,6 +429,31 @@ async function releaseInteractiveLease() {
     try {
       await deviceApi.releaseLease(props.device.id, token)
     } catch {}
+  }
+}
+
+function releaseLeaseOnPageHide() {
+  if (!props.device || !internalLeaseToken.value) return
+  const token = internalLeaseToken.value
+  const deviceId = props.device.id
+  internalLeaseToken.value = null
+  stopLeaseHeartbeat()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
+  }
+  const authToken = getAuthToken()
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`
+  }
+  if (typeof fetch === 'function') {
+    void fetch(`/api/v1/devices/${deviceId}/lease`, {
+      method: 'DELETE',
+      headers,
+      body: JSON.stringify({ lease_token: token }),
+      credentials: 'include',
+      keepalive: true,
+    }).catch(() => {})
   }
 }
 
@@ -1024,7 +1049,12 @@ watch(
   },
 )
 
+onMounted(() => {
+  window.addEventListener('pagehide', releaseLeaseOnPageHide)
+})
+
 onBeforeUnmount(() => {
+  window.removeEventListener('pagehide', releaseLeaseOnPageHide)
   cleanupMirror()
   releaseInteractiveLease()
 })

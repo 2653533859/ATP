@@ -383,4 +383,32 @@ describe('DeviceMirrorModal', () => {
     expect(pill.text()).toContain('截图降级模式')
     wrapper.unmount()
   })
+
+  it('sends a keepalive DELETE lease request on pagehide and skips duplicate unmount release', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const device = { id: 9, serial: 'DEV-9', status: 'online' }
+      const wrapper = mountModal({ open: true, device })
+      await flushPromises()
+
+      expect(acquireLeaseMock).toHaveBeenCalledTimes(1)
+      window.dispatchEvent(new Event('pagehide'))
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/devices/9/lease',
+        expect.objectContaining({
+          method: 'DELETE',
+          keepalive: true,
+          credentials: 'include',
+          body: JSON.stringify({ lease_token: 'auto-test-lease' }),
+        }),
+      )
+
+      wrapper.unmount()
+      expect(releaseLeaseMock).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })
