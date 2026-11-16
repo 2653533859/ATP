@@ -85,6 +85,25 @@ async def _init_admin():
                     raise
 
 
+async def _recover_orphaned_agent_sessions() -> None:
+    """进程重启后收敛中断的 Android Agent 会话，不自动继续设备操作。
+
+    只处理租约已失效或长时间没有新事件的非终态会话，其他副本上仍在推进的会话不受影响。
+    恢复失败（例如数据库尚未迁移到含 Agent 表的版本）只告警，不阻断启动。
+    """
+    from app.services.android_agent.coordinator import AgentCoordinator
+
+    try:
+        async with AsyncSessionLocal() as db:
+            recovered = await AgentCoordinator().recover_orphaned_sessions(db)
+            await db.commit()
+    except Exception:
+        logger.warning("Android Agent 会话恢复扫描失败，已跳过", exc_info=True)
+        return
+    if recovered:
+        logger.warning("Android Agent 会话恢复：%d 个中断会话已收敛为待人工核查 %s", len(recovered), recovered)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
@@ -123,6 +142,7 @@ async def lifespan(app: FastAPI):
         async with AsyncSessionLocal() as db:
             await AgentCoordinator().pause_disabled_sessions(db)
             await db.commit()
+    await _recover_orphaned_agent_sessions()
     if settings.ATP_LOCAL_MODE:
         from app.core.local_workspace import ensure_local_workspace
         from app.services.local_jobs import start_local_runner

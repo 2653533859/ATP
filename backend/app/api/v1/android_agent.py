@@ -54,6 +54,7 @@ from app.services.ai_case.llm_client import LLMRequest
 from app.services.android_agent.compiler import compile_session_draft
 from app.services.android_agent.coordinator import (
     AgentCoordinator,
+    AgentCoordinatorError,
     DeviceLeaseUnavailableError,
     InvalidStateTransitionError,
     SessionNotFoundError,
@@ -67,6 +68,8 @@ from app.services.android_agent.replay import (
     find_published_case,
     find_verified_replay,
     start_replay,
+    sync_draft_replays,
+    sync_replay_status,
 )
 from app.services.device_leases import get_active_device_lease, release_device_lease
 
@@ -250,6 +253,12 @@ async def start_agent_session(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
+    except (AgentCoordinatorError, LookupError):
+        # 会话未绑定设备（设备被删除后外键置空），或设备在加锁前被删除
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="device_unavailable: 会话绑定的设备不存在，请重新创建会话",
+        ) from None
 
 
 @router.get(
@@ -285,7 +294,6 @@ async def control_agent_session(
     session = await _lock_agent_session(db, session_id)
     if payload.action.value == "resume":
         _require_android_agent_enabled()
-    if payload.action.value == "resume":
         await _require_no_manual_dispatch(db, session_id)
 
     # 乐观并发版本检查
@@ -407,6 +415,9 @@ async def manual_action_agent_session(
             if device_id and lease_token:
                 await release_device_lease(db, device_id, lease_token)
             current.lease_token = None
+        else:
+            # 人工操作期间持续续期，否则接管超过租约时长后恢复必然 lease_lost
+            await coordinator.renew_session_lease(db, session_id)
         await coordinator.append_event(
             db,
             session_id,
@@ -519,6 +530,9 @@ async def _execute_manual_action(
         return "succeeded", None
     except ControlRejected as exc:
         return "cancelled", str(exc)
+    except HTTPException:
+        # 只有 _build_device_adapter 会抛出：连接设备失败，尚未发生任何设备写入。
+        return "failed", "device_unavailable"
     except DeviceAdapterError as exc:
         code = str(exc).split(":", 1)[0]
         return ("outcome_unknown" if code in {"write_outcome_unknown", "input_outcome_unknown"} else "failed"), code
@@ -646,7 +660,7 @@ async def run_agent_session_endpoint(
     llm_request = await _build_llm_request(db, session)
     if not session.lease_token or not await get_active_device_lease(db, device.id, session.lease_token):
         raise HTTPException(status_code=409, detail="lease_lost: 会话未持有有效的设备租约")
-    adapter = _build_device_adapter(device, session.package_name)
+    adapter = await asyncio.to_thread(_build_device_adapter, device, session.package_name)
     values = {key: str(value) for key, value in (session.context_values or {}).items()}
 
     try:
@@ -1064,14 +1078,10 @@ async def get_agent_replay(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"回放 {replay_id} 不存在或不属于项目 {project_id}",
         )
-    if replay.run_id:
-        run = await db.get(TestRun, replay.run_id)
-        if run is not None:
-            run_status = str(getattr(run.status, "value", run.status))
-            if run_status in ("passed", "failed", "error", "stopped"):
-                replay.status = run_status
-            elif run_status in ("running", "pending"):
-                replay.status = "running"
+    # 状态必须落库：发布草稿时按库里的 passed 回放判断验证资格
+    if await sync_replay_status(db, replay):
+        await db.commit()
+        await db.refresh(replay)
     return AgentReplayResponse.model_validate(replay)
 
 
@@ -1083,16 +1093,21 @@ async def get_agent_replay(
 async def publish_agent_draft(
     project_id: int = Path(..., ge=1),
     draft_id: int = Path(..., ge=1),
-    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    # 幂等由草稿的 published_case_id 保证；请求头仅为兼容既有客户端而接受，不参与判定
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AgentPublishResponse:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
     draft = await _get_project_draft(db, project_id, draft_id)
+    # 回放运行可能已结束但还没人查询过回放；先把运行终态落到回放记录上
+    if await sync_draft_replays(db, draft):
+        await db.commit()
 
     published = await find_published_case(db, draft)
     if published is not None:
-        verified_id = (await find_verified_replay(db, draft)).id if await find_verified_replay(db, draft) else 0
+        verified = await find_verified_replay(db, draft)
+        verified_id = verified.id if verified else 0
         return AgentPublishResponse(
             draft_id=draft.id,
             draft_version=draft.version,
@@ -1101,8 +1116,6 @@ async def publish_agent_draft(
             published=True,
             idempotent_replay=True,
         )
-    del idempotency_key
-
     verified = await find_verified_replay(db, draft)
     if verified is None:
         raise HTTPException(
@@ -1134,7 +1147,7 @@ async def publish_agent_draft(
 
     draft.published_case_id = replay_case.id
     draft.published_at = datetime.now(timezone.utc)
-    draft.status = "verified" if draft.status == "verified" else "verified"
+    draft.status = "verified"
     await coordinator.append_event(
         db,
         draft.session_id,

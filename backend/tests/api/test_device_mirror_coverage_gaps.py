@@ -476,6 +476,42 @@ def test_text_adb_path_success(monkeypatch):
     assert calls == [("text", "hi")]
 
 
+def test_text_adb_path_escapes_shell_metacharacters(monkeypatch):
+    calls = []
+
+    def fake_input(serial, *args):
+        calls.append(args)
+        return True
+
+    monkeypatch.setattr(device_mirror.settings, "ADB_SCAN_MODE", "local")
+    monkeypatch.setattr(device_mirror.settings, "ATP_LOCAL_MODE", False)
+    monkeypatch.setattr(device_mirror, "_adb_input", fake_input)
+
+    asyncio.run(
+        device_mirror.device_text(
+            1,
+            DeviceTextInputIn(text="a b; reboot $(id) 'x'"),
+            db=_FakeDB(_online_device("DEV1"), lease=_valid_lease()),
+            lease_token="tok-1",
+            _=None,
+        )
+    )
+
+    # adb 把参数拼成一行交给设备 shell：每个元字符都必须被转义，不能留下可执行的分隔符
+    assert calls == [("text", "a%sb\\;%sreboot%s\\$\\(id\\)%s\\'x\\'")]
+
+
+@pytest.mark.parametrize("keycode", ["3; reboot", "KEYCODE_HOME && id", "$(id)", "", -1])
+def test_keyevent_rejects_non_token_keycode(keycode):
+    with pytest.raises(ValueError):
+        DeviceKeyEventIn(keycode=keycode)
+
+
+@pytest.mark.parametrize("keycode", [3, "4", "KEYCODE_HOME"])
+def test_keyevent_accepts_numeric_and_named_keycodes(keycode):
+    assert DeviceKeyEventIn(keycode=keycode).keycode == keycode
+
+
 def test_text_adb_failure_raises_503(monkeypatch):
     monkeypatch.setattr(device_mirror.settings, "ATP_LOCAL_MODE", False)
     monkeypatch.setattr(device_mirror, "_adb_input", lambda *_a: False)

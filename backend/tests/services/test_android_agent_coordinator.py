@@ -222,14 +222,8 @@ async def test_control_takeover_and_manual_action(tmp_path: Path):
             cmd = await coord.manual_action(db, session.id, manual_req)
             await db.commit()
             assert cmd.action == "tap"
-            # 人工动作只登记为 prepared，真正落设备要过 dispatch_prepared_command 的控制器门禁
+            # 人工动作只登记为 prepared，真正落设备由 API 层的 ManualGate 复核后执行
             assert cmd.status == "prepared"
-
-            executed = await coord.dispatch_prepared_command(
-                db, session.id, cmd.id, execute=lambda _db, _session, _cmd: None
-            )
-            await db.commit()
-            assert executed.status == "succeeded"
 
             # 幂等性测试
             cmd2 = await coord.manual_action(db, session.id, manual_req)

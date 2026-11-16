@@ -50,16 +50,34 @@ class _FakeResult:
         return self._rows
 
 
+def _batch_pk_lookup(query):
+    """识别 select(Model).where(Model.id.in_(ids)) 形态的批量主键查询，返回 (模型名, ids)；其它查询返回 None。"""
+    where = getattr(query, "whereclause", None)
+    if where is None or getattr(where.operator, "__name__", "") != "in_op" or where.left.name != "id":
+        return None
+    return query.column_descriptions[0]["entity"].__name__, list(where.right.value)
+
+
 class _FakeDB:
     def __init__(self, objects=None, step_rows=None):
         self.objects = dict(objects or {})
         self.step_rows = list(step_rows or [])
+        self.get_calls = []
+        self.batch_queries = []
 
     async def get(self, model, pk):
+        self.get_calls.append((model.__name__, pk))
         return self.objects.get((model.__name__, pk))
 
-    async def execute(self, _query):
-        return _FakeResult(self.step_rows)
+    async def execute(self, query):
+        batch = _batch_pk_lookup(query)
+        if batch is None:
+            return _FakeResult(self.step_rows)
+        model_name, ids = batch
+        self.batch_queries.append((model_name, ids))
+        # 与真实 IN 查询一致：只返回存在的行，且不保证按入参顺序返回。
+        rows = [self.objects[(model_name, pk)] for pk in reversed(ids) if (model_name, pk) in self.objects]
+        return _FakeResult(rows)
 
 
 def _step(idx, status, name=None, error=None, duration=1500):
@@ -165,6 +183,9 @@ def test_export_suite_run_junit_uses_summary_and_actual_durations():
 
     response = asyncio.run(exports_mod.export_suite_run_junit(5, db=db))
 
+    # TestRun 走一次批量查询，不再逐条 db.get（N+1）。
+    assert db.get_calls == [("SuiteRun", 5)]
+    assert db.batch_queries == [("TestRun", [11])]
     suite = ET.fromstring(response.body).find("testsuite")
     assert suite.get("tests") == "3" and suite.get("failures") == "1"
     cases = suite.findall("testcase")
@@ -172,6 +193,36 @@ def test_export_suite_run_junit_uses_summary_and_actual_durations():
     assert cases[1].find("failure").get("message") == "断言"
     assert cases[2].get("name") == "Case-3"
     assert cases[2].find("skipped") is not None
+
+
+def test_export_suite_run_junit_batch_keeps_item_order_and_tolerates_missing_runs():
+    suite_run = _Obj(
+        id=5,
+        case_run_ids=[
+            {"case_id": 1, "status": "passed", "run_id": 13},
+            {"case_id": 2, "status": "passed", "run_id": 404},  # TestRun 已被清理 → 耗时按 0
+            {"case_id": 3, "status": "passed", "run_id": 11},
+            {"case_id": 4, "status": "passed", "run_id": 13},  # 重复引用同一条 TestRun
+        ],
+    )
+    db = _FakeDB(
+        {
+            ("SuiteRun", 5): suite_run,
+            ("TestRun", 11): _Obj(id=11, duration_ms=1000),
+            ("TestRun", 13): _Obj(id=13, duration_ms=3000),
+        }
+    )
+
+    response = asyncio.run(exports_mod.export_suite_run_junit(5, db=db))
+
+    assert db.batch_queries == [("TestRun", [13, 404, 11])]
+    cases = ET.fromstring(response.body).find("testsuite").findall("testcase")
+    assert [(c.get("name"), c.get("time")) for c in cases] == [
+        ("Case-1", "3.000"),
+        ("Case-2", "0.000"),
+        ("Case-3", "1.000"),
+        ("Case-4", "3.000"),
+    ]
 
 
 # ── plan 级 JUnit ───────────────────────────────────────────
@@ -205,6 +256,9 @@ def test_export_plan_run_junit_covers_missing_and_real_suites():
 
     response = asyncio.run(exports_mod.export_plan_run_junit(7, db=db))
 
+    # SuiteRun / TestRun 各一次批量查询，不再逐条 db.get（N+1）。
+    assert db.get_calls == [("PlanRun", 7)]
+    assert db.batch_queries == [("SuiteRun", [21, 99]), ("TestRun", [31])]
     root = ET.fromstring(response.body)
     suites = root.findall("testsuite")
     assert len(suites) == 2  # 幽灵套件被跳过
@@ -274,6 +328,8 @@ def test_build_suite_run_report_html_renders_case_rows():
 
     html = asyncio.run(exports_mod._build_suite_run_report_html(db, suite_run))
 
+    assert db.get_calls == []
+    assert db.batch_queries == [("TestRun", [11])]
     assert "套件执行报告 #5" in html
     assert "登录" in html and "staging" in html
     assert "价格断言不符" in html
@@ -306,6 +362,8 @@ def test_build_plan_run_report_html_aggregates_suites():
 
     html = asyncio.run(exports_mod._build_plan_run_report_html(db, plan_run))
 
+    assert db.get_calls == []
+    assert db.batch_queries == [("SuiteRun", [21]), ("TestRun", [31])]
     assert "计划执行报告 #9" in html
     assert "回归" in html and "缺失" in html
     assert "套件不存在" in html
@@ -380,6 +438,8 @@ def test_suite_and_plan_html_pdf_routes(monkeypatch):
     assert asyncio.run(exports_mod.export_suite_run_pdf(5, db=db)).body == b"%PDF-agg"
     assert b"#9" in asyncio.run(exports_mod.export_plan_run_html(9, db=db)).body
     assert asyncio.run(exports_mod.export_plan_run_pdf(9, db=db)).body == b"%PDF-agg"
+    # 没有子运行 id 时不应发出批量查询。
+    assert db.batch_queries == []
 
     for route in (
         exports_mod.export_suite_run_html,

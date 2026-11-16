@@ -19,7 +19,7 @@ vi.mock('vue-router', () => ({
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('ant-design-vue', () => ({ message: { error: messageError }, Modal: { confirm: vi.fn() } }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { role: 'admin' }, token: 'token' }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { role: 'admin' } }) }))
 vi.mock('@/components/common/ModuleTree.vue', () => ({ default: defineComponent({ name: 'ModuleTree', emits: ['select'], setup: (_p, { emit }) => () => h('button', { 'data-test': 'module-tree', onClick: () => emit('select', 5) }, 'module') }) }))
 vi.mock('@/components/common/CaseFormDrawer.vue', () => ({ default: defineComponent({ name: 'CaseFormDrawer', setup: () => () => h('div') }) }))
 vi.mock('@/views/case/WebCaseDrawer.vue', () => ({ default: defineComponent({ name: 'WebCaseDrawer', setup: () => () => h('div') }) }))

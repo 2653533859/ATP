@@ -2,7 +2,7 @@
 
 > 规划起点：`v2.5.0`（提交 `f6e679aa`）
 > 基线状态：N0 ~ N6 全量 28 项任务已在本地与生产环境（K3s rev63 / SQLite 13）双侧闭环
-> 关联索引：[`docs/evidence-index-2026-10-15.md`](docs/evidence-index-2026-10-15.md) 与 [`docs/v2.5.0-release-notes.md`](docs/v2.5.0-release-notes.md)
+> 关联索引：[`docs/evidence-index-2026-10-15.md`](evidence-index-2026-10-15.md) 与 [`docs/v2.5.0-release-notes.md`](v2.5.0-release-notes.md)
 
 ---
 

@@ -9,6 +9,7 @@
 import asyncio
 import os
 import sys
+import threading
 import types
 from datetime import datetime, timezone
 from pathlib import Path
@@ -399,3 +400,42 @@ def test_download_apk_returns_presigned_url(stubs):
     with pytest.raises(HTTPException) as exc:
         asyncio.run(ak.download_apk(apk_id=404, db=_FakeDB(), user=_user()))
     assert exc.value.status_code == 404
+
+
+def test_blocking_storage_calls_run_off_the_event_loop_thread(stubs, monkeypatch):
+    """同步 MinIO 调用与 APK 解析必须进线程池，不能占住事件循环线程。"""
+    called_in: dict[str, int] = {}
+
+    def record(name, value=None):
+        def _inner(*_a, **_kw):
+            called_in[name] = threading.get_ident()
+            return value
+
+        return _inner
+
+    monkeypatch.setattr(ak, "extract_apk_metadata", record("extract_apk_metadata", {}))
+    monkeypatch.setattr(ak, "ensure_bucket", record("ensure_bucket"))
+    monkeypatch.setattr(ak, "upload_file", record("upload_file"))
+    monkeypatch.setattr(ak, "delete_file", record("delete_file"))
+    monkeypatch.setattr(ak, "presigned_url", record("presigned_url", "https://minio/signed"))
+
+    async def scenario():
+        db = _FakeDB({("Project", 5): _Obj(id=5), ("Apk", 1): _apk()})
+        await ak.upload_apk(
+            project_id=5,
+            file=_FakeUpload("demo.apk", [b"apk"]),
+            package_name=None,
+            version_name=None,
+            version_code=None,
+            description=None,
+            db=db,
+            current_user=_user(),
+        )
+        await ak.download_apk(apk_id=1, db=db, user=_user())
+        await ak.delete_apk(apk_id=1, db=db, user=_user())
+        return threading.get_ident()
+
+    loop_thread = asyncio.run(scenario())
+
+    assert set(called_in) == {"extract_apk_metadata", "ensure_bucket", "upload_file", "delete_file", "presigned_url"}
+    assert all(thread_id != loop_thread for thread_id in called_in.values())

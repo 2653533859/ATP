@@ -264,6 +264,48 @@ def test_list_requirements_enforces_status_and_reports_link_coverage(monkeypatch
     assert exc.value.status_code == 422
 
 
+def test_list_requirements_loads_links_for_the_page_in_one_query(monkeypatch):
+    async def no_access(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(requirements, "assert_project_access", no_access)
+    first = _requirement(requirement_id=41)
+    second = _requirement(requirement_id=42)
+    unlinked = _requirement(requirement_id=43)
+    links = [
+        RequirementCaseLink(requirement_id=42, case_id=9, criterion_ids=["AC-1"]),
+        RequirementCaseLink(requirement_id=41, case_id=9, criterion_ids=["AC-1"]),
+        RequirementCaseLink(requirement_id=41, case_id=10, criterion_ids=["AC-1"]),
+    ]
+    # _DB.execute 在结果耗尽后会抛 AssertionError：count + 分页 + 一次 links 批量查询，逐行再查即失败。
+    db = _DB(
+        execute_results=[
+            _Result(count=3),
+            _Result(scalar_rows=[first, second, unlinked]),
+            _Result(scalar_rows=links),
+        ]
+    )
+
+    result = asyncio.run(
+        requirements.list_requirements(
+            project_id=1, status_filter=None, keyword=None, page=1, page_size=10, db=db, user=_user()
+        )
+    )
+
+    assert db.execute_results == []
+    assert [(item.id, item.linked_case_count) for item in result.items] == [(41, 2), (42, 1), (43, 0)]
+    assert [item.coverage_rate for item in result.items] == [100, 100, 0]
+
+    # 空页不应再发 links 查询。
+    empty_db = _DB(execute_results=[_Result(count=0), _Result(scalar_rows=[])])
+    empty = asyncio.run(
+        requirements.list_requirements(
+            project_id=1, status_filter=None, keyword=None, page=1, page_size=10, db=empty_db, user=_user()
+        )
+    )
+    assert empty.items == [] and empty_db.execute_results == []
+
+
 def test_requirement_update_changes_version_only_when_content_changes(monkeypatch):
     requirement = _requirement()
 

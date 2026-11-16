@@ -49,7 +49,7 @@ Web 录制默认在后端进程内启动可见 Chromium，适合 Windows 本地�
 
 其中 `ANDROID_WORKER_ID` 只应在 Windows Android Agent 进程中填写；留空表示不注册。`scripts/windows-android-worker.ps1 up` 会自动生成当前机器的 ID，设备页通过 Redis 心跳显示在线 Agent。
 
-注意：`CELERY_CONCURRENCY` 只有在使用支持多进程/多线程的 Worker pool 时才代表并发槽位；Windows 本地脚本使用 `--pool=solo`，实际为单槽位，生产并发应通过 Linux Worker 的进程池或多个 Worker 副本实现。
+注意：`CELERY_CONCURRENCY` 目前只是启动配置页保留的一个可编辑键，没有任何启动入口读取它——Compose、Helm、Dockerfile 与 Windows/macOS 脚本的 Worker 启动命令都是 `--pool=solo`，`--concurrency` 要么不传、要么在 Windows 专用 Worker 脚本里写死为 1，后端代码也不引用该变量，因此 `.env.example`、Compose 与 Helm `config` 已不再携带它。实际并发通过增加 Worker 副本（或独立队列的专用 Worker）实现。
 
 ### 通知、AI 与观测
 

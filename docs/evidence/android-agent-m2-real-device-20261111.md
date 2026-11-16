@@ -134,18 +134,18 @@ preview_codes: ['DRAFT_READY', 'CASE_MODULE_BINDING', 'DEVICE_BOUND']
 
 ```bash
 # 1) 隔离数据目录 + 现场库副本升级
-python scripts/android_agent_m2_live_setup.py
+python scripts/archive/android_agent_m2_live_setup.py
 
 # 2) 模型凭据可解密性诊断
-python scripts/android_agent_m2_probe_model.py
-python scripts/android_agent_m2_keycheck.py
+python scripts/archive/android_agent_m2_probe_model.py
+python scripts/archive/android_agent_m2_keycheck.py
 
 # 3) M1 真机动作矩阵
-python scripts/android_agent_m2_action_matrix.py
+python scripts/archive/android_agent_m2_action_matrix.py
 
 # 4) M2+M3 真机端到端
-python scripts/android_agent_m2_live_e2e.py
+python scripts/archive/android_agent_m2_live_e2e.py
 
 # 5) 互斥 / 写门禁 / 收敛 / 草稿编译
-python scripts/android_agent_m2_live_safety.py
+python scripts/archive/android_agent_m2_live_safety.py
 ```

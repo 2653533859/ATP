@@ -12,12 +12,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Add backend to sys.path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
 TARGET_DATA_DIR = Path("D:/ATP_resources")
 BACKUP_ARCHIVE_DIR = Path("E:/ATP_backup_d0_verify")
 RESTORE_DATA_DIR = Path("D:/ATP_resources_restored")
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 STANDALONE_PS1 = REPO_ROOT / "scripts" / "windows-standalone.ps1"
 
 os.environ["ATP_LOCAL_MODE"] = "true"

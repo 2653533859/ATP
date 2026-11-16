@@ -1090,7 +1090,7 @@ async function openResumeCaseEditor(stepIndex: number) {
       })
     }
   } catch (error: unknown) {
-    message.error(errorMessage(error, t('case.drawer.msg.load_failed') || '获取用例详情失败'))
+    message.error(errorMessage(error, t('case.drawer.msg.load_failed')))
   } finally {
     resumeLoading.value = false
   }
@@ -1105,7 +1105,7 @@ function closeResumeDrawer() {
 
 function handleResumeCaseSaved() {
   closeResumeDrawer()
-  message.success(t('case.drawer.msg.save_success') || '用例已更新保存')
+  message.success(t('case.drawer.msg.save_success'))
 }
 
 
@@ -1725,10 +1725,6 @@ function applyWsMessage(msg: WsMessage) {
 }
 
 onMounted(async () => {
-  if (auth.token && !auth.user) {
-    await auth.fetchMe()
-  }
-
   // Jaeger 跳转链接是 best-effort，配置缺失或接口失败都不影响详情页主流程
   try {
     const cfg = await tracingApi.getConfig()

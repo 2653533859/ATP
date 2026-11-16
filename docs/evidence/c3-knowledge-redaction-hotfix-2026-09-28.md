@@ -8,7 +8,7 @@
 
 ## Chart 预检与部署
 
-当前主 Chart 的无覆盖渲染与 revision 58 的六个 Deployment 均有差异，并会改变迁移 Hook 镜像，因此拒绝直接发布主 Chart。改用仓库内针对 revision 57 固化、且实测无覆盖时与 revision 58 完全一致的 22 文件快照 `deploy/helm/atp-rev57-heartbeat-hotfix`。以该 Chart 和 Backend 新镜像运行仓库预检，基线资源和 Hook 一致；候选仅改变 `Deployment/atp-single-node-atp-backend` 的容器镜像字段。迁移 Hook 只因镜像 tag 不同而出现候选差异，正式命令使用 `--no-hooks` 跳过；本次无数据库迁移需要执行。`helm upgrade --dry-run=server --hide-secret` 退出码为 0。
+当前主 Chart 的无覆盖渲染与 revision 58 的六个 Deployment 均有差异，并会改变迁移 Hook 镜像，因此拒绝直接发布主 Chart。改用仓库内针对 revision 57 固化、且实测无覆盖时与 revision 58 完全一致的 22 文件快照 `deploy/helm/atp-rev57-heartbeat-hotfix`（该快照已从仓库移除，见 commit `7599f0da`）。以该 Chart 和 Backend 新镜像运行仓库预检，基线资源和 Hook 一致；候选仅改变 `Deployment/atp-single-node-atp-backend` 的容器镜像字段。迁移 Hook 只因镜像 tag 不同而出现候选差异，正式命令使用 `--no-hooks` 跳过；本次无数据库迁移需要执行。`helm upgrade --dry-run=server --hide-secret` 退出码为 0。
 
 2026-09-28 15:16（北京时间），执行 `helm upgrade atp-single-node deploy/helm/atp-rev57-heartbeat-hotfix -n atp-single-node --reuse-values --no-hooks --rollback-on-failure --wait --timeout 5m --set-string image.backend.tag=4d451431-knowledge-redact-79b9ccf4`，Helm **revision 59** 达到 `deployed`。
 

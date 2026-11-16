@@ -82,8 +82,6 @@ spec:
                   fieldPath: metadata.namespace
             - name: CELERY_QUEUES
               value: {{ .Values.performanceWorker.queues | quote }}
-            - name: CELERY_CONCURRENCY
-              value: {{ .Values.performanceWorker.concurrency | quote }}
             - name: WORKER_METRICS_PORT
               value: {{ .Values.performanceWorker.metricsPort | quote }}
             - name: PERFORMANCE_NODE_ENABLED

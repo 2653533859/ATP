@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey, Table, Column, JSON
+from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey, Table, Column, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from app.models.base import Base, TimestampMixin
@@ -68,10 +68,12 @@ class DeviceLease(Base):
     """数据库级设备租约，保证同一设备同一时刻最多被一个执行占用。"""
 
     __tablename__ = "device_leases"
+    # 与迁移 0047 一致：lease_token 是唯一约束 + 一个普通索引（不是唯一索引）
+    __table_args__ = (Index("ix_device_leases_lease_token", "lease_token"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), unique=True, nullable=False)
-    lease_token: Mapped[str] = mapped_column(String(96), unique=True, nullable=False, index=True)
+    lease_token: Mapped[str] = mapped_column(String(96), unique=True, nullable=False)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     owner_label: Mapped[str] = mapped_column(String(128), nullable=False)
     acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

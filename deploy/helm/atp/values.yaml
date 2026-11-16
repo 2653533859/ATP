@@ -3,7 +3,6 @@
 # Container image settings. The chart renders images as:
 #   {image.repository}/backend:{image.backend.tag}
 #   {image.repository}/worker:{image.worker.tag}
-#   {image.repository}/frontend:{image.frontend.tag}
 image:
   # Shared registry/repository prefix for all ATP runtime images.
   repository: registry.local/atp
@@ -17,10 +16,8 @@ image:
     # pg_dump, and MinIO mc when database backup tasks are enabled.
     tag: 5e2173dd-site
     pullPolicy: IfNotPresent
-  frontend:
-    # Frontend static-site image tag.
-    tag: latest
-    pullPolicy: IfNotPresent
+  # No frontend entry: this chart deploys no frontend workload (the site
+  # frontend is served outside the chart), so a frontend tag here is never rendered.
 
 # Optional image pull secrets for private registries.
 imagePullSecrets: []
@@ -30,13 +27,12 @@ imagePullSecrets: []
 podNetwork:
   hostNetwork: false
 
-# Deployment replica counts. Keep beat at one replica to avoid duplicate
-# scheduled jobs.
+# Deployment replica counts. Beat is not configurable here: its template pins
+# one replica to avoid duplicate scheduled jobs.
 replicas:
   backend: 2
   worker: 3
   webRecorder: 1
-  beat: 1
   flower: 1
 
 # Flower is a recent-event dashboard, not the durable task/report store.
@@ -54,9 +50,7 @@ worker:
   # 每个 worker 子进程暴露 Prometheus /metrics 的端口；与 backend:8000/metrics 区分。
   # 设为 0 可关闭（仅当 Prometheus 不抓取 worker 时）
   metricsPort: 9091
-  # Queues listened by the default worker deployment. For production isolation,
-  # deploy separate worker releases or overlay this value per Deployment.
-  queues: default,ios,ai,maintenance,performance
+  # Queues of the default worker deployment are set by config.CELERY_QUEUES.
 
 webRecorder:
   # Enable an independent Playwright recording process. The API must also use
@@ -74,13 +68,12 @@ webRecorder:
 
 performanceWorker:
   # Enable a dedicated Celery worker Deployment for HTTP performance tests.
-  # When enabled, consider removing "performance" from worker.queues/config.CELERY_QUEUES.
+  # When enabled, consider removing "performance" from config.CELERY_QUEUES.
   # Empty inherits image.worker.tag; set a dedicated tag for a bounded performance Worker rollout.
   imageTag: "5e2173dd-site-heartbeat"
   enabled: false
   replicas: 1
   queues: performance
-  concurrency: "1"
   metricsPort: 9092
   # Node identity and application-level performance guardrails. Leave nodeId
   # empty to keep this worker on the shared performance queue without pinning runs.
@@ -153,8 +146,6 @@ config:
   APP_AUTO_CREATE_TABLES: "false"
   # Logging level for backend, worker, beat, and flower.
   LOG_LEVEL: INFO
-  # Celery worker concurrency used by worker containers.
-  CELERY_CONCURRENCY: "4"
   # Celery queues listened by the default worker container.
   CELERY_QUEUES: default,ios,ai,maintenance,performance
   # Route Web cases to an isolated queue when this broker is shared with

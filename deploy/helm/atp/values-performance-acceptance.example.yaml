@@ -15,19 +15,14 @@ image:
   worker:
     tag: acceptance-CHANGE-ME
     pullPolicy: IfNotPresent
-  frontend:
-    tag: acceptance-CHANGE-ME
-    pullPolicy: IfNotPresent
 
 replicas:
   backend: 1
   # 普通 Worker 不承载 performance 队列；性能任务由下方专用 Deployment 消费。
   worker: 1
-  beat: 1
   flower: 1
 
 worker:
-  queues: default,ios,ai,maintenance
   metricsPort: 9091
 
 config:
@@ -48,7 +43,6 @@ performanceWorker:
   # 两个 Pod 分别注册为独立节点，配合 --min-worker-replicas 2 验证真实容量。
   replicas: 2
   queues: performance
-  concurrency: "1"
   metricsPort: 9092
   autoIdentity: true
   # 与 --min-ready-nodes 2 配套，避免两个副本落在同一节点。

@@ -13,7 +13,7 @@ import sys
 
 from PIL import Image, ImageDraw
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
 from app.services.ai_case.llm_client import LLMRequest  # noqa: E402
 from app.services.android_agent.contracts import DecisionRejected, validate_context  # noqa: E402

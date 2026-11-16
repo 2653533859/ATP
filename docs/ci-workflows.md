@@ -10,8 +10,8 @@
   - `Empty database migration`：启动干净 PostgreSQL 16，执行 `cd backend && alembic upgrade head`。
   - `Backend pytest`：启动 PostgreSQL 16 + Redis 7，运行后端主回归并产出覆盖率 XML：`python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=82`。同一 job 随后运行 `python scripts/pytest-standalone-sweep.py --jobs 4`，逐文件单独跑一遍全部非 integration 测试。
   - `Backend pytest (Windows)`：`windows-latest` + Python 3.12，只跑后端单元回归 `python -m pytest backend/tests -q --ignore=backend/tests/integration`。**不起 service container**（单元套件已 stub 掉 postgres/redis/minio），**不跑覆盖率门禁**（覆盖率在 Linux job 测一遍即可），**不跑单文件扫描**（184 次进程启动在 Windows 上过慢，且它查的是测试间耦合，与平台无关）。存在理由见下方「Windows job 的范围」。
-  - `Frontend type-check + build`：运行 `npm ci`、`npm run test:coverage`、`npm run type-check`、`npm run build`；前端门禁为 statements `31.5%`、branches `26.5%`、functions `24.5%`、lines `32.5%`（定义在 `frontend/vitest.config.ts`，调整规则见 `docs/coverage-baseline-2026-q13.md`）。
-- **Artifacts**：`Backend pytest` 上传 `coverage.xml` 为 `backend-coverage-xml`；前端 job 上传 `frontend/coverage` 为 `frontend-coverage-report`。
+  - `Frontend type-check + build`：Node 22；运行 `npm ci`，随后依次运行 `npm run type-check`、`npm run build`、`npm run test:coverage`——依赖装好后三步各自独立执行，前一步失败不会让后面的检查被跳过；前端门禁为 statements `31.5%`、branches `26.5%`、functions `24.5%`、lines `32.5%`（定义在 `frontend/vitest.config.ts`，调整规则见 `docs/coverage-baseline-2026-q13.md`）。
+- **Artifacts**：`Backend pytest` 上传 `coverage.xml` 为 `backend-coverage-xml`；前端 job 上传 `frontend/coverage` 为 `frontend-coverage-report`（单测在产出覆盖率前崩溃时目录不存在，上传步骤只告警不报错，失败原因看单测步骤）。
 - **依赖服务**：PostgreSQL、Redis；MinIO 相关能力在主 CI 里通过测试 stub 覆盖，真实 MinIO 放在 integration workflow。
 - **常见排查**：
   - 迁移失败：先本地执行 `make infra-up && make migrate`，检查新增迁移的 `down_revision`、枚举、索引和约束是否能从空库创建。
@@ -63,8 +63,6 @@ job 和其他 job 一样只是通知性的 —— 它变红不会阻止任何一
 - **Flaky 治理**：仅该 workflow 启用一次有界重试（`--reruns 1 --reruns-delay 2`）。同一失败签名重复出现时，必须按 `docs/flaky-governance.md` 记录 `flaky` marker、原因与退出条件，或直接修复根因。
 - **关键环境**：
   - `ATP_INTEGRATION_TESTS=1`
-  - `CELERY_TASK_ALWAYS_EAGER=true`
-  - `CELERY_TASK_EAGER_PROPAGATES=true`
 - **常见排查**：
   - 服务未就绪：查看 `Wait for services` 步骤中 Postgres、Redis、MinIO 的健康检查输出。
   - 数据库结构异常：确认 `Run Alembic migrations` 已成功；失败时优先回到主 CI 的空库迁移 job 排查。
@@ -86,7 +84,7 @@ job 和其他 job 一样只是通知性的 —— 它变红不会阻止任何一
 
 - **触发**：仅手动 `workflow_dispatch`；不再每日定时运行。
 - **Jobs**：
-  - `Docker image build checks`：构建 backend、worker、frontend 镜像，并用 worker 镜像执行 `k6 version`。
+  - `Docker image build checks`：用 buildx（`docker/build-push-action`，`load: true`）构建 backend、worker、frontend 镜像，并用 worker 镜像执行 `k6 version`。层缓存走 GitHub Actions cache（`type=gha`），scope 与 `security.yml` 的镜像扫描相同，两个 workflow 共用。
   - `Release checklist contract`：运行 `backend/tests/worker/test_q9_release_readiness.py`（契约字符串的唯一定义处），验证 `docs/q9-release-checklist.md` 仍覆盖迁移、Helm、lint、mypy、覆盖率、安全扫描、integration、E2E 和 SLO JSON 校验项。
 - **依赖服务**：无外部服务；依赖 Docker build 上下文和 Dockerfile。
 - **常见排查**：
@@ -100,7 +98,7 @@ job 和其他 job 一样只是通知性的 —— 它变红不会阻止任何一
 - **Jobs**：
   - `Gitleaks secret scan`：使用 Gitleaks 扫描仓库历史与当前变更，发现密钥时阻断。
   - `Dependency audit`：运行 `pip-audit` 扫描后端依赖；运行 `npm audit --audit-level=high` 扫描前端依赖，high/critical 阻断。
-  - `Trivy image scan`：构建 backend、worker、frontend 镜像，并用 Trivy 对 HIGH/CRITICAL 漏洞阻断。
+  - `Trivy image scan (backend|worker|frontend)`：matrix（`fail-fast: false`）下三个镜像各自独立构建并用 Trivy 对 HIGH/CRITICAL 漏洞阻断，任一镜像失败不影响其余镜像的扫描。构建走 buildx + GitHub Actions 层缓存（`type=gha`，按镜像分 scope）。
 - **常见排查**：
   - Gitleaks 失败：确认命中内容是否为真实密钥；真实密钥需轮换并移出历史，误报再加最小范围 allowlist。
   - pip-audit 失败：本地运行 `make security-pip-audit PYTHON=backend/.venv/bin/python`，优先升级有修复版本的包。
@@ -111,6 +109,7 @@ job 和其他 job 一样只是通知性的 —— 它变红不会阻止任何一
 
 - **生态**：pip (`/backend`)、npm (`/frontend`)、Docker (`/backend` + `/frontend`)、GitHub Actions (`/`)。
 - **频率**：每周一 Asia/Shanghai 上午分批检查。
+- **Docker 基础镜像升级**：两个 Docker 条目忽略 `version-update:semver-major`（例如 node 22→24）；`/backend` 另外忽略 `python` 的 `semver-minor`（3.12→3.15 在 Dependabot 看来是 minor，但对本项目等同于换运行时）。这类迁移由人工立项，patch 与 digest 更新照常提 PR。
 - **分组**：按生态聚合，降低 PR 噪音。
 
 ## 门禁强制力现状（Q15-01，实测 2026-08-01）
@@ -190,8 +189,7 @@ CI 侧的密钥扫描走 `security.yml` 的 gitleaks-action，不受本机环境
 | 后端 mypy | `make mypy` |
 | 后端 Bandit SAST | `make security-bandit` |
 | 后端依赖漏洞扫描 | `make security-pip-audit` |
-| 前端依赖漏洞扫描 | `make security-npm-audit` |
-| 前端 high/critical 审计 | `cd frontend && npm audit --audit-level=high` |
+| 前端依赖漏洞扫描（high/critical 阻断，与 CI 同阈值） | `make security-npm-audit` |
 | 后端主回归 | `make test-backend` |
 | 后端覆盖率门禁 | `make test-backend-coverage` |
 | 后端测试单文件扫描 | `make test-backend-standalone` |

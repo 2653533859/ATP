@@ -34,16 +34,6 @@ from app.services.device_leases import acquire_device_lease
 load_all_models()
 
 
-@pytest.fixture(autouse=True)
-def _disable_external_event_publish(monkeypatch):
-    from app.services.android_agent import coordinator
-
-    async def no_publish(*args, **kwargs):
-        pass
-
-    monkeypatch.setattr(coordinator, "_safe_publish_agent_event", no_publish)
-
-
 async def _setup_api_test_db(tmp_path: Path):
     db_path = tmp_path / "api_test.sqlite"
     engine = create_async_engine(f"sqlite+aiosqlite:///{db_path.as_posix()}", connect_args={"timeout": 5})

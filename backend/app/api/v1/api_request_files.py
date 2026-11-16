@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import tempfile
@@ -65,8 +66,10 @@ async def upload_api_request_file(
     try:
         temp_path, size = await _save_upload(file)
         object_name = _object_name(project_id, filename)
-        ensure_bucket()
-        upload_file(object_name, temp_path, content_type=file.content_type or "application/octet-stream")
+        await asyncio.to_thread(ensure_bucket)
+        await asyncio.to_thread(
+            upload_file, object_name, temp_path, content_type=file.content_type or "application/octet-stream"
+        )
     finally:
         if temp_path:
             try:

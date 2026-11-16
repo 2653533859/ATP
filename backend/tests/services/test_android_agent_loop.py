@@ -197,12 +197,6 @@ def _patch_probe(monkeypatch):
         raise AssertionError("测试必须显式 patch probe")
 
     monkeypatch.setattr(loop_module, "probe_model", fake_probe)
-    from app.services.android_agent import coordinator
-
-    async def no_publish(*args, **kwargs):
-        pass
-
-    monkeypatch.setattr(coordinator, "_safe_publish_agent_event", no_publish)
     return monkeypatch
 
 
@@ -356,6 +350,11 @@ async def test_loop_aborts_before_action_when_epoch_changes(tmp_path: Path):
         assert result.reason in {"control_epoch_changed", "write_cancelled"}
         assert adapter.actions == []
         assert calls["n"] == 1
+        # 用户的暂停必须保留：循环退出不能把会话改判为 failed 并释放租约
+        async with factory() as db:
+            session = await db.get(AndroidAgentSession, session_id)
+            assert session.status == "paused"
+            assert session.error_code is None
     finally:
         await engine.dispose()
 
@@ -540,26 +539,20 @@ async def test_manual_action_requires_manual_control_and_dispatch_is_gated(tmp_p
             await coordinator.control_session(db, session_id, "takeover")
             await db.commit()
 
-        executed: list[int] = []
-
-        def fake_executor(db, session, command):
-            executed.append(command.id)
-
         async with factory() as db:
+            # 协调器只登记"已准备"；真正写设备由 API 层的 ManualGate 复核后执行
             command = await coordinator.manual_action(db, session_id, AgentManualActionRequest(action="back"))
             await db.commit()
-            assert command.status == "prepared"
-            await coordinator.dispatch_prepared_command(db, session_id, command.id, execute=fake_executor)
-            await db.commit()
             stored = await db.get(AndroidAgentCommand, command.id)
-            assert stored.status == "succeeded"
-            assert executed == [command.id]
+            assert stored.status == "prepared"
     finally:
         await engine.dispose()
 
 
 @pytest.mark.asyncio
-async def test_manual_action_deferred_while_agent_holds_control(tmp_path: Path):
+async def test_manual_action_deferred_while_agent_holds_control(tmp_path: Path, monkeypatch):
+    from app.api.v1 import android_agent as agent_api
+
     engine, factory = await _setup_db(tmp_path, tag="defer")
     try:
         session_id = await _running_session(factory)
@@ -576,12 +569,140 @@ async def test_manual_action_deferred_while_agent_holds_control(tmp_path: Path):
             session = await db.get(AndroidAgentSession, session_id)
             session.controller = "agent"
             await db.commit()
+            device_id, lease_token, epoch = session.device_id, session.lease_token, session.control_epoch
 
-            def explode(db, session, cmd):
-                raise AssertionError("控制权在 agent 手上时不得执行人工动作")
+        def explode(device, package):
+            raise AssertionError("控制权在 agent 手上时不得连接设备执行人工动作")
 
-            with pytest.raises(HTTPException) as exc_info:
-                await coordinator.dispatch_prepared_command(db, session_id, command.id, execute=explode)
-            assert exc_info.value.status_code == 409
+        monkeypatch.setattr(agent_api, "AsyncSessionLocal", factory)
+        monkeypatch.setattr(agent_api, "_build_device_adapter", explode)
+        outcome = await agent_api._execute_manual_action(session_id, device_id, lease_token, epoch, PACKAGE, "back", {})
+        assert outcome == ("cancelled", "manual_control_changed")
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_manual_action_reports_device_unavailable_when_connect_fails(tmp_path: Path, monkeypatch):
+    from app.api.v1 import android_agent as agent_api
+
+    engine, factory = await _setup_db(tmp_path, tag="connect")
+    try:
+        session_id = await _running_session(factory)
+        async with factory() as db:
+            session = await AgentCoordinator().control_session(db, session_id, "takeover")
+            await db.commit()
+            device_id, lease_token, epoch = session.device_id, session.lease_token, session.control_epoch
+
+        def cannot_connect(serial, package):
+            raise RuntimeError("uiautomator2 unreachable")
+
+        from app.services.android_agent import strict_replay
+
+        monkeypatch.setattr(agent_api, "AsyncSessionLocal", factory)
+        monkeypatch.setattr(strict_replay, "connect_strict_engine", cannot_connect)
+        outcome = await agent_api._execute_manual_action(session_id, device_id, lease_token, epoch, PACKAGE, "back", {})
+        # 连接失败时还没有任何设备写入，不能记成"结果未知"
+        assert outcome == ("failed", "device_unavailable")
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_takeover_during_loop_keeps_session_paused_with_lease(tmp_path: Path):
+    engine, factory = await _setup_db(tmp_path, tag="takeover-loop")
+    try:
+        session_id = await _running_session(factory)
+        probe, _ = _decisions(
+            [
+                _decision(
+                    "tap",
+                    target={"node_id": "n2"},
+                    expected_observation={"type": "element_visible", "resource_id": f"{PACKAGE}:id/search"},
+                )
+            ]
+        )
+        adapter = FakeAdapter()
+
+        async def takeover_during_model_wait(request, **kwargs):
+            result = await probe(request, **kwargs)
+            async with factory() as db:
+                await AgentCoordinator().control_session(db, session_id, "takeover")
+                await db.commit()
+            return result
+
+        loop_module.probe_model = takeover_during_model_wait
+
+        result = await run_agent_session(factory, session_id, adapter=adapter, llm_request=LLM_REQUEST, values={})
+
+        assert result.status == "halted"
+        assert adapter.actions == []
+        async with factory() as db:
+            session = await db.get(AndroidAgentSession, session_id)
+            # 接管后人工还要继续操作设备：会话不能被判失败，租约必须仍在
+            assert (session.status, session.controller) == ("paused", "manual")
+            assert session.lease_token is not None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_loop_and_pause_renew_the_device_lease(tmp_path: Path):
+    engine, factory = await _setup_db(tmp_path, tag="renew")
+    try:
+        session_id = await _running_session(factory)
+
+        async def expire_soon() -> datetime:
+            # 把租约到期时间拨到 30 秒后，模拟长会话接近到期
+            async with factory() as db:
+                lease = (await db.execute(select(DeviceLease))).scalar_one()
+                soon = datetime.now(timezone.utc) + timedelta(seconds=30)
+                lease.expires_at = soon
+                await db.commit()
+                return soon
+
+        async def current_expiry() -> datetime:
+            async with factory() as db:
+                expires_at = (await db.execute(select(DeviceLease.expires_at))).scalar_one()
+                return expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+
+        soon = await expire_soon()
+        probe, _ = _decisions([_decision("request_help", code="cannot_progress")])
+        loop_module.probe_model = probe
+        await run_agent_session(factory, session_id, adapter=FakeAdapter(), llm_request=LLM_REQUEST, values={})
+        # 循环每轮续期，随后 request_help 触发的暂停再续一次
+        assert await current_expiry() > soon + timedelta(minutes=10)
+
+        soon = await expire_soon()
+        async with factory() as db:
+            await AgentCoordinator().control_session(db, session_id, "takeover")
+            await db.commit()
+        assert await current_expiry() > soon + timedelta(minutes=10)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_takeover_rejected_before_session_start(tmp_path: Path):
+    from app.services.android_agent.coordinator import InvalidStateTransitionError
+
+    engine, factory = await _setup_db(tmp_path, tag="takeover-created")
+    try:
+        async with factory() as db:
+            session = AndroidAgentSession(
+                project_id=1,
+                device_id=5,
+                title="未启动",
+                goal="g",
+                expected_outcome="e",
+                package_name=PACKAGE,
+                status="created",
+                controller="agent",
+            )
+            db.add(session)
+            await db.commit()
+            # 未启动的会话没有租约，直接接管会得到一个无法操作设备的 paused/manual 会话
+            with pytest.raises(InvalidStateTransitionError):
+                await AgentCoordinator().control_session(db, session.id, "takeover")
     finally:
         await engine.dispose()

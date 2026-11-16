@@ -113,10 +113,27 @@ def test_release_readiness_workflow_builds_images_and_verifies_k6(repo_file):
     assert workflow["name"] == "Release readiness"
     assert "workflow_dispatch" in workflow[True]
     assert "schedule" not in workflow[True]
-    assert "docker build -t atp-backend:release-readiness backend/" in commands
-    assert "docker build -t atp-worker:release-readiness -f backend/Dockerfile.worker backend/" in commands
+    # 三个镜像走 buildx（docker/build-push-action）+ GitHub Actions 层缓存；
+    # load 后才能被后面的 docker run 使用。
+    assert any(step.get("uses", "").startswith("docker/setup-buildx-action@") for step in docker_steps)
+    builds = {
+        step["with"]["tags"]: step["with"]
+        for step in docker_steps
+        if step.get("uses", "").startswith("docker/build-push-action@")
+    }
+    expected_builds = {
+        "atp-backend:release-readiness": ("backend", "backend/Dockerfile", "atp-backend"),
+        "atp-worker:release-readiness": ("backend", "backend/Dockerfile.worker", "atp-worker"),
+        "atp-frontend:release-readiness": ("frontend", "frontend/Dockerfile", "atp-frontend"),
+    }
+    assert builds.keys() == expected_builds.keys()
+    for tag, (context, dockerfile, scope) in expected_builds.items():
+        assert builds[tag]["context"] == context
+        assert builds[tag]["file"] == dockerfile
+        assert builds[tag]["load"] is True
+        assert builds[tag]["cache-from"] == f"type=gha,scope={scope}"
+        assert builds[tag]["cache-to"] == f"type=gha,mode=max,scope={scope}"
     assert "docker run --rm --entrypoint k6 atp-worker:release-readiness version" in commands
-    assert "docker build -t atp-frontend:release-readiness frontend/" in commands
 
 
 def test_release_readiness_workflow_runs_checklist_contract_tests(repo_file):

@@ -520,7 +520,8 @@
             </p>
             <div v-if="latestReplay" class="agent-replay-status">
               <span>{{ t('android_agent.replay_status_label') }}:</span>
-              <a-tag :color="statusColor(latestReplay.status)">#{{ latestReplay.id }} · {{ latestReplay.status }}</a-tag>
+              <a-tag :color="replayStatusColor(latestReplay.status)">#{{ latestReplay.id }} · {{ latestReplay.status }}</a-tag>
+              <span v-if="replayStatusHint" class="agent-replay-hint">{{ replayStatusHint }}</span>
               <a-button size="small" @click="refreshReplayStatus">{{ t('android_agent.replay_refresh') }}</a-button>
               <a-button v-if="latestReplay.run_id" size="small" type="link" @click="openReplayRun(latestReplay.run_id)">
                 {{ t('android_agent.open_replay_run', { id: latestReplay.run_id }) }}
@@ -561,6 +562,7 @@ import {
   type AgentVisionModelItem,
   type DevicePackageSnapshotItem,
 } from '@/api'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { getRuntimeMode } from '@/runtimeMode'
 import { loadDevicePackagesAsync } from '@/utils/devicePackages'
 
@@ -774,7 +776,16 @@ const controllerLabel = computed(() => {
   return label === key ? value : label
 })
 
-let pollTimer: ReturnType<typeof setInterval> | null = null
+// 会话终态：进入后状态不再变化
+const SESSION_TERMINAL_STATUSES = ['completed', 'failed', 'cancelled']
+// 回放终态：关联运行的终态原样落库，另有 dispatch_failed（派发失败，不会再变化）
+const REPLAY_TERMINAL_STATUSES = ['passed', 'failed', 'error', 'cancelled', 'skipped', 'dispatch_failed']
+const REPLAY_HINT_STATUSES = ['error', 'cancelled', 'skipped', 'dispatch_failed']
+const EVENTS_PAGE_SIZE = 200
+// 已追加到 events 的最大 seq，事件按它增量拉取；切换会话时归零
+let eventsCursor = 0
+// 每次切换会话自增；切走又切回同一会话时，在途的旧请求也要作废
+let eventsEpoch = 0
 
 const statusLabel = computed(() => {
   const value = session.value?.status
@@ -791,6 +802,18 @@ function statusColor(status?: string) {
   if (status === 'completed' || status === 'passed') return 'blue'
   return 'default'
 }
+
+function replayStatusColor(status?: string) {
+  // 通过以外的终态（failed / error / cancelled / skipped / dispatch_failed）统一按失败类显示
+  if (status && status !== 'passed' && REPLAY_TERMINAL_STATUSES.includes(status)) return 'red'
+  return statusColor(status)
+}
+
+const replayStatusHint = computed(() => {
+  const value = latestReplay.value?.status
+  if (!value || !REPLAY_HINT_STATUSES.includes(value)) return ''
+  return t(`android_agent.replay_status_hint.${value}`)
+})
 
 function formatTime(value: string) {
   const date = new Date(value)
@@ -851,29 +874,67 @@ function stepResource(step: Record<string, unknown>) {
   return ''
 }
 
+function isSessionSettled() {
+  return SESSION_TERMINAL_STATUSES.includes(statusValue.value)
+}
+
+function isReplayActive() {
+  return Boolean(latestReplay.value) && !REPLAY_TERMINAL_STATUSES.includes(latestReplay.value?.status ?? '')
+}
+
+async function pollTick() {
+  // 循环执行期间后端阻塞处理，轮询只会拿到中间态，等它收敛后再拉
+  if (running.value) return
+  const tasks: Array<Promise<unknown>> = []
+  if (sessionId.value && !isSessionSettled()) tasks.push(refreshSession())
+  if (isReplayActive()) tasks.push(refreshReplayStatus())
+  // 后端不可用时单次失败静默，下一轮再试
+  await Promise.allSettled(tasks)
+  // 会话已进入终态且没有进行中的回放：之后不会再有变化，停止轮询
+  if ((!sessionId.value || isSessionSettled()) && !isReplayActive()) stopPolling()
+}
+
+// 标签页隐藏时暂停，上一轮未结束时不叠加请求
+const sessionPolling = useVisiblePolling(pollTick, 3000)
+
 function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
+  sessionPolling.stop()
 }
 
 function startPolling() {
-  stopPolling()
-  pollTimer = setInterval(() => {
-    // 循环执行期间后端阻塞处理，轮询只会拿到中间态，等它收敛后再拉
-    if (running.value) return
-    void refreshSession()
-    if (latestReplay.value && ['queued', 'running'].includes(latestReplay.value.status)) {
-      void refreshReplayStatus()
-    }
-  }, 3000)
+  sessionPolling.start()
 }
 
+// 会话切换（含清空）时重置事件游标与列表，避免把上一会话的 seq 用到新会话
+watch(
+  sessionId,
+  () => {
+    eventsEpoch += 1
+    eventsCursor = 0
+    events.value = []
+  },
+  { flush: 'sync' },
+)
+
 async function refreshEvents() {
-  if (!props.projectId || !sessionId.value) return
-  const page = await androidAgentApi.events(props.projectId, sessionId.value, 0, 200)
-  events.value = page.items
+  const projectId = props.projectId
+  const sid = sessionId.value
+  if (!projectId || !sid) return
+  const epoch = eventsEpoch
+  // 按 next_seq / has_more 增量追加，而不是每次从 0 全量重拉
+  for (;;) {
+    const afterSeq = eventsCursor
+    const page = await androidAgentApi.events(projectId, sid, afterSeq, EVENTS_PAGE_SIZE)
+    // 请求在途时已切换会话或项目：丢弃过期结果
+    if (epoch !== eventsEpoch || props.projectId !== projectId || sessionId.value !== sid) return
+    const items = Array.isArray(page?.items) ? page.items : []
+    // 并发调用可能拿到同一页，只追加游标之后的事件
+    const fresh = items.filter((item) => item.seq > eventsCursor)
+    if (fresh.length) events.value = [...events.value, ...fresh]
+    const lastSeq = items.length ? items[items.length - 1].seq : afterSeq
+    eventsCursor = Math.max(eventsCursor, lastSeq, Number(page?.next_seq) || 0)
+    if (!page?.has_more || eventsCursor <= afterSeq) return
+  }
 }
 
 function applyPackageSnapshot(snapshot: {
@@ -1029,9 +1090,12 @@ async function refreshReplayStatus() {
   try {
     const api = getAgentApi()
     if (typeof api?.getReplay !== 'function') return
-    const updated = await api.getReplay(props.projectId, latestReplay.value.id)
+    const replayId = latestReplay.value.id
+    const updated = await api.getReplay(props.projectId, replayId)
+    // 请求在途时已切换草稿版本或会话：丢弃过期结果
+    if (latestReplay.value?.id !== replayId) return
     latestReplay.value = updated
-    if (updated.status === 'passed' || updated.status === 'failed') {
+    if (REPLAY_TERMINAL_STATUSES.includes(updated.status)) {
       await refreshDrafts()
     }
   } catch (error) {
@@ -1040,8 +1104,13 @@ async function refreshReplayStatus() {
 }
 
 async function refreshSession() {
-  if (!props.projectId || !sessionId.value) return
-  session.value = await androidAgentApi.getSession(props.projectId, sessionId.value)
+  const projectId = props.projectId
+  const sid = sessionId.value
+  if (!projectId || !sid) return
+  const latest = await androidAgentApi.getSession(projectId, sid)
+  // 请求在途时已切换会话或项目：丢弃过期结果
+  if (props.projectId !== projectId || sessionId.value !== sid) return
+  session.value = latest
   await refreshEvents()
 }
 
@@ -1368,6 +1437,8 @@ async function startReplay() {
     latestReplay.value = handoff.replay ?? null
     const replayId = handoff.replay?.id ?? handoff.run_id
     message.success(t('android_agent.replay_start') + ' #' + replayId)
+    // 会话终态后轮询已停，回放进行期间需要重新轮询其状态
+    startPolling()
   } catch (error) {
     errorMessage.value = describeError(error)
   } finally {
@@ -2097,6 +2168,11 @@ defineExpose({
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+.agent-replay-hint {
+  color: var(--c-error, #dc2626);
+  font-size: 12px;
 }
 
 .agent-event-detail {

@@ -16,17 +16,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # buildx + GitHub Actions 层缓存；scope 与 security.yml 的镜像扫描一致，两个 workflow 共用缓存。
+      # load 后镜像进入本机 docker，供下面的 docker run 使用。
       - name: Build backend image
-        run: docker build -t atp-backend:release-readiness backend/
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          file: backend/Dockerfile
+          tags: atp-backend:release-readiness
+          load: true
+          cache-from: type=gha,scope=atp-backend
+          cache-to: type=gha,mode=max,scope=atp-backend
 
       - name: Build worker image
-        run: docker build -t atp-worker:release-readiness -f backend/Dockerfile.worker backend/
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          file: backend/Dockerfile.worker
+          tags: atp-worker:release-readiness
+          load: true
+          cache-from: type=gha,scope=atp-worker
+          cache-to: type=gha,mode=max,scope=atp-worker
 
       - name: Verify worker k6 binary
         run: docker run --rm --entrypoint k6 atp-worker:release-readiness version
 
       - name: Build frontend image
-        run: docker build -t atp-frontend:release-readiness frontend/
+        uses: docker/build-push-action@v7
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          tags: atp-frontend:release-readiness
+          load: true
+          cache-from: type=gha,scope=atp-frontend
+          cache-to: type=gha,mode=max,scope=atp-frontend
 
   release-checklist-contract:
     name: Release checklist contract

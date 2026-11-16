@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Literal
 from app.models.device import DeviceStatus
@@ -121,6 +123,16 @@ class RemoteDeviceConnectOut(BaseModel):
 
 class DeviceKeyEventIn(BaseModel):
     keycode: str | int = Field(description="Android 按键码，如 3 (HOME), 4 (BACK), 26 (POWER)")
+
+    @field_validator("keycode")
+    @classmethod
+    def _keycode_is_plain_token(cls, value: str | int) -> str | int:
+        # 按键码会进入 adb shell 命令行，只接受数字或 KEYCODE_HOME 这类标识符
+        if isinstance(value, bool) or (isinstance(value, int) and value < 0):
+            raise ValueError("keycode 必须是非负整数或按键名")
+        if isinstance(value, str) and not re.fullmatch(r"[A-Za-z0-9_]{1,64}", value.strip()):
+            raise ValueError("keycode 只能包含字母、数字和下划线")
+        return value
 
 
 class DeviceTextInputIn(BaseModel):

@@ -16,9 +16,6 @@ image:
   worker:
     tag: single-node-CHANGE-ME
     pullPolicy: Never
-  frontend:
-    tag: single-node-CHANGE-ME
-    pullPolicy: Never
 
 # The existing q19 PostgreSQL/Redis/MinIO ports are bound to 127.0.0.1 on the
 # host. Use host networking only for this single-node development overlay.
@@ -29,12 +26,10 @@ replicas:
   backend: 1
   worker: 1
   webRecorder: 1
-  beat: 1
   flower: 1
 
 worker:
-  # 普通 Worker 不消费性能队列，避免联调负载干扰功能任务。
-  queues: default,ios,ai,maintenance
+  # 普通 Worker 不消费性能队列（见 config.CELERY_QUEUES），避免联调负载干扰功能任务。
   metricsPort: 9091
 
 # Flower 在长时间运行中可能超过默认 256Mi；单节点联调显式保留更高上限，
@@ -72,7 +67,6 @@ performanceWorker:
   replicas: 1
   # 单节点采用稳定身份和专用队列；不启用多副本自动身份或跨节点反亲和。
   queues: performance.atp-single-node,performance
-  concurrency: "1"
   metricsPort: 9092
   autoIdentity: false
   spreadAcrossNodes: false

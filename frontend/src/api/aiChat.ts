@@ -1,5 +1,4 @@
 import { getRuntimeMode } from '@/runtimeMode'
-import { useAuthStore } from '@/stores/auth'
 
 export interface AiChatStreamPayload {
   query: string
@@ -12,14 +11,10 @@ export async function streamAiChat(
   onToken: (token: string) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  const auth = useAuthStore()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
     'X-ATP-Client-Mode': getRuntimeMode()?.mode || (import.meta.env.VITE_ATP_LOCAL_MODE === 'true' ? 'local' : 'server'),
-  }
-  if (auth.token) {
-    headers['Authorization'] = `Bearer ${auth.token}`
   }
 
   const response = await fetch('/api/v1/ai/chat/stream', {

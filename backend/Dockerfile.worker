@@ -1,5 +1,5 @@
-ARG GO_IMAGE=golang:1.26.6-bookworm@sha256:433f9dc4f8ea3a1ce4e28f9f15d0f7c056b10475307f886d6f1ac1ccc4abd976
-ARG K6_COMMIT=00a9a1b7f552d6bb4337278b10ae25aac0f4e666
+ARG GO_IMAGE=golang:1.26.11-bookworm@sha256:dc40a13b61304647ed7e5d581d246b86413dfc29d63c6d018310feb93cd98fc0
+ARG K6_COMMIT=dd9395906d48437a8d7ab53e309afa47ad8d67e0
 ARG JMETER_VERSION=5.6.3
 FROM python:3.12-slim-bookworm AS python-deps
 
@@ -20,7 +20,7 @@ WORKDIR /src
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && git clone --depth 1 --branch v2.2.0 https://github.com/grafana/k6.git . \
+    && git clone --depth 1 --branch v2.4.0 https://github.com/grafana/k6.git . \
     && test "$(git rev-parse HEAD)" = "${K6_COMMIT}" \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /k6 .
 
@@ -64,10 +64,12 @@ RUN curl -fsSL "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-${
         "${jmeter_lib}/neo4j-java-driver-4.4.13.jar" \
         "${jmeter_lib}/tika-core-1.28.5.jar" \
         "${jmeter_lib}/tika-parsers-1.28.5.jar" \
+        "${jmeter_lib}/freemarker-2.3.32.jar" \
+        "${jmeter_lib}/jsoup-1.17.1.jar" \
     && find "${jmeter_lib}" -maxdepth 1 -type f -name 'batik-*.jar' -delete \
     && for artifact in jackson-annotations jackson-core jackson-databind; do \
-        curl -fsSL "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/${artifact}/2.18.8/${artifact}-2.18.8.jar" \
-            -o "${jmeter_lib}/${artifact}-2.18.8.jar"; \
+        curl -fsSL "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/${artifact}/2.18.11/${artifact}-2.18.11.jar" \
+            -o "${jmeter_lib}/${artifact}-2.18.11.jar"; \
     done \
     && curl -fsSL "https://repo1.maven.org/maven2/com/thoughtworks/xstream/xstream/1.4.21/xstream-1.4.21.jar" \
         -o "${jmeter_lib}/xstream-1.4.21.jar" \
@@ -75,6 +77,10 @@ RUN curl -fsSL "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-${
         -o "${jmeter_lib}/dnsjava-3.6.0.jar" \
     && curl -fsSL "https://repo1.maven.org/maven2/net/minidev/json-smart/2.5.2/json-smart-2.5.2.jar" \
         -o "${jmeter_lib}/json-smart-2.5.2.jar" \
+    && curl -fsSL "https://repo1.maven.org/maven2/org/freemarker/freemarker/2.3.35/freemarker-2.3.35.jar" \
+        -o "${jmeter_lib}/freemarker-2.3.35.jar" \
+    && curl -fsSL "https://repo1.maven.org/maven2/org/jsoup/jsoup/1.23.2/jsoup-1.23.2.jar" \
+        -o "${jmeter_lib}/jsoup-1.23.2.jar" \
     && for artifact in httpcore5 httpcore5-h2; do \
         curl -fsSL "https://repo1.maven.org/maven2/org/apache/httpcomponents/core5/${artifact}/5.4.3/${artifact}-5.4.3.jar" \
             -o "${jmeter_lib}/${artifact}-5.4.3.jar"; \
@@ -105,4 +111,4 @@ COPY . .
 # Compose preserves ENTRYPOINT; Kubernetes command overrides it, so the Helm
 # worker templates also launch Tini explicitly.
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["sh", "-c", "exec celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q ${CELERY_QUEUES:-default,mobile_special,ios,ai,maintenance,performance}"]
+CMD ["sh", "-c", "exec celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q ${CELERY_QUEUES:-default,android,mobile_special,ios,ai,maintenance,performance}"]

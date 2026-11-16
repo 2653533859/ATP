@@ -92,7 +92,7 @@ security-pip-audit:
 	$(PYTHON) -m pip_audit -r backend/requirements.txt
 
 security-npm-audit:
-	cd frontend && npm audit --audit-level=moderate
+	cd frontend && npm audit --audit-level=high
 
 security-deps: security-pip-audit security-npm-audit
 

@@ -4,11 +4,6 @@ export * from './hermes'
 export * from './aiChat'
 export * from './cloudSync'
 export * from './androidAgent'
-export * from './androidAgent'
-export const localGroupApi = {
-  cancel: (kind: 'suite' | 'plan', runId: number) =>
-    http.post<unknown, { requested: boolean; message: string }>(`/local-groups/${kind}/${runId}/cancel`),
-}
 
 export type CasePriority = 'P0' | 'P1' | 'P2' | 'P3'
 export type CaseLevel = 'smoke' | 'core' | 'regression' | 'extended'
@@ -2095,10 +2090,6 @@ export const caseApi = {
     ),
   rollback: (caseId: number, snapshotId: number) =>
     http.post<unknown, CaseDetailItem>(`/cases/${caseId}/rollback/${snapshotId}`),
-  diffSnapshots: (caseId: number, params: { from: number; to: number }) =>
-    http.get<unknown, { from_version: number; to_version: number; changes: Record<string, { from: unknown; to: unknown }> }>(
-      `/cases/${caseId}/snapshots/diff`, { params },
-    ),
   batchDelete: (caseIds: number[]) =>
     http.post<unknown, { requested: number; processed: number; skipped_ids: number[] }>(
       '/cases/batch/delete',
@@ -2419,8 +2410,6 @@ export const deviceApi = {
     }),
   releaseLease: (id: number, leaseToken: string) =>
     http.delete(`/devices/${id}/lease`, { data: { lease_token: leaseToken } }),
-  forceTakeoverLease: (id: number, data?: { ttl_seconds?: number; owner_label?: string; reason?: string }) =>
-    http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease/force-takeover`, data ?? {}),
   scan: () => http.post<unknown, DeviceScanResult>('/devices/scan'),
   scanStatus: (scanId: string) => http.get<unknown, DeviceScanResult>(`/devices/scan/${scanId}`),
   get: (id: number) => http.get('/devices/' + id),
@@ -2460,8 +2449,6 @@ export const deviceApi = {
   inputText: (id: number, text: string, leaseToken?: string | null) =>
     http.post(`/devices/${id}/text`, { text }, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   screenshotUrl: (id: number) => `/api/v1/devices/${id}/screenshot`,
-  screenStreamUrl: (id: number, fps?: number) =>
-    `/api/v1/devices/${id}/screen${fps ? `?fps=${fps}` : ''}`,
   groups: () => http.get<unknown, DeviceGroupItem[]>('/device-groups'),
   createGroup: (data: { name: string; description?: string; device_ids: number[] }) =>
     http.post<unknown, DeviceGroupItem>('/device-groups', data),
@@ -2476,10 +2463,6 @@ export const deviceApi = {
   deleteAgent: (agentId: number) => http.delete<{ message: string; released_ports: number[] }>(`/device-agents/${agentId}`),
   probeAgentLink: (agentId: number) => http.post<unknown, { bps: number; bytes: number; elapsed_ms: number; at: string }>(`/device-agents/${agentId}/link-probe`),
   downloadAgentScript: () => http.get('/device-agents/agent-script', { responseType: 'blob' }),
-  sendScrcpyTouch: (serial: string, data: { action: number; x: number; y: number; w?: number; h?: number }) =>
-    http.post(`/devices/${encodeURIComponent(serial)}/touch`, data),
-  reconnectScrcpy: (serial: string) =>
-    http.post(`/devices/${encodeURIComponent(serial)}/reconnect`),
 }
 
 export interface ApiScenarioRecord {
@@ -2756,10 +2739,6 @@ export const defectApi = {
     labels: string[]
     assignee_id: number | null
   }>) => http.patch<unknown, DefectItem>(`/defects/${id}`, data),
-  linkRun: (id: number, data: { run_type: DefectRunType; run_id: number; case_id?: number | null }) =>
-    http.post<unknown, DefectRunLinkItem>(`/defects/${id}/links`, data),
-  unlinkRun: (id: number, linkId: number) => http.delete(`/defects/${id}/links/${linkId}`),
-  externalLinks: (id: number) => http.get<unknown, DefectExternalLinkItem[]>(`/defects/${id}/external-links`),
   linkExternal: (id: number, data: {
     tracker_id: number
     external_key: string
@@ -2791,7 +2770,6 @@ export const mobileSpecialApi = {
   listRuns: (params?: { task_id?: number; task_type?: TaskType; status_filter?: MobileRunStatus; project_id?: number; limit?: number; offset?: number }) =>
     http.get<unknown, MobileSpecialRunItem[]>('/mobile-special/runs', { params }),
   getRun: (id: number) => http.get<unknown, MobileSpecialRunItem>(`/mobile-special/runs/${id}`),
-  getRunSummary: (id: number) => http.get<unknown, Record<string, unknown>>(`/mobile-special/runs/${id}/summary`),
   getRunSamples: (id: number, params?: { metric_type?: string; limit?: number }) =>
     http.get<unknown, MobileMetricSampleItem[]>(`/mobile-special/runs/${id}/samples`, { params }),
   getRunIncidents: (id: number) =>
@@ -2814,8 +2792,6 @@ export const mobileSpecialApi = {
     http.get<unknown, { total_runs: number; completed_runs: number; failed_runs: number; running_runs: number; pass_rate: number; avg_duration_ms: number | null; total_incidents: number; recent_runs_7d: number }>('/mobile-special/statistics/overview', { params }),
   getTrend: (params?: { project_id?: number; days?: number }) =>
     http.get<unknown, Array<{ date: string; total: number; completed: number; failed: number; pass_rate: number }>>('/mobile-special/statistics/trend', { params }),
-  getTaskStats: (params?: { project_id?: number; days?: number; limit?: number }) =>
-    http.get<unknown, Array<{ task_id: number; task_name: string; task_type: string; total_runs: number; completed_runs: number; failed_runs: number; pass_rate: number; last_run_at: string | null }>>('/mobile-special/statistics/task-stats', { params }),
 }
 
 export const storageApi = {
@@ -2965,8 +2941,6 @@ export const aiHealingExampleApi = {
     high_quality?: boolean
     limit?: number
   }) => http.get<unknown, HealingPromptExampleItem[]>('/ai-healing/examples', { params }),
-  createFromStep: (stepResultId: number) =>
-    http.post<unknown, HealingPromptExampleItem>(`/ai-healing/examples/from-step/${stepResultId}`),
   update: (id: number, data: { marked_high_quality?: boolean; suggestion_text?: string }) =>
     http.patch<unknown, HealingPromptExampleItem>(`/ai-healing/examples/${id}`, data),
   delete: (id: number) => http.delete<unknown, void>(`/ai-healing/examples/${id}`),
@@ -3516,7 +3490,6 @@ export const webAssetsApi = {
   createElement: (projectId: number, body: { name: string; page_url?: string | null; locator: Record<string, unknown>; fallback_locators?: Array<Record<string, unknown>>; description?: string }) =>
     http.post<unknown, WebElementAssetItem>(`/projects/${projectId}/web-elements`, body),
   updateElement: (id: number, body: Record<string, unknown>) => http.patch<unknown, WebElementAssetItem>(`/web-elements/${id}`, body),
-  recordElementFailure: (id: number, reason: string) => http.post<unknown, WebElementAssetItem>(`/web-elements/${id}/failure`, { reason }),
   previewElementRepair: (id: number, observed_locators: Array<Record<string, unknown>> = []) =>
     http.post<unknown, { element_id: number; candidates: WebLocatorRepairCandidate[] }>(`/web-elements/${id}/repair-preview`, { observed_locators }),
   deleteElement: (id: number) => http.delete<unknown, void>(`/web-elements/${id}`),
@@ -3525,21 +3498,8 @@ export const webAssetsApi = {
     http.post<unknown, WebPageObjectItem>(`/projects/${projectId}/web-page-objects`, body),
   updatePageObject: (id: number, body: Record<string, unknown>) => http.patch<unknown, WebPageObjectItem>(`/web-page-objects/${id}`, body),
   deletePageObject: (id: number) => http.delete<unknown, void>(`/web-page-objects/${id}`),
-  listStorageStates: (projectId: number) => http.get<unknown, WebStorageStateItem[]>(`/projects/${projectId}/web-storage-states`),
-  deleteStorageState: (projectId: number, name: string) => http.delete<unknown, void>(`/projects/${projectId}/web-storage-states/${name}`),
 }
 
-export interface WebStorageStateItem {
-  name: string
-  size: number
-  updated_at?: string | null
-  object_name: string
-}
-
-export const webStorageStateApi = {
-  list: (projectId: number) => http.get<unknown, WebStorageStateItem[]>(`/projects/${projectId}/web-storage-states`),
-  delete: (projectId: number, name: string) => http.delete<unknown, void>(`/projects/${projectId}/web-storage-states/${name}`),
-}
 export interface WebFileUploadResponse {
   object_name: string
   filename: string
@@ -3593,8 +3553,6 @@ export const webVisualApi = {
     form.append('file', body.file)
     return http.post<unknown, WebVisualBaselineItem>(`/projects/${projectId}/web-visual-baselines`, form)
   },
-  updateSettings: (id: number, body: { threshold: number; pixel_threshold: number; ignore_regions: Array<Record<string, unknown>> }) =>
-    http.patch<unknown, WebVisualBaselineItem>(`/web-visual-baselines/${id}`, body),
   deleteBaseline: (id: number) => http.delete<unknown, void>(`/web-visual-baselines/${id}`),
 }
 

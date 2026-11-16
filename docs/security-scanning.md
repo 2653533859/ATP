@@ -87,6 +87,13 @@ Remote failure remediation on 2026-08-17:
 - Three application XML parsers now use `defusedxml`; the standalone test sweep also bootstraps all SQLAlchemy models in `test_mobile_special_events.py` so it no longer depends on another test file's import order.
 - The first remote rerun passed npm audit but exposed the Bandit, standalone-test and Worker Trivy issues above. The second rerun passed CI and Security's non-Trivy jobs; the following k6 source-build rerun failed only because the entry path was written as `./cmd/k6` instead of the v2.2.0 `./cmd` package, which is now corrected.
 
+Worker Trivy remediation on 2026-11-16 (Security run 43696416034 reported 10 HIGH in `usr/local/bin/k6` and 6 HIGH + 1 CRITICAL in JMeter jars):
+
+- k6 is now built from `v2.4.0` (commit `dd9395906d48437a8d7ab53e309afa47ad8d67e0`) with the pinned Go `1.26.11` builder image digest. Its `go.mod` carries `golang.org/x/crypto v0.58.0`, `golang.org/x/net v0.62.0`, `golang.org/x/text v0.43.0` and `google.golang.org/grpc v1.84.0`, all at or above the fixed versions Trivy listed; Go `1.26.11` is above the stdlib fixes (`1.26.9` / `1.26.10`). `v2.3.0` was not enough (`x/net v0.58.0` is below the `0.60.0` / `0.62.0` fixes).
+- JMeter stays at 5.6.3 as an optional executor; the manual jar replacement now uses Jackson `2.18.11` and additionally swaps `freemarker-2.3.32` for `2.3.35` and `jsoup-1.17.1` for `1.23.2`.
+- These changes were made without a local Docker daemon, Go toolchain or Trivy: the image build, the `k6 version` / `jmeter --version` smoke lines in the Dockerfile and the Trivy result must be confirmed by the next `Security` and `Release readiness` workflow runs.
+- The `Trivy image scan` job is now a `fail-fast: false` matrix, so a failing worker scan no longer hides the frontend scan.
+
 ## Next Scans
 
 ## Security Workflow

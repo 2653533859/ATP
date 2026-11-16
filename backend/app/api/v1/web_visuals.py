@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -92,8 +93,8 @@ async def upload_web_visual_baseline(
     regions = _parse_regions(ignore_regions)
     safe_name = _SAFE_NAME.sub("_", name).strip("._") or "baseline"
     object_name = f"visual-baselines/projects/{project_id}/{uuid.uuid4().hex}_{safe_name}.png"
-    ensure_bucket()
-    upload_bytes(object_name, data, content_type="image/png")
+    await asyncio.to_thread(ensure_bucket)
+    await asyncio.to_thread(upload_bytes, object_name, data, content_type="image/png")
     item = WebVisualBaseline(
         project_id=project_id,
         name=name.strip(),
@@ -113,11 +114,11 @@ async def upload_web_visual_baseline(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        delete_file(object_name)
+        await asyncio.to_thread(delete_file, object_name)
         raise HTTPException(status_code=409, detail="视觉基线名称已存在") from exc
     except SQLAlchemyError as exc:
         await db.rollback()
-        delete_file(object_name)
+        await asyncio.to_thread(delete_file, object_name)
         logger.exception("Web visual baseline persistence failed")
         raise HTTPException(status_code=500, detail="视觉基线保存失败") from exc
     await db.refresh(item)
@@ -158,6 +159,6 @@ async def delete_web_visual_baseline(
     await db.delete(item)
     await db.commit()
     try:
-        delete_file(object_name)
+        await asyncio.to_thread(delete_file, object_name)
     except Exception:
         pass

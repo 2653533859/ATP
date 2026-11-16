@@ -8,7 +8,7 @@
 
 - `/models` 接口返回 200 和 8 个模型 ID；这只证明接口可访问，不证明所有模型均支持视觉。
 - 选择接口实际返回的 `gemini-3-flash` 验证。新增 `model_probe.py`，复用 ATP `LLMRequest/call_llm`；返回严格校验的候选动作、耗时和数值用量，不执行动作或存储原始模型响应。
-- `scripts/android-agent-model-probe.py` 生成两张红蓝按钮测试图，第二张交换颜色位置。两次模型返回均通过 JSON 协议和当前上下文校验，蓝色按钮目标均正确；耗时 5983 / 4811 ms，总 token 分别为 3130 / 3129。仅为两次合成图探测，不代表实际 App 成功率。
+- `scripts/archive/android-agent-model-probe.py` 生成两张红蓝按钮测试图，第二张交换颜色位置。两次模型返回均通过 JSON 协议和当前上下文校验，蓝色按钮目标均正确；耗时 5983 / 4811 ms，总 token 分别为 3130 / 3129。仅为两次合成图探测，不代表实际 App 成功率。
 - 使用用户授权的汽水音乐实际截图，附带“UI 树不可用、设备已断开”的观察信息。模型返回 `request_help/cannot_progress`，没有编造节点；耗时 6156 ms，总 token 3141。未执行模型动作，不计自主探索成功。
 - 脱敏结果：`.local-run/android-agent-model-probe-gemini-20261106.json`、`.local-run/android-agent-model-qishui-20261106.json`。原始手机截图仅位于忽略目录中，不纳入提交。
 

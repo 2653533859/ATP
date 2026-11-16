@@ -6,6 +6,8 @@ GET  /cases/{case_id}/script   获取脚本内容（文本，供 Monaco 预览�
 DELETE /cases/{case_id}/script 删除脚本
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,8 +64,8 @@ async def save_script_requirements(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     object_name = _requirements_object_name(case_id)
-    ensure_bucket()
-    upload_bytes(object_name, content.encode("utf-8"), content_type="text/plain")
+    await asyncio.to_thread(ensure_bucket)
+    await asyncio.to_thread(upload_bytes, object_name, content.encode("utf-8"), content_type="text/plain")
     config = dict(case.config or {})
     config["requirements_path"] = object_name
     case.config = config
@@ -86,7 +88,7 @@ async def get_script_requirements(
         return {"content": "", "exists": False}
     try:
         return {
-            "content": read_bytes(requirements_path).decode("utf-8", errors="replace"),
+            "content": (await asyncio.to_thread(read_bytes, requirements_path)).decode("utf-8", errors="replace"),
             "exists": True,
             "requirements_path": requirements_path,
         }
@@ -113,8 +115,8 @@ async def upload_script(
         raise HTTPException(status_code=413, detail="脚本文件超过 1MB 限制")
 
     object_name = _script_object_name(case_id)
-    ensure_bucket()
-    upload_bytes(object_name, content, content_type="text/x-python")
+    await asyncio.to_thread(ensure_bucket)
+    await asyncio.to_thread(upload_bytes, object_name, content, content_type="text/x-python")
 
     # 将 script_path 写入 case.config
     config = dict(case.config or {})
@@ -141,7 +143,7 @@ async def get_script(
         return {"content": "", "exists": False}
 
     try:
-        content = read_bytes(script_path).decode("utf-8", errors="replace")
+        content = (await asyncio.to_thread(read_bytes, script_path)).decode("utf-8", errors="replace")
         return {"content": content, "exists": True, "script_path": script_path}
     except Exception:
         return {"content": "", "exists": False}
@@ -164,13 +166,13 @@ async def delete_script(
         config = dict(case.config)
         if script_path:
             try:
-                delete_file(script_path)
+                await asyncio.to_thread(delete_file, script_path)
             except Exception:
                 pass
             config.pop("script_path", None)
         if requirements_path:
             try:
-                delete_file(requirements_path)
+                await asyncio.to_thread(delete_file, requirements_path)
             except Exception:
                 pass
             config.pop("requirements_path", None)

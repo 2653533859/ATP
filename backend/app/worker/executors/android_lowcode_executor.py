@@ -597,7 +597,11 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
             _clear_input_text(serial)
         # 输入文本（通过 adb shell input text）
         # 处理中文等特殊字符：使用 am broadcast
-        escaped = text.replace(" ", "%s").replace("&", "\\&").replace("<", "\\<").replace(">", "\\>")
+        # adb 会把参数拼成一行交给设备端 shell：统一转义全部元字符（引号、$、括号、分号等），
+        # 否则含这些字符的文本会输入失败或被当作命令执行
+        from app.device_stream.manager import _sanitize_adb_input_text
+
+        escaped = _sanitize_adb_input_text(text)
         ok, out = _adb_cmd(serial, "shell", "input", "text", escaped, timeout=10)
         return {"success": ok, "error": out if not ok else None}
 

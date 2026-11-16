@@ -497,7 +497,7 @@ def test_sqlite_force_takeover_waits_for_previous_lease_release(tmp_path):
                 await db.commit()
 
             async with factory() as db:
-                taken, previous = await force_takeover_device_lease(
+                taken = await force_takeover_device_lease(
                     db,
                     1,
                     owner_id=None,
@@ -513,13 +513,12 @@ def test_sqlite_force_takeover_waits_for_previous_lease_release(tmp_path):
                 released_old = await release_device_lease(db, 1, old_token)
                 assert released_old is False
 
-            return old_id, old_token, new_token, previous
+            return old_id, old_token, new_token
         finally:
             await engine.dispose()
 
-    old_id, old_token, new_token, previous = asyncio.run(scenario())
+    old_id, old_token, new_token = asyncio.run(scenario())
     assert old_token != new_token
-    assert previous is None
 
 
 def test_sqlite_force_takeover_rejects_missing_or_offline_device(tmp_path):
@@ -542,3 +541,65 @@ def test_sqlite_force_takeover_rejects_missing_or_offline_device(tmp_path):
             await engine.dispose()
 
     asyncio.run(scenario())
+
+
+def test_sqlite_disconnection_recovery_only_converges_android_runs_on_that_device(tmp_path):
+    from app.models.case import CaseType, RunStatus, TestCase, TestRun
+    from app.models.project import Module, Project
+    from app.models.user import User
+    from app.services.device_leases import handle_device_disconnection_recovery
+
+    async def scenario():
+        engine = create_async_engine(f"sqlite+aiosqlite:///{(tmp_path / 'recovery.sqlite3').as_posix()}")
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            factory = async_sessionmaker(engine, expire_on_commit=False)
+            async with factory() as db:
+                db.add(User(id=1, username="u", email="u@example.com", hashed_password="pw", role="admin"))
+                db.add(Project(id=1, name="p", description="", owner_id=1))
+                db.add(Module(id=1, project_id=1, name="m"))
+                db.add(Device(id=1, serial="dev-1", status=DeviceStatus.online))
+                await db.flush()
+                for case_id, case_type in ((1, CaseType.android), (2, CaseType.api)):
+                    db.add(
+                        TestCase(
+                            id=case_id,
+                            name=f"c{case_id}",
+                            case_code=f"C-{case_id}",
+                            summary="",
+                            case_type=case_type,
+                            module_id=1,
+                            creator_id=1,
+                        )
+                    )
+                await db.flush()
+                summary = {"device_serial": "dev-1"}
+                db.add(TestRun(id=1, case_id=1, triggered_by=1, status=RunStatus.running, result_summary=summary))
+                # 同设备序列号但不是 Android 用例：不占用这台设备，不能被收敛
+                db.add(TestRun(id=2, case_id=2, triggered_by=1, status=RunStatus.running, result_summary=summary))
+                # Android 用例但跑在别的设备上
+                db.add(
+                    TestRun(
+                        id=3,
+                        case_id=1,
+                        triggered_by=1,
+                        status=RunStatus.running,
+                        result_summary={"device_serial": "other"},
+                    )
+                )
+                await db.commit()
+
+            async with factory() as db:
+                outcome = await handle_device_disconnection_recovery(db, 1, reason="拔线")
+                await db.commit()
+
+            async with factory() as db:
+                statuses = {run.id: run.status for run in (await db.execute(select(TestRun))).scalars()}
+            return outcome, statuses
+        finally:
+            await engine.dispose()
+
+    outcome, statuses = asyncio.run(scenario())
+    assert outcome["recovered_runs"] == 1
+    assert statuses == {1: RunStatus.error, 2: RunStatus.running, 3: RunStatus.running}

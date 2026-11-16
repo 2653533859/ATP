@@ -32,7 +32,7 @@ from app.models.android_agent import (
 from app.models.base import Base
 from app.models.bootstrap import load_all_models
 from app.models.device import Device, DeviceLease
-from app.models.case import TestCase, TestRun
+from app.models.case import RunStatus, TestCase, TestRun
 from app.models.project import Module, Project
 from app.models.user import User
 from app.schemas.android_agent import (
@@ -51,12 +51,6 @@ def _stub_replay_dispatch(monkeypatch):
     """回放派发依赖 Celery 队列；单测只验证记录与幂等，不实际投递任务。"""
     calls: list[int] = []
     monkeypatch.setattr(android_agent_api, "_enqueue_replay_run", lambda run, case, session: calls.append(run.id))
-    from app.services.android_agent import coordinator
-
-    async def no_publish(*args, **kwargs):
-        pass
-
-    monkeypatch.setattr(coordinator, "_safe_publish_agent_event", no_publish)
     return calls
 
 
@@ -705,6 +699,94 @@ async def test_api_publish_requires_verified_current_version(tmp_path: Path):
                     project_id=1, draft_id=edited.id, idempotency_key="publish-2", db=db, current_user=user
                 )
             assert exc_info2.value.status_code == status.HTTP_409_CONFLICT
+    finally:
+        await engine.dispose()
+
+
+async def _draft_with_replay(factory, user, session_id: int, *, key: str):
+    async with factory() as db:
+        draft = await create_agent_draft(
+            project_id=1,
+            session_id=session_id,
+            payload=AgentDraftCreateRequest(),
+            db=db,
+            current_user=user,
+        )
+        handoff = await start_agent_draft_replay(
+            project_id=1,
+            draft_id=draft.id,
+            payload=AgentReplayStartRequest(initial_state_confirmed=True, module_id=1, idempotency_key=key),
+            db=db,
+            current_user=user,
+        )
+    return draft, handoff
+
+
+async def _finish_run(factory, run_id: int, run_status: RunStatus) -> None:
+    """模拟 Android 低代码执行器：它只更新 TestRun，不认识回放表。"""
+    async with factory() as db:
+        run = await db.get(TestRun, run_id)
+        run.status = run_status
+        await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_api_publish_succeeds_after_replay_run_passes_without_polling(tmp_path: Path):
+    engine, factory, user = await _setup_db(tmp_path, tag="publish-real")
+    try:
+        session_id = await _seed_session(factory)
+        draft, handoff = await _draft_with_replay(factory, user, session_id, key="real-1")
+
+        async with factory() as db:
+            # 运行还没结束：没有通过的回放，不能发布
+            with pytest.raises(HTTPException) as exc_info:
+                await publish_agent_draft(project_id=1, draft_id=draft.id, db=db, current_user=user)
+            assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+
+        await _finish_run(factory, handoff.run_id, RunStatus.passed)
+
+        async with factory() as db:
+            # 不依赖前端先查询过回放：发布时自行把运行终态落到回放记录上
+            published = await publish_agent_draft(project_id=1, draft_id=draft.id, db=db, current_user=user)
+            assert published.published is True
+            assert published.case_id == handoff.case_id
+            assert published.verified_replay_id == handoff.replay.id
+
+        async with factory() as db:
+            stored = await db.get(AndroidAgentReplay, handoff.replay.id)
+            assert stored.status == "passed"
+            assert stored.finished_at is not None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_api_get_replay_persists_run_outcome(tmp_path: Path):
+    engine, factory, user = await _setup_db(tmp_path, tag="replay-sync")
+    try:
+        session_id = await _seed_session(factory)
+        draft, handoff = await _draft_with_replay(factory, user, session_id, key="sync-1")
+        replay_id = handoff.replay.id
+
+        async with factory() as db:
+            running = await get_agent_replay(project_id=1, replay_id=replay_id, db=db, current_user=user)
+            assert running.status == "running"
+
+        await _finish_run(factory, handoff.run_id, RunStatus.failed)
+
+        async with factory() as db:
+            failed = await get_agent_replay(project_id=1, replay_id=replay_id, db=db, current_user=user)
+            assert failed.status == "failed"
+
+        async with factory() as db:
+            # 状态已落库，而不只是出现在那一次响应里
+            stored = await db.get(AndroidAgentReplay, replay_id)
+            assert stored.status == "failed"
+            assert stored.error_code == "run_failed"
+            # 失败的回放不构成验证资格
+            with pytest.raises(HTTPException) as exc_info:
+                await publish_agent_draft(project_id=1, draft_id=draft.id, db=db, current_user=user)
+            assert exc_info.value.status_code == status.HTTP_409_CONFLICT
     finally:
         await engine.dispose()
 

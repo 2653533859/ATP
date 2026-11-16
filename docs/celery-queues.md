@@ -93,15 +93,12 @@ performanceWorker:
 Chart 内置可选 `performanceWorker` Deployment。生产启用示例：
 
 ```yaml
-worker:
-  queues: default,ios,ai,maintenance
 config:
   CELERY_QUEUES: default,ios,ai,maintenance
 performanceWorker:
   enabled: true
   replicas: 1
   queues: performance.node-a,performance
-  concurrency: "1"
   nodeEnabled: true
   nodeId: worker-a
   nodeName: Worker A

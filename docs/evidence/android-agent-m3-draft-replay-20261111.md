@@ -73,7 +73,7 @@ npx vitest run                # 88 files / 457 tests passed
 ### 真实契约冒烟
 
 ```
-python scripts/android_agent_m3_smoke.py
+python scripts/archive/android_agent_m3_smoke.py
 {"ok": true, "routes": 13, "openapi_version": "3.1.0"}
 ```
 

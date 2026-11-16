@@ -227,8 +227,6 @@ export const androidAgentApi = {
     http.get<unknown, AgentDraftItem[]>(`${base(projectId)}/sessions/${sessionId}/drafts`),
   compileDraft: (projectId: number, sessionId: number) =>
     http.post<unknown, AgentDraftItem>(`${base(projectId)}/sessions/${sessionId}/drafts`, {}),
-  getDraft: (projectId: number, draftId: number) =>
-    http.get<unknown, AgentDraftItem>(`${base(projectId)}/drafts/${draftId}`),
   updateDraft: (projectId: number, draftId: number, payload: AgentDraftPatchPayload) =>
     http.patch<unknown, AgentDraftItem>(`${base(projectId)}/drafts/${draftId}`, payload),
   replayPreview: (projectId: number, draftId: number) =>

@@ -274,12 +274,18 @@ async def list_requirements(
         .scalars()
         .all()
     )
+    # 一次查出当前页所有需求的关联，避免逐行查询（N+1）；空页不发查询。
+    links_by_requirement: dict[int, list[RequirementCaseLink]] = {}
+    requirement_ids = [requirement.id for requirement in rows]
+    if requirement_ids:
+        links = await db.execute(
+            select(RequirementCaseLink).where(RequirementCaseLink.requirement_id.in_(requirement_ids))
+        )
+        for link in links.scalars().all():
+            links_by_requirement.setdefault(link.requirement_id, []).append(link)
     items: list[RequirementListItem] = []
     for requirement in rows:
-        links = await db.execute(
-            select(RequirementCaseLink).where(RequirementCaseLink.requirement_id == requirement.id)
-        )
-        link_rows = list(links.scalars().all())
+        link_rows = links_by_requirement.get(requirement.id, [])
         items.append(
             _requirement_item(
                 requirement,

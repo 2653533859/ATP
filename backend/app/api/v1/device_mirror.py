@@ -683,7 +683,12 @@ async def device_text(
     """向设备当前激活输入框输入文本。"""
     device = await _get_online_device(device_id, db)
     await _require_control_lease(db, device_id, lease_token)
-    safe_text = body.text.replace(" ", "%s")
+    # adb 会把参数拼成一行交给设备端 shell：必须转义元字符，否则 ; & $ ( 等会被当作命令执行
+    from app.device_stream.manager import _sanitize_adb_input_text
+
+    safe_text = _sanitize_adb_input_text(body.text)
+    if not safe_text:
+        raise HTTPException(status_code=422, detail="文本不包含可输入的字符")
     if _use_android_worker():
         await _dispatch_worker_operation("text", device.serial, {"text": safe_text})
         return {"success": True}

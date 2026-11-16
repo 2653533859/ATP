@@ -30,7 +30,7 @@ make dev / dev-down   # full stack via docker compose
 make infra-up         # postgres + redis + minio only (docker-compose.dev.yml)
 make migrate          # cd backend && alembic upgrade head
 make backend          # uvicorn app.main:app --reload --port 8000
-make worker           # celery worker -Q default,mobile_special,ios,ai,maintenance,performance
+make worker           # celery worker -Q default,android,mobile_special,ios,ai,maintenance,performance
 make beat             # celery beat
 make frontend         # vite dev server at :5173
 ```
@@ -40,7 +40,7 @@ make frontend         # vite dev server at :5173
 ```bash
 make test-backend            # pytest backend/tests -q, excluding integration
 make test-frontend-build     # cd frontend && npm run type-check && npm run build
-make lint                    # ruff check backend/app backend/tests scripts/*.py
+make lint                    # ruff check backend/app backend/tests + the scripts listed in LINT_SCRIPTS (not all of scripts/)
 make format-check            # ruff format --check
 make mypy                    # mypy over core/ schemas/ services/ only (progressive baseline)
 make pre-commit              # all pre-commit hooks over all files
@@ -66,7 +66,7 @@ make test-frontend-e2e                                       # playwright (mock 
 make test-integration                                        # needs real PG/Redis/MinIO
 ```
 
-Test roots: `backend/tests/{api,services,worker,migrations,plans,integration,frontend}`, `frontend/src/**/*.spec.ts` (vitest), `frontend/e2e/*.spec.ts` (playwright).
+Test roots: `backend/tests/{api,core,services,worker,migrations,plans,scripts,integration,frontend}`, `frontend/src/**/*.spec.ts` (vitest), `frontend/e2e/*.spec.ts` (playwright).
 
 ### Security scans
 
@@ -94,7 +94,7 @@ POST /api/v1/cases/{id}/run → TestRun(pending) → Celery task on `default` qu
 - `core/` — `config.py` (pydantic-settings, all env vars), `database.py` (async engine), `security.py` (JWT/password), `encryption.py` (Fernet for secrets), `redis_client.py`, `minio_client.py`, `rate_limit.py` (slowapi), `cache_decorator.py`, `metrics.py`, `otel.py`/`tracing.py`, `migrations_check.py`, `slow_query.py`
 - `middleware/` — `csrf.py`, `trace.py`
 - `models/` — SQLAlchemy models; `bootstrap.py:load_all_models()` must import every model module for `create_all`/Alembic autogenerate to see it — add new model modules there
-- `api/v1/router.py` — registers all routers under `/api/v1`; `ws.py` mounts `/ws/runs/{run_id}`; `mock_server.py` mounts `/mock/`. `cases/` is split into `crud/runs/batch/workflow/common`
+- `api/v1/router.py` — registers all routers under `/api/v1`; `ws.py` mounts `/ws/runs/{run_id}`; `mock_server.py` mounts `/mock/`. `cases/` is split into `crud/runs/batch/workflow/importing/preview/common`
 - `api/deps.py` — `get_current_user()`, `require_roles()`, `require_admin`/`require_engineer`
 - `services/` — business logic: `adb_service`/`adb_resilience`/`device_sync`, `notifier`, `audit`, `bug_reporter`, `ai_healing*`/`ai_case/`/`ai_governance`, `failure_diagnosis`, `performance`, `dataset_schema`, `storage_cleanup`/`storage_alerts`/`run_retention`, `mobile_special/` (adb_client, parsers, collectors)
 - `worker/` — `celery_app.py` (queues, routes, beat schedule), `tasks*.py` split by domain, `dispatch.py`/`case_dispatch.py`/`async_runner.py`, `executors/` (one module per test type)
@@ -107,9 +107,11 @@ Routed in `celery_app.py`; a worker must subscribe explicitly (`-Q`):
 | Queue | Tasks |
 | --- | --- |
 | `default` | `run_test_case`, `run_test_suite`, `run_test_plan`, `check_cron_plans` |
-| `mobile_special` | Android special tasks, `scan_adb_devices` (real-device constrained) |
+| `android` | `scan_adb_devices`, `heartbeat_android_worker`, `run_android_device_operation` (real-device constrained) |
+| `mobile_special` | `run_mobile_special_task` (Android special tasks) |
+| `ios` | `reclaim_expired_ios_device_leases` |
 | `ai` | LLM calls (`diagnose_*`, `aggregate_healing_feedback`) — isolated for rate limiting/degradation |
-| `performance` | `run_performance_test` (k6) |
+| `performance` | `run_performance_test` (k6), `check_performance_schedules`, `heartbeat_performance_node` |
 | `maintenance` | cleanup, storage/dashboard alerts, postgres backups |
 
 Global limits: `task_time_limit=1800`, soft `1500`, `worker_max_tasks_per_child=50`, `prefetch=1`. Details in `docs/celery-queues.md`.
@@ -118,7 +120,7 @@ Global limits: `task_time_limit=1800`, soft `1500`, `worker_max_tasks_per_child=
 
 - `api/http.ts` — axios + JWT interceptor + 401 redirect; `api/index.ts` — all endpoint wrappers
 - `stores/auth.ts` (Pinia), `router/index.ts` (routes + auth guard), `utils/websocket.ts` (auto-reconnect wrapper)
-- `views/` by feature: auth, project, case, run, suite, plan, device, apk, mock, dashboard, audit, system, mobile-special
+- `views/` by feature: auth, account, project, case, run, suite, plan, report, defect, device, apk, mock, dashboard, workbench, intelligence, cloud-sync, audit, system, mobile-special
 - `locales/` — vue-i18n; new user-facing strings go through i18n keys, not literals (migration is partial — match the surrounding page)
 - Path alias `@` → `src/`; components auto-imported via `unplugin-vue-components` (`components.d.ts` is generated)
 - `vite.config.ts` uses `manualChunks` to split ant-design-vue / echarts / icons / vuedraggable / monaco; routes are lazy-loaded
@@ -127,7 +129,7 @@ Global limits: `task_time_limit=1800`, soft `1500`, `worker_max_tasks_per_child=
 
 - **Schema is Alembic-owned.** `APP_AUTO_CREATE_TABLES` defaults off; startup only *warns* when the DB is not at head (`verify_alembic_head_or_warn`). Always add a migration for model changes — see `docs/alembic-migration-guidelines.md` and `docs/migrations.md`. Alembic uses a sync psycopg2 URL; `env.py` converts from the asyncpg URL automatically.
 - **Redis DB separation**: DB0 broker, DB1 results, DB2 pub/sub.
-- **WebSocket auth via `?token=`** — the browser WS API cannot send custom headers.
+- **WebSocket auth via the same-origin HttpOnly access cookie** — the browser WS API cannot send custom headers, and a JWT in the URL would leak into history and proxy logs. The server still accepts `?token=` as a fallback for non-browser clients (`api/v1/ws.py`, `device_stream/router.py`).
 - **Pub/sub is best-effort**: `_safe_publish_run_event` swallows exceptions; correctness must not depend on a delivered event.
 - **TestCase/task config is a JSON column** to absorb per-test-type shape differences. Android special-task configs: performance `{interval_seconds, duration_seconds, auto_start}`, stability adds `operation_interval_ms`, fluency adds `stages: [{name, action, coords?}]`.
 - **Secrets encrypted at rest** with Fernet (global variables, notification/bug-tracker/LLM credentials).
@@ -149,4 +151,4 @@ Global limits: `task_time_limit=1800`, soft `1500`, `worker_max_tasks_per_child=
 - Comments and user-facing copy in this repo are predominantly Chinese — match the file you are editing
 - Commit style: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`)
 - Config via `.env` (see `.env.example`), loaded by `backend/app/core/config.py`. Default admin comes from `FIRST_ADMIN_*`, created on first boot
-- CI (`.github/workflows/`): `ci.yml` (empty-DB migration check, backend pytest, frontend type-check+build) on push/PR to main; `security.yml`, `test-integration.yml`, `test-e2e.yml`, `release-readiness.yml` are nightly/manual — see `docs/ci-workflows.md`
+- CI (`.github/workflows/`): `ci.yml` (empty-DB migration check, backend pytest, frontend type-check+build) weekly (Sunday 02:00 UTC) or by manual dispatch — it does not run on push/PR; `security.yml` is weekly/manual, and `test-integration.yml`, `test-e2e.yml`, `release-readiness.yml` are manual — see `docs/ci-workflows.md`

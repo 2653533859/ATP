@@ -274,6 +274,7 @@ import {
   type WorkbenchTaskItem,
   type WorkbenchTaskType,
 } from '@/api'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -311,7 +312,8 @@ const diagnosisOpen = ref(false)
 const diagnosisLoading = ref(false)
 const diagnosisError = ref(false)
 const diagnosis = ref<FailureDiagnosisResult | null>(null)
-let refreshTimer: number | undefined
+// 标签页隐藏时暂停，上一轮未结束时不叠加请求
+const taskPolling = useVisiblePolling(() => loadTasks(), 10_000)
 let loadSequence = 0
 let diagnosisSequence = 0
 
@@ -620,14 +622,19 @@ function handleBatch(action: WorkbenchAction) {
   void executeBatch(action, eligible)
 }
 
+let unmounted = false
+
 onMounted(async () => {
   await loadProjects()
   await loadTasks()
-  refreshTimer = window.setInterval(loadTasks, 10_000)
+  // 加载期间组件已卸载时不再注册定时器，否则它永远不会被清除
+  if (unmounted) return
+  taskPolling.start()
 })
 
 onBeforeUnmount(() => {
-  if (refreshTimer !== undefined) window.clearInterval(refreshTimer)
+  unmounted = true
+  taskPolling.stop()
 })
 
 const archiveSubmitting = ref(false)

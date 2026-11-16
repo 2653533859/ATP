@@ -34,18 +34,14 @@ export function getBackendOrigin() {
   return import.meta.env.DEV ? 'http://localhost:8000' : window.location.origin
 }
 
-// 浏览器使用 HttpOnly Cookie；Bearer 仅保留给显式注入的外部客户端场景。
+// 鉴权走同源 HttpOnly Cookie（withCredentials），请求不带 Authorization 头。
 http.interceptors.request.use((config) => {
   if (blocksPrototypeWrite(config.method, config.url)) {
     return Promise.reject({ code: prototypeWriteBlockedCode })
   }
-  const auth = useAuthStore()
   config.headers['X-Requested-With'] = 'XMLHttpRequest'
   const currentMode = getRuntimeMode()?.mode || (import.meta.env.VITE_ATP_LOCAL_MODE === 'true' ? 'local' : 'server')
   config.headers['X-ATP-Client-Mode'] = currentMode
-  if (auth.token) {
-    config.headers.Authorization = `Bearer ${auth.token}`
-  }
   return config
 })
 

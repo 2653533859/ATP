@@ -415,7 +415,7 @@ function Show-Doctor {
 
   $result = Show-DoctorCheck -Label 'Python virtual environment' -Passed (Test-Path $BackendPython) -Hint 'Create backend/.venv and install backend requirements.'
   $failed += $result
-  $result = Show-DoctorCheck -Label 'Node.js 20+, Vite and Playwright packages' -Passed (($null -ne $NodeExe) -and (Test-Path $ViteEntry) -and (Test-Path $PlaywrightPackage)) -Hint 'Install Node.js 20+ and run npm ci in frontend.'
+  $result = Show-DoctorCheck -Label 'Node.js 22+, Vite and Playwright packages' -Passed (($null -ne $NodeExe) -and (Test-Path $ViteEntry) -and (Test-Path $PlaywrightPackage)) -Hint 'Install Node.js 20+ and run npm ci in frontend.'
   $failed += $result
 
   $webRecorderMode = Get-WebRecordingMode
@@ -573,7 +573,7 @@ function Ensure-Prerequisites {
   Assert-Exists -Path $ConfiguredEnvFile -Message "Missing selected environment file $ConfiguredEnvFile. Run the doctor action first."
   Assert-Exists -Path $BackendPython -Message "Missing $BackendPython. Prepare backend/.venv first."
   if (-not $NodeExe) {
-    throw 'Missing node.exe. Install Node.js 20+ and ensure it is on PATH.'
+    throw 'Missing node.exe. Install Node.js 22+ and ensure it is on PATH.'
   }
   Assert-Exists -Path $ViteEntry -Message "Missing $ViteEntry. Run npm ci in frontend first."
 }

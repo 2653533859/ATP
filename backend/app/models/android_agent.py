@@ -20,9 +20,8 @@ class AndroidAgentSession(Base, TimestampMixin):
     device_id: Mapped[int | None] = mapped_column(
         ForeignKey("devices.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    created_by: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
-    )
+    # 不建索引：迁移 0086 与本地 SQLite schema 都没有为该列建索引，模型与两侧保持一致
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     title: Mapped[str] = mapped_column(String(128), nullable=False, default="Android Agent Session")
     goal: Mapped[str] = mapped_column(Text, nullable=False)
     expected_outcome: Mapped[str] = mapped_column(Text, nullable=False)

@@ -487,7 +487,7 @@ def test_force_takeover_lease_writes_audit_log_and_returns_token(monkeypatch):
 
     async def fake_force_takeover(_db, _device_id, **kwargs):
         assert kwargs == {"owner_id": 1, "owner_label": "应急运维", "ttl_seconds": 120}
-        return lease, {"lease_id": 88, "owner_id": 5, "owner_label": "worker-a"}
+        return lease
 
     async def fake_write_audit_log(_db, **kwargs):
         audited.append(kwargs)
@@ -516,8 +516,7 @@ def test_force_takeover_lease_writes_audit_log_and_returns_token(monkeypatch):
     assert audited[0]["username"] == "admin"
     assert audited[0]["ip_address"] == "127.0.0.1"
     detail = str(audited[0]["detail"])
-    assert "previous_lease_id=88" in detail
-    assert "previous_owner_label=worker-a" in detail
+    assert "owner_label=应急运维" in detail
     assert "reason=镜像卡死" in detail
 
 

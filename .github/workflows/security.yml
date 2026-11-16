@@ -68,48 +68,49 @@ jobs:
       - name: Run npm audit
         run: npm --prefix frontend audit --audit-level=high
 
+  # 三个镜像各自独立构建 + 扫描：此前串在同一个 job 里，前一个镜像扫描失败
+  # （例如 worker 的内嵌工具漏洞）会让后面的镜像根本不被扫描。
   image-scan:
-    name: Trivy image scan
+    name: Trivy image scan (${{ matrix.image }})
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: backend
+            context: backend
+            dockerfile: backend/Dockerfile
+          - image: worker
+            context: backend
+            dockerfile: backend/Dockerfile.worker
+          - image: frontend
+            context: frontend
+            dockerfile: frontend/Dockerfile
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Build backend image
-        run: docker build -t atp-backend:security backend/
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-      - name: Scan backend image
+      # 层缓存按镜像分 scope，互不覆盖；load 后镜像进入本机 docker，供 Trivy 扫描。
+      - name: Build ${{ matrix.image }} image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          tags: atp-${{ matrix.image }}:security
+          load: true
+          cache-from: type=gha,scope=atp-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=atp-${{ matrix.image }}
+
+      - name: Scan ${{ matrix.image }} image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
-          image-ref: atp-backend:security
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          format: table
-          exit-code: '1'
-
-      - name: Build worker image
-        run: docker build -t atp-worker:security -f backend/Dockerfile.worker backend/
-
-      - name: Scan worker image
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: image
-          image-ref: atp-worker:security
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          format: table
-          exit-code: '1'
-
-      - name: Build frontend image
-        run: docker build -t atp-frontend:security frontend/
-
-      - name: Scan frontend image
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: image
-          image-ref: atp-frontend:security
+          image-ref: atp-${{ matrix.image }}:security
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           format: table

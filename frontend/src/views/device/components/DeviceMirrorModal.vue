@@ -22,7 +22,7 @@
             <a-tag :color="hasControlLease ? 'success' : 'warning'" class="header-lease-tag">
               <CheckCircleOutlined v-if="hasControlLease" />
               <LockOutlined v-else />
-              {{ hasControlLease ? `控制权已生效 (${leaseRemainingText})` : '只读模式' }}
+              {{ hasControlLease ? t('device.mirror_modal.lease_active', { remaining: leaseRemainingText }) : t('device.mirror_modal.lease_readonly') }}
             </a-tag>
           </a-tooltip>
           <a-button
@@ -33,7 +33,7 @@
             :loading="leaseAcquiring"
             @click="acquireInteractiveLease(false)"
           >
-            获取控制权
+            {{ t('device.mirror_modal.acquire_control') }}
           </a-button>
         </div>
       </div>
@@ -45,16 +45,16 @@
         class="mirror-lease-alert"
         type="warning"
         show-icon
-        :message="`当前无法控制设备：${leaseError}`"
-        description="设备可能正被其他任务或另一位用户占用。可稍后重试；若长时间占用，请在设备管理中确认来源后再接管。"
+        :message="t('device.mirror_modal.lease_alert_message', { reason: leaseError })"
+        :description="t('device.mirror_modal.lease_alert_description')"
       >
         <template #action>
           <a-space direction="vertical" size="small">
             <a-button size="small" :loading="leaseAcquiring" @click="acquireInteractiveLease(false)">
-              重试获取控制权
+              {{ t('device.mirror_modal.retry_acquire') }}
             </a-button>
             <a-button size="small" type="link" :loading="leaseAcquiring" @click="acquireInteractiveLease(false, true)">
-              接管我自己的租约
+              {{ t('device.mirror_modal.takeover_own') }}
             </a-button>
           </a-space>
         </template>
@@ -87,7 +87,7 @@
             v-if="!isScrcpyLive && mirrorSrc"
             ref="screenImgRef"
             :src="mirrorSrc"
-            alt="Android 设备画面"
+            :alt="t('device.screen_alt')"
             class="mirror-img"
             :style="mirrorScreenStyle"
             draggable="false"
@@ -104,24 +104,24 @@
         </div>
         <div v-if="!isScrcpyLive && !mirrorSrc" class="mirror-placeholder">
           <span v-if="mirrorError" role="alert">{{ mirrorError }}</span>
-          <a-spin v-else tip="正在连接设备画面..." />
+          <a-spin v-else :tip="t('device.connecting')" />
         </div>
       </div>
 
       <!-- 快捷导航栏 (Back, Home, Recents, Power, Vol+, Vol-) -->
       <div class="mirror-nav-bar">
         <div class="nav-btn-group">
-          <a-tooltip :title="hasControlLease ? '返回键 (Back)' : '需要控制权'">
+          <a-tooltip :title="hasControlLease ? t('device.mirror_modal.key_back') : t('device.mirror_modal.need_control')">
             <button class="nav-key-btn" :disabled="!hasControlLease" @click="sendKeyEvent(4)">
               <LeftOutlined />
             </button>
           </a-tooltip>
-          <a-tooltip :title="hasControlLease ? '主屏幕 (Home)' : '需要控制权'">
+          <a-tooltip :title="hasControlLease ? t('device.mirror_modal.key_home') : t('device.mirror_modal.need_control')">
             <button class="nav-key-btn" :disabled="!hasControlLease" @click="sendKeyEvent(3)">
               <HomeOutlined />
             </button>
           </a-tooltip>
-          <a-tooltip :title="hasControlLease ? '多任务 (Recent Apps)' : '需要控制权'">
+          <a-tooltip :title="hasControlLease ? t('device.mirror_modal.key_recents') : t('device.mirror_modal.need_control')">
             <button class="nav-key-btn" :disabled="!hasControlLease" @click="sendKeyEvent(187)">
               <AppstoreOutlined />
             </button>
@@ -129,17 +129,17 @@
         </div>
         <div class="nav-separator"></div>
         <div class="nav-btn-group">
-          <a-tooltip :title="hasControlLease ? '电源键 (Power)' : '需要控制权'">
+          <a-tooltip :title="hasControlLease ? t('device.mirror_modal.key_power') : t('device.mirror_modal.need_control')">
             <button class="nav-key-btn nav-power-btn" :disabled="!hasControlLease" @click="sendKeyEvent(26)">
               <PoweroffOutlined />
             </button>
           </a-tooltip>
-          <a-tooltip :title="hasControlLease ? '音量减' : '需要控制权'">
+          <a-tooltip :title="hasControlLease ? t('device.mirror_modal.key_volume_down') : t('device.mirror_modal.need_control')">
             <button class="nav-key-btn" :disabled="!hasControlLease" @click="sendKeyEvent(25)">
               <MinusOutlined />
             </button>
           </a-tooltip>
-          <a-tooltip :title="hasControlLease ? '音量加' : '需要控制权'">
+          <a-tooltip :title="hasControlLease ? t('device.mirror_modal.key_volume_up') : t('device.mirror_modal.need_control')">
             <button class="nav-key-btn" :disabled="!hasControlLease" @click="sendKeyEvent(24)">
               <PlusOutlined />
             </button>
@@ -148,9 +148,9 @@
       </div>
 
       <div v-if="canModify && recordable" class="mirror-record-bar">
-        <a-button v-if="!recording" size="small" @click="startRecording">开始录制步骤</a-button>
+        <a-button v-if="!recording" size="small" @click="startRecording">{{ t('device.mirror_modal.start_recording') }}</a-button>
         <template v-else>
-          <span>已录制 {{ recordedSteps.length }} 步</span>
+          <span>{{ t('device.mirror_modal.recorded_count', { count: recordedSteps.length }) }}</span>
           <a-button
             size="small"
             class="pick-assert-btn"
@@ -159,7 +159,7 @@
             :disabled="isInteracting || finishingRecording"
             @click="pickAssertMode = !pickAssertMode"
           >
-            {{ pickAssertMode ? '退出点选断言' : '点选断言' }}
+            {{ pickAssertMode ? t('device.mirror_modal.exit_pick_assert') : t('device.mirror_modal.pick_assert') }}
           </a-button>
           <a-button
             size="small"
@@ -168,14 +168,14 @@
             :disabled="!recordedSteps.length"
             @click="finishRecording"
           >
-            编辑录制用例
+            {{ t('device.mirror_modal.edit_recorded_case') }}
           </a-button>
-          <a-button size="small" :disabled="finishingRecording" @click="discardRecording">丢弃录制</a-button>
+          <a-button size="small" :disabled="finishingRecording" @click="discardRecording">{{ t('device.mirror_modal.discard_recording') }}</a-button>
         </template>
-        <a-tooltip title="结束录制时自动根据当前屏幕提取并追加页面断言（文本/元素）">
+        <a-tooltip :title="t('device.mirror_modal.auto_assert_tooltip')">
           <label class="mirror-auto-assert-toggle">
             <a-switch v-model:checked="autoAssert" size="small" :disabled="finishingRecording" />
-            <span>自动断言</span>
+            <span>{{ t('device.mirror_modal.auto_assert') }}</span>
           </label>
         </a-tooltip>
       </div>
@@ -185,7 +185,7 @@
         <a-input
           v-model:value="quickInputText"
           :type="quickInputSensitive ? 'password' : 'text'"
-          :placeholder="hasControlLease ? (quickInputSensitive ? '输入敏感文本并回车（录制将自动脱敏）' : '输入文字按回车发送到手机') : '获取控制权后可输入文字并发送'"
+          :placeholder="quickInputPlaceholder"
           :disabled="!hasControlLease"
           size="small"
           allow-clear
@@ -211,7 +211,7 @@
           class="mirror-sensitive-toggle"
           :disabled="!hasControlLease"
         >
-          敏感输入（脱敏）
+          {{ t('device.mirror_modal.sensitive_input') }}
         </a-checkbox>
       </div>
 
@@ -226,7 +226,7 @@
               :disabled="!props.device"
               @click="handleReconnectStream"
             >
-              <ReloadOutlined /> 重连极速流
+              <ReloadOutlined /> {{ t('device.mirror_modal.reconnect_stream') }}
             </a-button>
             <a-button
               v-if="!isScrcpyLive"
@@ -234,12 +234,12 @@
               :disabled="!props.device"
               @click="retryScreenshot"
             >
-              刷新截图
+              {{ t('device.refresh_screenshot') }}
             </a-button>
             <a-radio-group v-model:value="mirrorScaleMode" size="small" button-style="solid">
-              <a-radio-button value="auto">标准</a-radio-button>
-              <a-radio-button value="large">大屏</a-radio-button>
-              <a-radio-button value="max">超宽</a-radio-button>
+              <a-radio-button value="auto">{{ t('device.mirror_modal.scale_auto') }}</a-radio-button>
+              <a-radio-button value="large">{{ t('device.mirror_modal.scale_large') }}</a-radio-button>
+              <a-radio-button value="max">{{ t('device.mirror_modal.scale_max') }}</a-radio-button>
             </a-radio-group>
           </a-space>
         </div>
@@ -250,17 +250,17 @@
             </span>
             <span class="stream-status-pill">
               <template v-if="isScrcpyLive">
-                <span class="status-dot dot-live">●</span> scrcpy 极速实时流 ({{ currentFps }} FPS)
+                <span class="status-dot dot-live">●</span> {{ t('device.mirror_modal.stream_live', { fps: currentFps }) }}
               </template>
               <template v-else-if="mirrorSrc">
-                <span class="status-dot dot-fallback">●</span> 截图降级模式
+                <span class="status-dot dot-fallback">●</span> {{ t('device.mirror_modal.stream_fallback') }}
                 <span v-if="streamFallbackReason" class="fallback-reason">· {{ streamFallbackReason }}</span>
               </template>
               <template v-else-if="mirrorError">
-                <span class="status-dot dot-error">●</span> 画面获取失败
+                <span class="status-dot dot-error">●</span> {{ t('device.mirror_modal.stream_failed') }}
               </template>
               <template v-else>
-                <span class="status-dot dot-connecting">●</span> 正在连接画面...
+                <span class="status-dot dot-connecting">●</span> {{ t('device.mirror_modal.stream_connecting') }}
               </template>
             </span>
           </a-space>
@@ -271,6 +271,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import {
   AppstoreOutlined,
@@ -286,7 +287,6 @@ import {
   ReloadOutlined,
   SendOutlined,
 } from '@ant-design/icons-vue'
-import { useAuthStore } from '@/stores/auth'
 import { deviceApi, type DeviceItem } from '@/api'
 import { isWebCodecsSupported, useWebCodecsDecoder } from '@/composables/useWebCodecsDecoder'
 import {
@@ -318,6 +318,8 @@ const emit = defineEmits<{
   (e: 'draft-captured', steps: AndroidRecordedStepDraft[], device: DeviceItem | null): void
 }>()
 
+const { t } = useI18n()
+
 const visible = computed({
   get: () => props.open,
   set: (val: boolean) => emit('update:open', val),
@@ -325,29 +327,21 @@ const visible = computed({
 
 const title = computed(() => {
   const d = props.device
-  if (!d) return '设备投屏'
+  if (!d) return t('device.mirror_modal.title_fallback')
   const model = (d.model || d.name || '').trim()
   const brand = (d.brand || '').trim()
   const brandModel = model.toLowerCase().startsWith(brand.toLowerCase()) ? model : `${brand} ${model}`.trim()
-  return brandModel ? `设备投屏 · ${brandModel}` : `设备投屏 · ${d.serial}`
+  return t('device.mirror_title', { name: brandModel || d.serial })
 })
 
-const DEVICE_STATUS_META: Record<string, { label: string; color: string }> = {
-  online: { label: '在线', color: 'success' },
-  busy: { label: '执行中', color: 'processing' },
-  offline: { label: '离线', color: 'default' },
-}
-const deviceStatusMeta = computed(
-  () => DEVICE_STATUS_META[props.device?.status ?? ''] ?? { label: props.device?.status ?? '离线', color: 'default' },
-)
+const deviceStatusMeta = computed(() => {
+  const status = props.device?.status
+  if (status === 'online') return { label: t('device.statuses.online'), color: 'success' }
+  if (status === 'busy') return { label: t('device.statuses.busy'), color: 'processing' }
+  if (status === 'offline') return { label: t('device.statuses.offline'), color: 'default' }
+  return { label: status ?? t('device.statuses.offline'), color: 'default' }
+})
 
-function getAuthToken(): string {
-  try {
-    return useAuthStore().token || localStorage.getItem('token') || ''
-  } catch {
-    return typeof localStorage !== 'undefined' ? (localStorage.getItem('token') || '') : ''
-  }
-}
 const internalLeaseToken = ref<string | null>(null)
 const leaseAcquiring = ref(false)
 const leaseError = ref('')
@@ -356,6 +350,9 @@ const leaseRemainingSeconds = ref(0)
 let leaseCountdownTimer: ReturnType<typeof setInterval> | null = null
 let leaseHeartbeatTimer: ReturnType<typeof setInterval> | null = null
 let leaseRequestInFlight = false
+// 内部租约所属的设备 id：释放/续期必须针对申请时的设备，而不是当前 props.device。
+let leaseDeviceId: number | null = null
+let disposed = false
 // 心跳每 25s 续期；TTL 取 90s，标签页被关闭或休眠时设备最多被占用约 1.5 分钟。
 const LEASE_TTL_SECONDS = 90
 
@@ -368,7 +365,7 @@ const hasControlLease = computed(() => {
 })
 
 const leaseRemainingText = computed(() => {
-  if (leaseRemainingSeconds.value <= 0) return '有效'
+  if (leaseRemainingSeconds.value <= 0) return t('device.mirror_modal.lease_valid')
   const mins = Math.floor(leaseRemainingSeconds.value / 60)
   const secs = leaseRemainingSeconds.value % 60
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`
@@ -376,9 +373,9 @@ const leaseRemainingText = computed(() => {
 
 const leaseTooltip = computed(() => {
   if (hasControlLease.value) {
-    return '已持有设备控制租约，可直接在屏幕上触控、滑动、输入文字或使用按键。'
+    return t('device.mirror_modal.lease_tooltip_active')
   }
-  return '未获得设备控制租约，当前处于只读观察模式。点击“获取控制权”可申请交互租约。'
+  return t('device.mirror_modal.lease_tooltip_readonly')
 })
 
 /** http 拦截器以字符串拒绝（detail）或抛 axios 错误，两种形态都要取出可展示的原因。 */
@@ -388,33 +385,56 @@ function leaseErrorText(err: unknown): string {
   if (typeof detail === 'string' && detail.trim()) return detail.trim()
   const message = (err as { message?: unknown })?.message
   if (typeof message === 'string' && message.trim()) return message.trim()
-  return '设备可能正被其他任务占用'
+  return t('device.mirror_modal.lease_default_reason')
+}
+
+/** 申请租约的请求返回时，弹窗是否仍为同一设备打开着。 */
+function isLeaseTargetCurrent(deviceId: number) {
+  return !disposed && props.open && props.device?.id === deviceId
 }
 
 async function acquireInteractiveLease(silent = false, takeoverOwn = false) {
   if (!props.device || hasControlLease.value || leaseRequestInFlight) return
+  const deviceId = props.device.id
+  let stale = false
   leaseRequestInFlight = true
   leaseAcquiring.value = true
   leaseError.value = ''
   try {
-    const res = await deviceApi.acquireLease(props.device.id, {
+    const res = await deviceApi.acquireLease(deviceId, {
       ttl_seconds: LEASE_TTL_SECONDS,
       owner_label: '投屏控制',
       ...(takeoverOwn ? { takeover_own: true } : {}),
     })
-    internalLeaseToken.value = res.lease_token || null
-    startLeaseHeartbeat(LEASE_TTL_SECONDS)
+    const token = res.lease_token || null
+    if (!isLeaseTargetCurrent(deviceId)) {
+      // 请求在途时弹窗已关闭或已切换设备：立即归还刚拿到的租约，不写入 token、不启动倒计时/心跳。
+      stale = true
+      if (token) void deviceApi.releaseLease(deviceId, token).catch(() => {})
+      return
+    }
+    internalLeaseToken.value = token
+    leaseDeviceId = token ? deviceId : null
+    if (token) startLeaseHeartbeat(LEASE_TTL_SECONDS)
     if (!silent) {
-      message.success('已成功获取设备控制权')
+      message.success(t('device.mirror_modal.acquire_success'))
     }
   } catch (err: unknown) {
+    if (!isLeaseTargetCurrent(deviceId)) {
+      stale = true
+      return
+    }
     leaseError.value = leaseErrorText(err)
     if (!silent) {
-      message.warning(`获取控制权失败: ${leaseError.value}`)
+      message.warning(t('device.mirror_modal.acquire_failed', { reason: leaseError.value }))
     }
   } finally {
     leaseRequestInFlight = false
     leaseAcquiring.value = false
+    // 在途期间切到了另一台设备：那次申请被 leaseRequestInFlight 挡掉了，这里为当前设备补申请。
+    if (stale && !disposed && props.open && props.device && !props.leaseToken) {
+      void acquireInteractiveLease(true)
+    }
   }
 }
 
@@ -430,19 +450,26 @@ function startLeaseHeartbeat(ttl = LEASE_TTL_SECONDS) {
     if (diff <= 0) {
       stopLeaseHeartbeat()
       internalLeaseToken.value = null
+      leaseDeviceId = null
     }
   }, 1000)
 
   leaseHeartbeatTimer = setInterval(async () => {
-    if (!props.device || !internalLeaseToken.value) return
+    const token = internalLeaseToken.value
+    const deviceId = leaseDeviceId
+    if (deviceId === null || !token) return
     try {
-      await deviceApi.heartbeatLease(props.device.id, internalLeaseToken.value, LEASE_TTL_SECONDS)
+      await deviceApi.heartbeatLease(deviceId, token, LEASE_TTL_SECONDS)
+      // 续期在途时租约已被释放或换成了另一台设备的租约：结果作废。
+      if (internalLeaseToken.value !== token) return
       leaseExpiresAt.value = Date.now() + LEASE_TTL_SECONDS * 1000
       leaseRemainingSeconds.value = LEASE_TTL_SECONDS
     } catch {
+      if (internalLeaseToken.value !== token) return
       stopLeaseHeartbeat()
       internalLeaseToken.value = null
-      leaseError.value = '设备租约续期失败，可能已被收回'
+      leaseDeviceId = null
+      leaseError.value = t('device.mirror_modal.lease_renew_failed')
     }
   }, 25000)
 }
@@ -461,34 +488,31 @@ function stopLeaseHeartbeat() {
 }
 
 async function releaseInteractiveLease() {
-  if (props.device && internalLeaseToken.value) {
-    const token = internalLeaseToken.value
-    internalLeaseToken.value = null
-    stopLeaseHeartbeat()
-    try {
-      await deviceApi.releaseLease(props.device.id, token)
-    } catch {}
-  }
+  const token = internalLeaseToken.value
+  const deviceId = leaseDeviceId
+  internalLeaseToken.value = null
+  leaseDeviceId = null
+  stopLeaseHeartbeat()
+  if (deviceId === null || !token) return
+  try {
+    await deviceApi.releaseLease(deviceId, token)
+  } catch {}
 }
 
 function releaseLeaseOnPageHide() {
-  if (!props.device || !internalLeaseToken.value) return
   const token = internalLeaseToken.value
-  const deviceId = props.device.id
+  const deviceId = leaseDeviceId
+  if (deviceId === null || !token) return
   internalLeaseToken.value = null
+  leaseDeviceId = null
   stopLeaseHeartbeat()
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest',
-  }
-  const authToken = getAuthToken()
-  if (authToken) {
-    headers.Authorization = `Bearer ${authToken}`
-  }
   if (typeof fetch === 'function') {
     void fetch(`/api/v1/devices/${deviceId}/lease`, {
       method: 'DELETE',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
       body: JSON.stringify({ lease_token: token }),
       credentials: 'include',
       keepalive: true,
@@ -504,8 +528,8 @@ const streamFallbackReason = ref('')
 
 function describeStreamFallback(): string {
   if (typeof window === 'undefined') return ''
-  if (!window.isSecureContext) return '实时流需 HTTPS 或 localhost 访问'
-  return '当前浏览器不支持 WebCodecs'
+  if (!window.isSecureContext) return t('device.mirror_modal.fallback_insecure')
+  return t('device.mirror_modal.fallback_no_webcodecs')
 }
 let mirrorObjectUrl: string | null = null
 let mirrorTimer: ReturnType<typeof setInterval> | null = null
@@ -544,6 +568,12 @@ const mirrorScreenStyle = computed(() => {
 })
 
 const quickInputText = ref('')
+const quickInputPlaceholder = computed(() => {
+  if (!hasControlLease.value) return t('device.mirror_modal.input_placeholder_readonly')
+  return quickInputSensitive.value
+    ? t('device.mirror_modal.input_placeholder_sensitive')
+    : t('device.mirror_modal.input_placeholder')
+})
 const quickInputSensitive = ref(false)
 const recording = ref(false)
 const autoAssert = ref(true)
@@ -592,13 +622,13 @@ async function pickAssertionAtPoint(point: { x: number; y: number }) {
     const response = await deviceApi.uiTarget(props.device.id, point)
     const step = buildAndroidBestAssertionStepFromTarget(response.target)
     if (!step) {
-      message.warning('该位置未识别到可用于断言的文本或资源 ID')
+      message.warning(t('device.mirror_modal.assert_target_missing'))
       return
     }
     appendRecordedStep(step.action, step.name, step.params)
-    message.success(`已添加${step.name}`)
+    message.success(t('device.mirror_modal.assert_added', { name: step.name }))
   } catch {
-    message.warning('控件属性获取失败，无法提取断言')
+    message.warning(t('device.mirror_modal.assert_fetch_failed'))
   } finally {
     isInteracting.value = false
   }
@@ -694,9 +724,8 @@ function initScrcpyStream(serial: string) {
   }, 5000)
 
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const authToken = getAuthToken()
-  const tokenParam = authToken ? `?token=${encodeURIComponent(authToken)}` : ''
-  const wsUrl = `${proto}//${window.location.host}/ws/scrcpy/${encodeURIComponent(serial)}${tokenParam}`
+  // WebSocket 握手自动携带同源 HttpOnly Cookie，JWT 不进 URL。
+  const wsUrl = `${proto}//${window.location.host}/ws/scrcpy/${encodeURIComponent(serial)}`
   scrcpyWs = new WebSocket(wsUrl)
   scrcpyWs.binaryType = 'arraybuffer'
 
@@ -911,7 +940,7 @@ async function onScreenMouseUp(e: MouseEvent) {
     if (distance < 10) {
       await pickAssertionAtPoint({ x: realStartX, y: realStartY })
     } else {
-      message.warning('点选断言模式下请点击目标控件，不要滑动屏幕')
+      message.warning(t('device.mirror_modal.pick_assert_no_swipe'))
     }
     return
   }
@@ -919,7 +948,7 @@ async function onScreenMouseUp(e: MouseEvent) {
   isInteracting.value = true
   try {
     if (!hasControlLease.value) {
-      message.warning('设备当前处于只读模式，请先点击右上角「获取控制权」')
+      message.warning(t('device.mirror_modal.readonly_warning'))
       return
     }
     if (distance < 10) {
@@ -943,8 +972,8 @@ async function onScreenMouseUp(e: MouseEvent) {
     }
     scheduleActionRefresh(150)
   } catch (err: unknown) {
-    const messageText = err && typeof err === 'object' && 'message' in err ? String(err.message) : '请检查设备'
-    message.warning(`操作未生效: ${messageText}`)
+    const messageText = err && typeof err === 'object' && 'message' in err ? String(err.message) : t('device.mirror_modal.check_device')
+    message.warning(t('device.mirror_modal.action_failed', { reason: messageText }))
   } finally {
     isInteracting.value = false
   }
@@ -953,7 +982,7 @@ async function onScreenMouseUp(e: MouseEvent) {
 async function sendKeyEvent(keycode: number | string) {
   if (!props.device) return
   if (!hasControlLease.value) {
-    message.warning('设备当前处于只读模式，请先点击右上角「获取控制权」')
+    message.warning(t('device.mirror_modal.readonly_warning'))
     return
   }
   if (isScrcpyLive.value && scrcpyWs && scrcpyWs.readyState === WebSocket.OPEN) {
@@ -969,7 +998,7 @@ async function sendKeyEvent(keycode: number | string) {
     }
   } catch (err: unknown) {
     const msg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err)
-    message.warning(`按键未响应: ${msg}`)
+    message.warning(t('device.mirror_modal.key_failed', { reason: msg }))
   }
 }
 
@@ -985,7 +1014,7 @@ async function sendQuickText() {
   const text = quickInputText.value.trim()
   if (!text || !props.device) return
   if (!hasControlLease.value) {
-    message.warning('设备当前处于只读模式，请先点击右上角「获取控制权」')
+    message.warning(t('device.mirror_modal.readonly_warning'))
     return
   }
   const recordQuickStep = () => {
@@ -1010,7 +1039,7 @@ async function sendQuickText() {
     }
   } catch (err: unknown) {
     const msg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err)
-    message.warning(`文字发送失败: ${msg}`)
+    message.warning(t('device.mirror_modal.text_failed', { reason: msg }))
   }
 }
 
@@ -1075,7 +1104,7 @@ async function refreshMirror(session = mirrorSession) {
     return true
   } catch {
     if (session === mirrorSession && !isScrcpyLive.value) {
-      mirrorError.value = '无法获取设备画面，请检查设备连接和 Android Worker，然后点击“刷新截图”。'
+      mirrorError.value = t('device.mirror_modal.screenshot_failed')
       stopMirrorPolling()
     }
     return false
@@ -1094,7 +1123,7 @@ async function retryScreenshot() {
 
 function onMirrorError() {
   revokeMirrorUrl()
-  mirrorError.value = '设备画面无法显示，请检查设备连接后点击“刷新截图”。'
+  mirrorError.value = t('device.mirror_modal.display_failed')
   stopMirrorPolling()
 }
 
@@ -1147,7 +1176,11 @@ watch(
 watch(
   () => props.device?.id,
   (newId, oldId) => {
-    if (props.open && newId && newId !== oldId && props.device) {
+    if (newId === oldId) return
+    // 打开状态下切换设备：旧设备的租约按旧设备 id 归还（连同心跳/倒计时），再为新设备申请。
+    void releaseInteractiveLease()
+    leaseError.value = ''
+    if (props.open && newId && props.device) {
       startMirror()
       if (!props.leaseToken) {
         acquireInteractiveLease(true)
@@ -1161,6 +1194,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   window.removeEventListener('pagehide', releaseLeaseOnPageHide)
   cleanupMirror()
   releaseInteractiveLease()

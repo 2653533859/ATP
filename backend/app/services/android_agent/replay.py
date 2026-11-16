@@ -21,14 +21,15 @@ from app.models.user import User
 from app.schemas.android_agent import (
     AgentReplayPreviewItem,
     AgentReplayPreviewResponse,
-    AgentReplayResponse,
 )
 from app.services.android_agent.compiler import DRAFT_SCHEMA_VERSION
 from app.core.tracing import get_trace_id
 
 REPLAYABLE_DRAFT_STATUSES = frozenset({"replayable", "pending_replay", "verified"})
 PASSED_REPLAY_STATUSES = frozenset({"passed"})
-_ANDROID_CASE_CONFIG_KEYS = ("package_name", "device_serial", "app_package", "strict_replay", "auto_launch")
+# 关联运行的终态原样写入回放状态；进行中的运行统一记为 running
+TERMINAL_RUN_STATUSES = frozenset({"passed", "failed", "error", "cancelled", "skipped"})
+ACTIVE_RUN_STATUSES = frozenset({"pending", "running"})
 
 
 def _now() -> datetime:
@@ -167,8 +168,51 @@ async def build_replay_preview(
     )
 
 
-def _replay_out(replay: AndroidAgentReplay) -> AgentReplayResponse:
-    return AgentReplayResponse.model_validate(replay)
+async def sync_replay_status(db: AsyncSession, replay: AndroidAgentReplay) -> bool:
+    """把关联运行的状态落到回放记录上；返回是否有变更（由调用方提交）。
+
+    回放交给 Android 低代码执行器后，执行器只更新 `TestRun`，不认识回放表。
+    不在这里落库的话 `find_verified_replay` 永远查不到 `passed`，草稿无法发布。
+    """
+    if replay.status in TERMINAL_RUN_STATUSES or not replay.run_id:
+        return False
+    run = await db.get(TestRun, replay.run_id)
+    if run is None:
+        return False
+    run_status = str(getattr(run.status, "value", run.status))
+    if run_status in TERMINAL_RUN_STATUSES:
+        replay.status = run_status
+        replay.finished_at = _now()
+        if run_status != "passed" and not replay.error_code:
+            replay.error_code = f"run_{run_status}"
+        return True
+    # 派发失败的回放其运行仍停在 pending，不能改写成 running
+    if run_status in ACTIVE_RUN_STATUSES and replay.status not in {"running", "dispatch_failed"}:
+        replay.status = "running"
+        return True
+    return False
+
+
+async def sync_draft_replays(db: AsyncSession, draft: AndroidAgentDraft) -> bool:
+    """同步当前草稿版本下尚未收敛的回放；发布前调用，避免依赖前端先轮询过回放状态。"""
+    replays = (
+        (
+            await db.execute(
+                select(AndroidAgentReplay).where(
+                    AndroidAgentReplay.draft_id == draft.id,
+                    AndroidAgentReplay.draft_version == draft.version,
+                    AndroidAgentReplay.content_hash == draft.content_hash,
+                    AndroidAgentReplay.status.notin_(TERMINAL_RUN_STATUSES),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    changed = False
+    for replay in replays:
+        changed = await sync_replay_status(db, replay) or changed
+    return changed
 
 
 async def find_replay_by_idempotency(
@@ -265,24 +309,6 @@ async def start_replay(
     return replay, case, run
 
 
-def completed_case_steps(snapshot: dict[str, Any], *, auto_approve: bool) -> list[dict[str, Any]]:
-    """把快照步骤转换成正式用例步骤；保存时补齐步骤序号。"""
-    steps: list[dict[str, Any]] = []
-    for index, raw in enumerate(snapshot.get("steps") or []):
-        if not isinstance(raw, dict):
-            continue
-        step = dict(raw)
-        step["step_no"] = index + 1
-        step.setdefault("status", "converted")
-        steps.append(step)
-    if not steps:
-        raise _conflict("draft_not_replayable: 草稿没有可保存的步骤")
-    if not auto_approve:
-        for step in steps:
-            step.pop("verified", None)
-    return steps
-
-
 async def find_verified_replay(db: AsyncSession, draft: AndroidAgentDraft) -> AndroidAgentReplay | None:
     """当前版本、当前内容哈希下通过的回放；编辑或重新编译后自动失效。"""
     return (
@@ -306,22 +332,16 @@ async def find_published_case(db: AsyncSession, draft: AndroidAgentDraft) -> Tes
     return await db.get(TestCase, draft.published_case_id)
 
 
-def mark_verified(draft: AndroidAgentDraft) -> None:
-    """有通过回放时标记验证资格；只是状态提示，不代替回放证据。"""
-    if draft.status == "pending_replay":
-        draft.status = "verified"
-
-
 __all__ = [
     "REPLAYABLE_DRAFT_STATUSES",
     "build_case_config",
     "build_replay_preview",
-    "completed_case_steps",
     "find_published_case",
     "find_replay_by_idempotency",
     "find_verified_replay",
     "frozen_snapshot",
     "get_module_or_404",
-    "mark_verified",
     "start_replay",
+    "sync_draft_replays",
+    "sync_replay_status",
 ]

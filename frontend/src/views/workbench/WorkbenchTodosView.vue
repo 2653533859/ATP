@@ -260,6 +260,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { CheckSquareOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import { caseApi, projectApi, workbenchApi, type CaseDetailItem, type ProjectItem, type WorkbenchOverviewItem, type WorkbenchTodoItem } from '@/api'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -278,7 +279,8 @@ const currentTotalTodos = computed(() => {
 })
 const todoPaginationTotal = computed(() => Math.min(currentTotalTodos.value, maxTodoOffset + todoPageSize))
 const loading = ref(false)
-let refreshTimer: number | undefined
+// 标签页隐藏时暂停，上一轮未结束时不叠加请求
+const overviewPolling = useVisiblePolling(() => loadOverview(), 30_000)
 let loadSequence = 0
 
 // Snooze dialog state
@@ -559,14 +561,19 @@ async function handleReviewSubmit() {
   }
 }
 
+let unmounted = false
+
 onMounted(async () => {
   await loadProjects()
   await loadOverview()
-  refreshTimer = window.setInterval(loadOverview, 30_000)
+  // 加载期间组件已卸载时不再注册定时器，否则它永远不会被清除
+  if (unmounted) return
+  overviewPolling.start()
 })
 
 onBeforeUnmount(() => {
-  if (refreshTimer !== undefined) window.clearInterval(refreshTimer)
+  unmounted = true
+  overviewPolling.stop()
 })
 </script>
 

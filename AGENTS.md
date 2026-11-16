@@ -29,7 +29,7 @@ Executors live in `backend/app/worker/executors/`, one module per test type — 
 
 `main` has no required status checks (private repo on a free plan — `branches/main/protection` and `rulesets` both return 403). CI red does not block a push, so the installed pre-commit and pre-push hooks are the only local enforcement. `docs/ci-workflows.md` records the measurement and the two ways to restore real enforcement.
 
-Python 3.12 is required. Node 20+ for the frontend.
+Python 3.12 is required. Node 22 for the frontend (`frontend/.nvmrc`, `engines` in `frontend/package.json`; CI and the frontend image use the same version).
 
 ## Coding Style & Naming Conventions
 
@@ -41,7 +41,7 @@ Python 3.12 is required. Node 20+ for the frontend.
 
 ## Testing Guidelines
 
-- Backend tests live in `backend/tests/{api,services,worker,migrations,plans,integration,frontend}`, named `test_<behavior>.py`. Frontend unit tests are `*.spec.ts` under `frontend/src` (Vitest); end-to-end specs are `frontend/e2e/*.spec.ts` (Playwright).
+- Backend tests live in `backend/tests/{api,core,services,worker,migrations,plans,scripts,integration,frontend}`, named `test_<behavior>.py`. Frontend unit tests are `*.spec.ts` under `frontend/src` (Vitest); end-to-end specs are `frontend/e2e/*.spec.ts` (Playwright).
 - `make test-backend` skips `backend/tests/integration`. Integration tests need real PostgreSQL/Redis/MinIO and run via `make test-integration` (`ATP_INTEGRATION_TESTS=1`, `integration` marker).
 - The root `backend/tests/conftest.py` stubs optional heavy dependencies with a fill-missing-only strategy — extend its defaults rather than adding blanket `sys.modules` overwrites. `PytestCollectionWarning` is escalated to an error, so keep collection clean.
 - The `flaky` marker requires an entry in `docs/flaky-governance.md` with cause, evidence and exit criteria.

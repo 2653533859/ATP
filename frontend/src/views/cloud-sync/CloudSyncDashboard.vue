@@ -369,7 +369,7 @@ async function loadAllData() {
     try {
       localStatus.value = await cloudSyncApi.getLocalStatus()
     } catch (err) {
-      message.error(t('cloud_sync.msg.load_failed', '加载同步状态失败'))
+      message.error(t('cloud_sync.msg.load_status_failed', '加载同步状态失败'))
     }
   } else {
     await Promise.all([loadStats(), loadRuns()])

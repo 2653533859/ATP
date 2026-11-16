@@ -3,9 +3,7 @@ import { ref } from 'vue'
 import { authApi } from '@/api'
 
 export const useAuthStore = defineStore('auth', () => {
-  // JWT 仅保存在 HttpOnly Cookie；token 仅保留给需要显式注入 Bearer 的外部场景。
-  const token = ref<string | null>(null)
-  const refreshToken = ref<string | null>(null)
+  // JWT 仅保存在同源 HttpOnly Cookie，前端不持有也不读取 token。
   const user = ref<{ id: number; username: string; email: string; role: string; is_active?: boolean } | null>(null)
   const initialized = ref(false)
 
@@ -41,11 +39,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function clearSession() {
-    token.value = null
-    refreshToken.value = null
     user.value = null
     initialized.value = true
   }
 
-  return { token, refreshToken, user, initialized, login, logout, clearSession, fetchMe, restoreSession }
+  return { user, initialized, login, logout, clearSession, fetchMe, restoreSession }
 })

@@ -9,6 +9,7 @@ DELETE /apks/{apk_id}       删除 APK
 GET    /apks/{apk_id}/download  获取 APK 下载链接
 """
 
+import asyncio
 import os
 import tempfile
 import uuid
@@ -96,7 +97,7 @@ async def upload_apk(
     object_name = _apk_object_name(project_id, filename)
     try:
         temp_path, file_size = await _save_upload_to_tempfile(file, max_size=_MAX_APK_SIZE)
-        metadata = extract_apk_metadata(temp_path)
+        metadata = await asyncio.to_thread(extract_apk_metadata, temp_path)
         extracted_package = metadata.get("package_name")
         if isinstance(extracted_package, str) and extracted_package.strip():
             extracted_package = extracted_package.strip()
@@ -113,8 +114,9 @@ async def upload_apk(
             extracted_version_code = metadata.get("version_code")
             if isinstance(extracted_version_code, int):
                 version_code = extracted_version_code
-        ensure_bucket()
-        upload_file(
+        await asyncio.to_thread(ensure_bucket)
+        await asyncio.to_thread(
+            upload_file,
             object_name,
             temp_path,
             content_type="application/vnd.android.package-archive",
@@ -200,7 +202,7 @@ async def delete_apk(
     await assert_project_access(db, user, apk.project_id, ProjectRole.editor)
     # 删除 MinIO 中的文件
     try:
-        delete_file(apk.object_name)
+        await asyncio.to_thread(delete_file, apk.object_name)
     except Exception:
         pass
     await db.delete(apk)
@@ -218,5 +220,5 @@ async def download_apk(
     if not apk:
         raise HTTPException(status_code=404, detail="APK 不存在")
     await assert_project_access(db, user, apk.project_id, ProjectRole.viewer)
-    url = presigned_url(apk.object_name, expires_seconds=3600)
+    url = await asyncio.to_thread(presigned_url, apk.object_name, expires_seconds=3600)
     return {"url": url, "filename": apk.filename}

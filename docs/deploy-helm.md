@@ -154,15 +154,12 @@ Chart 已为 backend / worker / beat / flower 提供 baseline `resources.request
 独立 performance worker 示例：
 
 ```yaml
-worker:
-  queues: default,ios,ai,maintenance
 config:
   CELERY_QUEUES: default,ios,ai,maintenance
 performanceWorker:
   enabled: true
   replicas: 1
   queues: performance.node-a,performance
-  concurrency: "1"
   metricsPort: 9092
   autoIdentity: false
   nodeEnabled: true

@@ -11,7 +11,8 @@ class MockRuleSnapshot(Base, TimestampMixin):
     __table_args__ = (UniqueConstraint("rule_id", "version", name="uq_mock_rule_snapshots_rule_id_version"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    rule_id: Mapped[int] = mapped_column(ForeignKey("mock_rules.id", ondelete="CASCADE"), nullable=False, index=True)
+    # 不单独建索引：迁移 0021 只建了 (rule_id, version) 唯一约束，它已覆盖按 rule_id 的查询
+    rule_id: Mapped[int] = mapped_column(ForeignKey("mock_rules.id", ondelete="CASCADE"), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     snapshot_data: Mapped[dict] = mapped_column(JSON, default=dict)
     note: Mapped[str | None] = mapped_column(Text)

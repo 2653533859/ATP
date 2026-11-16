@@ -91,7 +91,6 @@ services:
       dockerfile: Dockerfile.worker
     env_file: .env
     environment:
-      - CELERY_CONCURRENCY=${CELERY_CONCURRENCY:-4}
       - CELERY_QUEUES=${CELERY_QUEUES:-default,android,mobile_special,ios,ai,maintenance,performance}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4317}
       - OTEL_SERVICE_NAME=atp-worker

@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-import json
 import secrets
 from typing import Any
 
-from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -101,22 +98,9 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-async def _safe_publish_agent_event(session_id: int, event_dict: dict[str, Any]) -> None:
-    try:
-        from app.core.config import settings
-
-        if getattr(settings, "ATP_LOCAL_MODE", False):
-            return
-        from app.core.redis_client import close_async_redis, get_async_redis
-
-        r = get_async_redis(db=2)
-        try:
-            await r.publish(f"atp:agent:session:{session_id}", json.dumps(event_dict, ensure_ascii=False, default=str))
-        finally:
-            await close_async_redis(r)
-    except Exception:
-        # Best-effort notification: Redis connection failure must never abort DB transaction
-        pass
+def session_lease_ttl(session: AndroidAgentSession) -> int:
+    """会话租约时长：按步数预算估算，至少 15 分钟。获取与每次续期都用同一个值。"""
+    return max(900, session.budget_max_steps * 30 + 300)
 
 
 class AgentCoordinator:
@@ -160,17 +144,6 @@ class AgentCoordinator:
         )
         db.add(event)  # type: ignore[attr-defined]
         await db.flush()
-
-        event_dict = {
-            "id": event.id,
-            "session_id": event.session_id,
-            "seq": event.seq,
-            "event_type": event.event_type,
-            "payload": event.payload,
-            "artifact_refs": event.artifact_refs,
-            "created_at": event.created_at.isoformat() if event.created_at else _now().isoformat(),
-        }
-        await _safe_publish_agent_event(session_id, event_dict)
         return event
 
     async def create_session(
@@ -220,7 +193,7 @@ class AgentCoordinator:
         if session.device_id is None:
             raise AgentCoordinatorError("Session does not have an assigned device_id")
 
-        ttl = max(900, session.budget_max_steps * 30 + 300)
+        ttl = session_lease_ttl(session)
         try:
             lease = await acquire_device_lease(
                 db,
@@ -279,6 +252,8 @@ class AgentCoordinator:
             session.control_epoch += 1
             session.version += 1
             await db.flush()
+            # 暂停后等待人工处理：从暂停这一刻起重新计租约时长，而不是沿用会话启动时的到期时间
+            await self.renew_session_lease(db, session_id)
             await self.append_event(
                 db,
                 session.id,
@@ -290,12 +265,16 @@ class AgentCoordinator:
         elif action_val == AgentControlAction.takeover.value:
             if session.status in TERMINAL_STATUSES:
                 raise InvalidStateTransitionError(f"Cannot takeover session in terminal state '{session.status}'")
+            # 已暂停的会话可以直接转人工；其余状态必须是状态机允许暂停的（未启动的会话没有租约，不能接管）
+            if session.status != AgentSessionStatus.paused.value:
+                self.validate_transition(session.status, AgentSessionStatus.paused.value)
 
             session.controller = AgentController.manual.value
             session.status = AgentSessionStatus.paused.value
             session.control_epoch += 1
             session.version += 1
             await db.flush()
+            await self.renew_session_lease(db, session_id)
             await self.append_event(
                 db,
                 session.id,
@@ -381,7 +360,7 @@ class AgentCoordinator:
             action=request.action,
             params=request.params,
             idempotency_key=idempotency_key,
-            # 只登记"已准备"：真正写设备前必须由 dispatch_prepared_command 复核控制权
+            # 只登记"已准备"：真正写设备前由调用方（API 层的 ManualGate）复核租约、控制器与代次
             status="prepared",
         )
         db.add(cmd)  # type: ignore[attr-defined]
@@ -399,45 +378,6 @@ class AgentCoordinator:
             },
         )
         return cmd
-
-    async def dispatch_prepared_command(
-        self,
-        db: AsyncSession,
-        session_id: int,
-        command_id: int,
-        *,
-        execute: Callable[[AsyncSession, AndroidAgentSession, AndroidAgentCommand], None],
-    ) -> AndroidAgentCommand:
-        """人工动作的执行闸门：只有 controller=manual 且非终态时才允许落设备。
-
-        门禁内的任何拒绝都只把命令留在 prepared 并返回 409，不产生设备写入。
-        """
-        session = await self.get_session(db, session_id)
-        command = await db.get(AndroidAgentCommand, command_id)
-        if command is None or command.session_id != session_id:
-            raise AgentCoordinatorError(f"Command {command_id} not found for session {session_id}")
-        if command.status != "prepared":
-            return command
-        if session.status in TERMINAL_STATUSES or session.controller != "manual":
-            raise HTTPException(
-                status_code=409,
-                detail=f"manual_control_required: controller={session.controller}, status={session.status}",
-            )
-
-        execute(db, session, command)
-        command.status = "succeeded"
-        await db.flush()
-        await self.append_event(
-            db,
-            session_id,
-            event_type="manual_action_executed",
-            payload={
-                "command_id": command.id,
-                "action": command.action,
-                "control_epoch": session.control_epoch,
-            },
-        )
-        return command
 
     async def complete_session(
         self,
@@ -586,7 +526,8 @@ class AgentCoordinator:
             payload=payload,
         )
 
-    async def renew_session_lease(self, db: AsyncSession, session_id: int, ttl_seconds: int = 900) -> bool:
+    async def renew_session_lease(self, db: AsyncSession, session_id: int, ttl_seconds: int | None = None) -> bool:
+        """续期会话持有的设备租约；租约已丢失时返回 False，由写入门禁判定 lease_lost。"""
         session = await self.get_session(db, session_id)
         if session.status in TERMINAL_STATUSES:
             return False
@@ -594,9 +535,14 @@ class AgentCoordinator:
             return False
 
         try:
-            await heartbeat_device_lease(db, session.device_id, session.lease_token, ttl_seconds=ttl_seconds)
+            await heartbeat_device_lease(
+                db,
+                session.device_id,
+                session.lease_token,
+                ttl_seconds=ttl_seconds or session_lease_ttl(session),
+            )
             return True
-        except Exception:
+        except DeviceLeaseConflict:
             return False
 
     async def recover_orphaned_sessions(

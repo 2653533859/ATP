@@ -21,7 +21,7 @@ vi.mock('vue-router', () => ({
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('ant-design-vue', () => ({ Empty: { PRESENTED_IMAGE_SIMPLE: 'empty' }, message: { error: messageError, success: vi.fn() } }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ token: 'token', user: { role: 'engineer' }, fetchMe: vi.fn() }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { role: 'engineer' }, fetchMe: vi.fn() }) }))
 vi.mock('@/utils/websocket', () => ({ createRunWebSocket }))
 vi.mock('@/api', () => ({
   aiHealingPatchApi: { apply: vi.fn(), preview: vi.fn() },

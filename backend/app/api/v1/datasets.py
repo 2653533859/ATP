@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import json
@@ -677,7 +678,7 @@ async def update_dataset(
         try:
             from app.core.minio_client import delete_file
 
-            delete_file(previous_object_name)
+            await asyncio.to_thread(delete_file, previous_object_name)
         except Exception:
             pass
     await db.refresh(dataset)
@@ -850,7 +851,7 @@ async def rollback_dataset(
         try:
             from app.core.minio_client import delete_file
 
-            delete_file(previous_object_name)
+            await asyncio.to_thread(delete_file, previous_object_name)
         except Exception:
             pass
     await db.refresh(dataset)
@@ -920,7 +921,7 @@ async def upload_dataset(
         try:
             from app.core.minio_client import delete_file
 
-            delete_file(previous_object_name)
+            await asyncio.to_thread(delete_file, previous_object_name)
         except Exception:
             pass
     await db.refresh(dataset)

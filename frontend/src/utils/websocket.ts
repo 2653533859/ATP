@@ -83,8 +83,11 @@ export function createRunWebSocket(
   let ws: WebSocket | null = null
   let retries = 0
   const MAX_RETRIES = 3
+  let closed = false
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined
 
   function connect() {
+    if (closed) return
     // WebSocket 会自动携带同源 HttpOnly Cookie，避免 JWT 出现在 URL、历史记录或代理日志中。
     ws = new WebSocket(baseUrl)
 
@@ -107,9 +110,10 @@ export function createRunWebSocket(
         onClose?.()
         return
       }
+      if (closed) return
       if (retries < MAX_RETRIES) {
         retries++
-        setTimeout(connect, 1000 * retries)
+        reconnectTimer = setTimeout(connect, 1000 * retries)
       } else {
         onClose?.()
       }
@@ -120,7 +124,10 @@ export function createRunWebSocket(
 
   return {
     close: () => {
-      retries = MAX_RETRIES  // 禁止重连
+      // 禁止重连，并取消已排队的重连，否则卸载后仍会建立新连接
+      closed = true
+      retries = MAX_RETRIES
+      if (reconnectTimer !== undefined) clearTimeout(reconnectTimer)
       ws?.close(1000)
     },
   }

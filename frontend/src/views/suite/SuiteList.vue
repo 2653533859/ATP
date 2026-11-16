@@ -574,6 +574,7 @@ import type {
   SuiteRunItem,
 } from '@/api'
 import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { buildRunPayload } from '@/utils/caseExecution'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 import GroupRecoveryPanel from '@/components/common/GroupRecoveryPanel.vue'
@@ -707,7 +708,8 @@ const expandedSuiteRunKeys = ref<number[]>([])
 const exportingSuiteRunHtmlId = ref<number | null>(null)
 const exportingSuiteRunPdfId = ref<number | null>(null)
 const activeRunsSuiteId = ref<number | null>(null)
-let suiteRunsRefreshTimer: ReturnType<typeof setInterval> | null = null
+// 运行记录抽屉内存在未结束运行时轮询；标签页隐藏时暂停，上一轮未结束时不叠加请求
+const suiteRunsPolling = useVisiblePolling(() => loadSuiteRuns(activeRunsSuiteId.value, false), 3000)
 
 const columns = computed(() => [
   { title: t('suite.columns.name'), dataIndex: 'name', key: 'name', ellipsis: true },
@@ -984,10 +986,7 @@ function getModuleName(moduleId: number) {
 }
 
 function stopSuiteRunsRefresh() {
-  if (suiteRunsRefreshTimer) {
-    clearInterval(suiteRunsRefreshTimer)
-    suiteRunsRefreshTimer = null
-  }
+  suiteRunsPolling.stop()
 }
 
 async function loadProjects() {
@@ -1302,11 +1301,7 @@ async function loadSuiteRuns(suiteId = activeRunsSuiteId.value, showLoading = fa
     const runs = await suiteApi.listRuns({ suite_id: suiteId })
     suiteRuns.value = runs
     if (runsDrawerOpen.value && hasActiveSuiteRuns(runs)) {
-      if (!suiteRunsRefreshTimer) {
-        suiteRunsRefreshTimer = setInterval(() => {
-          void loadSuiteRuns(suiteId, false)
-        }, 3000)
-      }
+      suiteRunsPolling.start()
     } else {
       stopSuiteRunsRefresh()
     }

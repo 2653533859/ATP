@@ -187,6 +187,7 @@ import { useI18n } from 'vue-i18n'
 import type { Dayjs } from 'dayjs'
 import { init, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { useChartTheme } from '@/utils/chartTheme'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { projectApi, mobileSpecialApi, type MobileSpecialRunItem, type ProjectItem, type TaskType, type MobileRunStatus } from '@/api'
 import {
   addMobileRunTaskFallback,
@@ -221,7 +222,6 @@ const latestTrend = ref<Array<{ date: string; total: number; completed: number; 
 
 const trendChartRef = ref<HTMLDivElement | null>(null)
 let trendChart: ECharts | null = null
-let reportRefreshTimer: number | null = null
 
 function errorMessage(error: unknown, fallback: string) {
   if (typeof error === 'string') return error
@@ -253,6 +253,15 @@ const columns = computed(() => [
   { title: t('common.action'), key: 'action', width: 200 },
 ])
 
+let unmounted = false
+
+// 标签页隐藏时暂停；仅在存在未结束的运行且当前没有加载中时刷新
+const reportPolling = useVisiblePolling(() => {
+  if (!loading.value && runs.value.some(run => run.status === 'pending' || run.status === 'running')) {
+    return Promise.all([loadRuns(), loadOverview()])
+  }
+}, 5000)
+
 onMounted(async () => {
   try {
     const list = await projectApi.list()
@@ -264,20 +273,16 @@ onMounted(async () => {
     message.error(errorMessage(e, t('mobile_special.msg.load_projects_failed')))
   }
   await Promise.all([loadOverview(), loadRuns()])
+  // 加载期间组件已卸载时不再注册图表、监听器和定时器，否则它们永远不会被清除
+  if (unmounted) return
   initTrendChart()
   window.addEventListener('resize', handleResize)
-  reportRefreshTimer = window.setInterval(() => {
-    if (!loading.value && runs.value.some(run => run.status === 'pending' || run.status === 'running')) {
-      void Promise.all([loadRuns(), loadOverview()])
-    }
-  }, 5000)
+  reportPolling.start()
 })
 
 onUnmounted(() => {
-  if (reportRefreshTimer !== null) {
-    window.clearInterval(reportRefreshTimer)
-    reportRefreshTimer = null
-  }
+  unmounted = true
+  reportPolling.stop()
   trendChart?.dispose()
   window.removeEventListener('resize', handleResize)
 })

@@ -648,4 +648,163 @@ describe('AndroidAgentPanel loop', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('android_agent.open_published_case')
   })
+
+  it('事件按 next_seq / has_more 增量追加，切换会话时重置游标与列表', async () => {
+    const eventAt = (seq: number, sessionId = 11) => ({
+      id: seq, session_id: sessionId, seq, event_type: 'step', payload: {}, artifact_refs: [], created_at: '2026-11-11T02:00:00Z',
+    })
+    events
+      .mockResolvedValueOnce({ items: [eventAt(1), eventAt(2)], next_seq: 2, has_more: true })
+      .mockResolvedValueOnce({ items: [eventAt(3)], next_seq: 3, has_more: false })
+      .mockResolvedValueOnce({ items: [eventAt(4)], next_seq: 4, has_more: false })
+      .mockResolvedValueOnce({ items: [], next_seq: 4, has_more: false })
+      .mockResolvedValueOnce({ items: [eventAt(1, 12)], next_seq: 1, has_more: false })
+    const wrapper = mountPanel()
+    wrapper.vm.session = sessionFixture
+    await flushPromises()
+
+    await wrapper.vm.refreshAll()
+    await flushPromises()
+    // has_more 为真时继续翻页，游标取上一页的 next_seq
+    expect(events.mock.calls.map((call) => call.slice(0, 4))).toEqual([[1, 11, 0, 200], [1, 11, 2, 200]])
+    expect(wrapper.findAll('.agent-event-row')).toHaveLength(3)
+
+    await wrapper.vm.refreshAll()
+    await flushPromises()
+    expect(events).toHaveBeenLastCalledWith(1, 11, 3, 200)
+    expect(wrapper.findAll('.agent-event-row').map((row) => row.attributes('data-seq'))).toEqual(['1', '2', '3', '4'])
+
+    // 没有新事件时列表保持不变
+    await wrapper.vm.refreshAll()
+    await flushPromises()
+    expect(events).toHaveBeenLastCalledWith(1, 11, 4, 200)
+    expect(wrapper.findAll('.agent-event-row')).toHaveLength(4)
+
+    wrapper.vm.session = { ...sessionFixture, id: 12 }
+    await flushPromises()
+    expect(wrapper.findAll('.agent-event-row')).toHaveLength(0)
+    getSession.mockResolvedValue({ ...sessionFixture, id: 12 })
+    await wrapper.vm.refreshAll()
+    await flushPromises()
+    expect(events).toHaveBeenLastCalledWith(1, 12, 0, 200)
+    expect(wrapper.findAll('.agent-event-row')).toHaveLength(1)
+  })
+
+  it('刷新在途时切换会话，过期的会话与事件结果被丢弃', async () => {
+    let resolveSession: (value: unknown) => void = () => {}
+    getSession.mockReturnValueOnce(new Promise((resolve) => { resolveSession = resolve }))
+    const wrapper = mountPanel()
+    wrapper.vm.session = sessionFixture
+    await flushPromises()
+
+    const pendingSession = wrapper.vm.refreshAll()
+    await flushPromises()
+    expect(getSession).toHaveBeenCalledWith(1, 11)
+    wrapper.vm.session = { ...sessionFixture, id: 12, status: 'paused' }
+    resolveSession({ ...sessionFixture, status: 'failed' })
+    await pendingSession
+    await flushPromises()
+
+    expect(wrapper.vm.session?.id).toBe(12)
+    expect(wrapper.vm.session?.status).toBe('paused')
+    expect(events).not.toHaveBeenCalled()
+
+    // 事件请求在途时切换会话：旧会话的事件不能写进新会话的列表
+    let resolveEvents: (value: unknown) => void = () => {}
+    getSession.mockResolvedValueOnce({ ...sessionFixture, id: 12, status: 'paused' })
+    events.mockReturnValueOnce(new Promise((resolve) => { resolveEvents = resolve }))
+    const pendingEvents = wrapper.vm.refreshAll()
+    await flushPromises()
+    expect(events).toHaveBeenCalledWith(1, 12, 0, 200)
+    wrapper.vm.session = { ...sessionFixture, id: 13 }
+    resolveEvents({
+      items: [{ id: 7, session_id: 12, seq: 7, event_type: 'step', payload: {}, artifact_refs: [], created_at: '2026-11-11T02:00:00Z' }],
+      next_seq: 7,
+      has_more: false,
+    })
+    await pendingEvents
+    await flushPromises()
+
+    expect(wrapper.vm.session?.id).toBe(13)
+    expect(wrapper.findAll('.agent-event-row')).toHaveLength(0)
+  })
+
+  it('轮询失败不抛未处理拒绝，标签页隐藏时暂停，会话进入终态后停止', async () => {
+    vi.useFakeTimers()
+    let visibility: DocumentVisibilityState = 'visible'
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility })
+    try {
+      const wrapper = mountPanel()
+      wrapper.vm.formDeviceId = 5
+      wrapper.vm.formPackage = 'com.example.shop'
+      wrapper.vm.formGoal = '搜索商品'
+      wrapper.vm.formOutcome = '详情页可见'
+      await wrapper.vm.createSession()
+      await flushPromises()
+      expect(getSession).not.toHaveBeenCalled()
+
+      // 后端不可用：本轮静默失败，下一轮照常重试
+      getSession.mockRejectedValueOnce(new Error('backend down'))
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(getSession).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(getSession).toHaveBeenCalledTimes(2)
+
+      visibility = 'hidden'
+      document.dispatchEvent(new Event('visibilitychange'))
+      await vi.advanceTimersByTimeAsync(9000)
+      expect(getSession).toHaveBeenCalledTimes(2)
+
+      // 重新可见时立即补一次；拿到终态后不再轮询
+      getSession.mockResolvedValue({ ...sessionFixture, status: 'completed' })
+      visibility = 'visible'
+      document.dispatchEvent(new Event('visibilitychange'))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(getSession).toHaveBeenCalledTimes(3)
+      expect(wrapper.vm.session?.status).toBe('completed')
+      await vi.advanceTimersByTimeAsync(12000)
+      expect(getSession).toHaveBeenCalledTimes(3)
+    } finally {
+      delete (document as unknown as Record<string, unknown>).visibilityState
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(['error', 'cancelled', 'skipped', 'dispatch_failed'])(
+    '回放进入终态 %s 后停止轮询、刷新草稿并按失败类提示',
+    async (terminalStatus) => {
+      vi.useFakeTimers()
+      try {
+        getReplay
+          .mockResolvedValueOnce({ id: 9, draft_id: 3, draft_version: 1, status: 'running', case_id: 100, run_id: 200 })
+          .mockResolvedValue({ id: 9, draft_id: 3, draft_version: 1, status: terminalStatus, case_id: 100, run_id: 200 })
+        const wrapper = mountPanel()
+        wrapper.vm.session = { ...sessionFixture, status: 'completed' }
+        await wrapper.vm.compileDraft()
+        wrapper.vm.replayStateConfirmed = true
+        wrapper.vm.replayModuleId = 1
+        await wrapper.vm.startReplay()
+        await flushPromises()
+        listSessionDrafts.mockClear()
+
+        // 会话已是终态：只轮询回放，不再拉会话
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(getReplay).toHaveBeenCalledTimes(1)
+        expect(wrapper.vm.latestReplay?.status).toBe('running')
+        expect(listSessionDrafts).not.toHaveBeenCalled()
+
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(getReplay).toHaveBeenCalledTimes(2)
+        expect(wrapper.vm.latestReplay?.status).toBe(terminalStatus)
+        expect(listSessionDrafts).toHaveBeenCalledWith(1, 11)
+        expect(wrapper.find('.agent-replay-hint').text()).toBe(`android_agent.replay_status_hint.${terminalStatus}`)
+
+        await vi.advanceTimersByTimeAsync(12000)
+        expect(getReplay).toHaveBeenCalledTimes(2)
+        expect(getSession).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    },
+  )
 })

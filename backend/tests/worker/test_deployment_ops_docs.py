@@ -147,12 +147,16 @@ def test_compose_minio_lifecycle_requires_explicit_profile():
 def test_helm_values_expose_worker_queues_and_resources():
     values = yaml.safe_load((ROOT / "deploy" / "helm" / "atp" / "values.yaml").read_text(encoding="utf-8"))
 
-    assert values["worker"]["queues"] == "default,ios,ai,maintenance,performance"
+    # 普通 Worker 的队列只有 config.CELERY_QUEUES 一个来源；没有模板读取的键不得回到 values。
+    assert "queues" not in values["worker"]
+    assert "frontend" not in values["image"]
+    assert "beat" not in values["replicas"]
+    assert "CELERY_CONCURRENCY" not in values["config"]
     assert values["config"]["CELERY_QUEUES"] == "default,ios,ai,maintenance,performance"
     assert values["config"]["PROTOCOL_EXECUTION_QUEUE"] == "default"
     assert values["performanceWorker"]["enabled"] is False
     assert values["performanceWorker"]["queues"] == "performance"
-    assert values["performanceWorker"]["concurrency"] == "1"
+    assert "concurrency" not in values["performanceWorker"]
     assert values["performanceWorker"]["nodeEnabled"] is True
     assert values["performanceWorker"]["autoIdentity"] is False
     assert values["performanceWorker"]["spreadAcrossNodes"] is False
@@ -180,13 +184,12 @@ def test_helm_android_worker_overlay_separates_linux_and_windows_queues():
     )
     content = (ROOT / "docs" / "deploy-helm.md").read_text(encoding="utf-8")
 
-    assert overlay["worker"]["queues"] == "default,ios,ai,maintenance,performance"
+    assert overlay["config"]["CELERY_QUEUES"] == "default,ios,ai,maintenance,performance"
     assert overlay["config"]["ADB_SCAN_ENABLED"] == "true"
     assert overlay["config"]["ADB_SCAN_MODE"] == "worker"
     assert overlay["config"]["ANDROID_WORKER_QUEUE"] == "mobile_special"
-    assert overlay["config"]["CELERY_QUEUES"] == overlay["worker"]["queues"]
     assert overlay["secret"] == {"create": False, "existingName": "atp-runtime-secrets"}
-    assert "android,mobile_special" not in overlay["worker"]["queues"]
+    assert "android,mobile_special" not in overlay["config"]["CELERY_QUEUES"]
     assert "values-android-worker.example.yaml" in content
     assert "config/startup-profiles/android-agent.env" in content
 
@@ -207,8 +210,7 @@ def test_helm_performance_acceptance_overlay_is_real_cluster_ready_without_secre
         "requests": {"cpu": "1000m", "memory": "1Gi"},
         "limits": {"cpu": "2000m", "memory": "2Gi"},
     }
-    assert overlay["worker"]["queues"] == "default,ios,ai,maintenance"
-    assert overlay["config"]["CELERY_QUEUES"] == overlay["worker"]["queues"]
+    assert overlay["config"]["CELERY_QUEUES"] == "default,ios,ai,maintenance"
     assert overlay["config"]["PERFORMANCE_TARGET_ALLOWLIST"]
     assert overlay["config"]["TARGET_PROMETHEUS_URL"].startswith("https://")
     assert "PERFORMANCE_TARGET_ALLOWLIST" in schema["properties"]["config"]["properties"]
@@ -238,14 +240,13 @@ def test_helm_performance_single_node_overlay_keeps_development_separate_from_re
     assert overlay["performanceWorker"]["nodeId"] == "atp-single-node"
     assert overlay["performanceWorker"]["nodeQueue"] == "performance.atp-single-node"
     assert overlay["performanceWorker"]["queues"] == "performance.atp-single-node,performance"
-    assert overlay["worker"]["queues"] == "default,ios,ai,maintenance"
-    assert overlay["config"]["CELERY_QUEUES"] == overlay["worker"]["queues"]
+    assert overlay["config"]["CELERY_QUEUES"] == "default,ios,ai,maintenance"
     assert overlay["metrics"]["serviceMonitor"]["enabled"] is False
     for component in ("backend", "worker", "performanceWorker"):
         assert overlay["hpa"][component]["enabled"] is False
     assert overlay["ingress"]["enabled"] is False
     assert overlay["secret"] == {"create": False, "existingName": "atp-single-node-secrets"}
-    for component in ("backend", "worker", "frontend"):
+    for component in ("backend", "worker"):
         assert overlay["image"][component]["pullPolicy"] == "Never"
     assert "values-performance-single-node.example.yaml" in content
     assert "不关闭 P4" in content
@@ -489,9 +490,12 @@ def test_single_node_helm_overlay_uses_host_network_for_loopback_dependencies():
 def test_worker_dockerfile_bundles_k6_for_performance_queue():
     content = (ROOT / "backend" / "Dockerfile.worker").read_text(encoding="utf-8")
 
-    assert "ARG GO_IMAGE=golang:1.26.6-bookworm@sha256:" in content
-    assert "ARG K6_COMMIT=00a9a1b7f552d6bb4337278b10ae25aac0f4e666" in content
-    assert "git clone --depth 1 --branch v2.2.0 https://github.com/grafana/k6.git ." in content
+    assert (
+        "ARG GO_IMAGE=golang:1.26.11-bookworm"
+        "@sha256:dc40a13b61304647ed7e5d581d246b86413dfc29d63c6d018310feb93cd98fc0\n"
+    ) in content
+    assert "ARG K6_COMMIT=dd9395906d48437a8d7ab53e309afa47ad8d67e0\n" in content
+    assert "git clone --depth 1 --branch v2.4.0 https://github.com/grafana/k6.git ." in content
     assert 'test "$(git rev-parse HEAD)" = "${K6_COMMIT}"' in content
     assert 'CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /k6 .' in content
     assert "COPY --from=k6-build /k6 /usr/local/bin/k6" in content

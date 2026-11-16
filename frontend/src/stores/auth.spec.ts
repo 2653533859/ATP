@@ -20,11 +20,12 @@ describe('auth store', () => {
     setActivePinia(createPinia())
   })
 
-  it('does not persist JWTs in localStorage', () => {
+  it('does not hold or persist JWTs on the client', () => {
     const store = useAuthStore()
 
-    expect(store.token).toBeNull()
-    expect(store.refreshToken).toBeNull()
+    expect('token' in store).toBe(false)
+    expect('refreshToken' in store).toBe(false)
+    expect(localStorage.length).toBe(0)
   })
 
   it('fetches the current user after cookie login', async () => {
@@ -41,8 +42,6 @@ describe('auth store', () => {
 
     expect(mockedAuthApi.login).toHaveBeenCalledWith('alice', 'secret')
     expect(mockedAuthApi.me).toHaveBeenCalledOnce()
-    expect(store.token).toBeNull()
-    expect(store.refreshToken).toBeNull()
     expect(store.user).toEqual({
       id: 7,
       username: 'alice',
@@ -57,8 +56,6 @@ describe('auth store', () => {
     const store = useAuthStore()
     await store.fetchMe()
 
-    expect(store.token).toBeNull()
-    expect(store.refreshToken).toBeNull()
     expect(store.user).toBeNull()
     expect(store.initialized).toBe(true)
   })

@@ -24,9 +24,10 @@ export async function loadDevicePackagesAsync(
 
   const previousReadAt = snapshot.read_at
   for (let attempt = 0; attempt < PACKAGE_POLL_MAX_ATTEMPTS; attempt += 1) {
-    const { promise, resolve } = Promise.withResolvers<void>()
-    setTimeout(resolve, PACKAGE_POLL_INTERVAL_MS)
-    await promise
+    // 不使用 Promise.withResolvers：它需要较新的浏览器（2024 年起才普遍支持），普通 Promise 没有兼容性限制。
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, PACKAGE_POLL_INTERVAL_MS)
+    })
     try {
       snapshot = await deviceApi.packages(deviceId)
     } catch {

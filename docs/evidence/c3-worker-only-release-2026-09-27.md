@@ -4,7 +4,7 @@
 
 此次候选只处理普通 Worker 首次运行结果计数漏算。修复代码来自 `b1828220` 的 `backend/app/core/metrics.py`；目标镜像 `registry.local/atp/worker:6755ed9f-runmetrics-b1828220` 是以 revision 56 基础 Worker 镜像叠加该单文件的热修复镜像，**不代表 `b1828220` 的完整源码镜像**。目标 Docker image ID 为 `sha256:f51bfa22182eafaccf9a3cfe8eb400c1297b12b22731c218fdb9c6f721bd0419`，已导入 K3s 的运行时 image ID 为 `sha256:300ce4d2dc1e2f02288a400363336abbddbfb61c02afd430d6632de38bfe5f2b`。隔离容器与已清理的临时 K3s Pod 均验证 15 条零值结果序列，详见[前次预检](c3-worker-metric-release-preflight-2026-09-27.md)。
 
-从目标机 revision 56 的有界 Flower Chart 副本取得精确基线，封存在仓库 [`deploy/helm/atp-rev56-hotfix`](../../deploy/helm/atp-rev56-hotfix)。来源归档 SHA-256 为 `608a4bcd1b6f55620d4f2675638cfaa1e703486072ec37cca5e222f030298a5d`；候选归档 SHA-256 为 `fb2673f2f8cf973bf653f951704895cfa21b28aba8e938fc3c2514ffa64090af`。22 个文件中仅修改 `values.yaml`、`values.schema.json` 和 `templates/worker-deployment.yaml`：增加空值默认的 `worker.imageTag`，仅普通 Worker Deployment 可使用专用 tag。这个 Chart 是针对 revision 56 的**一次性精确发布快照**。后续完整 Chart 升级必须先审查此前发现的六项 Deployment 漂移，并显式清理 `worker.imageTag` 覆盖。
+从目标机 revision 56 的有界 Flower Chart 副本取得精确基线，封存在仓库 `deploy/helm/atp-rev56-hotfix`（该快照已从仓库移除，见 commit `795da019`，可用 `git show 795da019:deploy/helm/atp-rev56-hotfix/<文件>` 取回）。来源归档 SHA-256 为 `608a4bcd1b6f55620d4f2675638cfaa1e703486072ec37cca5e222f030298a5d`；候选归档 SHA-256 为 `fb2673f2f8cf973bf653f951704895cfa21b28aba8e938fc3c2514ffa64090af`。22 个文件中仅修改 `values.yaml`、`values.schema.json` 和 `templates/worker-deployment.yaml`：增加空值默认的 `worker.imageTag`，仅普通 Worker Deployment 可使用专用 tag。这个 Chart 是针对 revision 56 的**一次性精确发布快照**。后续完整 Chart 升级必须先审查此前发现的六项 Deployment 漂移，并显式清理 `worker.imageTag` 覆盖。
 
 ## 发布前只读验证
 

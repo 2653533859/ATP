@@ -445,7 +445,7 @@ async def force_takeover_lease(
 ):
     """管理员在原租约释放后获取设备控制权并写入审计日志。"""
     try:
-        lease, previous = await force_takeover_device_lease(
+        lease = await force_takeover_device_lease(
             db,
             device_id,
             owner_id=current_user.id,
@@ -458,10 +458,6 @@ async def force_takeover_lease(
         raise _lease_error(exc) from exc
 
     detail_parts = [f"owner_label={body.owner_label}"]
-    if previous:
-        detail_parts.append(f"previous_lease_id={previous.get('lease_id')}")
-        detail_parts.append(f"previous_owner_id={previous.get('owner_id')}")
-        detail_parts.append(f"previous_owner_label={previous.get('owner_label')}")
     reason = body.reason.strip()
     if reason:
         detail_parts.append(f"reason={reason}")

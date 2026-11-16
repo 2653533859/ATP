@@ -87,7 +87,14 @@ def test_image_tag_overrides_accept_only_unique_immutable_tags():
         "backend": "ab12cd34",
         "worker": "ef56gh78",
     }
-    for invalid in (["backend=latest"], ["backend=latest,secret=x"], ["other=ab12"], ["backend=a", "backend=b"]):
+    # frontend 不在可覆盖组件内：Chart 不部署前端工作负载，覆盖它不会改变任何渲染结果。
+    for invalid in (
+        ["backend=latest"],
+        ["backend=latest,secret=x"],
+        ["other=ab12"],
+        ["frontend=ab12cd34"],
+        ["backend=a", "backend=b"],
+    ):
         with pytest.raises(ValueError):
             module._image_tag_overrides(invalid)
 
@@ -119,44 +126,12 @@ def test_worker_image_override_changes_only_ordinary_worker_manifest():
     assert module._image_tags(candidate["Deployment/atp-single-node-atp-worker"]) == (("worker", "b1828220"),)
 
 
-def test_rev56_hotfix_chart_worker_override_changes_only_ordinary_worker_manifest():
+def test_performance_worker_image_override_changes_only_performance_deployment():
     helm = shutil.which("helm")
     if helm is None:
         pytest.skip("helm is not installed")
     module = _module()
-    chart = ROOT / "deploy" / "helm" / "atp-rev56-hotfix"
-    overlay = chart / "values-performance-single-node.example.yaml"
-    command = [helm, "template", "atp-single-node", str(chart), "-f", str(overlay)]
-    baseline = module._manifest_index(
-        subprocess.run(command, check=True, capture_output=True, text=True, encoding="utf-8").stdout
-    )
-    candidate = module._manifest_index(
-        subprocess.run(
-            [*command, "--set-string", "worker.imageTag=6755ed9f-runmetrics-b1828220"],
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        ).stdout
-    )
-
-    assert [(status, identity) for status, identity, *_ in module._changes(baseline, candidate)] == [
-        ("changed", "Deployment/atp-single-node-atp-worker")
-    ]
-    worker = candidate["Deployment/atp-single-node-atp-worker"]
-    assert module._changed_paths(baseline["Deployment/atp-single-node-atp-worker"], worker) == [
-        "spec.template.spec.containers[0].image"
-    ]
-    assert module._image_tags(worker) == (("worker", "6755ed9f-runmetrics-b1828220"),)
-
-
-@pytest.mark.parametrize("chart_name", ["atp", "atp-rev57-heartbeat-hotfix"])
-def test_performance_worker_image_override_changes_only_performance_deployment(chart_name):
-    helm = shutil.which("helm")
-    if helm is None:
-        pytest.skip("helm is not installed")
-    module = _module()
-    chart = ROOT / "deploy" / "helm" / chart_name
+    chart = ROOT / "deploy" / "helm" / "atp"
     overlay = chart / "values-performance-single-node.example.yaml"
     command = [helm, "template", "atp-single-node", str(chart), "-f", str(overlay)]
     baseline = module._manifest_index(
@@ -178,8 +153,8 @@ def test_performance_worker_image_override_changes_only_performance_deployment(c
     assert module._image_tags(candidate[identity]) == (("performance-worker", "heartbeat-fixed"),)
 
 
-def test_rev57_hotfix_chart_uses_unique_performance_worker_hostname():
-    chart = ROOT / "deploy" / "helm" / "atp-rev57-heartbeat-hotfix"
+def test_chart_uses_unique_performance_worker_hostname():
+    chart = ROOT / "deploy" / "helm" / "atp"
     template = (chart / "templates" / "performance-worker-deployment.yaml").read_text(encoding="utf-8")
     assert '--hostname="performance@${POD_NAMESPACE}.${POD_NAME}"' in template
     assert "fieldPath: metadata.name" in template

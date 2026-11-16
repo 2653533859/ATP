@@ -48,9 +48,7 @@ describe('http client', () => {
     expect(adapter).toHaveBeenCalledOnce()
   })
 
-  it('injects the bearer token into outgoing requests', async () => {
-    const auth = useAuthStore()
-    auth.token = 'access-token'
+  it('authenticates with the HttpOnly cookie and never sends a bearer header', async () => {
     const capturedConfigs: InternalAxiosRequestConfig[] = []
 
     http.defaults.adapter = (async (config) => {
@@ -66,13 +64,14 @@ describe('http client', () => {
 
     await http.get('/ping')
 
-    expect(capturedConfigs[0]?.headers.Authorization).toBe('Bearer access-token')
+    expect(capturedConfigs[0]?.headers.Authorization).toBeUndefined()
+    expect(capturedConfigs[0]?.withCredentials).toBe(true)
+    expect(capturedConfigs[0]?.headers['X-Requested-With']).toBe('XMLHttpRequest')
   })
 
   it('logs out and redirects to login on 401 responses', async () => {
     const auth = useAuthStore()
-    auth.token = 'expired-token'
-    auth.refreshToken = 'expired-refresh'
+    auth.user = { id: 1, username: 'demo', email: 'demo@example.com', role: 'engineer' }
 
     http.defaults.adapter = (async () => Promise.reject({
       response: {
@@ -83,8 +82,7 @@ describe('http client', () => {
 
     await expect(http.get('/me')).rejects.toBe('token expired')
 
-    expect(auth.token).toBeNull()
-    expect(auth.refreshToken).toBeNull()
+    expect(auth.user).toBeNull()
     expect(router.push).toHaveBeenCalledWith({ name: 'login' })
   })
 

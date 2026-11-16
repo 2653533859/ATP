@@ -1516,7 +1516,7 @@ async function openEdit(testCase: CaseSummaryItem) {
       drawerOpen.value = true
     }
   } catch (e: unknown) {
-    message.error(errorMessage(e, t('case.msg.load_failed') || '加载用例详情失败'))
+    message.error(errorMessage(e, t('case.msg.load_failed')))
   }
 }
 

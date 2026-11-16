@@ -11,7 +11,7 @@ Resilience: 所有 shell 调用走 adb_resilience.safe_run_adb，复用统一的
 import logging
 from typing import Sequence
 
-from app.services.adb_resilience import ensure_reachable, safe_run_adb
+from app.services.adb_resilience import safe_run_adb
 
 logger = logging.getLogger(__name__)
 
@@ -103,19 +103,3 @@ def build_pidof_cmd(serial: str, package: str) -> list[str]:
 def build_proc_status_cmd(serial: str, pid: int) -> list[str]:
     """Build a permission-safe process RSS query for devices with sparse meminfo."""
     return ["cat", f"/proc/{pid}/status"]
-
-
-def build_package_info_cmd(serial: str, package: str, activity: str) -> list[str]:
-    """Build command to get package activity info."""
-    return ["dumpsys", "package", package, "|", "grep", activity]
-
-
-def build_top_cmd(serial: str, package: str, lines: int = 10) -> list[str]:
-    """Build command to get top CPU consumers for a package."""
-    return ["top", "-n", str(lines), "-b", "-p", package]
-
-
-def is_device_online(serial: str) -> bool:
-    """Check if a device is online and responsive."""
-    ok, _ = ensure_reachable(serial, max_attempts=1, reconnect=False)
-    return ok

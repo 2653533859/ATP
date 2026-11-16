@@ -181,7 +181,6 @@ def _check_android_worker_profiles(failures: list[str]) -> None:
         failures.append(f"invalid Android Worker Helm overlay: {exc}")
         return
     config = overlay.get("config") or {}
-    worker = overlay.get("worker") or {}
     overlay_queues = {item.strip().lower() for item in str(config.get("CELERY_QUEUES", "")).split(",") if item.strip()}
     if config.get("ADB_SCAN_MODE") != "worker":
         failures.append("Android Worker Helm overlay must set config.ADB_SCAN_MODE=worker")
@@ -189,7 +188,7 @@ def _check_android_worker_profiles(failures: list[str]) -> None:
         failures.append("Android Worker Helm overlay must enable config.ADB_SCAN_ENABLED")
     if config.get("ANDROID_WORKER_QUEUE") != "mobile_special":
         failures.append("Android Worker Helm overlay must route to mobile_special")
-    if overlay_queues & {"android", "mobile_special"} or worker.get("queues") != config.get("CELERY_QUEUES"):
+    if not overlay_queues or overlay_queues & {"android", "mobile_special"}:
         failures.append("Android Worker Helm overlay must keep Linux Worker queues separate from Android queues")
 
 
@@ -205,7 +204,6 @@ def _check_single_node_performance_overlay(failures: list[str]) -> None:
         return
 
     image = overlay.get("image") or {}
-    worker = overlay.get("worker") or {}
     config = overlay.get("config") or {}
     performance_worker = overlay.get("performanceWorker") or {}
     metrics = overlay.get("metrics") or {}
@@ -214,7 +212,7 @@ def _check_single_node_performance_overlay(failures: list[str]) -> None:
     ingress = overlay.get("ingress") or {}
     secret = overlay.get("secret") or {}
 
-    image_components = (image.get("backend") or {}, image.get("worker") or {}, image.get("frontend") or {})
+    image_components = (image.get("backend") or {}, image.get("worker") or {})
     if any(component.get("pullPolicy") != "Never" for component in image_components):
         failures.append("single-node performance Helm overlay must use imagePullPolicy Never for imported images")
     if performance_worker.get("enabled") is not True or performance_worker.get("replicas") != 1:
@@ -225,10 +223,9 @@ def _check_single_node_performance_overlay(failures: list[str]) -> None:
         performance_worker.get("nodeQueue") != "performance.atp-single-node"
     ):
         failures.append("single-node performance Helm overlay must use the atp-single-node identity and queue")
-    if "performance" in {item.strip().lower() for item in str(worker.get("queues", "")).split(",") if item.strip()}:
+    default_queues = {item.strip().lower() for item in str(config.get("CELERY_QUEUES", "")).split(",") if item.strip()}
+    if not default_queues or "performance" in default_queues:
         failures.append("single-node performance Helm overlay must keep the default Worker off the performance queue")
-    if config.get("CELERY_QUEUES") != worker.get("queues"):
-        failures.append("single-node performance Helm overlay must keep default Worker queues aligned")
     if service_monitor.get("enabled") is not False:
         failures.append("single-node performance Helm overlay must disable ServiceMonitor without its CRD")
     if any(
@@ -534,12 +531,12 @@ def _image_tag_overrides(items: list[str]) -> dict[str, str]:
         component, separator, tag = item.partition("=")
         if (
             not separator
-            or component not in {"backend", "worker", "frontend"}
+            or component not in {"backend", "worker"}
             or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}", tag)
             or tag.lower() == "latest"
             or component in tags
         ):
-            raise ValueError("--image-tag must be a unique backend/worker/frontend=tag (latest is rejected)")
+            raise ValueError("--image-tag must be a unique backend/worker=tag (latest is rejected)")
         tags[component] = tag
     return tags
 

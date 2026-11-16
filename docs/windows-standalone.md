@@ -6,7 +6,7 @@
 
 当前功能与验收缺口见 [`current-capability-baseline-2026-10-07.md`](current-capability-baseline-2026-10-07.md)，剩余任务见 [`development-task-plan-2026-10-07.md`](development-task-plan-2026-10-07.md)。本地已接入 Web 录制、手动串行套件/计划、需求、缺陷、知识、资产、AI 配置、协议测试、Hermes 与单机性能。AI 需要自行配置联网模型；计划/性能不支持定时或远程节点。当前代码 SQLite 版本为 14，启动时显式升级；版本 8 增加资源身份，版本 9 增加套件投递意图，版本 10 增加首次接受凭据及套件队列/租约 UUID，版本 11 增加计划 UUID、取消时间及子归属记录，版本 12 移除冗余表并加固备份完整性，版本 13 接入 AutoDroid 远程 Agent 隧道与设备表，版本 14 加入 API Key 表。套件/计划执行记录展开后可查询恢复状态和请求协作取消。旧命令/旧运行不自动猜测或补投；已接受但失联的运行须核对，不能自动重跑。详见 [N1.5 记录](group-recovery-development-2026-10-08.md) 与 [N3.1~N3.3 记录](evidence/windows-sqlite-upgrade-backup-restore-2026-10-12.md)。实现接入与业务验收分别记录。
 
-需要 Python 3.12、Node 20+、`backend/.venv` 和 `frontend/node_modules`。首次使用先安装后端依赖：
+需要 Python 3.12、Node 22+、`backend/.venv` 和 `frontend/node_modules`。首次使用先安装后端依赖：
 
 ```powershell
 .\backend\.venv\Scripts\python.exe -m pip install -r .\backend\requirements.txt

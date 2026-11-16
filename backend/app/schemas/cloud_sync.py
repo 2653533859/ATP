@@ -54,20 +54,3 @@ class CloudRunSummary(BaseModel):
     metrics: dict[str, Any] = Field(default_factory=dict)
     error_summary: str | None = Field(default=None, max_length=2048)
     steps: list[CloudStepSummary] = Field(default_factory=list)
-
-
-class OutboxRecord(BaseModel):
-    """Local outbox persistence record."""
-
-    id: int
-    client_id: str
-    run_type: str
-    run_id: int
-    unique_key: str
-    payload: CloudRunSummary
-    status: CloudSyncStatus
-    attempts: int
-    last_error: str | None
-    created_at: datetime
-    updated_at: datetime
-    synced_at: datetime | None = None

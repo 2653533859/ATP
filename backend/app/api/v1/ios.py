@@ -6,6 +6,7 @@ the web process only registers devices/assets and manages leases.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import plistlib
 import tempfile
@@ -226,11 +227,11 @@ async def upload_ios_app(
     object_name = _ipa_object_name(project_id, filename)
     try:
         temp_path, file_size = await _save_upload(file)
-        metadata = _read_ipa_metadata(temp_path)
+        metadata = await asyncio.to_thread(_read_ipa_metadata, temp_path)
         bundle_id = bundle_id or metadata.get("bundle_id")
         version_name = version_name or metadata.get("version_name")
-        ensure_bucket()
-        upload_file(object_name, temp_path, content_type="application/octet-stream")
+        await asyncio.to_thread(ensure_bucket)
+        await asyncio.to_thread(upload_file, object_name, temp_path, content_type="application/octet-stream")
     finally:
         if temp_path:
             try:
@@ -304,7 +305,7 @@ async def delete_ios_app(app_id: int, db: AsyncSession = Depends(get_db), user: 
         raise HTTPException(status_code=404, detail="iOS 应用不存在")
     await assert_project_access(db, user, app.project_id, ProjectRole.editor)
     try:
-        delete_file(app.object_name)
+        await asyncio.to_thread(delete_file, app.object_name)
     except Exception:
         pass
     await db.delete(app)
@@ -317,4 +318,5 @@ async def download_ios_app(app_id: int, db: AsyncSession = Depends(get_db), user
     if app is None:
         raise HTTPException(status_code=404, detail="iOS 应用不存在")
     await assert_project_access(db, user, app.project_id, ProjectRole.viewer)
-    return {"url": presigned_url(app.object_name, expires_seconds=3600), "filename": app.filename}
+    url = await asyncio.to_thread(presigned_url, app.object_name, expires_seconds=3600)
+    return {"url": url, "filename": app.filename}

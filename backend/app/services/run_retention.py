@@ -163,11 +163,6 @@ def _delete_minio_objects(object_names: list[str]) -> int:
     return deleted
 
 
-def _count_runs(session: Session, model, status_field, statuses, cutoff: datetime) -> int:
-    stmt = select(func.count(model.id)).where(status_field.in_(statuses), model.created_at < cutoff)
-    return int(session.execute(stmt).scalar() or 0)
-
-
 def _count_id_statement(session: Session, ids_stmt) -> int:
     """Count the exact filtered id statement used by cleanup."""
     return int(session.execute(select(func.count()).select_from(ids_stmt.subquery())).scalar() or 0)

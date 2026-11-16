@@ -281,6 +281,7 @@ import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { init, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { useChartTheme } from '@/utils/chartTheme'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 import {
   mobileSpecialApi,
@@ -346,7 +347,8 @@ const live = ref({
   logs: [] as LiveLog[],
 })
 let liveSocket: ReturnType<typeof createRunWebSocket> | null = null
-let livePollTimer: number | null = null
+// 运行进行期间的兜底轮询：标签页隐藏时暂停，上一轮未结束时不叠加请求
+const livePolling = useVisiblePolling(pollLiveRun, 3000)
 let liveLogSequence = 0
 
 const isLiveRun = computed(() => run.value?.status === 'pending' || run.value?.status === 'running')
@@ -664,42 +666,41 @@ function startLiveStream() {
   liveSocket = createRunWebSocket(runId.value, applyLiveMessage, () => {
     live.value.connected = false
   }, 'mobile')
-  if (livePollTimer !== null) window.clearInterval(livePollTimer)
-  livePollTimer = window.setInterval(async () => {
-    try {
-      const latest = await mobileSpecialApi.getRun(runId.value)
-      if (run.value) Object.assign(run.value, latest)
-      if (!isLiveStatus(latest.status)) {
-        live.value.progress = 100
-        await loadAll()
-        stopLiveStream()
-      } else {
-        const [latestSamples, latestIncidents, latestEvents] = await Promise.all([
-          mobileSpecialApi.getRunSamples(runId.value, { limit: 500 }),
-          mobileSpecialApi.getRunIncidents(runId.value),
-          mobileSpecialApi.getRunEvents(runId.value, { limit: EVENT_LIMIT }),
-        ])
-        allSamples.value = latestSamples
-        samples.value = [...latestSamples, ...liveSamples.value]
-        incidents.value = latestIncidents
-        events.value = latestEvents
-        live.value.sampleCount = Math.max(live.value.sampleCount, latestSamples.length)
-        live.value.incidentCount = latestIncidents.length
-        updateTrendChart()
-      }
-    } catch {
-      // WebSocket remains the primary path; polling errors are intentionally silent.
+  livePolling.stop()
+  livePolling.start()
+}
+
+async function pollLiveRun() {
+  try {
+    const latest = await mobileSpecialApi.getRun(runId.value)
+    if (run.value) Object.assign(run.value, latest)
+    if (!isLiveStatus(latest.status)) {
+      live.value.progress = 100
+      await loadAll()
+      stopLiveStream()
+    } else {
+      const [latestSamples, latestIncidents, latestEvents] = await Promise.all([
+        mobileSpecialApi.getRunSamples(runId.value, { limit: 500 }),
+        mobileSpecialApi.getRunIncidents(runId.value),
+        mobileSpecialApi.getRunEvents(runId.value, { limit: EVENT_LIMIT }),
+      ])
+      allSamples.value = latestSamples
+      samples.value = [...latestSamples, ...liveSamples.value]
+      incidents.value = latestIncidents
+      events.value = latestEvents
+      live.value.sampleCount = Math.max(live.value.sampleCount, latestSamples.length)
+      live.value.incidentCount = latestIncidents.length
+      updateTrendChart()
     }
-  }, 3000)
+  } catch {
+    // WebSocket remains the primary path; polling errors are intentionally silent.
+  }
 }
 
 function stopLiveStream() {
   liveSocket?.close()
   liveSocket = null
-  if (livePollTimer !== null) {
-    window.clearInterval(livePollTimer)
-    livePollTimer = null
-  }
+  livePolling.stop()
   live.value.connected = false
 }
 

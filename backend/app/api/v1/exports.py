@@ -66,6 +66,15 @@ async def _assert_plan_run_access(db: AsyncSession, user: User, run: PlanRun) ->
     await assert_project_access(db, user, plan.project_id, ProjectRole.viewer)
 
 
+async def _load_by_ids(db: AsyncSession, model, raw_ids) -> dict:
+    """按主键批量加载并返回 {id: obj}，替代循环内逐条 db.get（N+1）；没有有效 id 时不发查询。"""
+    ids = list(dict.fromkeys(raw_id for raw_id in raw_ids if raw_id))
+    if not ids:
+        return {}
+    result = await db.execute(select(model).where(model.id.in_(ids)))
+    return {obj.id: obj for obj in result.scalars().all()}
+
+
 async def _validate_cover_logo_url(value: str | None) -> str | None:
     if not isinstance(value, str):
         return None
@@ -225,6 +234,8 @@ async def export_suite_run_junit(
         },
     )
 
+    runs_by_id = await _load_by_ids(db, TestRun, (item.get("run_id") for item in case_runs))
+
     for item in case_runs:
         case_name = item.get("case_name", f"Case-{item.get('case_id', '?')}")
         case_status = item.get("status", "error")
@@ -233,7 +244,7 @@ async def export_suite_run_junit(
         # 尝试获取实际 TestRun 的耗时
         duration = 0
         if case_run_id:
-            actual_run = await db.get(TestRun, case_run_id)
+            actual_run = runs_by_id.get(case_run_id)
             if actual_run:
                 duration = actual_run.duration_ms or 0
 
@@ -275,6 +286,12 @@ async def export_plan_run_junit(
 
     root = ET.Element("testsuites")
     suite_runs = plan_run.suite_run_ids or []
+    suite_runs_by_id = await _load_by_ids(db, SuiteRun, (item.get("suite_run_id") for item in suite_runs))
+    runs_by_id = await _load_by_ids(
+        db,
+        TestRun,
+        (cr.get("run_id") for sr in suite_runs_by_id.values() for cr in (sr.case_run_ids or [])),
+    )
 
     for item in suite_runs:
         suite_name = item.get("suite_name", f"Suite-{item.get('suite_id', '?')}")
@@ -297,7 +314,7 @@ async def export_plan_run_junit(
             ET.SubElement(tc, "error", {"message": item.get("error", "Suite not found")})
             continue
 
-        sr = await db.get(SuiteRun, suite_run_id)
+        sr = suite_runs_by_id.get(suite_run_id)
         if not sr:
             continue
 
@@ -321,7 +338,7 @@ async def export_plan_run_junit(
             case_status = cr.get("status", "error")
             duration = 0
             if cr.get("run_id"):
-                actual_run = await db.get(TestRun, cr["run_id"])
+                actual_run = runs_by_id.get(cr["run_id"])
                 if actual_run:
                     duration = actual_run.duration_ms or 0
 
@@ -747,9 +764,11 @@ async def _build_suite_run_report_html(db: AsyncSession, suite_run: SuiteRun) ->
     from datetime import datetime, timezone, timedelta
 
     case_rows = []
-    for item in suite_run.case_run_ids or []:
+    case_run_items = suite_run.case_run_ids or []
+    runs_by_id = await _load_by_ids(db, TestRun, (item.get("run_id") for item in case_run_items))
+    for item in case_run_items:
         case_run_id = item.get("run_id")
-        actual_run = await db.get(TestRun, case_run_id) if case_run_id else None
+        actual_run = runs_by_id.get(case_run_id) if case_run_id else None
         case_rows.append(
             {
                 "name": item.get("case_name", f"Case-{item.get('case_id', '?')}"),
@@ -803,9 +822,21 @@ async def _build_plan_run_report_html(db: AsyncSession, plan_run: PlanRun) -> st
     failed = 0
     error = 0
 
-    for item in plan_run.suite_run_ids or []:
+    suite_run_items = plan_run.suite_run_ids or []
+    suite_runs_by_id = await _load_by_ids(db, SuiteRun, (item.get("suite_run_id") for item in suite_run_items))
+    runs_by_id = await _load_by_ids(
+        db,
+        TestRun,
+        (
+            case_item.get("run_id")
+            for loaded_suite_run in suite_runs_by_id.values()
+            for case_item in (getattr(loaded_suite_run, "case_run_ids", []) or [])
+        ),
+    )
+
+    for item in suite_run_items:
         suite_run_id = item.get("suite_run_id")
-        suite_run = await db.get(SuiteRun, suite_run_id) if suite_run_id else None
+        suite_run = suite_runs_by_id.get(suite_run_id) if suite_run_id else None
         case_rows = []
         suite_summary = _merge_summary(
             getattr(suite_run, "result_summary", None), len(getattr(suite_run, "case_run_ids", []) or [])
@@ -817,7 +848,7 @@ async def _build_plan_run_report_html(db: AsyncSession, plan_run: PlanRun) -> st
 
         for case_item in getattr(suite_run, "case_run_ids", []) or []:
             case_run_id = case_item.get("run_id")
-            actual_run = await db.get(TestRun, case_run_id) if case_run_id else None
+            actual_run = runs_by_id.get(case_run_id) if case_run_id else None
             case_rows.append(
                 {
                     "name": case_item.get("case_name", f"Case-{case_item.get('case_id', '?')}"),

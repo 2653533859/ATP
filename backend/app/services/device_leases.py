@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 import secrets
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select, update
+from sqlalchemy.engine import CursorResult, Result
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -21,6 +22,11 @@ class DeviceLeaseConflict(RuntimeError):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _rowcount(result: Result[Any]) -> int:
+    """将 DML 执行结果统一转换为 CursorResult 再读取 rowcount（兼容新版本 SQLAlchemy 类型存根）。"""
+    return int(cast(CursorResult[Any], result).rowcount or 0)
 
 
 def lease_is_active(lease: DeviceLease, now: datetime | None = None) -> bool:
@@ -57,7 +63,7 @@ def _conflict_message(lease: DeviceLease | None, now: datetime) -> str:
 async def _delete_expired_lease(db: AsyncSession, lease_id: int, lease_token: str, now: datetime) -> bool:
     """调用方须先 expunge 该租约；过期条件无法在内存中对无时区时间求值，因此不同步会话。"""
     removed = await db.execute(_delete_expired_lease_stmt(lease_id, lease_token, now))
-    return removed.rowcount == 1
+    return _rowcount(removed) == 1
 
 
 def _delete_expired_lease_stmt(lease_id: int, lease_token: str, now: datetime):
@@ -75,7 +81,7 @@ async def _delete_lease_by_token(db: AsyncSession, lease_id: int, lease_token: s
         .where(DeviceLease.id == lease_id, DeviceLease.lease_token == lease_token)
         .execution_options(synchronize_session=False)
     )
-    return removed.rowcount == 1
+    return _rowcount(removed) == 1
 
 
 async def _issue_device_lease(
@@ -96,7 +102,7 @@ async def _issue_device_lease(
         .where(Device.id == device.id, Device.status != DeviceStatus.offline)
         .values(status=DeviceStatus.busy)
     )
-    if marked.rowcount != 1:
+    if _rowcount(marked) != 1:
         status = (await db.execute(select(Device.status).where(Device.id == device.id))).scalar_one_or_none()
         if status is None:
             raise LookupError("设备不存在")
@@ -176,8 +182,11 @@ async def force_takeover_device_lease(
     owner_id: int | None,
     owner_label: str,
     ttl_seconds: int = 900,
-) -> tuple[DeviceLease, dict[str, Any] | None]:
-    """只有原持有者释放设备后才发放新租约，避免并发设备写入。"""
+) -> DeviceLease:
+    """管理员接管：只有原租约已释放且设备不再标记忙碌时才发放新租约，避免并发设备写入。
+
+    不会抢占现有租约，因此没有"被接管的上一份租约"可返回。
+    """
     now = _now()
     device = (await db.execute(select(Device).where(Device.id == device_id).with_for_update())).scalar_one_or_none()
     if device is None:
@@ -191,7 +200,7 @@ async def force_takeover_device_lease(
     if device.status == DeviceStatus.busy:
         raise DeviceLeaseConflict("设备仍标记为忙碌，请先核实并停止原任务")
 
-    lease = await _issue_device_lease(
+    return await _issue_device_lease(
         db,
         device,
         owner_id=owner_id,
@@ -199,7 +208,6 @@ async def force_takeover_device_lease(
         ttl_seconds=ttl_seconds,
         now=now,
     )
-    return lease, None
 
 
 async def heartbeat_device_lease(
@@ -225,7 +233,7 @@ async def heartbeat_device_lease(
         .values(heartbeat_at=now, expires_at=expires_at)
         .execution_options(synchronize_session=False)
     )
-    if renewed.rowcount != 1:
+    if _rowcount(renewed) != 1:
         raise DeviceLeaseConflict("设备租约不存在或已过期")
     set_committed_value(lease, "heartbeat_at", now)
     set_committed_value(lease, "expires_at", expires_at)
@@ -253,7 +261,7 @@ async def release_device_lease(db: AsyncSession, device_id: int, lease_token: st
     removed = await db.execute(
         delete(DeviceLease).where(DeviceLease.device_id == device_id, DeviceLease.lease_token == lease_token)
     )
-    if removed.rowcount != 1:
+    if _rowcount(removed) != 1:
         return False
     device = await db.get(Device, device_id)
     if device is not None and device.status != DeviceStatus.offline:
@@ -292,7 +300,7 @@ def reclaim_expired_device_leases_sync(session: Session) -> int:
         device_id, lease_id, lease_token = lease.device_id, lease.id, lease.lease_token
         session.expunge(lease)
         # 已被接管或续期的租约不算过期，也不能把设备改回 online。
-        if session.execute(_delete_expired_lease_stmt(lease_id, lease_token, now)).rowcount != 1:
+        if _rowcount(session.execute(_delete_expired_lease_stmt(lease_id, lease_token, now))) != 1:
             continue
         device = session.get(Device, device_id)
         if device is not None and device.status == DeviceStatus.busy:
@@ -350,11 +358,15 @@ async def handle_device_disconnection_recovery(
     # 2. 收敛在途 TestRun
     recovered_runs_count = 0
     if device is not None:
-        from app.models.case import RunStatus, TestRun
+        from app.models.case import CaseType, RunStatus, TestCase, TestRun
 
+        # 只有 Android 用例的运行会占用这台设备；不加这个条件会把全系统所有在途运行都加载进内存
         runs_res = await db.execute(
-            select(TestRun).where(
+            select(TestRun)
+            .join(TestCase, TestCase.id == TestRun.case_id)
+            .where(
                 TestRun.status.in_([RunStatus.pending, RunStatus.running]),
+                TestCase.case_type == CaseType.android,
             )
         )
         runs = runs_res.scalars().all()

@@ -384,6 +384,7 @@ import {
   type ProjectItem,
 } from '@/api'
 import { useChartTheme } from '@/utils/chartTheme'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { canEditProjectByRole } from '@/utils/permissions'
 import { useAuthStore } from '@/stores/auth'
 
@@ -439,7 +440,8 @@ const quickForm = ref({
 let loadSequence = 0
 let evidenceSequence = 0
 let trendSequence = 0
-let pollTimer: ReturnType<typeof window.setInterval> | null = null
+// 仅在存在进行中的运行时轮询；标签页隐藏时暂停，上一轮未结束时不叠加请求
+const runPolling = useVisiblePolling(() => loadRuns(), 2500)
 
 const selectedTest = computed(() => tests.value.find((item) => item.id === selectedTestId.value) || null)
 const selectedRun = computed(() => runs.value.find((item) => item.id === selectedRunId.value) || null)
@@ -686,15 +688,12 @@ async function loadRuns() {
 }
 
 function syncPolling() {
-  if (activeRunCount.value && pollTimer === null) pollTimer = window.setInterval(() => void loadRuns(), 2500)
-  if (!activeRunCount.value) stopPolling()
+  if (activeRunCount.value) runPolling.start()
+  else stopPolling()
 }
 
 function stopPolling() {
-  if (pollTimer !== null) {
-    window.clearInterval(pollTimer)
-    pollTimer = null
-  }
+  runPolling.stop()
 }
 
 function selectTest(id: number) {

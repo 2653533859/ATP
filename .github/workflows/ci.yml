@@ -93,7 +93,9 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
       - name: Install dependencies
         run: |
@@ -156,7 +158,9 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
       - name: Install dependencies
         run: |
@@ -236,26 +240,32 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        id: install
         run: npm ci
 
+      # type-check 与 build 排在单测之前；依赖装好后三者各自独立执行，
+      # 前一步失败不会让后面的检查被跳过（否则单测一红就看不到类型/构建结果）。
+      - name: Type check
+        run: npm run type-check
+
+      - name: Build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build
+
       - name: Unit tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run test:coverage
 
+      # 单测在产出覆盖率前就崩溃时目录不存在；这里只告警，失败原因看单测步骤本身。
       - name: Upload frontend coverage report
         uses: actions/upload-artifact@v7
         if: always()
         with:
           name: frontend-coverage-report
           path: frontend/coverage
-          if-no-files-found: error
-
-      - name: Type check
-        run: npm run type-check
-
-      - name: Build
-        run: npm run build
+          if-no-files-found: warn

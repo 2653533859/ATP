@@ -106,7 +106,6 @@ services:
     env_file: .env.performance-acceptance
     environment:
       CELERY_QUEUES: default,maintenance
-      CELERY_CONCURRENCY: "1"
       WORKER_METRICS_PORT: "9091"
       ADB_SCAN_ENABLED: "false"
       PERFORMANCE_NODE_ENABLED: "false"
@@ -239,7 +238,6 @@ services:
     env_file: .env.performance-acceptance
     environment:
       CELERY_QUEUES: performance.worker-a
-      CELERY_CONCURRENCY: "1"
       WORKER_METRICS_PORT: "9092"
       PERFORMANCE_NODE_ENABLED: "true"
       PERFORMANCE_NODE_ID: worker-a
@@ -283,7 +281,6 @@ services:
     env_file: .env.performance-acceptance
     environment:
       CELERY_QUEUES: maintenance
-      CELERY_CONCURRENCY: "1"
       WORKER_METRICS_PORT: "0"
       ADB_SCAN_ENABLED: "false"
       PERFORMANCE_NODE_ENABLED: "false"

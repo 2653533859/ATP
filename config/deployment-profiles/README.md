@@ -32,8 +32,7 @@ helm upgrade --install atp deploy/helm/atp \
   -f deploy/helm/atp/values-android-worker.example.yaml \
   --set image.repository=<registry>/atp \
   --set image.backend.tag=<release> \
-  --set image.worker.tag=<release> \
-  --set image.frontend.tag=<release>
+  --set image.worker.tag=<release>
 ```
 
 overlay 只放非敏感的扫描模式和队列设置，并默认引用名为

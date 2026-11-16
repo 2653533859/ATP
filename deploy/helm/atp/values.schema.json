@@ -17,7 +17,7 @@
     "image": {
       "type": "object",
       "description": "Container image repository and per-component tags.",
-      "required": ["repository", "backend", "worker", "frontend"],
+      "required": ["repository", "backend", "worker"],
       "properties": {
         "repository": {
           "type": "string",
@@ -25,8 +25,7 @@
           "description": "Shared image repository prefix, for example registry.local/atp."
         },
         "backend": { "$ref": "#/definitions/imageComponent" },
-        "worker": { "$ref": "#/definitions/imageComponent" },
-        "frontend": { "$ref": "#/definitions/imageComponent" }
+        "worker": { "$ref": "#/definitions/imageComponent" }
       }
     },
     "imagePullSecrets": {
@@ -55,17 +54,11 @@
     "replicas": {
       "type": "object",
       "description": "Deployment replica counts.",
-      "required": ["backend", "worker", "beat", "flower"],
+      "required": ["backend", "worker", "flower"],
       "properties": {
         "backend": { "$ref": "#/definitions/nonNegativeInteger" },
         "worker": { "$ref": "#/definitions/nonNegativeInteger" },
         "webRecorder": { "$ref": "#/definitions/nonNegativeInteger" },
-        "beat": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1,
-          "description": "Celery beat must stay single-replica to avoid duplicate schedules."
-        },
         "flower": { "$ref": "#/definitions/nonNegativeInteger" }
       }
     },
@@ -83,11 +76,6 @@
           "minimum": 0,
           "maximum": 65535,
           "description": "Port exposed by each Celery worker child process for Prometheus /metrics. Set to 0 to disable."
-        },
-        "queues": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Comma-separated Celery queues listened by the default worker deployment."
         }
       }
     },
@@ -124,10 +112,6 @@
           "type": "string",
           "minLength": 1,
           "description": "Comma-separated queues for the dedicated performance worker."
-        },
-        "concurrency": {
-          "type": ["string", "integer"],
-          "description": "Celery concurrency for the dedicated performance worker."
         },
         "metricsPort": {
           "type": "integer",
@@ -220,7 +204,6 @@
         "APP_ENV": { "type": "string", "description": "Runtime environment name." },
         "APP_AUTO_CREATE_TABLES": { "type": ["string", "boolean"], "description": "Whether startup may create tables automatically." },
         "LOG_LEVEL": { "type": "string", "description": "Application log level." },
-        "CELERY_CONCURRENCY": { "type": ["string", "integer"], "description": "Celery worker concurrency." },
         "CELERY_QUEUES": { "type": "string", "description": "Comma-separated Celery queues listened by this worker." },
         "WEB_RECORDER_MODE": { "type": "string", "enum": ["local", "worker"], "description": "Web recording control-plane mode." },
         "WEB_RECORDER_WORKER_QUEUE_PREFIX": { "type": "string", "minLength": 1, "description": "Redis key prefix for Web recording commands." },

@@ -870,6 +870,7 @@ import {
 import KvEditor from '@/components/common/KvEditor.vue'
 import PerformanceNodePanel from './components/PerformanceNodePanel.vue'
 import { useChartTheme } from '@/utils/chartTheme'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { getPerformanceThresholdGate, getPerformanceThresholdRows } from '@/utils/performanceReport'
 import {
   applyPerformanceLoadTemplate,
@@ -939,7 +940,8 @@ const resourceMetric = ref('cpu_percent')
 const scheduleTarget = ref<PerformanceTestItem | null>(null)
 const selectedRunIds = ref<number[]>([])
 const capacityForm = ref({ max_error_rate_percent: 1, max_p95_ms: undefined as number | undefined, min_stable_runs: 1 })
-let runPollingTimer: ReturnType<typeof window.setInterval> | null = null
+// 仅在存在进行中的压测时轮询；标签页隐藏时暂停，上一轮未结束时不叠加请求
+const runPolling = useVisiblePolling(() => loadRuns({ silent: true }), 2000)
 let trendSequence = 0
 
 type PerformanceNodeForm = {
@@ -2090,18 +2092,15 @@ function progressLabel(record: PerformanceRunItem) {
 
 function syncRunPolling() {
   const shouldPoll = !!projectId.value && runs.value.some((run) => isActiveStatus(run.status))
-  if (shouldPoll && runPollingTimer === null) {
-    runPollingTimer = window.setInterval(() => loadRuns({ silent: true }), 2000)
-  } else if (!shouldPoll) {
+  if (shouldPoll) {
+    runPolling.start()
+  } else {
     stopRunPolling()
   }
 }
 
 function stopRunPolling() {
-  if (runPollingTimer !== null) {
-    window.clearInterval(runPollingTimer)
-    runPollingTimer = null
-  }
+  runPolling.stop()
 }
 
 function statusLabel(status: string) {

@@ -32,10 +32,6 @@ _ACTION_MAP: dict[str, str] = {
 _TERMINAL_EVENT_TYPES = {"session_completed", "session_failed", "session_cancelled"}
 
 
-class DraftCompileError(ValueError):
-    """编译失败时只暴露稳定错误码，不泄露事件内容。"""
-
-
 @dataclass
 class CompiledDraft:
     """编译结果；`replayable` 为 False 时 `blocking_issues` 必不为空。"""

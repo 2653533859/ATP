@@ -50,6 +50,8 @@ UNKNOWN_OUTCOME_CODES = frozenset(
         "control_check_timeout",
     }
 )
+# 门禁因用户控制动作（暂停、接管、取消）拒绝写入时的原因码：会话状态已由用户决定
+USER_CONTROL_REASONS = frozenset({"write_cancelled", "control_epoch_changed", "manual_control_active"})
 # 暂停类终止：保留有效租约等待人工恢复；其余终止释放租约
 PAUSING_REASONS = frozenset(
     {
@@ -63,7 +65,6 @@ PAUSING_REASONS = frozenset(
         "android_agent_disabled",
     }
 )
-_ACTION_TIMEOUT_SECONDS = 120
 
 
 class AgentLoopError(RuntimeError):
@@ -268,6 +269,9 @@ async def _finish(
     code: str, session_id: int, factory: Any, coordinator: AgentCoordinator, result: LoopResult
 ) -> LoopResult:
     """按语义收敛会话：暂停保留租约等待人工恢复，其余终止释放租约。"""
+    if code in USER_CONTROL_REASONS:
+        # 用户已暂停/接管/取消：会话状态由用户决定，循环只负责退出，不能改判 failed 并释放租约。
+        return result
     async with factory() as db:
         if code in PAUSING_REASONS:
             try:
@@ -352,6 +356,10 @@ async def run_agent_session(
                 result.reason = AgentErrorCode.budget_exceeded.value
                 return await _finish(result.reason, session_id, session_factory, coordinator, result)
             epoch = session.control_epoch
+            # 每轮续期：步数多或模型慢时租约不会在循环中途到期。续期失败不在这里处理，
+            # 写入前的门禁会以 lease_lost 拒绝。
+            if await coordinator.renew_session_lease(db, session_id):
+                await db.commit()
 
         try:
             nodes = await asyncio.to_thread(adapter.observe)

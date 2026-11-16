@@ -42,7 +42,9 @@ describe('StartupConfigView', () => {
     const wrapper = mountPage()
     const vm = wrapper.vm as any
 
-    expect(vm.fieldCount).toBe(135)
+    expect(vm.fieldCount).toBe(134)
+    // 没有任何启动入口读取 CELERY_CONCURRENCY（Worker 固定 solo 单槽位），页面不应再生成它
+    expect(vm.envContent).not.toContain('CELERY_CONCURRENCY')
     expect(vm.envContent).toContain('POSTGRES_HOST=postgres')
     expect(vm.envContent).toContain('POSTGRES_CONNECT_TIMEOUT_SECONDS=5')
     expect(vm.envContent).toContain('POSTGRES_MIGRATION_USER=')

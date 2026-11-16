@@ -291,6 +291,7 @@ import {
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { getLocale, setLocale, type SupportedLocale } from '@/locales'
 import { hasAnyRole, type UserRole } from '@/utils/permissions'
 import { projectContextRenderKey, projectSelectionLocation } from '@/utils/projectContext'
@@ -317,7 +318,11 @@ const workerStatus = ref<WebRecordingWorkersResponse | null>(null)
 const workerStatusLoading = ref(true)
 const projectOptions = ref<ProjectItem[]>([])
 const projectOptionsLoading = ref(false)
-let workbenchRefreshTimer: number | undefined
+// 标签页隐藏时暂停，上一轮未结束时不叠加请求
+const workbenchPolling = useVisiblePolling(
+  () => Promise.all([refreshWorkbenchSummary(), refreshWorkerStatus()]),
+  30_000,
+)
 
 const collapsed = ref(false)
 
@@ -444,10 +449,7 @@ onMounted(() => {
   if (!localMode) {
     void refreshWorkbenchSummary()
     void refreshWorkerStatus()
-    workbenchRefreshTimer = window.setInterval(() => {
-      void refreshWorkbenchSummary()
-      void refreshWorkerStatus()
-    }, 30_000)
+    workbenchPolling.start()
   } else {
     workerStatusLoading.value = false
   }
@@ -455,7 +457,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  if (workbenchRefreshTimer !== undefined) window.clearInterval(workbenchRefreshTimer)
+  workbenchPolling.stop()
   window.removeEventListener('keydown', onGlobalKeydown)
 })
 

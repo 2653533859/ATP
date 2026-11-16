@@ -39,6 +39,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { groupExecutionApi, type GroupExecutionState } from '@/api'
+import { useVisiblePolling } from '@/composables/useVisiblePolling'
 
 const props = withDefaults(defineProps<{ kind: 'suite' | 'plan'; runId: number; active?: boolean }>(), { active: true })
 const emit = defineEmits<{ changed: [] }>()
@@ -49,7 +50,6 @@ const cancelling = ref(false)
 const error = ref('')
 let generation = 0
 let requestId = 0
-let timer: ReturnType<typeof setInterval> | undefined
 const reasonText = computed(() => {
   const key = `executionRecovery.reasons.${state.value?.reason}`
   return te(key) ? t(key) : t('executionRecovery.unknown')
@@ -99,18 +99,21 @@ function confirmCancel() {
   })
 }
 
+// 标签页隐藏时暂停；仅在尚无状态、运行未结束或需要对账时才拉取
+const polling = useVisiblePolling(() => {
+  if (!loading.value && (!state.value || ['pending', 'running'].includes(state.value.run_status) || state.value.requires_reconciliation)) return load()
+}, 3000)
+
 watch(() => [props.kind, props.runId, props.active], () => {
   generation++
   state.value = null
   error.value = ''
-  if (timer) clearInterval(timer)
+  polling.stop()
   if (!props.active) { loading.value = false; return }
   void load()
-  timer = setInterval(() => {
-    if (!loading.value && (!state.value || ['pending', 'running'].includes(state.value.run_status) || state.value.requires_reconciliation)) void load()
-  }, 3000)
+  polling.start()
 }, { immediate: true })
-onUnmounted(() => { generation++; if (timer) clearInterval(timer) })
+onUnmounted(() => { generation++; polling.stop() })
 </script>
 
 <style scoped>

@@ -38,6 +38,14 @@ updates:
       backend-docker:
         patterns:
           - "*"
+    # 基础镜像大版本迁移由人工立项，不让 Dependabot 长期挂着无法合并的 PR。
+    # python 的 3.12→3.15 在 Dependabot 看来是 minor，但对本项目等同于换运行时
+    # （仓库约定 Python 3.12），所以 python 连 minor 一并忽略；patch 与 digest 照常更新。
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "python"
+        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: docker
     directory: /frontend
@@ -51,6 +59,10 @@ updates:
       frontend-docker:
         patterns:
           - "*"
+    # 同上：node 20→26 这类大版本升级不自动提 PR，Node 版本与 CI（setup-node）一起人工升级。
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /

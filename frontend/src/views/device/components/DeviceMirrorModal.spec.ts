@@ -1,8 +1,11 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, h, ref } from 'vue'
+import { defineComponent, h } from 'vue'
+import { createI18n } from 'vue-i18n'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DeviceMirrorModal from './DeviceMirrorModal.vue'
+import type { DeviceItem } from '@/api'
+import zhCN from '@/locales/zh-CN'
 import { isWebCodecsSupported } from '@/composables/useWebCodecsDecoder'
 
 const {
@@ -29,10 +32,6 @@ const {
   acquireLeaseMock: vi.fn(),
   heartbeatLeaseMock: vi.fn(),
   releaseLeaseMock: vi.fn(),
-}))
-
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ locale: ref('zh-CN'), t: (key: string) => key }),
 }))
 
 vi.mock('ant-design-vue', () => ({
@@ -89,9 +88,18 @@ const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
 
 function mountModal(props: { open: boolean; device: any; recordable?: boolean; leaseToken?: string }) {
+  // 组件文案走 i18n，这里挂真实的 zh-CN 语言包，断言仍按界面中文文本写。
+  const i18n = createI18n({
+    legacy: false,
+    locale: 'zh-CN',
+    messages: { 'zh-CN': zhCN },
+    missingWarn: false,
+    fallbackWarn: false,
+  })
   return mount(DeviceMirrorModal, {
     props,
     global: {
+      plugins: [i18n],
       stubs: {
         AModal: modalStub,
         ATooltip: passthrough('ATooltip'),
@@ -427,6 +435,91 @@ describe('DeviceMirrorModal', () => {
     await flushPromises()
 
     expect(releaseLeaseMock).toHaveBeenCalledWith(5, 'auto-test-lease')
+    wrapper.unmount()
+  })
+
+  it('releases a lease that arrives after the modal was closed and never starts the heartbeat', async () => {
+    vi.useFakeTimers()
+    const device = { id: 11, serial: 'DEV-11', status: 'online' }
+    let resolveAcquire: (value: { lease_token: string }) => void = () => {}
+    acquireLeaseMock.mockReturnValueOnce(new Promise((resolve) => { resolveAcquire = resolve }))
+
+    const wrapper = mountModal({ open: true, device })
+    await flushPromises()
+    expect(acquireLeaseMock).toHaveBeenCalledTimes(1)
+
+    await wrapper.setProps({ open: false })
+    expect(releaseLeaseMock).not.toHaveBeenCalled()
+
+    resolveAcquire({ lease_token: 'late-lease' })
+    await flushPromises()
+
+    expect(releaseLeaseMock).toHaveBeenCalledTimes(1)
+    expect(releaseLeaseMock).toHaveBeenCalledWith(11, 'late-lease')
+    expect((wrapper.vm as unknown as { hasControlLease: boolean }).hasControlLease).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(heartbeatLeaseMock).not.toHaveBeenCalled()
+    expect(acquireLeaseMock).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('releases the previous device lease by its own id before acquiring one for the switched device', async () => {
+    vi.useFakeTimers()
+    const first = { id: 21, serial: 'DEV-21', status: 'online' }
+    const second = { id: 22, serial: 'DEV-22', status: 'online' }
+    acquireLeaseMock
+      .mockResolvedValueOnce({ lease_token: 'lease-21' })
+      .mockResolvedValueOnce({ lease_token: 'lease-22' })
+
+    const wrapper = mountModal({ open: true, device: first })
+    await flushPromises()
+    expect(acquireLeaseMock).toHaveBeenCalledWith(21, expect.objectContaining({ ttl_seconds: 90 }))
+
+    await wrapper.setProps({ device: second as unknown as DeviceItem })
+    await flushPromises()
+
+    expect(releaseLeaseMock).toHaveBeenCalledTimes(1)
+    expect(releaseLeaseMock).toHaveBeenCalledWith(21, 'lease-21')
+    expect(acquireLeaseMock).toHaveBeenCalledTimes(2)
+    expect(acquireLeaseMock).toHaveBeenLastCalledWith(22, expect.objectContaining({ ttl_seconds: 90 }))
+
+    await wrapper.findAll('.nav-key-btn')[0].trigger('click')
+    await flushPromises()
+    expect(keyeventMock).toHaveBeenCalledWith(22, 4, 'lease-22')
+
+    // 心跳只为新设备的新租约续期，旧 token 不再出现。
+    await vi.advanceTimersByTimeAsync(25_000)
+    expect(heartbeatLeaseMock).toHaveBeenCalledTimes(1)
+    expect(heartbeatLeaseMock).toHaveBeenCalledWith(22, 'lease-22', 90)
+    wrapper.unmount()
+  })
+
+  it('discards an in-flight lease for the old device and re-acquires for the device switched to meanwhile', async () => {
+    const first = { id: 31, serial: 'DEV-31', status: 'online' }
+    const second = { id: 32, serial: 'DEV-32', status: 'online' }
+    let resolveFirst: (value: { lease_token: string }) => void = () => {}
+    acquireLeaseMock
+      .mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve }))
+      .mockResolvedValueOnce({ lease_token: 'lease-32' })
+
+    const wrapper = mountModal({ open: true, device: first })
+    await flushPromises()
+    await wrapper.setProps({ device: second as unknown as DeviceItem })
+    await flushPromises()
+    // 第一次申请仍在途，第二台设备的申请尚未发出。
+    expect(acquireLeaseMock).toHaveBeenCalledTimes(1)
+
+    resolveFirst({ lease_token: 'lease-31' })
+    await flushPromises()
+
+    expect(releaseLeaseMock).toHaveBeenCalledWith(31, 'lease-31')
+    expect(acquireLeaseMock).toHaveBeenCalledTimes(2)
+    expect(acquireLeaseMock).toHaveBeenLastCalledWith(32, expect.objectContaining({ ttl_seconds: 90 }))
+
+    await wrapper.findAll('.nav-key-btn')[0].trigger('click')
+    await flushPromises()
+    expect(keyeventMock).toHaveBeenCalledWith(32, 4, 'lease-32')
     wrapper.unmount()
   })
 

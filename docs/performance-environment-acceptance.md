@@ -334,8 +334,6 @@ image:
   worker:
     tag: 2026-08-07-q17
 
-worker:
-  queues: default,ios,ai,maintenance
 config:
   CELERY_QUEUES: default,ios,ai,maintenance
   PERFORMANCE_EXECUTORS: k6,locust,grpc,jmeter

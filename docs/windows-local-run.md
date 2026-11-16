@@ -497,7 +497,7 @@ Android 扫描和低代码执行都仍需连接真实设备；Linux/Kubernetes �
 
 - `backend\.venv\Scripts\python.exe` 不存在：先完成后端虚拟环境安装
 - `frontend\node_modules\vite\bin\vite.js` 不存在：先在 `frontend` 执行 `npm ci`
-- `node.exe` 不存在：安装 Node.js 20+
+- `node.exe` 不存在：安装 Node.js 22+
 
 ### 2. 端口被占用
 

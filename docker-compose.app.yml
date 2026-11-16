@@ -34,8 +34,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile.worker
     env_file: .env
-    environment:
-      - CELERY_CONCURRENCY=${CELERY_CONCURRENCY:-4}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
