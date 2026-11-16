@@ -118,7 +118,7 @@ Global limits: `task_time_limit=1800`, soft `1500`, `worker_max_tasks_per_child=
 
 ### Frontend (`frontend/src/`)
 
-- `api/http.ts` — axios + JWT interceptor + 401 redirect; `api/index.ts` — all endpoint wrappers
+- `api/http.ts` — axios with cookie auth (`withCredentials`, no `Authorization` header) + client-mode request headers + 401 redirect; `api/index.ts` — all endpoint wrappers
 - `stores/auth.ts` (Pinia), `router/index.ts` (routes + auth guard), `utils/websocket.ts` (auto-reconnect wrapper)
 - `views/` by feature: auth, account, project, case, run, suite, plan, report, defect, device, apk, mock, dashboard, workbench, intelligence, cloud-sync, audit, system, mobile-special
 - `locales/` — vue-i18n; new user-facing strings go through i18n keys, not literals (migration is partial — match the surrounding page)

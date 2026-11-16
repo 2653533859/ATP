@@ -49,6 +49,7 @@ from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.models.device import Device
 from app.models.project import Module
 from app.schemas.android_precheck import PrecheckStatus
+from app.services.adb_service import sanitize_adb_input_text
 from app.services.android_agent.strict_replay import (
     STRICT_ACTIONS,
     STRICT_PASSTHROUGH_ACTIONS,
@@ -599,9 +600,7 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
         # 处理中文等特殊字符：使用 am broadcast
         # adb 会把参数拼成一行交给设备端 shell：统一转义全部元字符（引号、$、括号、分号等），
         # 否则含这些字符的文本会输入失败或被当作命令执行
-        from app.device_stream.manager import _sanitize_adb_input_text
-
-        escaped = _sanitize_adb_input_text(text)
+        escaped = sanitize_adb_input_text(text)
         ok, out = _adb_cmd(serial, "shell", "input", "text", escaped, timeout=10)
         return {"success": ok, "error": out if not ok else None}
 

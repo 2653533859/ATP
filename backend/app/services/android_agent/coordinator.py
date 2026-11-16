@@ -548,9 +548,13 @@ class AgentCoordinator:
     async def recover_orphaned_sessions(
         self,
         db: AsyncSession,
-        inactive_threshold_seconds: int = 180,
+        inactive_threshold_seconds: int | None = 180,
     ) -> list[int]:
-        """Scan and recover orphaned or crashed non-terminal sessions (A22 crash recovery)."""
+        """Scan and recover orphaned or crashed non-terminal sessions (A22 crash recovery).
+
+        `inactive_threshold_seconds=None` 时只按租约判断：仅收敛设备租约已失效、因而无法再操作设备的会话。
+        "长时间没有新事件"不能单独说明会话已中断——已启动或已恢复、正等用户点"执行一轮"的会话同样没有新事件。
+        """
         stmt = select(AndroidAgentSession).where(
             AndroidAgentSession.status.in_(
                 [
@@ -563,7 +567,7 @@ class AgentCoordinator:
         candidates = (await db.execute(stmt)).scalars().all()
         recovered_ids: list[int] = []
         now = _now()
-        threshold = now - timedelta(seconds=inactive_threshold_seconds)
+        threshold = None if inactive_threshold_seconds is None else now - timedelta(seconds=inactive_threshold_seconds)
 
         for session in candidates:
             # 1. 检查租约有效性
@@ -572,16 +576,17 @@ class AgentCoordinator:
                 active_lease = await get_active_device_lease(db, session.device_id, session.lease_token)
                 lease_active = active_lease is not None
 
-            # 2. 检查最后事件活跃时间
-            last_event_time = (
-                await db.execute(
-                    select(func.max(AndroidAgentEvent.created_at)).where(AndroidAgentEvent.session_id == session.id)
-                )
-            ).scalar_one_or_none()
-            if last_event_time and last_event_time.tzinfo is None:
-                last_event_time = last_event_time.replace(tzinfo=timezone.utc)
-
-            is_inactive = last_event_time is None or last_event_time < threshold
+            # 2. 检查最后事件活跃时间（未给阈值时不看活跃度）
+            is_inactive = False
+            if threshold is not None:
+                last_event_time = (
+                    await db.execute(
+                        select(func.max(AndroidAgentEvent.created_at)).where(AndroidAgentEvent.session_id == session.id)
+                    )
+                ).scalar_one_or_none()
+                if last_event_time and last_event_time.tzinfo is None:
+                    last_event_time = last_event_time.replace(tzinfo=timezone.utc)
+                is_inactive = last_event_time is None or last_event_time < threshold
 
             if not lease_active or is_inactive:
                 reason = "Device lease expired or lost" if not lease_active else "Session heartbeat inactivity timeout"

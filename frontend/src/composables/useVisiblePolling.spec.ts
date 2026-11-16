@@ -105,4 +105,28 @@ describe('useVisiblePolling', () => {
     await vi.advanceTimersByTimeAsync(60000)
     expect(task).not.toHaveBeenCalled()
   })
+
+  it('ignores a late start() after the owning component has unmounted', async () => {
+    // 调用方常在异步回调里 start()（如请求返回后发现仍有进行中的运行）；
+    // 此时组件可能已卸载，再启动就会留下永远清不掉的定时器和监听器。
+    const task = vi.fn().mockResolvedValue(undefined)
+    let polling!: ReturnType<typeof useVisiblePolling>
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          polling = useVisiblePolling(task, 15000)
+          return () => h('div')
+        },
+      }),
+    )
+    wrapper.unmount()
+
+    polling.start()
+
+    expect(vi.getTimerCount()).toBe(0)
+    setVisibility('hidden')
+    setVisibility('visible')
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(task).not.toHaveBeenCalled()
+  })
 })

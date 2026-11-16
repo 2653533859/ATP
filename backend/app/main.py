@@ -86,22 +86,29 @@ async def _init_admin():
 
 
 async def _recover_orphaned_agent_sessions() -> None:
-    """进程重启后收敛中断的 Android Agent 会话，不自动继续设备操作。
+    """启动时收敛已无法继续的 Android Agent 会话：非终态、但设备租约已失效。
 
-    只处理租约已失效或长时间没有新事件的非终态会话，其他副本上仍在推进的会话不受影响。
+    这里只按租约判断，不按"多久没有新事件"判断。启动瞬间无法区分三种没有新事件的会话：
+    被本次重启打断的、其他副本正在驱动的、以及已启动/已恢复后正等用户点"执行一轮"的。
+    按事件静默时间收敛会把后两种正常会话判成失败并释放它们的设备租约。
+
+    因此被本次重启打断、租约仍有效的会话不会在这里收敛：它保持 running，不会自动继续设备操作
+    （循环只由显式的 run 请求驱动），由用户继续或取消；租约到期后在下一次启动时收敛。
+    要在重启后立刻收敛这类会话，需要先能识别"循环正在进行"，再配合周期性对账。
+
     恢复失败（例如数据库尚未迁移到含 Agent 表的版本）只告警，不阻断启动。
     """
     from app.services.android_agent.coordinator import AgentCoordinator
 
     try:
         async with AsyncSessionLocal() as db:
-            recovered = await AgentCoordinator().recover_orphaned_sessions(db)
+            recovered = await AgentCoordinator().recover_orphaned_sessions(db, inactive_threshold_seconds=None)
             await db.commit()
     except Exception:
         logger.warning("Android Agent 会话恢复扫描失败，已跳过", exc_info=True)
         return
     if recovered:
-        logger.warning("Android Agent 会话恢复：%d 个中断会话已收敛为待人工核查 %s", len(recovered), recovered)
+        logger.warning("Android Agent 会话恢复：%d 个租约已失效的会话已收敛为待人工核查 %s", len(recovered), recovered)
 
 
 @asynccontextmanager

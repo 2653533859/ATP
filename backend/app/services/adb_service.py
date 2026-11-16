@@ -4,6 +4,7 @@ ADB 设备扫描服务
 提供：
   - scan_devices()    扫描 ADB 已连接设备，返回解析后的设备信息列表
   - get_device_props() 获取单台设备的详细属性
+  - sanitize_adb_input_text() 转义 `adb shell input text` 的参数
 """
 
 import asyncio
@@ -16,6 +17,26 @@ from dataclasses import dataclass
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# 设备端 shell 会解释的元字符：adb 把参数拼成一行交给设备 shell，必须逐个加反斜杠转义
+_ADB_SHELL_META_CHARS = frozenset("\\'\"$&;|<>()`~*?[]{}!^")
+
+
+def sanitize_adb_input_text(text: str) -> str:
+    """对 adb shell input text 参数进行安全转义与空格转换，防范 Shell 命令注入。
+
+    设备投屏接口、scrcpy 文本降级通道和 Android 低代码执行器共用这一份转义规则。
+    """
+    cleaned = "".join(ch for ch in text if ch.isprintable() or ch == "\t")
+    escaped: list[str] = []
+    for ch in cleaned:
+        if ch == " ":
+            escaped.append("%s")
+        elif ch in _ADB_SHELL_META_CHARS:
+            escaped.append(f"\\{ch}")
+        else:
+            escaped.append(ch)
+    return "".join(escaped)
 
 
 @dataclass

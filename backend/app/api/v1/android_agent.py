@@ -1050,6 +1050,11 @@ async def start_agent_draft_replay(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="回放已创建但执行派发失败，请稍后重试",
         ) from None
+    if replay.status == "dispatch_failed":
+        # 同幂等键重试且这次派发成功：恢复为排队中。否则回放一直停在 dispatch_failed，
+        # sync_replay_status 不会把它推进到 running，前端也按终态停止轮询并提示重新发起。
+        replay.status = "queued"
+        replay.error_code = None
     await db.commit()
 
     return AgentReplayHandoffResponse(

@@ -937,6 +937,16 @@ async function refreshEvents() {
   }
 }
 
+// 会话进入终态后轮询不再拉事件，但编辑草稿、发起回放、保存用例仍会向事件流追加记录，
+// 由这些操作在成功后自行补拉；补拉失败不影响操作本身的结果，下次刷新再取。
+async function refreshEventsQuietly() {
+  try {
+    await refreshEvents()
+  } catch {
+    // 忽略：事件流只是展示，不能把已成功的操作报成失败
+  }
+}
+
 function applyPackageSnapshot(snapshot: {
   packages: string[]
   current_package: string | null
@@ -1388,6 +1398,7 @@ async function saveDraftEdits() {
     latestReplay.value = null
     publishedCaseId.value = null
     message.success(t('android_agent.draft_saved', { version: updated.version }))
+    await refreshEventsQuietly()
   } catch (error) {
     errorMessage.value = describeError(error)
   } finally {
@@ -1439,6 +1450,7 @@ async function startReplay() {
     message.success(t('android_agent.replay_start') + ' #' + replayId)
     // 会话终态后轮询已停，回放进行期间需要重新轮询其状态
     startPolling()
+    await refreshEventsQuietly()
   } catch (error) {
     errorMessage.value = describeError(error)
   } finally {
@@ -1456,6 +1468,7 @@ async function publishDraft() {
       'agent-publish-' + draft.value.id + '-' + draft.value.version,
     )
     publishedCaseId.value = result.case_id
+    await refreshEventsQuietly()
   } catch (error) {
     errorMessage.value = describeError(error)
   } finally {

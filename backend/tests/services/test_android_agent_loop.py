@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import event, select
+from sqlalchemy import event, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.models.android_agent import AndroidAgentCommand, AndroidAgentEvent, AndroidAgentSession
@@ -494,6 +494,56 @@ async def test_loop_requires_running_session(tmp_path: Path):
         assert "session_not_running" in str(exc_info.value)
     finally:
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_startup_recovery_spares_idle_sessions_and_converges_lease_lost_ones(tmp_path: Path, monkeypatch):
+    from app import main
+
+    engine, factory = await _setup_db(tmp_path, tag="startup-recover")
+    try:
+        session_id = await _running_session(factory)
+        monkeypatch.setattr(main, "AsyncSessionLocal", factory)
+
+        async with factory() as db:
+            # 会话已启动，但用户 10 分钟没点"执行一轮"：没有新事件，租约仍有效
+            await db.execute(
+                update(AndroidAgentEvent).values(created_at=datetime.now(timezone.utc) - timedelta(minutes=10))
+            )
+            await db.commit()
+
+        await main._recover_orphaned_agent_sessions()
+        async with factory() as db:
+            session = await db.get(AndroidAgentSession, session_id)
+            # 任一后端进程启动都不能把等待用户操作的正常会话判成失败并释放它的设备
+            assert session.status == "running"
+            assert session.lease_token is not None
+
+        async with factory() as db:
+            # 租约到期：会话已无法再操作设备
+            lease = (await db.execute(select(DeviceLease))).scalar_one()
+            lease.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+            await db.commit()
+
+        await main._recover_orphaned_agent_sessions()
+        async with factory() as db:
+            session = await db.get(AndroidAgentSession, session_id)
+            assert (session.status, session.error_code) == ("failed", "system_restarted_needs_review")
+            assert session.lease_token is None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_startup_recovery_failure_does_not_block_startup(monkeypatch):
+    from app import main
+
+    def broken_factory():
+        raise RuntimeError("database not migrated")
+
+    monkeypatch.setattr(main, "AsyncSessionLocal", broken_factory)
+    # 只告警，不向 lifespan 抛出
+    await main._recover_orphaned_agent_sessions()
 
 
 @pytest.mark.asyncio

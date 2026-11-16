@@ -16,11 +16,13 @@ backend/celerybeat-schedule.dat
 backend/celerybeat-schedule.dir
 
 frontend/node_modules/
+frontend/node_modules.broken-*/
 node_modules/
 .venv/
 frontend/dist/
 .local-run/
 .local-data/
+.env.windows-wsl-backup
 config/startup-profiles/*.env
 !config/startup-profiles/*.env.example
 config/deployment-profiles/*.env
@@ -32,6 +34,11 @@ frontend/playwright-report/
 frontend/test-results/
 frontend/coverage/
 frontend/.playwright-mcp/
+frontend/*_clean.png
+frontend/*_preview.png
+frontend/dashboard_current.png
+frontend/dashboard_redesigned.png
+frontend/hermes_minimal_toolbar.png
 *.bak
 
 .DS_Store

@@ -807,4 +807,43 @@ describe('AndroidAgentPanel loop', () => {
       }
     },
   )
+
+  it('会话终态后编辑草稿、发起回放与保存用例会补拉新写入的事件', async () => {
+    const eventAt = (seq: number, eventType: string) => ({
+      id: seq, session_id: 11, seq, event_type: eventType, payload: {}, artifact_refs: [], created_at: '2026-11-11T02:00:00Z',
+    })
+    const wrapper = mountPanel()
+    // 会话已是终态：轮询不再拉会话与事件，只能靠各操作自己补拉
+    wrapper.vm.session = { ...sessionFixture, status: 'completed' }
+    await wrapper.vm.compileDraft()
+    await flushPromises()
+    expect(wrapper.findAll('.agent-event-row').map((row) => row.attributes('data-seq'))).toEqual(['1'])
+
+    events.mockResolvedValueOnce({ items: [eventAt(2, 'draft_edited')], next_seq: 2, has_more: false })
+    wrapper.vm.startEditDraft()
+    wrapper.vm.editAssertions = [{ type: 'element_visible', resource_id: 'com.example.shop:id/updated' }]
+    await wrapper.vm.saveDraftEdits()
+    await flushPromises()
+    expect(events).toHaveBeenLastCalledWith(1, 11, 1, 200)
+
+    events.mockResolvedValueOnce({ items: [eventAt(3, 'replay_queued')], next_seq: 3, has_more: false })
+    wrapper.vm.replayStateConfirmed = true
+    wrapper.vm.replayModuleId = 1
+    await wrapper.vm.startReplay()
+    await flushPromises()
+    expect(events).toHaveBeenLastCalledWith(1, 11, 2, 200)
+
+    events.mockResolvedValueOnce({ items: [eventAt(4, 'draft_published')], next_seq: 4, has_more: false })
+    await wrapper.vm.publishDraft()
+    await flushPromises()
+    expect(events).toHaveBeenLastCalledWith(1, 11, 3, 200)
+    expect(wrapper.findAll('.agent-event-row').map((row) => row.attributes('data-seq'))).toEqual(['1', '2', '3', '4'])
+
+    // 事件补拉失败不影响操作本身的结果
+    events.mockRejectedValueOnce(new Error('backend down'))
+    await wrapper.vm.publishDraft()
+    await flushPromises()
+    expect(wrapper.vm.publishedCaseId).toBe(100)
+    expect(wrapper.vm.errorMessage).toBe('')
+  })
 })

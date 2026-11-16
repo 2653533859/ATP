@@ -6,7 +6,8 @@
 - 不持有数据库事务等待模型或 ADB；
 - 每次写入前同步复核租约、控制代次与取消标志（`DeviceControlGate`）；
 - 未知执行结果（`*_outcome_unknown`）只标记待核查，绝不重发；
-- 后端重启后非终态会话由 `recover_orphaned_sessions` 收敛，不自动继续设备操作。
+- 后端重启后不自动继续设备操作：循环只由显式的 run 请求驱动；租约已失效的非终态会话在启动时由
+  `recover_orphaned_sessions` 收敛为待核查。
 """
 
 from __future__ import annotations

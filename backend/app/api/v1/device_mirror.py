@@ -25,6 +25,7 @@ from app.core.config import settings
 from app.models.device import Device, DeviceStatus
 from app.models.user import User
 from app.api.deps import get_current_user, require_engineer
+from app.services.adb_service import sanitize_adb_input_text
 from app.services.device_leases import get_active_device_lease
 from app.services.device_packages import latest_snapshot, list_snapshots, save_snapshot, serialize_snapshot
 from app.schemas.device import (
@@ -684,9 +685,7 @@ async def device_text(
     device = await _get_online_device(device_id, db)
     await _require_control_lease(db, device_id, lease_token)
     # adb 会把参数拼成一行交给设备端 shell：必须转义元字符，否则 ; & $ ( 等会被当作命令执行
-    from app.device_stream.manager import _sanitize_adb_input_text
-
-    safe_text = _sanitize_adb_input_text(body.text)
+    safe_text = sanitize_adb_input_text(body.text)
     if not safe_text:
         raise HTTPException(status_code=422, detail="文本不包含可输入的字符")
     if _use_android_worker():

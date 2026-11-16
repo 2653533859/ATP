@@ -415,7 +415,7 @@ function Show-Doctor {
 
   $result = Show-DoctorCheck -Label 'Python virtual environment' -Passed (Test-Path $BackendPython) -Hint 'Create backend/.venv and install backend requirements.'
   $failed += $result
-  $result = Show-DoctorCheck -Label 'Node.js 22+, Vite and Playwright packages' -Passed (($null -ne $NodeExe) -and (Test-Path $ViteEntry) -and (Test-Path $PlaywrightPackage)) -Hint 'Install Node.js 20+ and run npm ci in frontend.'
+  $result = Show-DoctorCheck -Label 'Node.js 22+, Vite and Playwright packages' -Passed (($null -ne $NodeExe) -and (Test-Path $ViteEntry) -and (Test-Path $PlaywrightPackage)) -Hint 'Install Node.js 22+ and run npm ci in frontend.'
   $failed += $result
 
   $webRecorderMode = Get-WebRecordingMode

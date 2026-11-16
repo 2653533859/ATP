@@ -172,3 +172,20 @@ def test_async_scan_devices_runs_in_executor(monkeypatch):
     monkeypatch.setattr(adb, "_run_adb", _fake_run_adb({}))
     result = asyncio.run(adb.async_scan_devices())
     assert len(result) == 3 and result[0].serial == "emu1"
+
+
+# ── sanitize_adb_input_text：投屏接口 / scrcpy 降级 / 低代码执行器共用的转义 ──
+
+
+def test_sanitize_adb_input_text_escapes_meta_and_drops_non_printable():
+    assert adb.sanitize_adb_input_text("hello world") == "hello%sworld"
+    # 设备端 shell 的元字符逐个加反斜杠，换行等不可打印字符直接丢弃
+    assert adb.sanitize_adb_input_text("a;rm -rf /\n$(id)") == "a\\;rm%s-rf%s/\\$\\(id\\)"
+    assert adb.sanitize_adb_input_text("\x00\n\r") == ""
+
+
+def test_scrcpy_manager_reuses_the_shared_sanitizer():
+    # 三处调用必须是同一份实现，避免各自演化出不同的转义规则
+    from app.device_stream import manager
+
+    assert manager._sanitize_adb_input_text is adb.sanitize_adb_input_text

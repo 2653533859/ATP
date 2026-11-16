@@ -195,7 +195,7 @@ ATP/
 │
 └── frontend/
     ├── Dockerfile                  多阶段构建（node build → nginx 托管）
-    ├── nginx.conf                  前端容器内 Nginx 配置（同 docker/nginx.conf）
+    ├── nginx.conf                  前端容器内 Nginx 配置
     ├── vite.config.ts              开发代理：/api → localhost:8000, /ws → ws://localhost:8000
     ├── tsconfig.json
     └── src/
@@ -505,7 +505,7 @@ Q15 的主线不是新功能，而是让已声明的质量门禁真正生效。�
 
 5. **Celery Flower 监控**：生产时访问 `http://localhost:5555`
 
-6. **前端 nginx.conf**：`frontend/nginx.conf` 是容器内使用的，与 `docker/nginx.conf` 内容相同（由用户修改）
+6. **前端 nginx.conf**：`frontend/nginx.conf` 是容器内使用的 Nginx 配置（原先内容相同的副本 `docker/nginx.conf` 没有任何引用，已于 2026-11 删除）
 
 ## 15. 2026-08-07 Q16-06/Q16-07 交付记忆
 

@@ -792,6 +792,59 @@ async def test_api_get_replay_persists_run_outcome(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_api_replay_redispatch_after_dispatch_failure_resets_status(tmp_path: Path, monkeypatch):
+    engine, factory, user = await _setup_db(tmp_path, tag="redispatch")
+    try:
+        session_id = await _seed_session(factory)
+        payload = AgentReplayStartRequest(initial_state_confirmed=True, module_id=1, idempotency_key="retry-1")
+
+        def broker_down(run, case, session):
+            raise RuntimeError("broker unavailable")
+
+        monkeypatch.setattr(android_agent_api, "_enqueue_replay_run", broker_down)
+        async with factory() as db:
+            draft = await create_agent_draft(
+                project_id=1,
+                session_id=session_id,
+                payload=AgentDraftCreateRequest(),
+                db=db,
+                current_user=user,
+            )
+            with pytest.raises(HTTPException) as exc_info:
+                await start_agent_draft_replay(
+                    project_id=1, draft_id=draft.id, payload=payload, db=db, current_user=user
+                )
+            assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+        dispatched: list[int] = []
+        monkeypatch.setattr(
+            android_agent_api, "_enqueue_replay_run", lambda run, case, session: dispatched.append(run.id)
+        )
+        async with factory() as db:
+            # 前端按草稿版本生成幂等键，重试命中的是同一条回放记录
+            handoff = await start_agent_draft_replay(
+                project_id=1, draft_id=draft.id, payload=payload, db=db, current_user=user
+            )
+            assert dispatched == [handoff.run_id]
+            # 这次派发成功：不能继续报告"派发失败"，否则前端按终态停止轮询并提示重新发起
+            assert handoff.replay.status == "queued"
+            assert handoff.replay.error_code is None
+
+        async with factory() as db:
+            # 运行进入队列后，回放状态要能跟随运行推进
+            running = await get_agent_replay(project_id=1, replay_id=handoff.replay.id, db=db, current_user=user)
+            assert running.status == "running"
+
+        await _finish_run(factory, handoff.run_id, RunStatus.passed)
+
+        async with factory() as db:
+            published = await publish_agent_draft(project_id=1, draft_id=draft.id, db=db, current_user=user)
+            assert published.verified_replay_id == handoff.replay.id
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_api_draft_project_isolation(tmp_path: Path):
     engine, factory, user = await _setup_db(tmp_path, tag="isolation")
     try:

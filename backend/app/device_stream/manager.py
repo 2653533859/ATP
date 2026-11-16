@@ -22,6 +22,9 @@ import adbutils
 from app.core.config import settings
 from app.core.package_paths import bundled_resource
 
+# 转义规则的实现在 adb_service（API 与 Worker 共用）；这里保留原名供本模块与既有调用方使用
+from app.services.adb_service import sanitize_adb_input_text as _sanitize_adb_input_text
+
 logger = logging.getLogger("ScrcpyManager")
 
 
@@ -260,20 +263,6 @@ def _build_keycode_control_packet(
 def _build_text_control_packet(text: str) -> bytes:
     raw = text.encode("utf-8")
     return struct.pack(">BI", SCRCPY_CONTROL_MSG_TYPE_INJECT_TEXT, len(raw)) + raw
-
-
-def _sanitize_adb_input_text(text: str) -> str:
-    """对 adb shell input text 参数进行安全转义与空格转换，防范 Shell 命令注入。"""
-    cleaned = "".join(ch for ch in text if ch.isprintable() or ch == "\t")
-    escaped: List[str] = []
-    for ch in cleaned:
-        if ch == " ":
-            escaped.append("%s")
-        elif ch in "\\'\"$&;|<>()`~*?[]{}!^":
-            escaped.append(f"\\{ch}")
-        else:
-            escaped.append(ch)
-    return "".join(escaped)
 
 
 class ScrcpyDeviceManager:
