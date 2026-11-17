@@ -66,3 +66,11 @@ repos:
         language: system
         pass_filenames: false
         files: ^frontend/src/.*\.(ts|vue)$
+
+      - id: deploy-linux-on-push
+        name: deploy to linux server on push
+        entry: ./scripts/deploy-linux.sh -HookMode
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
