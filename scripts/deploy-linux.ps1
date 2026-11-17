@@ -148,6 +148,9 @@ try {
     throw "未找到前端构建产物目录: $frontendDist"
   }
 
+  $sourceFileName = "source-$currentCommit.tar"
+  $frontendFileName = "frontend-dist-$currentCommit.tar.gz"
+
   # 5. 打包归档
   Log-Info "打包本地源码与前端产物..."
   Push-Location $RepoRoot
@@ -162,12 +165,12 @@ try {
           --exclude="backend/.coverage" `
           --exclude="backend/coverage.xml" `
           --exclude="*.pyc" `
-          -cf $sourceTar backend deploy
+          -cf $sourceFileName backend deploy
     if ($LASTEXITCODE -ne 0) { throw "打包源码失败" }
 
     Push-Location $FrontendDir
     try {
-      & tar -czf $frontendTar dist
+      & tar -czf "../$frontendFileName" dist
       if ($LASTEXITCODE -ne 0) { throw "打包前端产物失败" }
     } finally {
       Pop-Location
@@ -186,7 +189,12 @@ try {
 
   # 7. 上传产物归档
   Log-Info "上传产物归档至服务端..."
-  & scp @scpOpts $sourceTar $frontendTar "${sshTarget}:${releaseDir}/"
+  Push-Location $RepoRoot
+  try {
+    & scp @scpOpts $sourceFileName $frontendFileName "${sshTarget}:${releaseDir}/"
+  } finally {
+    Pop-Location
+  }
   if ($LASTEXITCODE -ne 0) {
     throw "上传产物到远端失败"
   }
