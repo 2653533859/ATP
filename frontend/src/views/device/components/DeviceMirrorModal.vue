@@ -677,6 +677,11 @@ function triggerScreenshotFallback(session: number) {
 function initScrcpyStream(serial: string) {
   closeScrcpyStream()
   const activeSession = mirrorSession
+  if (props.device?.worker_id) {
+    streamFallbackReason.value = '当前节点模式使用截图轮询，已跳过 Scrcpy 直连通道'
+    triggerScreenshotFallback(activeSession)
+    return
+  }
   if (!isWebCodecsSupported() || !scrcpyCanvasRef.value) {
     streamFallbackReason.value = describeStreamFallback()
     triggerScreenshotFallback(activeSession)

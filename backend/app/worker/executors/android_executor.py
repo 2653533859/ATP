@@ -85,6 +85,37 @@ async def run_android_case(
         return
 
     device_serial = cfg.get("device_serial")
+    from app.core.config import settings
+    from app.services.device_resolution import DeviceResolutionError, extract_device_id, resolve_device_async
+
+    device_id = extract_device_id(cfg) or extract_device_id(extra_vars)
+    if device_id is not None or (settings.ANDROID_MULTI_NODE_ENABLED and device_serial):
+        try:
+            device = await resolve_device_async(
+                db,
+                device_id=device_id,
+                serial=str(device_serial) if device_serial else None,
+            )
+            device_serial = device.serial
+            active_worker = settings.ANDROID_WORKER_ID.strip()
+            if (
+                settings.ANDROID_MULTI_NODE_ENABLED
+                and active_worker
+                and device.worker_id
+                and device.worker_id != active_worker
+            ):
+                run.status = RunStatus.error
+                run.error_message = f"worker_id_mismatch: 设备归属节点为 {device.worker_id}，当前节点为 {active_worker}"
+                await db.commit()
+                await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+                return
+        except DeviceResolutionError as exc:
+            run.status = RunStatus.error
+            run.error_message = exc.message
+            await db.commit()
+            await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+            return
+
     if not device_serial:
         run.status = RunStatus.error
         run.error_message = "未选择执行设备，请在用例配置中选择设备"

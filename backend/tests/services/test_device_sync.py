@@ -37,9 +37,13 @@ def test_build_upsert_stmt_uses_postgres_on_conflict():
     )
     sql_upper = sql.upper()
 
-    assert "ON CONFLICT (SERIAL) DO UPDATE" in sql_upper
+    assert "ON CONFLICT (SERIAL) WHERE WORKER_ID IS NULL DO UPDATE" in sql_upper
     assert "COALESCE" in sql_upper
     assert "CASE WHEN" in sql_upper
+
+    scoped = _build_upsert_stmt(info, datetime.now(timezone.utc), worker_id="win-a", worker_hostname="HOST-A")
+    scoped_sql = str(scoped.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})).upper()
+    assert "ON CONFLICT (WORKER_ID, SERIAL) DO UPDATE" in scoped_sql
 
 
 def test_build_upsert_stmt_uses_sqlite_on_conflict():
@@ -47,8 +51,12 @@ def test_build_upsert_stmt_uses_sqlite_on_conflict():
     stmt = _build_upsert_stmt(info, datetime.now(timezone.utc), "sqlite")
     sql = str(stmt.compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True})).upper()
 
-    assert "ON CONFLICT (SERIAL) DO UPDATE" in sql
+    assert "ON CONFLICT (SERIAL) WHERE WORKER_ID IS NULL DO UPDATE" in sql
     assert "COALESCE" in sql
+
+    scoped = _build_upsert_stmt(info, datetime.now(timezone.utc), "sqlite", worker_id="win-a")
+    scoped_sql = str(scoped.compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True})).upper()
+    assert "ON CONFLICT (WORKER_ID, SERIAL) DO UPDATE" in scoped_sql
 
 
 def test_busy_reconcile_subquery_is_correlated_to_the_updated_device():

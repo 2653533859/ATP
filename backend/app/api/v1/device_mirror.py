@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import subprocess
+from typing import Any
 from defusedxml import ElementTree as ET
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse, Response
@@ -377,14 +378,45 @@ def _use_android_worker() -> bool:
     return settings.ADB_SCAN_MODE.strip().lower() == "worker"
 
 
-async def _dispatch_worker_operation(operation: str, serial: str, params: dict | None = None) -> dict:
-    """将设备操作派发到 Windows Android Worker，并等待受控结果。"""
+async def _dispatch_worker_operation(
+    operation: str,
+    serial: str,
+    params: dict | None = None,
+    *,
+    worker_id: str | None = None,
+) -> dict:
+    """将设备操作派发到设备所属 Android Worker，并等待受控结果。"""
+    from app.services.android_worker_registry import (
+        AndroidWorkerRegistryError,
+        get_android_worker,
+        worker_execution_queue,
+    )
     from app.worker.tasks_device import run_android_device_operation
 
-    queue = settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special"
+    call_params = dict(params or {})
+    if settings.ANDROID_MULTI_NODE_ENABLED:
+        target_worker = (worker_id or "").strip()
+        if not target_worker:
+            raise HTTPException(status_code=409, detail="device_unclaimed: 设备尚未认领归属节点，请先在设备管理中认领")
+        try:
+            worker_info = await get_android_worker(target_worker)
+        except AndroidWorkerRegistryError as exc:
+            raise HTTPException(status_code=503, detail=f"worker_registry_unavailable: {exc}") from exc
+        if not worker_info:
+            raise HTTPException(
+                status_code=503,
+                detail=f"worker_offline: 设备所属节点 '{target_worker}' 当前离线",
+            )
+        queue = worker_execution_queue(target_worker)
+        call_params["expected_worker_id"] = target_worker
+        if worker_info.get("instance_generation") is not None:
+            call_params["expected_generation"] = worker_info.get("instance_generation")
+    else:
+        queue = settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special"
+
     try:
         async_result = run_android_device_operation.apply_async(
-            args=[operation, serial, params or {}],
+            args=[operation, serial, call_params],
             queue=queue,
             ignore_result=False,
             expires=15,
@@ -392,6 +424,14 @@ async def _dispatch_worker_operation(operation: str, serial: str, params: dict |
         result = await asyncio.to_thread(async_result.get, timeout=15)
     except Exception as exc:
         logger.warning("Android Worker operation failed: %s %s: %s", operation, serial, exc)
+        if settings.ANDROID_MULTI_NODE_ENABLED:
+            is_timeout = isinstance(exc, TimeoutError) or any(
+                token in str(exc).lower() for token in ("timeout", "timed out")
+            )
+            raise HTTPException(
+                status_code=504 if is_timeout else 503,
+                detail="operation_outcome_unknown: 设备操作超时或 Worker 不可用，结果未知且不会自动重试",
+            ) from exc
         raise HTTPException(status_code=503, detail="Android Worker 不可用或设备操作超时") from exc
 
     if not isinstance(result, dict) or not result.get("ok"):
@@ -400,10 +440,24 @@ async def _dispatch_worker_operation(operation: str, serial: str, params: dict |
     return result
 
 
-async def _screenshot(serial: str) -> bytes | None:
+async def _dispatch_for_device(
+    device: Any,
+    operation: str,
+    params: dict | None = None,
+) -> dict:
+    worker_id = getattr(device, "worker_id", None)
+    if settings.ANDROID_MULTI_NODE_ENABLED:
+        return await _dispatch_worker_operation(operation, device.serial, params, worker_id=worker_id)
+    return await _dispatch_worker_operation(operation, device.serial, params)
+
+
+async def _screenshot(serial: str, *, worker_id: str | None = None) -> bytes | None:
     if not _use_android_worker():
         return await asyncio.to_thread(_adb_screenshot, serial)
-    result = await _dispatch_worker_operation("screenshot", serial)
+    if settings.ANDROID_MULTI_NODE_ENABLED:
+        result = await _dispatch_worker_operation("screenshot", serial, worker_id=worker_id)
+    else:
+        result = await _dispatch_worker_operation("screenshot", serial)
     encoded = result.get("data_base64")
     if not isinstance(encoded, str) or not encoded:
         return None
@@ -445,7 +499,12 @@ async def device_screenshot(
     """获取设备当前屏幕单帧截图；`max_width`/`fmt` 用于低带宽轮询（例如 JPEG 540 宽）。"""
     device = await _get_online_device(device_id, db)
 
-    data = await _screenshot(device.serial)
+    worker_id = getattr(device, "worker_id", None)
+    data = (
+        await _screenshot(device.serial, worker_id=worker_id)
+        if settings.ANDROID_MULTI_NODE_ENABLED
+        else await _screenshot(device.serial)
+    )
     if not data:
         raise HTTPException(status_code=503, detail="截图失败，请检查设备连接")
 
@@ -465,7 +524,7 @@ async def device_tap(
     device = await _get_online_device(device_id, db)
     await _require_control_lease(db, device_id, lease_token)
     if _use_android_worker():
-        await _dispatch_worker_operation("tap", device.serial, {"x": body.x, "y": body.y})
+        await _dispatch_for_device(device, "tap", {"x": body.x, "y": body.y})
         return {"success": True}
     ok = await asyncio.to_thread(_adb_input, device.serial, "tap", str(body.x), str(body.y))
     if not ok:
@@ -484,7 +543,7 @@ async def device_ui_target(
     """根据屏幕坐标返回 UIAutomator 中对应的可定位控件。"""
     device = await _get_online_device(device_id, db)
     if _use_android_worker():
-        result = await _dispatch_worker_operation("ui_target", device.serial, {"x": x, "y": y})
+        result = await _dispatch_for_device(device, "ui_target", {"x": x, "y": y})
         response: dict[str, object] = {"target": result.get("target")}
         if result.get("diagnostic") is not None:
             response["diagnostic"] = result["diagnostic"]
@@ -502,7 +561,7 @@ async def device_ui_anchors(
     """提取设备当前屏幕可用于自动断言的稳定控件锚点。"""
     device = await _get_online_device(device_id, db)
     if _use_android_worker():
-        result = await _dispatch_worker_operation("ui_anchors", device.serial)
+        result = await _dispatch_for_device(device, "ui_anchors")
         response: dict[str, object] = {"anchors": result.get("anchors")}
         if result.get("diagnostic") is not None:
             response["diagnostic"] = result["diagnostic"]
@@ -522,10 +581,23 @@ async def _get_device_record(db: AsyncSession, device_id: int) -> Device:
 _package_captures: set[int] = set()
 
 
-async def _read_device_packages(serial: str, include_system: bool = False) -> dict[str, object] | None:
+async def _read_device_packages(
+    serial: str,
+    include_system: bool = False,
+    *,
+    worker_id: str | None = None,
+) -> dict[str, object] | None:
     if _use_android_worker():
         try:
-            result = await _dispatch_worker_operation("packages", serial, {"include_system": include_system})
+            if settings.ANDROID_MULTI_NODE_ENABLED:
+                result = await _dispatch_worker_operation(
+                    "packages",
+                    serial,
+                    {"include_system": include_system},
+                    worker_id=worker_id,
+                )
+            else:
+                result = await _dispatch_worker_operation("packages", serial, {"include_system": include_system})
         except HTTPException as exc:
             logger.warning("Android Worker packages read failed for %s: %s", serial, exc.detail)
             return None
@@ -543,13 +615,18 @@ async def _capture_device_packages(
     serial: str,
     user_id: int | None,
     include_system: bool,
+    worker_id: str | None = None,
 ) -> None:
     """后台执行 ADB 读取并落库；同一设备并发点击只跑一次。"""
     if device_id in _package_captures:
         return
     _package_captures.add(device_id)
     try:
-        payload = await _read_device_packages(serial, include_system)
+        payload = (
+            await _read_device_packages(serial, include_system, worker_id=worker_id)
+            if settings.ANDROID_MULTI_NODE_ENABLED
+            else await _read_device_packages(serial, include_system)
+        )
         if payload is None:
             logger.warning("Device package capture failed: device=%s serial=%s", device_id, serial)
             return
@@ -608,13 +685,23 @@ async def refresh_device_packages(
 ):
     """异步触发一次设备包名读取；结果写入快照历史，前端轮询 GET。"""
     device = await _get_online_device(device_id, db)
-    background.add_task(
-        _capture_device_packages,
-        device_id,
-        device.serial,
-        current_user.id,
-        include_system,
-    )
+    if settings.ANDROID_MULTI_NODE_ENABLED:
+        background.add_task(
+            _capture_device_packages,
+            device_id,
+            device.serial,
+            current_user.id,
+            include_system,
+            getattr(device, "worker_id", None),
+        )
+    else:
+        background.add_task(
+            _capture_device_packages,
+            device_id,
+            device.serial,
+            current_user.id,
+            include_system,
+        )
     return {"status": "queued", "device_id": device_id, "serial": device.serial}
 
 
@@ -631,9 +718,9 @@ async def device_swipe(
     await _require_control_lease(db, device_id, lease_token)
     duration_ms = max(100, min(body.duration_ms, 5000))
     if _use_android_worker():
-        await _dispatch_worker_operation(
+        await _dispatch_for_device(
+            device,
             "swipe",
-            device.serial,
             {"x1": body.x1, "y1": body.y1, "x2": body.x2, "y2": body.y2, "duration_ms": duration_ms},
         )
         return {"success": True}
@@ -665,7 +752,7 @@ async def device_keyevent(
     await _require_control_lease(db, device_id, lease_token)
     keycode_str = str(body.keycode).strip()
     if _use_android_worker():
-        await _dispatch_worker_operation("keyevent", device.serial, {"keycode": keycode_str})
+        await _dispatch_for_device(device, "keyevent", {"keycode": keycode_str})
         return {"success": True, "keycode": keycode_str}
     ok = await asyncio.to_thread(_adb_input, device.serial, "keyevent", keycode_str)
     if not ok:
@@ -689,7 +776,7 @@ async def device_text(
     if not safe_text:
         raise HTTPException(status_code=422, detail="文本不包含可输入的字符")
     if _use_android_worker():
-        await _dispatch_worker_operation("text", device.serial, {"text": safe_text})
+        await _dispatch_for_device(device, "text", {"text": safe_text})
         return {"success": True}
     ok = await asyncio.to_thread(_adb_input, device.serial, "text", safe_text)
     if not ok:
@@ -697,12 +784,16 @@ async def device_text(
     return {"success": True}
 
 
-async def _mjpeg_generator(serial: str, fps: float = 2.0):
+async def _mjpeg_generator(serial: str, fps: float = 2.0, *, worker_id: str | None = None):
     """生成 MJPEG 帧流"""
     interval = 1.0 / fps
     while True:
         try:
-            data = await _screenshot(serial)
+            data = (
+                await _screenshot(serial, worker_id=worker_id)
+                if settings.ANDROID_MULTI_NODE_ENABLED
+                else await _screenshot(serial)
+            )
         except HTTPException:
             data = None
         if data:
@@ -727,7 +818,12 @@ async def device_screen_stream(
 
     fps = max(0.5, min(fps, 5.0))
 
+    stream = (
+        _mjpeg_generator(device.serial, fps, worker_id=getattr(device, "worker_id", None))
+        if settings.ANDROID_MULTI_NODE_ENABLED
+        else _mjpeg_generator(device.serial, fps)
+    )
     return StreamingResponse(
-        _mjpeg_generator(device.serial, fps),
+        stream,
         media_type="multipart/x-mixed-replace; boundary=frame",
     )

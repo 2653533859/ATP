@@ -90,6 +90,21 @@ def validate_profiles(backend: dict[str, str], agent: dict[str, str]) -> list[Ch
 
     backend_queues = _queues(backend)
     agent_queues = _queues(agent)
+    multi_node = backend.get("ANDROID_MULTI_NODE_ENABLED", "").strip().lower() in {"1", "true", "yes"}
+    worker_id = agent.get("ANDROID_WORKER_ID", "").strip()
+    if multi_node and worker_id:
+        expected_agent_queues = {f"android.{worker_id}", f"mobile_special.{worker_id}"}
+        expected_label = f"android.{worker_id},mobile_special.{worker_id}"
+    elif multi_node:
+        expected_agent_queues = {q for q in agent_queues if q.startswith("android.") or q.startswith("mobile_special.")}
+        expected_label = "android.<worker_id>,mobile_special.<worker_id>"
+        agent_queue_ok = len(expected_agent_queues) == 2
+    else:
+        expected_agent_queues = AGENT_QUEUES
+        expected_label = "android,mobile_special"
+    if not (multi_node and not worker_id):
+        agent_queue_ok = agent_queues == expected_agent_queues
+
     checks.extend(
         (
             Check(
@@ -111,8 +126,8 @@ def validate_profiles(backend: dict[str, str], agent: dict[str, str]) -> list[Ch
             ),
             Check(
                 "agent queue set",
-                agent_queues == AGENT_QUEUES,
-                "android,mobile_special" if agent_queues == AGENT_QUEUES else "must be android,mobile_special",
+                agent_queue_ok,
+                expected_label if agent_queue_ok else f"must be {expected_label}",
             ),
             Check(
                 "Android worker queue",

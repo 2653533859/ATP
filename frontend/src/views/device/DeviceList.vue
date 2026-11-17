@@ -151,6 +151,21 @@
           class="search-input-box"
         />
         <a-select
+          v-model:value="selectedWorkerId"
+          placeholder="ADB 节点 (全部)"
+          allow-clear
+          class="filter-select"
+          @change="handleWorkerChange"
+        >
+          <a-select-option
+            v-for="worker in workers"
+            :key="worker.worker_id"
+            :value="worker.worker_id"
+          >
+            {{ worker.hostname || worker.worker_id }} ({{ worker.worker_id }})
+          </a-select-option>
+        </a-select>
+        <a-select
           v-model:value="statusFilter"
           placeholder="状态"
           allow-clear
@@ -453,7 +468,11 @@ const workers = ref<AndroidWorkerItem[]>([])
 const groups = ref<DeviceGroupItem[]>([])
 const loading = ref(false)
 const scanning = ref(false)
+const SELECTED_WORKER_STORAGE_KEY = 'atp:selected_android_worker_id'
 const statusFilter = ref<string | undefined>(undefined)
+const selectedWorkerId = ref<string | undefined>(
+  typeof window !== 'undefined' ? (window.localStorage.getItem(SELECTED_WORKER_STORAGE_KEY) || undefined) : undefined,
+)
 const keyword = ref('')
 
 // 原型交互状态
@@ -549,7 +568,11 @@ async function handleRemoteConnect() {
   }
   remoteConnecting.value = true
   try {
-    const res = await deviceApi.connect({ host, port: remoteForm.value.port || 5555 })
+    const res = await deviceApi.connect({
+      host,
+      port: remoteForm.value.port || 5555,
+      ...(selectedWorkerId.value ? { worker_id: selectedWorkerId.value } : {}),
+    })
     message.success(res.message || '远程设备连接成功！')
     remoteConnectModalVisible.value = false
     await loadDevices()
@@ -563,7 +586,10 @@ async function handleRemoteConnect() {
 
 async function handleRemoteDisconnect(serial: string) {
   try {
-    await deviceApi.disconnect({ serial })
+    await deviceApi.disconnect({
+      serial,
+      ...(selectedWorkerId.value ? { worker_id: selectedWorkerId.value } : {}),
+    })
     message.success(`已断开远程设备 ${serial}`)
     await loadDevices()
   } catch (err: any) {
@@ -660,8 +686,23 @@ function formatTime(t: string) {
 const DEVICE_POLL_INTERVAL_MS = 15000
 let deviceLoadSequence = 0
 
+function handleWorkerChange(value: unknown) {
+  selectedWorkerId.value = typeof value === 'string' && value.trim() ? value : undefined
+  if (typeof window !== 'undefined') {
+    if (selectedWorkerId.value) {
+      window.localStorage.setItem(SELECTED_WORKER_STORAGE_KEY, selectedWorkerId.value)
+    } else {
+      window.localStorage.removeItem(SELECTED_WORKER_STORAGE_KEY)
+    }
+  }
+  void loadDevices()
+}
+
 function deviceListParams() {
-  return statusFilter.value ? { status_filter: statusFilter.value } : undefined
+  const params: { status_filter?: string; worker_id?: string } = {}
+  if (statusFilter.value) params.status_filter = statusFilter.value
+  if (selectedWorkerId.value) params.worker_id = selectedWorkerId.value
+  return Object.keys(params).length > 0 ? params : undefined
 }
 
 async function loadDevices() {
@@ -766,6 +807,13 @@ function getPrototypeMockDevices(): DeviceItem[] {
 async function loadWorkers() {
   try {
     workers.value = await deviceApi.workers()
+    if (
+      selectedWorkerId.value &&
+      workers.value.length > 0 &&
+      !workers.value.some((w) => w.worker_id === selectedWorkerId.value)
+    ) {
+      message.warning(`已记忆的 ADB 节点 ${selectedWorkerId.value} 当前不在线，请重新选择`)
+    }
   } catch (_e) {
     workers.value = []
   }
@@ -798,7 +846,7 @@ async function handleScan() {
   ++deviceLoadSequence
   scanning.value = true
   try {
-    const result = await deviceApi.scan()
+    const result = await deviceApi.scan(selectedWorkerId.value || undefined)
     devices.value = result.devices
     if (result.status === 'failed') {
       throw new Error(result.error || t('device.msg.scan_failed'))

@@ -1,5 +1,18 @@
 import enum
-from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey, Table, Column, JSON, Index
+from sqlalchemy import (
+    String,
+    Text,
+    Integer,
+    Enum,
+    DateTime,
+    ForeignKey,
+    Table,
+    Column,
+    JSON,
+    Index,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from app.models.base import Base, TimestampMixin
@@ -30,9 +43,21 @@ class DeviceGroup(Base, TimestampMixin):
 
 class Device(Base, TimestampMixin):
     __tablename__ = "devices"
+    __table_args__ = (
+        UniqueConstraint("worker_id", "serial", name="uq_devices_worker_id_serial"),
+        Index(
+            "uq_devices_unclaimed_serial",
+            "serial",
+            unique=True,
+            postgresql_where=text("worker_id IS NULL"),
+            sqlite_where=text("worker_id IS NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    serial: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    serial: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
+    worker_id: Mapped[str | None] = mapped_column(String(128), index=True, nullable=True)
+    worker_hostname: Mapped[str | None] = mapped_column(String(128), nullable=True)
     name: Mapped[str | None] = mapped_column(String(128))
     model: Mapped[str | None] = mapped_column(String(128))
     brand: Mapped[str | None] = mapped_column(String(64))

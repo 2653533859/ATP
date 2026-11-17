@@ -79,18 +79,48 @@ def _refresh_schedule_state(task: MobileSpecialTask) -> None:
         task.next_run_at = None
 
 
-def _enqueue_mobile_run(run_id: int) -> None:
+def _enqueue_mobile_run(run_id: int, *, worker_id: str | None = None) -> None:
+    from app.services.android_worker_registry import worker_execution_queue
     from app.worker.tasks_mobile_special import run_mobile_special_task
 
     if settings.ATP_LOCAL_MODE:
         enqueue_task(run_mobile_special_task, (run_id,), ANDROID_EXECUTION_QUEUE)
+    elif settings.ANDROID_MULTI_NODE_ENABLED and worker_id:
+        enqueue_task(run_mobile_special_task, (run_id,), worker_execution_queue(worker_id))
     else:
         run_mobile_special_task.delay(run_id)
 
 
-async def _enqueue_mobile_run_or_fail(run: MobileSpecialRun, db: AsyncSession) -> None:
+async def _enqueue_mobile_run_or_fail(
+    run: MobileSpecialRun,
+    db: AsyncSession,
+    *,
+    worker_id: str | None = None,
+) -> None:
+    resolved_worker_id = worker_id
+    if settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE and not resolved_worker_id:
+        from app.services.android_worker_registry import get_android_worker
+        from app.services.device_resolution import DeviceResolutionError, resolve_device_async
+
+        try:
+            device = await resolve_device_async(
+                db,
+                device_id=run.device_id,
+                serial=run.device_serial or (run.config_snapshot or {}).get("device_serial"),
+                require_claimed=True,
+            )
+        except DeviceResolutionError as exc:
+            raise HTTPException(status_code=409, detail=f"{exc.code}: {exc.message}") from exc
+        resolved_worker_id = (device.worker_id or "").strip()
+        worker_info = await get_android_worker(resolved_worker_id)
+        if not worker_info:
+            raise HTTPException(
+                status_code=503,
+                detail=f"worker_offline: 设备所属节点 '{resolved_worker_id}' 当前离线",
+            )
+
     try:
-        _enqueue_mobile_run(run.id)
+        _enqueue_mobile_run(run.id, worker_id=resolved_worker_id)
     except Exception as exc:
         if settings.ATP_LOCAL_MODE:
             run.status = RunStatus.failed

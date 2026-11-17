@@ -9,6 +9,8 @@ from app.models.device import DeviceStatus
 class DeviceOut(BaseModel):
     id: int
     serial: str
+    worker_id: str | None = None
+    worker_hostname: str | None = None
     name: str | None
     model: str | None
     brand: str | None
@@ -33,6 +35,8 @@ class UnifiedDeviceOut(BaseModel):
     brand: str
     model: str
     identifier: str
+    worker_id: str | None = None
+    worker_hostname: str | None = None
     os_version: str
     status: Literal["online", "offline", "busy"]
     appium_server_url: str | None = None
@@ -70,11 +74,25 @@ class DeviceGroupOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DeviceScanItemOut(BaseModel):
+    """多节点聚合扫描中单个节点的子任务状态。"""
+
+    worker_id: str
+    scan_id: str
+    status: Literal["queued", "running", "completed", "failed", "timed_out"]
+    count: int = 0
+    error: str | None = None
+
+
 class DeviceScanOut(BaseModel):
     """设备扫描结果；worker 模式下先返回 queued，再由状态接口返回最终列表。"""
 
-    status: Literal["queued", "running", "completed", "failed"]
+    status: Literal["queued", "running", "completed", "partial_failed", "failed"]
     scan_id: str | None = None
+    total_workers: int = 0
+    completed_workers: int = 0
+    failed_workers: int = 0
+    items: list[DeviceScanItemOut] = Field(default_factory=list)
     devices: list[DeviceOut] = Field(default_factory=list)
     error: str | None = None
 
@@ -88,6 +106,9 @@ class AndroidWorkerOut(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
     hostname: str | None = None
     pid: int | None = None
+    instance_generation: int | None = None
+    adb_ok: bool | None = None
+    busy: bool | None = None
     updated_at: float
     expires_at: float
 
@@ -108,10 +129,18 @@ class DeviceSwipeIn(BaseModel):
 class RemoteDeviceConnectIn(BaseModel):
     host: str = Field(min_length=1, max_length=256, description="远程设备 IP 或主机名")
     port: int = Field(default=5555, ge=1, le=65535, description="ADB 网络调试端口，默认 5555")
+    worker_id: str | None = Field(default=None, max_length=128, description="目标 Android Worker 节点 ID")
 
 
 class RemoteDeviceDisconnectIn(BaseModel):
     serial: str = Field(min_length=1, max_length=256, description="远程设备标识（格式 host:port）")
+    device_id: int | None = Field(default=None, ge=1, description="目标设备 ID")
+    worker_id: str | None = Field(default=None, max_length=128, description="目标 Android Worker 节点 ID")
+
+
+class DeviceClaimIn(BaseModel):
+    worker_id: str = Field(min_length=1, max_length=128, description="要认领到的 Android Worker 节点 ID")
+    worker_hostname: str | None = Field(default=None, max_length=128)
 
 
 class RemoteDeviceConnectOut(BaseModel):

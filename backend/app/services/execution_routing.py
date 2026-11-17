@@ -44,7 +44,15 @@ def execution_queue_for_case_type(case_type: CaseType | str | None) -> str:
     return DEFAULT_EXECUTION_QUEUE
 
 
-def enqueue_case_run(task: Any, run_id: int, extra_vars: dict, trace_id: str | None, case_type: Any) -> str:
+def enqueue_case_run(
+    task: Any,
+    run_id: int,
+    extra_vars: dict,
+    trace_id: str | None,
+    case_type: Any,
+    *,
+    queue_override: str | None = None,
+) -> str:
     """Enqueue a case run and return the selected queue.
 
     ``delay`` remains the default path when no dedicated queue is configured,
@@ -53,9 +61,38 @@ def enqueue_case_run(task: Any, run_id: int, extra_vars: dict, trace_id: str | N
     because it cannot inspect the case row after publication.
     """
 
-    queue = execution_queue_for_case_type(case_type)
+    queue = (queue_override or "").strip() or execution_queue_for_case_type(case_type)
     enqueue_task(task, (run_id, extra_vars, trace_id), queue)
     return queue
+
+
+async def resolve_android_device_queue(
+    db: Any,
+    *,
+    device_id: int | None = None,
+    device_serial: str | None = None,
+) -> str:
+    """Resolve the target ``android.<worker_id>`` queue for a specific Android device."""
+    if not settings.ANDROID_MULTI_NODE_ENABLED or settings.ATP_LOCAL_MODE:
+        return ANDROID_EXECUTION_QUEUE
+
+    from app.services.android_worker_registry import get_android_worker, worker_android_queue
+    from app.services.device_resolution import DeviceResolutionError, resolve_device_async
+
+    device = await resolve_device_async(
+        db,
+        device_id=device_id,
+        serial=device_serial,
+        require_claimed=True,
+    )
+    worker_id = (device.worker_id or "").strip()
+    worker_info = await get_android_worker(worker_id)
+    if not worker_info:
+        raise DeviceResolutionError(
+            "worker_offline",
+            f"设备 {device.serial} 所属节点 '{worker_id}' 当前离线，无法执行",
+        )
+    return worker_android_queue(worker_id)
 
 
 def enqueue_task(task: Any, args: tuple[Any, ...], queue: str) -> None:
@@ -91,6 +128,8 @@ async def resolve_suite_execution_queue(db: Any, suite: TestSuite) -> str:
     queues = {execution_queue_for_case_type(case_type) for case_type in case_types}
     if case_types and len(case_types) == len(case_ids) and len(queues) == 1:
         queue = queues.pop()
+        if queue == ANDROID_EXECUTION_QUEUE and settings.ANDROID_MULTI_NODE_ENABLED:
+            return DEFAULT_EXECUTION_QUEUE
         if queue != DEFAULT_EXECUTION_QUEUE:
             return queue
     return DEFAULT_EXECUTION_QUEUE

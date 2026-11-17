@@ -104,6 +104,15 @@ def _require_android_agent_enabled() -> None:
         )
 
 
+def _require_android_agent_interactive_allowed() -> None:
+    _require_android_agent_enabled()
+    if settings.ANDROID_MULTI_NODE_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="multi_node_feature_disabled: 多节点模式下暂不支持交互式 Android Agent，已编排草稿仍可回放与发布",
+        )
+
+
 async def _record_agent_audit(
     db: AsyncSession,
     *,
@@ -129,17 +138,27 @@ async def _record_agent_audit(
     await db.flush()
 
 
-def _enqueue_replay_run(run: TestRun, case: TestCase, session: AndroidAgentSession) -> None:
+def _enqueue_replay_run(
+    run: TestRun,
+    case: TestCase,
+    session: AndroidAgentSession,
+    *,
+    queue_override: str | None = None,
+) -> None:
     """把回放运行投递到 Android 执行队列；测试可替换该函数。"""
     import app.api.v1.cases as _cases
     from app.services.execution_routing import enqueue_case_run
 
+    kwargs: dict[str, Any] = {}
+    if queue_override:
+        kwargs["queue_override"] = queue_override
     enqueue_case_run(
         _cases.run_test_case,
         run.id,
         dict(session.context_values or {}),
         run.trace_id,
         case.case_type,
+        **kwargs,
     )
 
 
@@ -216,7 +235,7 @@ async def create_agent_session(
     current_user: User = Depends(get_current_user),
 ) -> AndroidAgentSession:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
-    _require_android_agent_enabled()
+    _require_android_agent_interactive_allowed()
     session = await coordinator.create_session(db, project_id, payload)
     await db.commit()
     await db.refresh(session)
@@ -235,7 +254,7 @@ async def start_agent_session(
     current_user: User = Depends(get_current_user),
 ) -> AndroidAgentSession:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
-    _require_android_agent_enabled()
+    _require_android_agent_interactive_allowed()
     await _get_project_session(db, project_id, session_id)
     try:
         session = await coordinator.start_session(db, session_id)
@@ -293,7 +312,7 @@ async def control_agent_session(
     await _get_project_session(db, project_id, session_id)
     session = await _lock_agent_session(db, session_id)
     if payload.action.value == "resume":
-        _require_android_agent_enabled()
+        _require_android_agent_interactive_allowed()
         await _require_no_manual_dispatch(db, session_id)
 
     # 乐观并发版本检查
@@ -363,7 +382,7 @@ async def manual_action_agent_session(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
-    _require_android_agent_enabled()
+    _require_android_agent_interactive_allowed()
     await _get_project_session(db, project_id, session_id)
     try:
         # Serialize manual dispatches on the session row. An in-flight or
@@ -644,7 +663,7 @@ async def run_agent_session_endpoint(
     current_user: User = Depends(get_current_user),
 ) -> AgentRunResultResponse:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
-    _require_android_agent_enabled()
+    _require_android_agent_interactive_allowed()
     session = await _get_project_session(db, project_id, session_id)
     if session.status != AgentSessionStatus.running.value:
         raise HTTPException(

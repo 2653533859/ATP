@@ -10,7 +10,7 @@ import weakref
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import ColumnElement, case, exists, func, literal, update
+from sqlalchemy import ColumnElement, case, exists, func, literal, text, update
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,8 +35,21 @@ def device_scan_lock() -> asyncio.Lock:
     return lock
 
 
-def _build_upsert_stmt(info: AdbDeviceInfo, now: datetime, dialect_name: str = "postgresql"):
-    """构建按 serial 原子 upsert 的 SQL 语句。
+def _worker_scope_clause(worker_id: str | None):
+    if worker_id is None:
+        return Device.worker_id.is_(None)
+    return Device.worker_id == worker_id
+
+
+def _build_upsert_stmt(
+    info: AdbDeviceInfo,
+    now: datetime,
+    dialect_name: str = "postgresql",
+    *,
+    worker_id: str | None = None,
+    worker_hostname: str | None = None,
+):
+    """构建按 (worker_id, serial) 原子 upsert 的 SQL 语句。
 
     adb 报告的不是 device 状态就是离线，占用中的设备也一样，掉线后不能继续显示占用中。
     device 状态时只把离线改为在线；在线与占用中的区分交给 _reconcile_busy_stmts 按租约判定。
@@ -55,6 +68,8 @@ def _build_upsert_stmt(info: AdbDeviceInfo, now: datetime, dialect_name: str = "
     insert = sqlite_insert if dialect_name == "sqlite" else postgres_insert
     stmt = insert(Device).values(
         serial=info.serial,
+        worker_id=worker_id,
+        worker_hostname=worker_hostname,
         name=info.model or info.serial,
         model=info.model,
         brand=info.brand,
@@ -67,9 +82,15 @@ def _build_upsert_stmt(info: AdbDeviceInfo, now: datetime, dialect_name: str = "
         last_seen_at=now,
     )
     excluded = stmt.excluded
+    conflict_kwargs: dict[str, Any] = (
+        {"index_elements": [Device.worker_id, Device.serial]}
+        if worker_id is not None
+        else {"index_elements": [Device.serial], "index_where": text("worker_id IS NULL")}
+    )
     return stmt.on_conflict_do_update(
-        index_elements=[Device.serial],
+        **conflict_kwargs,
         set_={
+            "worker_hostname": func.coalesce(excluded.worker_hostname, Device.worker_hostname),
             "model": func.coalesce(excluded.model, Device.model),
             "brand": func.coalesce(excluded.brand, Device.brand),
             "os_version": func.coalesce(excluded.os_version, Device.os_version),
@@ -83,7 +104,12 @@ def _build_upsert_stmt(info: AdbDeviceInfo, now: datetime, dialect_name: str = "
     )
 
 
-def _reconcile_busy_stmts(online_serials: set[str], now: datetime) -> tuple:
+def _reconcile_busy_stmts(
+    online_serials: set[str],
+    now: datetime,
+    *,
+    worker_id: str | None = None,
+) -> tuple:
     """在线设备持有未过期租约才算占用中；只改状态确实变化的行。
 
     子查询放在普通 UPDATE 里，SQLAlchemy 会把它关联到当前设备行；放进 ON CONFLICT DO UPDATE
@@ -92,13 +118,14 @@ def _reconcile_busy_stmts(online_serials: set[str], now: datetime) -> tuple:
     """
     holds_lease = exists().where(DeviceLease.device_id == Device.id, DeviceLease.expires_at > now)
     in_scan = Device.serial.in_(online_serials)
+    scope = _worker_scope_clause(worker_id)
     return (
         update(Device)
-        .where(in_scan, Device.status == DeviceStatus.online, holds_lease)
+        .where(scope, in_scan, Device.status == DeviceStatus.online, holds_lease)
         .values(status=DeviceStatus.busy)
         .execution_options(synchronize_session=False),
         update(Device)
-        .where(in_scan, Device.status == DeviceStatus.busy, ~holds_lease)
+        .where(scope, in_scan, Device.status == DeviceStatus.busy, ~holds_lease)
         .values(status=DeviceStatus.online)
         .execution_options(synchronize_session=False),
     )
@@ -108,52 +135,108 @@ def _online_serials(scanned: list[AdbDeviceInfo]) -> set[str]:
     return {info.serial for info in scanned if info.status == "device"}
 
 
-def sync_devices_to_db_sync(session: Session, scanned: list[AdbDeviceInfo]) -> None:
+def sync_devices_to_db_sync(
+    session: Session,
+    scanned: list[AdbDeviceInfo],
+    *,
+    worker_id: str | None = None,
+    worker_hostname: str | None = None,
+) -> None:
     """同步版本（供 Celery 任务与本地设备巡检的工作线程使用）"""
     now = datetime.now(timezone.utc)
     scanned_serials = {info.serial for info in scanned}
+    scope = _worker_scope_clause(worker_id)
 
     dialect_name = session.get_bind().dialect.name
     for info in scanned:
-        session.execute(_build_upsert_stmt(info, now, dialect_name))
+        session.execute(
+            _build_upsert_stmt(
+                info,
+                now,
+                dialect_name,
+                worker_id=worker_id,
+                worker_hostname=worker_hostname,
+            )
+        )
     online_serials = _online_serials(scanned)
     if online_serials:
-        for stmt in _reconcile_busy_stmts(online_serials, now):
+        for stmt in _reconcile_busy_stmts(online_serials, now, worker_id=worker_id):
             session.execute(stmt)
 
-    # 将未扫描到的非 offline 设备标记为 offline（批量 UPDATE）
+    # 将当前节点下未扫描到的非 offline 设备标记为 offline，不触碰其他节点设备
     if scanned_serials:
         session.execute(
             update(Device)
+            .where(scope)
             .where(Device.serial.not_in(scanned_serials))
             .where(Device.status != DeviceStatus.offline)
             .values(status=DeviceStatus.offline)
         )
     else:
-        session.execute(update(Device).where(Device.status != DeviceStatus.offline).values(status=DeviceStatus.offline))
+        session.execute(
+            update(Device).where(scope).where(Device.status != DeviceStatus.offline).values(status=DeviceStatus.offline)
+        )
 
 
-async def sync_devices_to_db_async(db: AsyncSession, scanned: list[AdbDeviceInfo]) -> None:
+async def sync_devices_to_db_async(
+    db: AsyncSession,
+    scanned: list[AdbDeviceInfo],
+    *,
+    worker_id: str | None = None,
+    worker_hostname: str | None = None,
+) -> None:
     """异步版本（供 API 端点使用）"""
     now = datetime.now(timezone.utc)
     scanned_serials = {info.serial for info in scanned}
+    scope = _worker_scope_clause(worker_id)
 
     dialect_name = db.get_bind().dialect.name
     for info in scanned:
-        await db.execute(_build_upsert_stmt(info, now, dialect_name))
+        await db.execute(
+            _build_upsert_stmt(
+                info,
+                now,
+                dialect_name,
+                worker_id=worker_id,
+                worker_hostname=worker_hostname,
+            )
+        )
     online_serials = _online_serials(scanned)
     if online_serials:
-        for stmt in _reconcile_busy_stmts(online_serials, now):
+        for stmt in _reconcile_busy_stmts(online_serials, now, worker_id=worker_id):
             await db.execute(stmt)
 
     if scanned_serials:
         await db.execute(
             update(Device)
+            .where(scope)
             .where(Device.serial.not_in(scanned_serials))
             .where(Device.status != DeviceStatus.offline)
             .values(status=DeviceStatus.offline)
         )
     else:
         await db.execute(
-            update(Device).where(Device.status != DeviceStatus.offline).values(status=DeviceStatus.offline)
+            update(Device).where(scope).where(Device.status != DeviceStatus.offline).values(status=DeviceStatus.offline)
         )
+
+
+def mark_worker_devices_offline_sync(session: Session, worker_id: str) -> int:
+    """将已失联节点名下的非离线设备收敛为 offline。"""
+    result = session.execute(
+        update(Device)
+        .where(Device.worker_id == worker_id)
+        .where(Device.status != DeviceStatus.offline)
+        .values(status=DeviceStatus.offline)
+    )
+    return int(result.rowcount or 0)
+
+
+async def mark_worker_devices_offline_async(db: AsyncSession, worker_id: str) -> int:
+    """异步版本：将已失联节点名下的非离线设备收敛为 offline。"""
+    result = await db.execute(
+        update(Device)
+        .where(Device.worker_id == worker_id)
+        .where(Device.status != DeviceStatus.offline)
+        .values(status=DeviceStatus.offline)
+    )
+    return int(result.rowcount or 0)

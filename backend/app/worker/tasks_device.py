@@ -7,10 +7,20 @@ Celery 定时任务：ADB 设备扫描
 
 import base64
 import logging
+import socket
 
 from app.worker.celery_app import celery_app
-from app.services.adb_service import scan_devices
-from app.services.android_worker_registry import list_android_workers, register_android_worker
+from app.services.adb_service import (
+    async_connect_remote_device,
+    async_disconnect_remote_device,
+    scan_devices,
+)
+from app.services.android_worker_registry import (
+    list_android_workers,
+    register_android_worker,
+    verify_worker_execution_target,
+    worker_android_queue,
+)
 from app.services.device_sync import sync_devices_to_db_sync
 from app.worker.async_runner import run_async
 
@@ -26,16 +36,22 @@ def heartbeat_android_worker(self):
     if not worker_id:
         return {"status": "disabled"}
     execution_queue = settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special"
+    target_queues = (
+        [worker_android_queue(worker_id), f"{execution_queue}.{worker_id}"]
+        if settings.ANDROID_MULTI_NODE_ENABLED
+        else ["android", execution_queue]
+    )
+    reschedule_queue = worker_android_queue(worker_id) if settings.ANDROID_MULTI_NODE_ENABLED else "android"
 
     try:
-        payload = run_async(register_android_worker(worker_id, queues=["android", execution_queue]))
+        payload = run_async(register_android_worker(worker_id, queues=target_queues))
     except Exception:
         logger.exception("Android Worker heartbeat failed for %s", worker_id)
         payload = {"status": "failed", "worker_id": worker_id}
     finally:
         self.apply_async(
             countdown=max(5, int(settings.ANDROID_WORKER_HEARTBEAT_SECONDS)),
-            queue="android",
+            queue=reschedule_queue,
         )
     return payload
 
@@ -63,6 +79,22 @@ def dispatch_android_device_scan():
             return {"status": "registry_unavailable"}
         if not workers:
             return {"status": "no_worker"}
+        if settings.ANDROID_MULTI_NODE_ENABLED:
+            ttl = max(15, int(settings.ADB_SCAN_INTERVAL))
+            dispatched: list[str] = []
+            for item in workers:
+                wid = str(item.get("worker_id") or "").strip()
+                if not wid:
+                    continue
+                gen = item.get("instance_generation")
+                scan_adb_devices.apply_async(
+                    kwargs={"worker_id": wid, "expected_generation": gen},
+                    queue=worker_android_queue(wid),
+                    ignore_result=True,
+                    expires=ttl,
+                )
+                dispatched.append(wid)
+            return {"status": "queued", "workers": dispatched}
     elif mode != "local":
         return {"status": "disabled"}
 
@@ -75,12 +107,25 @@ def dispatch_android_device_scan():
 
 
 @celery_app.task(name="scan_adb_devices")
-def scan_adb_devices():
+def scan_adb_devices(worker_id: str | None = None, expected_generation: int | None = None):
     """同步任务：扫描 ADB 设备并更新数据库"""
     from app.core.config import settings
 
     if not settings.ADB_SCAN_ENABLED:
         return {"status": "failed", "error": "ADB 扫描已被配置关闭", "count": 0}
+
+    ok_target, reject_reason = verify_worker_execution_target(
+        expected_worker_id=worker_id,
+        expected_generation=expected_generation,
+    )
+    if not ok_target:
+        return {"status": "rejected", "error": reject_reason, "count": 0}
+
+    active_worker_id = settings.ANDROID_WORKER_ID.strip() or (
+        settings.ANDROID_LOCAL_OWNER_ID.strip() or "local"
+        if settings.ADB_SCAN_MODE.strip().lower() == "local"
+        else None
+    )
 
     from app.core.database import sync_session_factory
 
@@ -91,11 +136,19 @@ def scan_adb_devices():
 
     session = sync_session_factory()
     try:
-        sync_devices_to_db_sync(session, scanned)
+        if active_worker_id is not None:
+            sync_devices_to_db_sync(
+                session,
+                scanned,
+                worker_id=active_worker_id,
+                worker_hostname=socket.gethostname(),
+            )
+        else:
+            sync_devices_to_db_sync(session, scanned)
         session.commit()
         if scanned:
             logger.debug("Device scan completed: %d device(s) found", len(scanned))
-        return {"status": "completed", "count": len(scanned)}
+        return {"status": "completed", "count": len(scanned), "worker_id": active_worker_id}
     except Exception:
         session.rollback()
         logger.exception("Device scan task failed")
@@ -108,16 +161,45 @@ def scan_adb_devices():
 def run_android_device_operation(operation: str, serial: str, params: dict | None = None):
     """在 Android Worker 所在机器执行受控的设备交互操作。
 
-    API 部署在公网时不能访问用户电脑的 ADB；任务通过 ``mobile_special``
-    队列落到 Windows Worker，返回值只包含 JSON 可序列化的数据。
+    API 部署在公网时不能访问用户电脑的 ADB；任务通过专属队列落到对应 Windows Worker，
+    返回值只包含 JSON 可序列化的数据。
     """
-    params = params or {}
-    if operation not in {"screenshot", "tap", "swipe", "ui_target", "ui_anchors", "keyevent", "text", "packages"}:
+    params = dict(params or {})
+    if operation not in {
+        "screenshot",
+        "tap",
+        "swipe",
+        "ui_target",
+        "ui_anchors",
+        "keyevent",
+        "text",
+        "packages",
+        "connect",
+        "disconnect",
+    }:
         return {"ok": False, "error": f"不支持的 Android 设备操作: {operation}"}
     if not serial.strip():
         return {"ok": False, "error": "设备 serial 不能为空"}
 
+    expected_worker_id = params.get("expected_worker_id")
+    expected_generation = params.get("expected_generation")
+    ok_target, reject_reason = verify_worker_execution_target(
+        expected_worker_id=str(expected_worker_id) if expected_worker_id else None,
+        expected_generation=int(expected_generation) if expected_generation is not None else None,
+    )
+    if not ok_target:
+        return {"ok": False, "error": reject_reason}
+
     try:
+        if operation == "connect":
+            host = str(params.get("host") or "").strip()
+            port = int(params.get("port") or 5555)
+            success, message = run_async(async_connect_remote_device(host, port))
+            return {"ok": bool(success), "message": message, "error": None if success else message}
+
+        if operation == "disconnect":
+            success, message = run_async(async_disconnect_remote_device(serial.strip()))
+            return {"ok": bool(success), "message": message, "error": None if success else message}
         # 延迟导入避免 Celery 启动时把 FastAPI 路由模块作为强依赖加载，也便于按操作隔离测试替身。
         if operation == "screenshot":
             from app.api.v1.device_mirror import _adb_screenshot

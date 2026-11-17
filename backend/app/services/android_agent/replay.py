@@ -61,7 +61,13 @@ def frozen_snapshot(draft: AndroidAgentDraft, session: AndroidAgentSession) -> d
     }
 
 
-def build_case_config(snapshot: dict[str, Any], *, module_id: int, device_serial: str | None) -> dict[str, Any]:
+def build_case_config(
+    snapshot: dict[str, Any],
+    *,
+    module_id: int,
+    device_serial: str | None,
+    device_id: int | None = None,
+) -> dict[str, Any]:
     """草稿快照 -> Android 低代码用例 config；Agent 回放不允许坐标兜底。"""
     config: dict[str, Any] = {
         "steps": snapshot["steps"],
@@ -79,6 +85,8 @@ def build_case_config(snapshot: dict[str, Any], *, module_id: int, device_serial
     if snapshot.get("package_name"):
         config["package_name"] = snapshot["package_name"]
         config["app_package"] = snapshot["package_name"]
+    if device_id is not None:
+        config["device_id"] = int(device_id)
     if device_serial:
         config["device_serial"] = device_serial
     config["_internal"] = {"module_id": module_id}
@@ -238,6 +246,7 @@ async def start_replay(
     idempotency_key: str,
     initial_state_confirmed: bool,
     device_serial: str | None = None,
+    device_id: int | None = None,
 ) -> tuple[AndroidAgentReplay, TestCase, TestRun]:
     """发起独立回放：先查幂等键，再原子创建回放用例与运行记录。"""
     existing = await find_replay_by_idempotency(db, draft.id, idempotency_key)
@@ -259,7 +268,13 @@ async def start_replay(
 
     module = await get_module_or_404(db, module_id, draft.project_id)
     snapshot = frozen_snapshot(draft, session)
-    config = build_case_config(snapshot, module_id=module.id, device_serial=device_serial)
+    resolved_device_id = device_id if device_id is not None else getattr(session, "device_id", None)
+    config = build_case_config(
+        snapshot,
+        module_id=module.id,
+        device_serial=device_serial,
+        device_id=resolved_device_id,
+    )
 
     replay = AndroidAgentReplay(
         project_id=draft.project_id,

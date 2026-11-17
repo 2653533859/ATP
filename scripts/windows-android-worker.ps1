@@ -315,16 +315,38 @@ function Start-AndroidWorker {
 
   $previousEnvironment = $null
   try {
-    $previousEnvironment = Push-AtpProcessEnvironment -Values (Get-DotEnvValues)
+    $envValues = Get-DotEnvValues
+    $previousEnvironment = Push-AtpProcessEnvironment -Values $envValues
     Add-AtpOptionalToolPath
-    $env:CELERY_QUEUES = $QueueList
+
+    $workerIdFile = Join-Path $RunDir 'android-worker-id'
+    $configuredWorkerId = $env:ANDROID_WORKER_ID
+    if ([string]::IsNullOrWhiteSpace($configuredWorkerId) -and (Test-Path -LiteralPath $workerIdFile)) {
+      $configuredWorkerId = (Get-Content -Raw -Path $workerIdFile -ErrorAction SilentlyContinue).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($configuredWorkerId)) {
+      $rawHost = ($env:COMPUTERNAME -replace '[^a-zA-Z0-9._-]', '-').Trim('-')
+      if ([string]::IsNullOrWhiteSpace($rawHost)) { $rawHost = 'host' }
+      $configuredWorkerId = "android-win-$rawHost"
+      Set-Content -Path $workerIdFile -Value $configuredWorkerId -Encoding ascii
+    }
+
+    $multiNode = ($env:ANDROID_MULTI_NODE_ENABLED -eq 'true' -or $env:ANDROID_MULTI_NODE_ENABLED -eq '1')
+    $execQueueBase = if ([string]::IsNullOrWhiteSpace($env:ANDROID_WORKER_QUEUE)) { 'mobile_special' } else { $env:ANDROID_WORKER_QUEUE.Trim() }
+    $effectiveQueues = if ($multiNode) {
+      "android.$configuredWorkerId,$execQueueBase.$configuredWorkerId"
+    } else {
+      $QueueList
+    }
+
+    $env:CELERY_QUEUES = $effectiveQueues
     $env:ADB_SCAN_ENABLED = 'true'
-    $env:ANDROID_WORKER_ID = "android-win-$($env:COMPUTERNAME)"
-    $hostname = "android-win-$($env:COMPUTERNAME)@%h"
+    $env:ANDROID_WORKER_ID = $configuredWorkerId
+    $hostname = "$configuredWorkerId@%h"
     $arguments = @(
       '-m', 'celery', '-A', 'app.worker.celery_app', 'worker',
       '--loglevel=info', '--pool=solo', '--concurrency=1',
-      '--hostname', $hostname, '-Q', $QueueList
+      '--hostname', $hostname, '-Q', $effectiveQueues
     )
     $process = Start-Process -FilePath $BackendPython -ArgumentList $arguments -WorkingDirectory $BackendDir `
       -RedirectStandardOutput $StdoutLog -RedirectStandardError $StderrLog -WindowStyle Hidden -PassThru
@@ -333,7 +355,7 @@ function Start-AndroidWorker {
     if ($null -eq (Get-WorkerProcess)) {
       throw "Worker exited during startup. Check $StdoutLog and $StderrLog."
     }
-    Write-Host "Windows Android Worker started (PID $($process.Id)); queues: $QueueList"
+    Write-Host "Windows Android Worker started (PID $($process.Id), id=$configuredWorkerId); queues: $effectiveQueues"
   } finally {
     Pop-AtpProcessEnvironment -Previous $previousEnvironment
   }

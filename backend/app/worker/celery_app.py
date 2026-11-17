@@ -4,6 +4,8 @@ from celery import Celery
 from celery.schedules import crontab
 from celery.signals import (
     task_failure,
+    task_postrun,
+    task_prerun,
     task_revoked,
     worker_ready,
     worker_process_init,
@@ -239,14 +241,76 @@ def _schedule_performance_node_heartbeat(**_kwargs):
     heartbeat_performance_node.apply_async(countdown=interval + 1, queue=queue)
 
 
+_android_heartbeat_thread = None
+
+
 @worker_ready.connect
 def _schedule_android_worker_heartbeat(**_kwargs):
-    """Start a TTL-backed registry heartbeat only for explicitly identified Android Workers."""
-    if not settings.ANDROID_WORKER_ID.strip():
+    """Start an independent daemon heartbeat thread for explicitly identified Android Workers."""
+    global _android_heartbeat_thread
+    worker_id = settings.ANDROID_WORKER_ID.strip()
+    if not worker_id:
         return
-    from app.worker.tasks_device import heartbeat_android_worker
+    from app.services.android_worker_registry import (
+        AndroidWorkerHeartbeatThread,
+        claim_android_worker_sync,
+        generate_instance_identity,
+        is_slot_busy,
+        normalize_worker_id,
+        set_current_worker_runtime,
+        worker_queues_for,
+        _sync_redis_client,
+    )
 
-    heartbeat_android_worker.apply_async(queue="android")
+    normalized_id = normalize_worker_id(worker_id)
+    generation, token = generate_instance_identity()
+    queues = worker_queues_for(normalized_id)
+    client = _sync_redis_client()
+    claim_android_worker_sync(
+        client,
+        normalized_id,
+        instance_generation=generation,
+        instance_token=token,
+        queues=queues,
+    )
+    set_current_worker_runtime(normalized_id, generation, token)
+    thread = AndroidWorkerHeartbeatThread(
+        worker_id=normalized_id,
+        instance_token=token,
+        instance_generation=generation,
+        queues=queues,
+        redis_client=client,
+        busy_fn=is_slot_busy,
+    )
+    thread.start()
+    _android_heartbeat_thread = thread
+
+
+@worker_process_shutdown.connect
+def _shutdown_android_worker_heartbeat(**_kwargs):
+    global _android_heartbeat_thread
+    if _android_heartbeat_thread is not None:
+        _android_heartbeat_thread.stop(release=True)
+        _android_heartbeat_thread = None
+    from app.services.android_worker_registry import clear_current_worker_runtime
+
+    clear_current_worker_runtime()
+
+
+@task_prerun.connect
+def _on_task_prerun(**_kwargs):
+    if settings.ANDROID_WORKER_ID.strip():
+        from app.services.android_worker_registry import increment_active_tasks
+
+        increment_active_tasks(1)
+
+
+@task_postrun.connect
+def _on_task_postrun(**_kwargs):
+    if settings.ANDROID_WORKER_ID.strip():
+        from app.services.android_worker_registry import increment_active_tasks
+
+        increment_active_tasks(-1)
 
 
 # Soft / Hard 超时告警桥接到独立 handler 模块（便于单测）

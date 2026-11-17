@@ -64,6 +64,7 @@ from app.services.device_leases import (
     heartbeat_device_lease,
     release_device_lease,
 )
+from app.services.device_resolution import DeviceResolutionError, extract_device_id, resolve_device_async
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.mobile_special.preflight import AndroidPreflightError, run_android_preflight
 from app.services.step_result_collector import StepResultBatchCollector
@@ -804,17 +805,27 @@ async def _run_android_lowcode_with_lease(
 ) -> None:
     cfg = case.config or {}
     steps = cfg.get("steps", [])
+    device_id = extract_device_id(cfg)
     device_serial = cfg.get("device_serial")
     # Keep validation errors in the core so they do not require a database lookup.
-    if not steps or not device_serial or (cfg.get("device_matrix") and not cfg.get("_device_matrix_variant")):
+    if (
+        not steps
+        or (device_id is None and not device_serial)
+        or (cfg.get("device_matrix") and not cfg.get("_device_matrix_variant"))
+    ):
         await _run_android_lowcode_steps(db, run, case, extra_vars)
         return
 
-    result = await db.execute(select(Device).where(Device.serial == str(device_serial)))
-    device = result.scalar_one_or_none()
-    if device is None:
-        await _mark_run_error(db, run, f"设备未注册: {device_serial}")
+    try:
+        device = await resolve_device_async(
+            db,
+            device_id=device_id,
+            serial=str(device_serial) if device_serial else None,
+        )
+    except DeviceResolutionError as exc:
+        await _mark_run_error(db, run, exc.message)
         return
+    device_serial = device.serial
 
     lease_token: str | None = None
     try:
@@ -840,6 +851,7 @@ async def _run_android_lowcode_with_lease(
         precheck_res = await precheck_android_execution(
             db,
             case=case,
+            device_id=device.id,
             device_serial=str(device_serial),
             config=cfg,
             steps=steps,
@@ -1182,23 +1194,36 @@ async def _run_android_device_matrix(
     """Run one isolated child per compatible registered device and aggregate results."""
     config = case.config or {}
     requested = config.get("device_matrix") or []
+    device_ids = [
+        item.get("device_id") for item in requested if isinstance(item, dict) and item.get("device_id") is not None
+    ]
     serials = [item if isinstance(item, str) else item.get("serial") for item in requested if item]
-    result = await db.execute(select(Device).where(Device.serial.in_([str(serial) for serial in serials if serial])))
+    conditions = []
+    if device_ids:
+        conditions.append(Device.id.in_([int(did) for did in device_ids]))
+    if serials:
+        conditions.append(Device.serial.in_([str(serial) for serial in serials if serial]))
+    if conditions:
+        from sqlalchemy import or_
+
+        result = await db.execute(select(Device).where(or_(*conditions)))
+        matched_devices = result.scalars().all()
+    else:
+        matched_devices = []
     available = [
         {
             "id": item.id,
             "serial": item.serial,
+            "worker_id": item.worker_id,
             "model": item.model,
             "brand": item.brand,
             "os_version": item.os_version,
             "sdk_version": item.sdk_version,
             "resolution": item.resolution,
         }
-        for item in result.scalars().all()
+        for item in matched_devices
     ]
     try:
-        if len(available) != len({str(serial) for serial in serials if serial}):
-            raise DeviceCompatibilityError("设备矩阵中包含未注册设备")
         variants = build_android_device_matrix(requested, available_devices=available)
     except DeviceCompatibilityError as exc:
         parent_run.status = RunStatus.error

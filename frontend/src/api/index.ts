@@ -202,6 +202,8 @@ export type DeviceScanStatus = 'queued' | 'running' | 'completed' | 'failed'
 export interface DeviceItem {
   id: number
   serial: string
+  worker_id?: string | null
+  worker_hostname?: string | null
   name?: string | null
   model?: string | null
   brand?: string | null
@@ -249,9 +251,21 @@ export interface DeviceGroupItem {
   updated_at: string
 }
 
+export interface DeviceScanItem {
+  worker_id: string
+  scan_id: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'timed_out'
+  count: number
+  error?: string | null
+}
+
 export interface DeviceScanResult {
-  status: DeviceScanStatus
+  status: DeviceScanStatus | 'partial_failed'
   scan_id?: string | null
+  total_workers?: number
+  completed_workers?: number
+  failed_workers?: number
+  items?: DeviceScanItem[]
   devices: DeviceItem[]
   error?: string | null
 }
@@ -263,6 +277,9 @@ export interface AndroidWorkerItem {
   capabilities: string[]
   hostname?: string | null
   pid?: number | null
+  instance_generation?: number | null
+  adb_ok?: boolean | null
+  busy?: boolean | null
   updated_at: number
   expires_at: number
 }
@@ -2398,7 +2415,7 @@ export const configurationCenterApi = {
 }
 
 export const deviceApi = {
-  list: (params?: { status_filter?: string }) =>
+  list: (params?: { status_filter?: string; worker_id?: string; unclaimed_only?: boolean }) =>
     http.get<unknown, DeviceItem[]>('/devices', { params }),
   workers: () => http.get<unknown, AndroidWorkerItem[]>('/devices/workers'),
   acquireLease: (id: number, data?: { ttl_seconds?: number; owner_label?: string; takeover_own?: boolean }) =>
@@ -2410,7 +2427,12 @@ export const deviceApi = {
     }),
   releaseLease: (id: number, leaseToken: string) =>
     http.delete(`/devices/${id}/lease`, { data: { lease_token: leaseToken } }),
-  scan: () => http.post<unknown, DeviceScanResult>('/devices/scan'),
+  scan: (workerId?: string) =>
+    http.post<unknown, DeviceScanResult>('/devices/scan', undefined, {
+      params: workerId ? { worker_id: workerId } : undefined,
+    }),
+  claim: (id: number, data: { worker_id: string; worker_hostname?: string }) =>
+    http.post<unknown, DeviceItem>(`/devices/${id}/claim`, data),
   scanStatus: (scanId: string) => http.get<unknown, DeviceScanResult>(`/devices/scan/${scanId}`),
   get: (id: number) => http.get('/devices/' + id),
   update: (id: number, data: { name?: string; description?: string }) =>
@@ -2455,10 +2477,10 @@ export const deviceApi = {
   updateGroup: (id: number, data: { name: string; description?: string; device_ids: number[] }) =>
     http.put<unknown, DeviceGroupItem>(`/device-groups/${id}`, data),
   deleteGroup: (id: number) => http.delete(`/device-groups/${id}`),
-  connect: (data: { host: string; port?: number }) =>
+  connect: (data: { host: string; port?: number; worker_id?: string }) =>
     http.post<unknown, { success: boolean; message: string; serial: string; device?: DeviceItem }>('/devices/connect', data),
-  disconnect: (data: { serial: string }) =>
-    http.post<unknown, { success: boolean; message: string; serial: string }>('/devices/disconnect', data),
+  disconnect: (data: { serial: string; device_id?: number; worker_id?: string }) =>
+    http.post<unknown, { success: boolean; message: string; serial: string; worker_id?: string }>('/devices/disconnect', data),
   getAgents: () => http.get<unknown, { items: RemoteAgentItem[] }>('/device-agents/'),
   deleteAgent: (agentId: number) => http.delete<{ message: string; released_ports: number[] }>(`/device-agents/${agentId}`),
   probeAgentLink: (agentId: number) => http.post<unknown, { bps: number; bytes: number; elapsed_ms: number; at: string }>(`/device-agents/${agentId}/link-probe`),

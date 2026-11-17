@@ -40,7 +40,8 @@ from app.schemas.android_precheck import (
     CasePrecheckIn,
 )
 from app.services.android_precheck import precheck_android_execution
-from app.services.execution_routing import enqueue_case_run
+from app.services.execution_routing import enqueue_case_run, resolve_android_device_queue
+from app.services.device_resolution import DeviceResolutionError, extract_device_id
 from app.services.failure_diagnosis import generate_failure_diagnosis
 from app.services.project_scope import visible_project_ids
 from app.services.web_run_control import request_cancel
@@ -109,6 +110,19 @@ async def trigger_run(
         env_vars = decrypt_env_vars(result.scalars().all())
         merged_vars = {**env_vars, **body.extra_vars}
 
+    queue_override: str | None = None
+    if getattr(case, "case_type", None) and str(getattr(case.case_type, "value", case.case_type)) == "android":
+        cfg = case.config or {}
+        if not cfg.get("device_matrix"):
+            try:
+                queue_override = await resolve_android_device_queue(
+                    db,
+                    device_id=extract_device_id(cfg),
+                    device_serial=cfg.get("device_serial"),
+                )
+            except DeviceResolutionError as exc:
+                raise HTTPException(status_code=409, detail=f"{exc.code}: {exc.message}") from exc
+
     run = TestRun(
         case_id=case_id,
         triggered_by=current_user.id,
@@ -120,7 +134,17 @@ async def trigger_run(
     await db.commit()
     await db.refresh(run)
 
-    enqueue_case_run(_cases.run_test_case, run.id, merged_vars, run.trace_id, case.case_type)
+    if queue_override:
+        enqueue_case_run(
+            _cases.run_test_case,
+            run.id,
+            merged_vars,
+            run.trace_id,
+            case.case_type,
+            queue_override=queue_override,
+        )
+    else:
+        enqueue_case_run(_cases.run_test_case, run.id, merged_vars, run.trace_id, case.case_type)
     result = await db.execute(select(TestRun).where(TestRun.id == run.id).options(selectinload(TestRun.steps)))
     return TestRunOut.model_validate(result.scalar_one())
 

@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 24
+CURRENT_LOCAL_SCHEMA_VERSION = 25
 
 
 def _create_sync_outbox(connection: Connection) -> None:
@@ -768,6 +768,55 @@ def _create_recording_records(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[24] = _create_recording_records
+
+
+def _add_device_worker_ownership(connection: Connection) -> None:
+    inspector = inspect(connection)
+    existing_columns = {col["name"] for col in inspector.get_columns("devices")}
+    if "worker_id" in existing_columns and "worker_hostname" in existing_columns:
+        return
+
+    connection.exec_driver_sql(
+        "CREATE TABLE devices_new ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "serial VARCHAR(128) NOT NULL, "
+        "worker_id VARCHAR(128), "
+        "worker_hostname VARCHAR(128), "
+        "name VARCHAR(128), "
+        "model VARCHAR(128), "
+        "brand VARCHAR(64), "
+        "os_version VARCHAR(32), "
+        "sdk_version VARCHAR(16), "
+        "resolution VARCHAR(32), "
+        "status VARCHAR(7), "
+        "ip_address VARCHAR(64), "
+        "port INTEGER, "
+        "description TEXT, "
+        "last_seen_at DATETIME, "
+        "created_at DATETIME NOT NULL, "
+        "updated_at DATETIME NOT NULL, "
+        "CONSTRAINT uq_devices_worker_id_serial UNIQUE (worker_id, serial)"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "INSERT INTO devices_new ("
+        "id, serial, worker_id, worker_hostname, name, model, brand, os_version, sdk_version, "
+        "resolution, status, ip_address, port, description, last_seen_at, created_at, updated_at"
+        ") SELECT "
+        "id, serial, NULL, NULL, name, model, brand, os_version, sdk_version, "
+        "resolution, status, ip_address, port, description, last_seen_at, created_at, updated_at "
+        "FROM devices"
+    )
+    connection.exec_driver_sql("DROP TABLE devices")
+    connection.exec_driver_sql("ALTER TABLE devices_new RENAME TO devices")
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_devices_serial ON devices(serial)")
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_devices_worker_id ON devices(worker_id)")
+    connection.exec_driver_sql(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_devices_unclaimed_serial " "ON devices(serial) WHERE worker_id IS NULL"
+    )
+
+
+LOCAL_MIGRATIONS[25] = _add_device_worker_ownership
 
 
 def _read_version(connection: Connection) -> int:

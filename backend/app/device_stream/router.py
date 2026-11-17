@@ -64,9 +64,18 @@ class TouchEvent(BaseModel):
     h: Optional[int] = None
 
 
+def _require_scrcpy_allowed() -> None:
+    if settings.ANDROID_MULTI_NODE_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="multi_node_feature_disabled: 多节点模式下暂不支持 Scrcpy 实时流，请使用截图轮询",
+        )
+
+
 @rest_router.post("/devices/{serial}/touch")
 def send_touch(serial: str, event: TouchEvent):
     """向设备 scrcpy 控制通道毫秒级发送触控事件。"""
+    _require_scrcpy_allowed()
     try:
         scrcpy_manager.send_touch_event(serial, event.action, event.x, event.y, event.w, event.h)
         return {"status": "ok"}
@@ -79,6 +88,7 @@ def send_touch(serial: str, event: TouchEvent):
 @rest_router.post("/devices/{serial}/reconnect")
 def reconnect_scrcpy(serial: str):
     """重新连接设备的 scrcpy 流。"""
+    _require_scrcpy_allowed()
     scrcpy_manager.ensure_device_stream(serial)
     return {"status": "ok", "serial": serial}
 
@@ -86,6 +96,9 @@ def reconnect_scrcpy(serial: str):
 @ws_router.websocket("/ws/scrcpy/{serial}")
 async def scrcpy_video_stream(websocket: WebSocket, serial: str):
     """全双工 WebSocket：下行推送 60FPS H.264 视频流，上行毫秒级接收触控与按键。"""
+    if settings.ANDROID_MULTI_NODE_ENABLED:
+        await websocket.close(code=4009, reason="multi_node_feature_disabled")
+        return
     user = await _get_ws_user(websocket)
     if not user:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)

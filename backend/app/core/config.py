@@ -134,11 +134,14 @@ class Settings(BaseSettings):
     # 与 ADB_SCAN_ENABLED 分开，因为已有本地档案里写的是 ADB_SCAN_ENABLED=false（当时本地模式不扫描）。
     LOCAL_DEVICE_MONITOR_ENABLED: bool = True
     # Windows Android Worker 注册信息；留空时普通 Worker 不会伪装成 Android Agent
+    ANDROID_MULTI_NODE_ENABLED: bool = False
+    ANDROID_LOCAL_OWNER_ID: str = "local"
     ANDROID_WORKER_ID: str = ""
     ANDROID_WORKER_QUEUE: str = "mobile_special"
     ANDROID_WORKER_REGISTRY_PREFIX: str = "atp:android-worker"
     ANDROID_WORKER_HEARTBEAT_SECONDS: int = 15
     ANDROID_WORKER_TTL_SECONDS: int = 45
+    ANDROID_WORKER_OFFLINE_GRACE_SECONDS: int = 15
     # ADB 自愈：执行器检测设备不可达时是否自动 disconnect/connect 重试（仅对 ip:port serial 生效）
     ADB_RECONNECT_ENABLED: bool = True
     ADB_RECONNECT_MAX_ATTEMPTS: int = 3  # ensure_reachable 总尝试次数（含首次）

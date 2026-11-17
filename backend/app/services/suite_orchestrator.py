@@ -110,15 +110,53 @@ async def execute_case_run(
 
     try:
         if route_to_worker:
-            from app.services.execution_routing import enqueue_case_run
+            from app.models.case import CaseType
+            from app.services.device_resolution import DeviceResolutionError, extract_device_id
+            from app.services.execution_routing import enqueue_case_run, resolve_android_device_queue
 
             if run_case_task is None:
                 from app.worker.tasks import run_test_case
 
                 run_case_task = run_test_case
 
+            queue_override: str | None = None
+            if (
+                getattr(case, "case_type", None) == CaseType.android
+                and settings.ANDROID_MULTI_NODE_ENABLED
+                and not settings.ATP_LOCAL_MODE
+            ):
+                cfg = getattr(case, "config", None) or {}
+                target_dev_id = extract_device_id(extra_vars) or extract_device_id(cfg)
+                target_serial = extra_vars.get("device_serial") or cfg.get("device_serial")
+                try:
+                    queue_override = await resolve_android_device_queue(
+                        db,
+                        device_id=target_dev_id,
+                        device_serial=str(target_serial) if target_serial else None,
+                    )
+                except DeviceResolutionError as exc:
+                    case_run.status = RunStatus.error
+                    case_run.error_message = f"{exc.code}: {exc.message}"
+                    await db.commit()
+                    return {
+                        "case_id": case.id,
+                        "run_id": case_run.id,
+                        "status": RunStatus.error.value,
+                        "error": case_run.error_message,
+                    }
+
             await db.commit()
-            enqueue_case_run(run_case_task, case_run.id, extra_vars, suite_run.trace_id, case.case_type)
+            if queue_override:
+                enqueue_case_run(
+                    run_case_task,
+                    case_run.id,
+                    extra_vars,
+                    suite_run.trace_id,
+                    case.case_type,
+                    queue_override=queue_override,
+                )
+            else:
+                enqueue_case_run(run_case_task, case_run.id, extra_vars, suite_run.trace_id, case.case_type)
             deadline = asyncio.get_running_loop().time() + max(1, settings.SUITE_CHILD_TASK_TIMEOUT_SECONDS)
             while asyncio.get_running_loop().time() < deadline:
                 await asyncio.sleep(0.2)
@@ -280,11 +318,13 @@ async def execute_suite_cases(
                 "error": "用例不存在",
             }
 
-        if case.id in remote_case_ids:
-            return await execute_case_fn(case_db, suite_run, case, fixture_context, route_to_worker=True)
         extra_case_vars = {**fixture_context}
         if item.get("device_id"):
             extra_case_vars["device_id"] = item["device_id"]
+        if item.get("device_serial"):
+            extra_case_vars["device_serial"] = item["device_serial"]
+        if case.id in remote_case_ids:
+            return await execute_case_fn(case_db, suite_run, case, extra_case_vars, route_to_worker=True)
         return await execute_case_fn(case_db, suite_run, case, extra_case_vars)
 
     async def run_one(item: dict) -> dict:

@@ -34,6 +34,7 @@ from app.schemas.android_precheck import (
 from app.core.encryption import decrypt_env_vars
 from app.services.android_agent.strict_replay import StrictStepError, validate_strict_step
 from app.services.device_leases import lease_is_active
+from app.services.device_resolution import DeviceResolutionError, extract_device_id, resolve_device_async
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,7 @@ async def precheck_android_execution(
     db: AsyncSession,
     *,
     case: TestCase | None = None,
+    device_id: int | None = None,
     device_serial: str | None = None,
     config: dict[str, Any] | None = None,
     steps: list[dict[str, Any]] | None = None,
@@ -155,7 +157,10 @@ async def precheck_android_execution(
     else:
         resolved_steps = []
 
-    # 目标设备序列号
+    # 目标设备 ID / 序列号
+    target_device_id = (
+        device_id or extract_device_id(merged_cfg) or (extract_device_id(case.config) if case and case.config else None)
+    )
     target_serial = (
         device_serial
         or merged_cfg.get("device_serial")
@@ -165,7 +170,7 @@ async def precheck_android_execution(
 
     # 2. 设备与平台诊断
     device: Device | None = None
-    if not target_serial:
+    if not target_device_id and not target_serial:
         items.append(
             PrecheckItem(
                 scope=PrecheckScope.device,
@@ -176,34 +181,74 @@ async def precheck_android_execution(
             )
         )
     else:
-        dev_res = await db.execute(select(Device).where(Device.serial == target_serial))
-        device = dev_res.scalar_one_or_none()
-
-        if device is None:
-            # 检查是否误选了 iOS 设备
-            ios_res = await db.execute(select(IosDevice).where(IosDevice.udid == target_serial))
-            ios_device = ios_res.scalar_one_or_none()
-            if ios_device is not None:
-                items.append(
-                    PrecheckItem(
-                        scope=PrecheckScope.platform,
-                        status=PrecheckStatus.FAIL,
-                        code="UNSUPPORTED_PLATFORM",
-                        message=f"设备 {target_serial} 为 iOS 平台设备，Android 低代码用例不支持在该设备上执行",
-                        suggestion="请选择已注册且在线的 Android 设备",
-                    )
-                )
-            else:
+        try:
+            device = await resolve_device_async(
+                db,
+                device_id=target_device_id,
+                serial=target_serial,
+                require_claimed=False,
+            )
+        except DeviceResolutionError as exc:
+            if exc.code == "device_serial_ambiguous":
                 items.append(
                     PrecheckItem(
                         scope=PrecheckScope.device,
                         status=PrecheckStatus.FAIL,
-                        code="DEVICE_NOT_FOUND",
-                        message=f"未找到序列号为 {target_serial} 的已注册设备",
-                        suggestion="设备未在平台登记，请前往「设备管理」扫描并添加该设备",
+                        code="DEVICE_SERIAL_AMBIGUOUS",
+                        message=exc.message,
+                        suggestion="多个节点存在同序列号设备，请重新选择具体设备并保存",
                     )
                 )
-        else:
+            elif exc.code == "device_identity_mismatch":
+                items.append(
+                    PrecheckItem(
+                        scope=PrecheckScope.device,
+                        status=PrecheckStatus.FAIL,
+                        code="DEVICE_IDENTITY_MISMATCH",
+                        message=exc.message,
+                        suggestion="设备 ID 与序列号不一致，请重新选择目标设备",
+                    )
+                )
+            else:
+                ios_device = None
+                if target_serial:
+                    ios_res = await db.execute(select(IosDevice).where(IosDevice.udid == target_serial))
+                    ios_device = ios_res.scalar_one_or_none()
+                if ios_device is not None:
+                    items.append(
+                        PrecheckItem(
+                            scope=PrecheckScope.platform,
+                            status=PrecheckStatus.FAIL,
+                            code="UNSUPPORTED_PLATFORM",
+                            message=f"设备 {target_serial} 为 iOS 平台设备，Android 低代码用例不支持在该设备上执行",
+                            suggestion="请选择已注册且在线的 Android 设备",
+                        )
+                    )
+                else:
+                    items.append(
+                        PrecheckItem(
+                            scope=PrecheckScope.device,
+                            status=PrecheckStatus.FAIL,
+                            code="DEVICE_NOT_FOUND",
+                            message=exc.message,
+                            suggestion="设备未在平台登记，请前往「设备管理」扫描并添加该设备",
+                        )
+                    )
+
+        if device is not None:
+            target_serial = device.serial
+            from app.core.config import settings
+
+            if settings.ANDROID_MULTI_NODE_ENABLED and not (device.worker_id or "").strip():
+                items.append(
+                    PrecheckItem(
+                        scope=PrecheckScope.device,
+                        status=PrecheckStatus.FAIL,
+                        code="DEVICE_UNCLAIMED",
+                        message=f"设备 {device.serial} 尚未认领归属节点",
+                        suggestion="请前往「设备管理」将该设备认领到对应 ADB 节点后再执行",
+                    )
+                )
             # 设备在线状态
             if device.status == DeviceStatus.offline:
                 items.append(

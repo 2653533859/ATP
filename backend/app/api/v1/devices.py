@@ -1,8 +1,12 @@
 import asyncio
+import inspect
+import json
 import os
 import time
+from typing import Annotated
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,9 +16,11 @@ from app.models.device import Device, DeviceGroup, DeviceStatus
 from app.models.user import User
 from app.schemas.device import (
     AndroidWorkerOut,
+    DeviceClaimIn,
     DeviceGroupOut,
     DeviceGroupSave,
     DeviceOut,
+    DeviceScanItemOut,
     DeviceScanOut,
     DeviceUpdate,
     RemoteDeviceConnectIn,
@@ -35,7 +41,14 @@ from app.services.adb_service import (
     async_connect_remote_device,
     async_disconnect_remote_device,
 )
-from app.services.android_worker_registry import AndroidWorkerRegistryError, list_android_workers
+from app.services.android_worker_registry import (
+    AndroidWorkerRegistryError,
+    get_android_worker,
+    list_android_workers,
+    worker_android_queue,
+    worker_execution_queue,
+)
+from app.services.device_resolution import DeviceResolutionError, resolve_device_async
 from app.services.audit import write_audit_log
 from app.services.device_sync import device_scan_lock, sync_devices_to_db_async
 from app.services.device_leases import (
@@ -124,12 +137,18 @@ async def delete_device_group(group_id: int, db: AsyncSession = Depends(get_db),
 @router.get("/devices", response_model=list[DeviceOut])
 async def list_devices(
     status_filter: DeviceStatus | None = None,
+    worker_id: Annotated[str | None, Query(description="按 Android Worker 节点过滤")] = None,
+    unclaimed_only: Annotated[bool, Query(description="仅返回待认领设备")] = False,
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
 ):
     q = select(Device).order_by(Device.status.asc(), Device.updated_at.desc())
     if status_filter:
         q = q.where(Device.status == status_filter)
+    if unclaimed_only:
+        q = q.where(Device.worker_id.is_(None))
+    elif worker_id:
+        q = q.where(Device.worker_id == worker_id.strip())
     result = await db.execute(q)
     return result.scalars().all()
 
@@ -165,14 +184,123 @@ def _read_scan_result(scan_id: str) -> tuple[str, object]:
     return state, payload
 
 
+_AGGREGATE_SCAN_KEY_PREFIX = "atp:android-scan:"
+
+
+async def _save_aggregate_scan(parent_scan_id: str, items: list[dict[str, object]]) -> None:
+    from app.core.redis_client import close_async_redis, get_async_redis
+
+    redis = get_async_redis()
+    try:
+        await redis.set(
+            f"{_AGGREGATE_SCAN_KEY_PREFIX}{parent_scan_id}",
+            json.dumps({"items": items, "created_at": time.time()}, ensure_ascii=False),
+            ex=300,
+        )
+    finally:
+        await close_async_redis(redis)
+
+
+async def _load_aggregate_scan(parent_scan_id: str) -> dict[str, object] | None:
+    from app.core.redis_client import close_async_redis, get_async_redis
+
+    redis = get_async_redis()
+    try:
+        raw = await redis.get(f"{_AGGREGATE_SCAN_KEY_PREFIX}{parent_scan_id}")
+        if not raw:
+            return None
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
+    finally:
+        await close_async_redis(redis)
+
+
+async def _sync_with_optional_worker(db: AsyncSession, scanned: list, worker_id: str) -> None:
+    sig = inspect.signature(sync_devices_to_db_async)
+    if "worker_id" in sig.parameters:
+        await sync_devices_to_db_async(db, scanned, worker_id=worker_id)
+    else:
+        await sync_devices_to_db_async(db, scanned)
+
+
 @router.post("/devices/scan", response_model=DeviceScanOut)
 async def scan_devices(
+    worker_id: Annotated[str | None, Query(description="指定要扫描的 Android Worker 节点 ID")] = None,
     db: AsyncSession = Depends(get_db),
     _=Depends(require_engineer),
 ):
     """手动触发 ADB 设备扫描，更新数据库并返回最新设备列表"""
     if settings.ADB_SCAN_MODE.strip().lower() == "worker":
         from app.worker.tasks_device import scan_adb_devices
+
+        normalized_worker = worker_id.strip() if worker_id else ""
+        if normalized_worker:
+            try:
+                worker_info = await get_android_worker(normalized_worker)
+            except AndroidWorkerRegistryError as exc:
+                raise HTTPException(status_code=503, detail=f"worker_registry_unavailable: {exc}") from exc
+            if not worker_info:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"worker_offline: Android Worker '{normalized_worker}' 当前离线",
+                )
+            queue = worker_android_queue(normalized_worker) if settings.ANDROID_MULTI_NODE_ENABLED else "android"
+            task = scan_adb_devices.apply_async(
+                kwargs={
+                    "worker_id": normalized_worker,
+                    "expected_generation": worker_info.get("instance_generation"),
+                },
+                queue=queue,
+                ignore_result=False,
+                expires=max(15, int(settings.ADB_SCAN_INTERVAL)),
+            )
+            return DeviceScanOut(
+                status="queued",
+                scan_id=str(getattr(task, "id", "") or "") or None,
+                total_workers=1,
+                devices=await _list_device_rows(db),
+            )
+
+        if settings.ANDROID_MULTI_NODE_ENABLED:
+            try:
+                workers = await list_android_workers()
+            except AndroidWorkerRegistryError as exc:
+                raise HTTPException(status_code=503, detail=f"worker_registry_unavailable: {exc}") from exc
+            if not workers:
+                return DeviceScanOut(
+                    status="failed",
+                    error="no_online_android_worker: 当前没有在线的 Android Worker",
+                    devices=await _list_device_rows(db),
+                )
+            parent_scan_id = str(uuid4())
+            items: list[DeviceScanItemOut] = []
+            stored_items: list[dict[str, object]] = []
+            expires = max(15, int(settings.ADB_SCAN_INTERVAL))
+            for item in workers:
+                wid = str(item.get("worker_id") or "").strip()
+                if not wid:
+                    continue
+                task = scan_adb_devices.apply_async(
+                    kwargs={"worker_id": wid, "expected_generation": item.get("instance_generation")},
+                    queue=worker_android_queue(wid),
+                    ignore_result=False,
+                    expires=expires,
+                )
+                sub_id = str(getattr(task, "id", "") or uuid4())
+                items.append(DeviceScanItemOut(worker_id=wid, scan_id=sub_id, status="queued"))
+                stored_items.append({"worker_id": wid, "scan_id": sub_id})
+            await _save_aggregate_scan(parent_scan_id, stored_items)
+            return DeviceScanOut(
+                status="queued",
+                scan_id=parent_scan_id,
+                total_workers=len(items),
+                items=items,
+                devices=await _list_device_rows(db),
+            )
 
         task = scan_adb_devices.apply_async(queue="android", ignore_result=False)
         return DeviceScanOut(
@@ -182,6 +310,7 @@ async def scan_devices(
         )
 
     # 与本地后台巡检共用扫描锁：先开始的扫描不能晚提交、覆盖本次结果。
+    local_owner = settings.ANDROID_LOCAL_OWNER_ID.strip() or "local"
     async with device_scan_lock():
         scanned = await async_scan_devices()
         if scanned is None:
@@ -189,7 +318,7 @@ async def scan_devices(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="ADB 扫描失败，请检查 ADB 服务后重试",
             )
-        await sync_devices_to_db_async(db, scanned)
+        await _sync_with_optional_worker(db, scanned, local_owner)
         await db.commit()
 
     return DeviceScanOut(status="completed", devices=await _list_device_rows(db))
@@ -212,6 +341,80 @@ async def connect_remote_adb_device(
         except ValueError:
             pass
     serial = f"{host}:{port}"
+
+    if settings.ADB_SCAN_MODE.strip().lower() == "worker":
+        from app.worker.tasks_device import run_android_device_operation, scan_adb_devices
+
+        target_worker = (body.worker_id or "").strip()
+        if not target_worker:
+            try:
+                workers = await list_android_workers()
+            except AndroidWorkerRegistryError as exc:
+                raise HTTPException(status_code=503, detail=f"worker_registry_unavailable: {exc}") from exc
+            if len(workers) == 1:
+                target_worker = str(workers[0].get("worker_id") or "").strip()
+            else:
+                raise HTTPException(status_code=400, detail="多节点模式下远程连接必须指定 worker_id")
+
+        try:
+            worker_info = await get_android_worker(target_worker)
+        except AndroidWorkerRegistryError as exc:
+            raise HTTPException(status_code=503, detail=f"worker_registry_unavailable: {exc}") from exc
+        if not worker_info:
+            raise HTTPException(status_code=503, detail=f"worker_offline: Android Worker '{target_worker}' 当前离线")
+
+        exec_queue = (
+            worker_execution_queue(target_worker)
+            if settings.ANDROID_MULTI_NODE_ENABLED
+            else (settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special")
+        )
+        scan_queue = worker_android_queue(target_worker) if settings.ANDROID_MULTI_NODE_ENABLED else "android"
+        op_task = run_android_device_operation.apply_async(
+            args=[
+                "connect",
+                serial,
+                {
+                    "host": host,
+                    "port": port,
+                    "expected_worker_id": target_worker,
+                    "expected_generation": worker_info.get("instance_generation"),
+                },
+            ],
+            queue=exec_queue,
+            ignore_result=False,
+            expires=15,
+        )
+        try:
+            op_result = await asyncio.to_thread(op_task.get, timeout=15)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=504,
+                detail="operation_outcome_unknown: 远程设备连接超时，请核实后重试",
+            ) from exc
+        if not isinstance(op_result, dict) or not op_result.get("ok"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"远程设备连接失败: {(op_result or {}).get('error') or '未知错误'}",
+            )
+
+        sync_task = scan_adb_devices.apply_async(
+            kwargs={"worker_id": target_worker, "expected_generation": worker_info.get("instance_generation")},
+            queue=scan_queue,
+            ignore_result=False,
+            expires=15,
+        )
+        try:
+            await asyncio.to_thread(sync_task.get, timeout=15)
+        except Exception:
+            pass
+        device = await db.scalar(select(Device).where(Device.worker_id == target_worker, Device.serial == serial))
+        return RemoteDeviceConnectOut(
+            success=True,
+            message=str(op_result.get("message") or f"已连接到 {serial}"),
+            serial=serial,
+            device=device,
+        )
+
     success, message = await async_connect_remote_device(host, port)
     if not success:
         raise HTTPException(
@@ -219,13 +422,16 @@ async def connect_remote_adb_device(
             detail=f"远程设备连接失败: {message}",
         )
 
+    local_owner = settings.ANDROID_LOCAL_OWNER_ID.strip() or "local"
     async with device_scan_lock():
         scanned = await async_scan_devices()
         if scanned:
-            await sync_devices_to_db_async(db, scanned)
+            await _sync_with_optional_worker(db, scanned, local_owner)
             await db.commit()
 
-    device = await db.scalar(select(Device).where(Device.serial == serial))
+    device = await db.scalar(select(Device).where(Device.worker_id == local_owner, Device.serial == serial))
+    if device is None:
+        device = await db.scalar(select(Device).where(Device.serial == serial))
     return RemoteDeviceConnectOut(
         success=True,
         message=message,
@@ -242,11 +448,82 @@ async def disconnect_remote_adb_device(
 ):
     """通过 adb disconnect 断开远程设备的网络连接。"""
     serial = body.serial.strip()
+    if settings.ADB_SCAN_MODE.strip().lower() == "worker":
+        from app.worker.tasks_device import run_android_device_operation, scan_adb_devices
+
+        target_worker = (body.worker_id or "").strip()
+        device = None
+        if body.device_id is not None or not target_worker:
+            try:
+                device = await resolve_device_async(db, device_id=body.device_id, serial=serial)
+                target_worker = target_worker or (device.worker_id or "").strip()
+            except DeviceResolutionError as exc:
+                if not target_worker:
+                    raise HTTPException(status_code=400, detail=exc.message) from exc
+
+        if not target_worker:
+            raise HTTPException(status_code=400, detail="device_unclaimed: 无法确定设备所属 Android Worker 节点")
+        try:
+            worker_info = await get_android_worker(target_worker)
+        except AndroidWorkerRegistryError as exc:
+            raise HTTPException(status_code=503, detail=f"worker_registry_unavailable: {exc}") from exc
+        if not worker_info:
+            raise HTTPException(status_code=503, detail=f"worker_offline: Android Worker '{target_worker}' 当前离线")
+
+        exec_queue = (
+            worker_execution_queue(target_worker)
+            if settings.ANDROID_MULTI_NODE_ENABLED
+            else (settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special")
+        )
+        scan_queue = worker_android_queue(target_worker) if settings.ANDROID_MULTI_NODE_ENABLED else "android"
+        op_task = run_android_device_operation.apply_async(
+            args=[
+                "disconnect",
+                serial,
+                {
+                    "expected_worker_id": target_worker,
+                    "expected_generation": worker_info.get("instance_generation"),
+                },
+            ],
+            queue=exec_queue,
+            ignore_result=False,
+            expires=15,
+        )
+        try:
+            op_result = await asyncio.to_thread(op_task.get, timeout=15)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=504,
+                detail="operation_outcome_unknown: 断开设备超时，请核实后重试",
+            ) from exc
+
+        sync_task = scan_adb_devices.apply_async(
+            kwargs={"worker_id": target_worker, "expected_generation": worker_info.get("instance_generation")},
+            queue=scan_queue,
+            ignore_result=False,
+            expires=15,
+        )
+        try:
+            await asyncio.to_thread(sync_task.get, timeout=15)
+        except Exception:
+            if device is not None:
+                from app.services.device_leases import handle_device_disconnection_recovery
+
+                await handle_device_disconnection_recovery(db, device.id, reason="manual_disconnect")
+                await db.commit()
+        return {
+            "success": bool((op_result or {}).get("ok")),
+            "message": str((op_result or {}).get("message") or (op_result or {}).get("error") or ""),
+            "serial": serial,
+            "worker_id": target_worker,
+        }
+
     success, message = await async_disconnect_remote_device(serial)
+    local_owner = settings.ANDROID_LOCAL_OWNER_ID.strip() or "local"
     async with device_scan_lock():
         scanned = await async_scan_devices()
         if scanned is not None:
-            await sync_devices_to_db_async(db, scanned)
+            await _sync_with_optional_worker(db, scanned, local_owner)
             await db.commit()
         else:
             device = await db.scalar(select(Device).where(Device.serial == serial))
@@ -278,13 +555,79 @@ async def get_scan_status(
     db: AsyncSession = Depends(get_db),
     _=Depends(require_engineer),
 ):
-    """查询 Windows Android Worker 的 ADB 扫描结果。"""
+    """查询 Windows Android Worker 的单节点或全节点聚合 ADB 扫描结果。"""
     from uuid import UUID
 
     try:
         UUID(scan_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="扫描任务不存在") from exc
+
+    aggregate = await _load_aggregate_scan(scan_id)
+    if aggregate is not None:
+        raw_items = aggregate.get("items") if isinstance(aggregate.get("items"), list) else []
+        created_at = float(aggregate.get("created_at") or 0.0)
+        timed_out_window = created_at > 0 and (time.time() - created_at) > max(30, int(settings.ADB_SCAN_INTERVAL) + 15)
+        items: list[DeviceScanItemOut] = []
+        completed_count = 0
+        failed_count = 0
+        running_count = 0
+
+        for entry in raw_items:
+            if not isinstance(entry, dict):
+                continue
+            wid = str(entry.get("worker_id") or "")
+            sub_id = str(entry.get("scan_id") or "")
+            state, payload = await asyncio.to_thread(_read_scan_result, sub_id)
+            if state in {"PENDING", "RECEIVED", "STARTED", "RETRY"}:
+                if timed_out_window and state == "PENDING":
+                    failed_count += 1
+                    items.append(DeviceScanItemOut(worker_id=wid, scan_id=sub_id, status="timed_out", error="扫描超时"))
+                else:
+                    running_count += 1
+                    items.append(
+                        DeviceScanItemOut(
+                            worker_id=wid,
+                            scan_id=sub_id,
+                            status="running" if state in {"STARTED", "RETRY"} else "queued",
+                        )
+                    )
+            elif state == "SUCCESS" and isinstance(payload, dict) and payload.get("status") == "completed":
+                completed_count += 1
+                items.append(
+                    DeviceScanItemOut(
+                        worker_id=wid,
+                        scan_id=sub_id,
+                        status="completed",
+                        count=int(payload.get("count") or 0),
+                    )
+                )
+            else:
+                failed_count += 1
+                err = payload.get("error") if isinstance(payload, dict) else "ADB 扫描任务执行失败"
+                items.append(
+                    DeviceScanItemOut(worker_id=wid, scan_id=sub_id, status="failed", error=str(err or "失败"))
+                )
+
+        total = len(items)
+        if running_count > 0:
+            agg_status = "running"
+        elif completed_count == total and total > 0:
+            agg_status = "completed"
+        elif completed_count > 0 and failed_count > 0:
+            agg_status = "partial_failed"
+        else:
+            agg_status = "failed"
+
+        return DeviceScanOut(
+            status=agg_status,
+            scan_id=scan_id,
+            total_workers=total,
+            completed_workers=completed_count,
+            failed_workers=failed_count,
+            items=items,
+            devices=await _list_device_rows(db),
+        )
 
     try:
         state, payload = await asyncio.to_thread(_read_scan_result, scan_id)
@@ -307,6 +650,34 @@ async def get_scan_status(
         raise
     except Exception as exc:
         raise HTTPException(status_code=503, detail="暂时无法查询 Android Worker 扫描状态") from exc
+
+
+@router.post("/devices/{device_id}/claim", response_model=DeviceOut)
+async def claim_device_worker(
+    device_id: int,
+    body: DeviceClaimIn,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    """将历史未认领设备归属到指定在线 Android Worker 节点。"""
+    device = await db.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    target_worker = body.worker_id.strip()
+    conflict = await db.scalar(
+        select(Device).where(Device.worker_id == target_worker, Device.serial == device.serial, Device.id != device.id)
+    )
+    if conflict is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"节点 {target_worker} 下已存在序列号 {device.serial} 的设备记录 (id={conflict.id})",
+        )
+    device.worker_id = target_worker
+    if body.worker_hostname is not None:
+        device.worker_hostname = body.worker_hostname.strip() or None
+    await db.commit()
+    await db.refresh(device)
+    return device
 
 
 @router.get("/devices/workers", response_model=list[AndroidWorkerOut])
