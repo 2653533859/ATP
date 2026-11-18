@@ -342,23 +342,34 @@ async def acquire_available_device_from_pool(
 async def handle_device_disconnection_recovery(
     db: AsyncSession, device_id: int, reason: str = "设备异常断开"
 ) -> dict[str, Any]:
-    """当设备掉线或失联时：强制标记 offline、清除活动租约、收敛在途执行记录。"""
+    """当设备掉线或失联时：强制标记 offline、清除活动租约、收敛该具体设备的在途执行记录。"""
     now = _now()
     device = await db.get(Device, device_id)
     if device is not None:
         device.status = DeviceStatus.offline
         device.last_seen_at = now
 
-    # 1. 清理活动租约
+    # 1. 提取该设备租约绑定的 run_id 后清理活动租约
     leases_res = await db.execute(select(DeviceLease).where(DeviceLease.device_id == device_id))
     leases = leases_res.scalars().all()
+    leased_run_ids: set[int] = set()
     for lease in leases:
+        label = str(getattr(lease, "owner_label", "") or "")
+        if label.startswith("case-run:"):
+            try:
+                leased_run_ids.add(int(label.split(":", 1)[1]))
+            except (TypeError, ValueError):
+                pass
         await db.delete(lease)
 
-    # 2. 收敛在途 TestRun
+    # 2. 收敛在途 TestRun（优先按租约与 device_id 精确关联，跨节点同 serial 绝不误杀）
     recovered_runs_count = 0
     if device is not None:
         from app.models.case import CaseType, RunStatus, TestCase, TestRun
+
+        serial_peers_res = await db.execute(select(Device.id).where(Device.serial == device.serial))
+        serial_peer_ids = list(serial_peers_res.scalars().all())
+        serial_is_globally_unique = len(serial_peer_ids) <= 1
 
         # 只有 Android 用例的运行会占用这台设备；不加这个条件会把全系统所有在途运行都加载进内存
         runs_res = await db.execute(
@@ -372,7 +383,17 @@ async def handle_device_disconnection_recovery(
         runs = runs_res.scalars().all()
         for run in runs:
             summary = run.result_summary or {}
-            if summary.get("device_serial") == device.serial or summary.get("device_id") == device.id:
+            summary_device_id = summary.get("device_id")
+            matches_this_device = (
+                run.id in leased_run_ids
+                or summary_device_id == device.id
+                or (
+                    summary_device_id is None
+                    and serial_is_globally_unique
+                    and summary.get("device_serial") == device.serial
+                )
+            )
+            if matches_this_device:
                 run.status = RunStatus.error
                 run.error_message = f"执行设备异常掉线或失联: {reason}"
                 recovered_runs_count += 1
@@ -399,13 +420,37 @@ def expand_case_items_for_device_matrix(
         cid = item.get("case_id")
         if cid in android_case_ids:
             for dev_item in device_ids:
-                dev_id = dev_item if isinstance(dev_item, int) else dev_item.get("device_id")
-                if dev_id:
+                dev_id: int | None = None
+                dev_serial: str | None = None
+                if isinstance(dev_item, int) and not isinstance(dev_item, bool):
+                    dev_id = dev_item
+                elif isinstance(dev_item, str) and dev_item.strip():
+                    dev_serial = dev_item.strip()
+                elif isinstance(dev_item, dict):
+                    raw_id = dev_item.get("device_id")
+                    if raw_id is not None and not isinstance(raw_id, bool):
+                        try:
+                            dev_id = int(raw_id)
+                        except (TypeError, ValueError):
+                            dev_id = None
+                    raw_serial = dev_item.get("device_serial") or dev_item.get("serial")
+                    if raw_serial:
+                        dev_serial = str(raw_serial).strip() or None
+
+                if dev_id is not None or dev_serial:
+                    merged_extra = dict(item.get("extra_vars") or {})
+                    entry_patch: dict[str, Any] = {}
+                    if dev_id is not None:
+                        entry_patch["device_id"] = dev_id
+                        merged_extra["device_id"] = dev_id
+                    if dev_serial:
+                        entry_patch["device_serial"] = dev_serial
+                        merged_extra["device_serial"] = dev_serial
                     expanded.append(
                         {
                             **item,
-                            "device_id": dev_id,
-                            "extra_vars": {**(item.get("extra_vars") or {}), "device_id": dev_id},
+                            **entry_patch,
+                            "extra_vars": merged_extra,
                         }
                     )
         else:

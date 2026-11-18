@@ -69,7 +69,9 @@ def test_android_worker_heartbeat_registers_and_reschedules(monkeypatch):
     monkeypatch.setattr(tasks_device, "run_async", lambda coroutine: __import__("asyncio").run(coroutine))
 
     task = FakeTask()
-    result = tasks_device.heartbeat_android_worker(task)
+    hb_task = tasks_device.heartbeat_android_worker
+    runner = getattr(getattr(hb_task, "run", None), "__func__", hb_task)
+    result = runner(task)
 
     assert result == {"worker_id": "win-a", "status": "online", "queues": ["android", "mobile_special"]}
     assert task.calls == [{"countdown": 15, "queue": "android"}]
@@ -194,3 +196,158 @@ def test_android_worker_handles_ui_anchors_operation(monkeypatch):
         },
         "diagnostic": {"status": "found", "code": None},
     }
+
+
+def test_worker_registry_lifecycle_conflict_exit_and_expiry_rotation(monkeypatch):
+    import json
+    import pytest
+    from app.core import config as config_module
+    from app.services import android_worker_registry as reg
+    from app.worker import celery_app as celery_module
+
+    store: dict[str, str] = {}
+
+    class FakeDictRedis:
+        def __init__(self):
+            self.closed = False
+
+        def get(self, key):
+            return store.get(key)
+
+        def set(self, key, value, ex=None, nx=False):
+            if nx and key in store:
+                return False
+            store[key] = value
+            return True
+
+        def delete(self, key):
+            return 1 if store.pop(key, None) is not None else 0
+
+        def close(self):
+            self.closed = True
+
+    reg.clear_current_worker_runtime()
+    monkeypatch.setattr(config_module.settings, "ANDROID_WORKER_ID", "win-a")
+    monkeypatch.setattr(config_module.settings, "ANDROID_MULTI_NODE_ENABLED", True)
+
+    client1 = FakeDictRedis()
+    monkeypatch.setattr(reg, "_sync_redis_client", lambda: client1)
+
+    try:
+        # 1. Worker A1 starts cleanly and claims slot
+        celery_module._schedule_android_worker_heartbeat()
+        gen1 = reg.get_current_worker_generation()
+        assert gen1 is not None
+        assert reg.verify_worker_execution_target(expected_worker_id="win-a", expected_generation=gen1) == (True, None)
+
+        # 2. Duplicate Worker A2 with same ID must abort with SystemExit(1) and mark conflict
+        client2 = FakeDictRedis()
+        monkeypatch.setattr(reg, "_sync_redis_client", lambda: client2)
+        with pytest.raises(SystemExit) as exc_info:
+            celery_module._schedule_android_worker_heartbeat()
+        assert exc_info.value.code == 1
+        assert client2.closed is True
+        assert reg.verify_worker_execution_target(expected_worker_id="win-a", expected_generation=gen1) == (
+            False,
+            "worker_conflict_detected",
+        )
+
+        # Restore A1 state and simulate TTL expiry with nobody else taking over -> rotates generation
+        reg.set_current_worker_runtime(
+            "win-a",
+            celery_module._android_heartbeat_thread.instance_generation,
+            celery_module._android_heartbeat_thread.instance_token,
+        )
+        store.clear()
+        assert celery_module._android_heartbeat_thread.beat_once() is True
+        gen2 = reg.get_current_worker_generation()
+        assert gen2 is not None and gen2 > gen1
+        assert reg.verify_worker_execution_target(expected_worker_id="win-a", expected_generation=gen1) == (
+            False,
+            "worker_generation_mismatch",
+        )
+
+        # Simulate usurpation by another live worker -> conflict callback & rejection
+        conflicts: list[bool] = []
+        celery_module._android_heartbeat_thread._on_conflict = lambda: conflicts.append(True)
+        store[reg.worker_key("win-a")] = json.dumps({"worker_id": "win-a", "instance_token": "other-owner"})
+        assert celery_module._android_heartbeat_thread.beat_once() is False
+        assert celery_module._android_heartbeat_thread.conflict_detected is True
+        assert conflicts == [True]
+    finally:
+        # 3. Graceful solo shutdown releases slot and resets runtime
+        celery_module._shutdown_android_worker_heartbeat()
+        reg.clear_current_worker_runtime()
+
+
+def test_offline_worker_convergence_respects_grace_period_and_reconnect(monkeypatch):
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core import config as config_module
+    from app.models.base import Base
+    from app.models.bootstrap import load_all_models
+    from app.models.device import Device, DeviceStatus
+    from app.services import android_worker_registry as reg
+    from app.worker import tasks_device
+
+    load_all_models()
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+
+    with SessionLocal() as s:
+        s.add_all(
+            [
+                Device(serial="emu-1", worker_id="win-lost", status=DeviceStatus.online),
+                Device(serial="emu-1", worker_id="win-alive", status=DeviceStatus.online),
+            ]
+        )
+        s.commit()
+
+    store: dict[str, str] = {}
+
+    class FakeRedis:
+        def get(self, key):
+            return store.get(key)
+
+        def set(self, key, value, ex=None, nx=False):
+            if nx and key in store:
+                return False
+            store[key] = value
+            return True
+
+        def delete(self, key):
+            store.pop(key, None)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(config_module.settings, "ANDROID_WORKER_OFFLINE_GRACE_SECONDS", 15)
+    monkeypatch.setitem(sys.modules, "app.core.database", types.SimpleNamespace(sync_session_factory=SessionLocal))
+    monkeypatch.setattr(tasks_device, "_sync_redis_client", FakeRedis)
+
+    # First check: win-lost missing, enters grace window -> NOT marked offline yet
+    now_ref = [1000.0]
+    monkeypatch.setattr(tasks_device.time, "time", lambda: now_ref[0])
+    assert tasks_device._reconcile_offline_worker_devices({"win-alive"}) == []
+    with SessionLocal() as s:
+        statuses = {d.worker_id: d.status for d in s.scalars(select(Device)).all()}
+        assert statuses["win-lost"] == DeviceStatus.online
+
+    # Reconnect before grace elapses -> missing key cleared, stays online
+    store[reg.worker_key("win-lost")] = '{"worker_id":"win-lost"}'
+    now_ref[0] = 1020.0
+    assert tasks_device._reconcile_offline_worker_devices(set()) == []
+    store.pop(reg.worker_key("win-lost"), None)
+
+    # Goes missing again -> grace elapses -> marked offline; win-alive untouched
+    now_ref[0] = 2000.0
+    assert tasks_device._reconcile_offline_worker_devices({"win-alive"}) == []
+    now_ref[0] = 2016.0
+    assert tasks_device._reconcile_offline_worker_devices({"win-alive"}) == ["win-lost"]
+    with SessionLocal() as s:
+        statuses = {d.worker_id: d.status for d in s.scalars(select(Device)).all()}
+        assert statuses["win-lost"] == DeviceStatus.offline
+        assert statuses["win-alive"] == DeviceStatus.online
+    engine.dispose()

@@ -10,6 +10,7 @@ from celery.signals import (
     worker_ready,
     worker_process_init,
     worker_process_shutdown,
+    worker_shutdown,
 )
 
 from app.core.config import settings
@@ -245,7 +246,7 @@ _android_heartbeat_thread = None
 
 
 @worker_ready.connect
-def _schedule_android_worker_heartbeat(**_kwargs):
+def _schedule_android_worker_heartbeat(sender=None, **_kwargs):
     """Start an independent daemon heartbeat thread for explicitly identified Android Workers."""
     global _android_heartbeat_thread
     worker_id = settings.ANDROID_WORKER_ID.strip()
@@ -256,36 +257,74 @@ def _schedule_android_worker_heartbeat(**_kwargs):
         claim_android_worker_sync,
         generate_instance_identity,
         is_slot_busy,
+        mark_worker_runtime_conflict,
         normalize_worker_id,
         set_current_worker_runtime,
         worker_queues_for,
         _sync_redis_client,
     )
 
-    normalized_id = normalize_worker_id(worker_id)
-    generation, token = generate_instance_identity()
-    queues = worker_queues_for(normalized_id)
-    client = _sync_redis_client()
-    claim_android_worker_sync(
-        client,
-        normalized_id,
-        instance_generation=generation,
-        instance_token=token,
-        queues=queues,
-    )
-    set_current_worker_runtime(normalized_id, generation, token)
-    thread = AndroidWorkerHeartbeatThread(
-        worker_id=normalized_id,
-        instance_token=token,
-        instance_generation=generation,
-        queues=queues,
-        redis_client=client,
-        busy_fn=is_slot_busy,
-    )
-    thread.start()
-    _android_heartbeat_thread = thread
+    client = None
+    try:
+        normalized_id = normalize_worker_id(worker_id)
+        generation, token = generate_instance_identity()
+        queues = worker_queues_for(normalized_id)
+        client = _sync_redis_client()
+        claim_android_worker_sync(
+            client,
+            normalized_id,
+            instance_generation=generation,
+            instance_token=token,
+            queues=queues,
+        )
+        set_current_worker_runtime(normalized_id, generation, token)
+
+        def _stop_conflicted_worker() -> None:
+            logger.critical(
+                "Android Worker '%s' lost registry ownership to another instance; stopping consumer",
+                normalized_id,
+            )
+            parent = getattr(sender, "parent", None)
+            stop_fn = getattr(parent, "stop", None) or getattr(sender, "stop", None)
+            if callable(stop_fn):
+                try:
+                    stop_fn()
+                    return
+                except Exception:
+                    logger.warning("Graceful consumer stop failed after registry conflict", exc_info=True)
+            import _thread
+
+            _thread.interrupt_main()
+
+        thread = AndroidWorkerHeartbeatThread(
+            worker_id=normalized_id,
+            instance_token=token,
+            instance_generation=generation,
+            queues=queues,
+            redis_client=client,
+            owns_client=True,
+            busy_fn=is_slot_busy,
+            on_conflict=_stop_conflicted_worker,
+        )
+        thread._initialized = True
+        thread.start()
+        _android_heartbeat_thread = thread
+    except Exception as exc:
+        mark_worker_runtime_conflict()
+        if client is not None:
+            close_fn = getattr(client, "close", None)
+            if callable(close_fn):
+                try:
+                    close_fn()
+                except Exception:
+                    pass
+        logger.critical("Android Worker '%s' failed startup registration and must exit: %s", worker_id, exc)
+        # Celery Signal.send swallows Exception subclasses; raise SystemExit (BaseException)
+        # so a duplicate or unregistrable Android Worker never stays alive consuming queues.
+        raise SystemExit(1) from exc
 
 
+@worker_shutdown.connect
 @worker_process_shutdown.connect
 def _shutdown_android_worker_heartbeat(**_kwargs):
     global _android_heartbeat_thread

@@ -45,6 +45,7 @@ from app.services.android_worker_registry import (
     AndroidWorkerRegistryError,
     get_android_worker,
     list_android_workers,
+    normalize_worker_id,
     worker_android_queue,
     worker_execution_queue,
 )
@@ -276,7 +277,7 @@ async def scan_devices(
                     error="no_online_android_worker: 当前没有在线的 Android Worker",
                     devices=await _list_device_rows(db),
                 )
-            parent_scan_id = str(uuid4())
+            parent_scan_id = f"agg-{uuid4()}"
             items: list[DeviceScanItemOut] = []
             stored_items: list[dict[str, object]] = []
             expires = max(15, int(settings.ADB_SCAN_INTERVAL))
@@ -347,6 +348,8 @@ async def connect_remote_adb_device(
 
         target_worker = (body.worker_id or "").strip()
         if not target_worker:
+            if settings.ANDROID_MULTI_NODE_ENABLED:
+                raise HTTPException(status_code=400, detail="多节点模式下远程连接必须明确指定 worker_id")
             try:
                 workers = await list_android_workers()
             except AndroidWorkerRegistryError as exc:
@@ -354,7 +357,7 @@ async def connect_remote_adb_device(
             if len(workers) == 1:
                 target_worker = str(workers[0].get("worker_id") or "").strip()
             else:
-                raise HTTPException(status_code=400, detail="多节点模式下远程连接必须指定 worker_id")
+                raise HTTPException(status_code=400, detail="远程连接必须指定在线的 worker_id")
 
         try:
             worker_info = await get_android_worker(target_worker)
@@ -431,7 +434,7 @@ async def connect_remote_adb_device(
 
     device = await db.scalar(select(Device).where(Device.worker_id == local_owner, Device.serial == serial))
     if device is None:
-        device = await db.scalar(select(Device).where(Device.serial == serial))
+        device = await db.scalar(select(Device).where(Device.worker_id.is_(None), Device.serial == serial))
     return RemoteDeviceConnectOut(
         success=True,
         message=message,
@@ -447,19 +450,49 @@ async def disconnect_remote_adb_device(
     _=Depends(require_engineer),
 ):
     """通过 adb disconnect 断开远程设备的网络连接。"""
+    from datetime import datetime, timezone
+
+    from app.models.device import DeviceLease
+    from app.services.device_leases import lease_is_active
+
     serial = body.serial.strip()
     if settings.ADB_SCAN_MODE.strip().lower() == "worker":
         from app.worker.tasks_device import run_android_device_operation, scan_adb_devices
 
-        target_worker = (body.worker_id or "").strip()
+        requested_worker = (body.worker_id or "").strip()
         device = None
-        if body.device_id is not None or not target_worker:
+        if body.device_id is not None:
             try:
-                device = await resolve_device_async(db, device_id=body.device_id, serial=serial)
-                target_worker = target_worker or (device.worker_id or "").strip()
+                device = await resolve_device_async(db, device_id=body.device_id, serial=serial or None)
             except DeviceResolutionError as exc:
-                if not target_worker:
-                    raise HTTPException(status_code=400, detail=exc.message) from exc
+                raise HTTPException(status_code=400, detail=f"{exc.code}: {exc.message}") from exc
+            serial = device.serial
+        elif requested_worker:
+            device = await db.scalar(
+                select(Device).where(Device.worker_id == requested_worker, Device.serial == serial)
+            )
+        else:
+            try:
+                device = await resolve_device_async(db, serial=serial)
+            except DeviceResolutionError as exc:
+                raise HTTPException(status_code=409, detail=f"{exc.code}: {exc.message}") from exc
+
+        if device is not None:
+            db_worker = (device.worker_id or "").strip()
+            if db_worker and requested_worker and requested_worker != db_worker:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"worker_id_mismatch: 设备实际归属节点为 '{db_worker}'，不能覆盖为 '{requested_worker}'",
+                )
+            target_worker = db_worker or requested_worker
+            active_lease = await db.scalar(select(DeviceLease).where(DeviceLease.device_id == device.id))
+            if isinstance(active_lease, DeviceLease) and lease_is_active(active_lease, datetime.now(timezone.utc)):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"设备当前正被 [{active_lease.owner_label}] 占用，请等待任务结束或先释放租约后再断开",
+                )
+        else:
+            target_worker = requested_worker
 
         if not target_worker:
             raise HTTPException(status_code=400, detail="device_unclaimed: 无法确定设备所属 Android Worker 节点")
@@ -518,20 +551,34 @@ async def disconnect_remote_adb_device(
             "worker_id": target_worker,
         }
 
-    success, message = await async_disconnect_remote_device(serial)
     local_owner = settings.ANDROID_LOCAL_OWNER_ID.strip() or "local"
+    local_device = None
+    if hasattr(db, "scalar"):
+        local_device = await db.scalar(
+            select(Device).where(
+                Device.serial == serial,
+                (Device.worker_id == local_owner) | Device.worker_id.is_(None),
+            )
+        )
+        if local_device is not None and getattr(local_device, "id", None) is not None:
+            active_lease = await db.scalar(select(DeviceLease).where(DeviceLease.device_id == local_device.id))
+            if isinstance(active_lease, DeviceLease) and lease_is_active(active_lease, datetime.now(timezone.utc)):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"设备当前正被 [{active_lease.owner_label}] 占用，请等待任务结束或先释放租约后再断开",
+                )
+
+    success, message = await async_disconnect_remote_device(serial)
     async with device_scan_lock():
         scanned = await async_scan_devices()
         if scanned is not None:
             await _sync_with_optional_worker(db, scanned, local_owner)
             await db.commit()
-        else:
-            device = await db.scalar(select(Device).where(Device.serial == serial))
-            if device:
-                from app.services.device_leases import handle_device_disconnection_recovery
+        elif local_device is not None:
+            from app.services.device_leases import handle_device_disconnection_recovery
 
-                await handle_device_disconnection_recovery(db, device.id, reason="manual_disconnect")
-                await db.commit()
+            await handle_device_disconnection_recovery(db, local_device.id, reason="manual_disconnect")
+            await db.commit()
     return {"success": success, "message": message, "serial": serial}
 
 
@@ -558,12 +605,16 @@ async def get_scan_status(
     """查询 Windows Android Worker 的单节点或全节点聚合 ADB 扫描结果。"""
     from uuid import UUID
 
+    is_aggregate_id = scan_id.startswith("agg-")
+    uuid_part = scan_id.removeprefix("agg-")
     try:
-        UUID(scan_id)
+        UUID(uuid_part)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="扫描任务不存在") from exc
 
     aggregate = await _load_aggregate_scan(scan_id)
+    if aggregate is None and is_aggregate_id:
+        raise HTTPException(status_code=404, detail="scan_expired: 聚合扫描结果不存在或已过期")
     if aggregate is not None:
         raw_items = aggregate.get("items") if isinstance(aggregate.get("items"), list) else []
         created_at = float(aggregate.get("created_at") or 0.0)
@@ -580,7 +631,7 @@ async def get_scan_status(
             sub_id = str(entry.get("scan_id") or "")
             state, payload = await asyncio.to_thread(_read_scan_result, sub_id)
             if state in {"PENDING", "RECEIVED", "STARTED", "RETRY"}:
-                if timed_out_window and state == "PENDING":
+                if timed_out_window:
                     failed_count += 1
                     items.append(DeviceScanItemOut(worker_id=wid, scan_id=sub_id, status="timed_out", error="扫描超时"))
                 else:
@@ -656,14 +707,49 @@ async def get_scan_status(
 async def claim_device_worker(
     device_id: int,
     body: DeviceClaimIn,
+    request: Request = None,  # type: ignore[assignment]
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    current_user: User = Depends(require_admin),
 ):
-    """将历史未认领设备归属到指定在线 Android Worker 节点。"""
+    """将历史未认领设备归属到指定在线 Android Worker 节点（仅管理员，写入审计日志）。"""
+    from datetime import datetime, timezone
+
+    from app.models.device import DeviceLease
+    from app.services.device_leases import lease_is_active
+
     device = await db.get(Device, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
-    target_worker = body.worker_id.strip()
+    try:
+        target_worker = normalize_worker_id(body.worker_id)
+    except AndroidWorkerRegistryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    previous_worker = (device.worker_id or "").strip() or None
+    if previous_worker and previous_worker != target_worker and not body.force:
+        raise HTTPException(
+            status_code=409,
+            detail=f"设备已归属到节点 '{previous_worker}'，如需改绑请确认设备空闲并显式传入 force=true",
+        )
+
+    active_lease = await db.scalar(select(DeviceLease).where(DeviceLease.device_id == device.id))
+    if active_lease is not None and lease_is_active(active_lease, datetime.now(timezone.utc)):
+        raise HTTPException(
+            status_code=409,
+            detail=f"设备当前正被 [{active_lease.owner_label}] 占用，不能在运行或控制期间变更节点归属",
+        )
+
+    worker_hostname = body.worker_hostname.strip() if body.worker_hostname else None
+    if settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE:
+        try:
+            worker_info = await get_android_worker(target_worker)
+        except AndroidWorkerRegistryError as exc:
+            raise HTTPException(status_code=503, detail=f"worker_registry_unavailable: {exc}") from exc
+        if not worker_info:
+            raise HTTPException(status_code=503, detail=f"worker_offline: 目标节点 '{target_worker}' 当前不在线")
+        if not worker_hostname and worker_info.get("hostname"):
+            worker_hostname = str(worker_info["hostname"])
+
     conflict = await db.scalar(
         select(Device).where(Device.worker_id == target_worker, Device.serial == device.serial, Device.id != device.id)
     )
@@ -673,8 +759,18 @@ async def claim_device_worker(
             detail=f"节点 {target_worker} 下已存在序列号 {device.serial} 的设备记录 (id={conflict.id})",
         )
     device.worker_id = target_worker
-    if body.worker_hostname is not None:
-        device.worker_hostname = body.worker_hostname.strip() or None
+    if worker_hostname is not None:
+        device.worker_hostname = worker_hostname
+    await write_audit_log(
+        db,
+        action="device.claim_worker",
+        resource_type="device",
+        resource_id=device.id,
+        user_id=current_user.id,
+        username=current_user.username,
+        ip_address=request.client.host if request is not None and request.client is not None else "",
+        detail=f"serial={device.serial}; from={previous_worker or 'unclaimed'}; to={target_worker}",
+    )
     await db.commit()
     await db.refresh(device)
     return device

@@ -774,46 +774,76 @@ def _add_device_worker_ownership(connection: Connection) -> None:
     inspector = inspect(connection)
     existing_columns = {col["name"] for col in inspector.get_columns("devices")}
     if "worker_id" in existing_columns and "worker_hostname" in existing_columns:
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_devices_serial ON devices(serial)")
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_devices_worker_id ON devices(worker_id)")
+        connection.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_devices_unclaimed_serial "
+            "ON devices(serial) WHERE worker_id IS NULL"
+        )
         return
 
-    connection.exec_driver_sql(
-        "CREATE TABLE devices_new ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-        "serial VARCHAR(128) NOT NULL, "
-        "worker_id VARCHAR(128), "
-        "worker_hostname VARCHAR(128), "
-        "name VARCHAR(128), "
-        "model VARCHAR(128), "
-        "brand VARCHAR(64), "
-        "os_version VARCHAR(32), "
-        "sdk_version VARCHAR(16), "
-        "resolution VARCHAR(32), "
-        "status VARCHAR(7), "
-        "ip_address VARCHAR(64), "
-        "port INTEGER, "
-        "description TEXT, "
-        "last_seen_at DATETIME, "
-        "created_at DATETIME NOT NULL, "
-        "updated_at DATETIME NOT NULL, "
-        "CONSTRAINT uq_devices_worker_id_serial UNIQUE (worker_id, serial)"
-        ")"
-    )
-    connection.exec_driver_sql(
-        "INSERT INTO devices_new ("
-        "id, serial, worker_id, worker_hostname, name, model, brand, os_version, sdk_version, "
-        "resolution, status, ip_address, port, description, last_seen_at, created_at, updated_at"
-        ") SELECT "
-        "id, serial, NULL, NULL, name, model, brand, os_version, sdk_version, "
-        "resolution, status, ip_address, port, description, last_seen_at, created_at, updated_at "
-        "FROM devices"
-    )
-    connection.exec_driver_sql("DROP TABLE devices")
-    connection.exec_driver_sql("ALTER TABLE devices_new RENAME TO devices")
-    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_devices_serial ON devices(serial)")
-    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_devices_worker_id ON devices(worker_id)")
-    connection.exec_driver_sql(
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_devices_unclaimed_serial " "ON devices(serial) WHERE worker_id IS NULL"
-    )
+    raw_conn = getattr(getattr(connection, "connection", None), "dbapi_connection", None)
+    restore_fk = False
+    if raw_conn is not None and not getattr(raw_conn, "in_transaction", True):
+        cursor = raw_conn.cursor()
+        try:
+            row = cursor.execute("PRAGMA foreign_keys").fetchone()
+            if row and int(row[0]):
+                cursor.execute("PRAGMA foreign_keys=OFF")
+                restore_fk = True
+        finally:
+            cursor.close()
+
+    try:
+        connection.exec_driver_sql(
+            "CREATE TABLE devices_new ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "serial VARCHAR(128) NOT NULL, "
+            "worker_id VARCHAR(128), "
+            "worker_hostname VARCHAR(128), "
+            "name VARCHAR(128), "
+            "model VARCHAR(128), "
+            "brand VARCHAR(64), "
+            "os_version VARCHAR(32), "
+            "sdk_version VARCHAR(16), "
+            "resolution VARCHAR(32), "
+            "status VARCHAR(7), "
+            "ip_address VARCHAR(64), "
+            "port INTEGER, "
+            "description TEXT, "
+            "last_seen_at DATETIME, "
+            "created_at DATETIME NOT NULL, "
+            "updated_at DATETIME NOT NULL, "
+            "CONSTRAINT uq_devices_worker_id_serial UNIQUE (worker_id, serial)"
+            ")"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO devices_new ("
+            "id, serial, worker_id, worker_hostname, name, model, brand, os_version, sdk_version, "
+            "resolution, status, ip_address, port, description, last_seen_at, created_at, updated_at"
+            ") SELECT "
+            "id, serial, NULL, NULL, name, model, brand, os_version, sdk_version, "
+            "resolution, status, ip_address, port, description, last_seen_at, created_at, updated_at "
+            "FROM devices"
+        )
+        connection.exec_driver_sql("DROP TABLE devices")
+        connection.exec_driver_sql("ALTER TABLE devices_new RENAME TO devices")
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_devices_serial ON devices(serial)")
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_devices_worker_id ON devices(worker_id)")
+        connection.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_devices_unclaimed_serial "
+            "ON devices(serial) WHERE worker_id IS NULL"
+        )
+        fk_issues = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+        if fk_issues:
+            raise RuntimeError(f"local SQLite foreign key check failed on devices migration: {fk_issues[:3]}")
+    finally:
+        if restore_fk and raw_conn is not None and not getattr(raw_conn, "in_transaction", True):
+            cursor = raw_conn.cursor()
+            try:
+                cursor.execute("PRAGMA foreign_keys=ON")
+            finally:
+                cursor.close()
 
 
 LOCAL_MIGRATIONS[25] = _add_device_worker_ownership
@@ -840,46 +870,90 @@ def _assert_current_schema(connection: Connection) -> None:
 
 
 def ensure_local_schema(engine: Engine) -> int:
-    """Create a fresh local database or apply explicit migrations in order."""
-    with engine.begin() as connection:
+    """Create a fresh local database or apply explicit migrations in order.
+
+    SQLite ignores ``PRAGMA foreign_keys=OFF`` inside an active transaction.
+    Because table-rebuild migrations (such as v25 ``devices``) run ``DROP TABLE``,
+    leaving ``foreign_keys=ON`` would either fail on referencing rows or trigger
+    ``ON DELETE CASCADE / SET NULL`` on child tables. Disable ``foreign_keys``
+    outside the transaction before applying migrations, verify ``foreign_key_check``
+    before commit, and restore ``foreign_keys=ON`` afterwards.
+    """
+    from app.models.bootstrap import load_all_models
+
+    load_all_models()
+
+    with engine.connect() as connection:
         if connection.dialect.name != "sqlite":
             raise RuntimeError("local schema manager requires SQLite")
 
-        version = _read_version(connection)
-        if version > CURRENT_LOCAL_SCHEMA_VERSION:
-            raise RuntimeError("local SQLite database was created by a newer ATP version")
+        raw_conn = getattr(getattr(connection, "connection", None), "dbapi_connection", None)
+        fk_was_on = False
+        if raw_conn is not None:
+            cursor = raw_conn.cursor()
+            try:
+                fk_row = cursor.execute("PRAGMA foreign_keys").fetchone()
+                fk_was_on = bool(fk_row and int(fk_row[0]))
+                ver_row = cursor.execute("PRAGMA user_version").fetchone()
+                initial_ver = int(ver_row[0]) if ver_row else 0
+                if 0 < initial_ver < CURRENT_LOCAL_SCHEMA_VERSION and fk_was_on:
+                    if getattr(raw_conn, "in_transaction", False):
+                        raw_conn.commit()
+                    cursor.execute("PRAGMA foreign_keys=OFF")
+            finally:
+                cursor.close()
 
-        existing_tables = set(inspect(connection).get_table_names())
-        if not existing_tables:
-            Base.metadata.create_all(bind=connection)
-            _create_job_queue(connection)
-            _extend_job_dispatch_identity(connection)
-            _create_run_id_allocator(connection)
-            _extend_run_id_allocator(connection)
-            _create_sync_outbox(connection)
-            _set_version(connection, CURRENT_LOCAL_SCHEMA_VERSION)
-        elif version == 0:
-            # Adopt only a complete prototype database. Incomplete databases
-            # stay untouched so the user can restore a prior backup.
-            _assert_current_schema(connection)
-            _create_job_queue(connection)
-            _extend_job_dispatch_identity(connection)
-            _create_run_id_allocator(connection)
-            _extend_run_id_allocator(connection)
-            _create_sync_outbox(connection)
-            _set_version(connection, CURRENT_LOCAL_SCHEMA_VERSION)
-        else:
-            for next_version in range(version + 1, CURRENT_LOCAL_SCHEMA_VERSION + 1):
-                migration = LOCAL_MIGRATIONS.get(next_version)
-                if migration is None:
-                    raise RuntimeError(f"missing local SQLite migration {next_version}")
-                migration(connection)
-                _set_version(connection, next_version)
-        _assert_current_schema(connection)
-        if "local_jobs" not in inspect(connection).get_table_names():
-            raise RuntimeError("local SQLite job queue is missing")
-        if "local_run_ids" not in inspect(connection).get_table_names():
-            raise RuntimeError("local SQLite run ID allocator is missing")
-        if "local_sync_outbox" not in inspect(connection).get_table_names():
-            raise RuntimeError("local SQLite sync outbox is missing")
-        return _read_version(connection)
+        try:
+            with connection.begin():
+                version = _read_version(connection)
+                if version > CURRENT_LOCAL_SCHEMA_VERSION:
+                    raise RuntimeError("local SQLite database was created by a newer ATP version")
+
+                existing_tables = set(inspect(connection).get_table_names())
+                if not existing_tables:
+                    Base.metadata.create_all(bind=connection)
+                    _create_job_queue(connection)
+                    _extend_job_dispatch_identity(connection)
+                    _create_run_id_allocator(connection)
+                    _extend_run_id_allocator(connection)
+                    _create_sync_outbox(connection)
+                    _set_version(connection, CURRENT_LOCAL_SCHEMA_VERSION)
+                elif version == 0:
+                    # Adopt only a complete prototype database. Incomplete databases
+                    # stay untouched so the user can restore a prior backup.
+                    _assert_current_schema(connection)
+                    _create_job_queue(connection)
+                    _extend_job_dispatch_identity(connection)
+                    _create_run_id_allocator(connection)
+                    _extend_run_id_allocator(connection)
+                    _create_sync_outbox(connection)
+                    _set_version(connection, CURRENT_LOCAL_SCHEMA_VERSION)
+                else:
+                    migrated = version < CURRENT_LOCAL_SCHEMA_VERSION
+                    for next_version in range(version + 1, CURRENT_LOCAL_SCHEMA_VERSION + 1):
+                        migration = LOCAL_MIGRATIONS.get(next_version)
+                        if migration is None:
+                            raise RuntimeError(f"missing local SQLite migration {next_version}")
+                        migration(connection)
+                        _set_version(connection, next_version)
+                    if migrated:
+                        fk_issues = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+                        if fk_issues:
+                            raise RuntimeError(f"local SQLite foreign key check failed: {fk_issues[:3]}")
+                _assert_current_schema(connection)
+                if "local_jobs" not in inspect(connection).get_table_names():
+                    raise RuntimeError("local SQLite job queue is missing")
+                if "local_run_ids" not in inspect(connection).get_table_names():
+                    raise RuntimeError("local SQLite run ID allocator is missing")
+                if "local_sync_outbox" not in inspect(connection).get_table_names():
+                    raise RuntimeError("local SQLite sync outbox is missing")
+                return _read_version(connection)
+        finally:
+            if fk_was_on and raw_conn is not None:
+                if getattr(raw_conn, "in_transaction", False):
+                    raw_conn.rollback()
+                cursor = raw_conn.cursor()
+                try:
+                    cursor.execute("PRAGMA foreign_keys=ON")
+                finally:
+                    cursor.close()

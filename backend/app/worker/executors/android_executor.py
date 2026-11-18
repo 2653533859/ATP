@@ -84,28 +84,49 @@ async def run_android_case(
         await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
         return
 
-    device_serial = cfg.get("device_serial")
     from app.core.config import settings
-    from app.services.device_resolution import DeviceResolutionError, extract_device_id, resolve_device_async
+    from app.services.android_worker_registry import verify_worker_execution_target
+    from app.services.device_leases import DeviceLeaseConflict, acquire_device_lease, release_device_lease
+    from app.services.device_resolution import (
+        DeviceResolutionError,
+        extract_target_device_spec,
+        resolve_device_async,
+    )
 
-    device_id = extract_device_id(cfg) or extract_device_id(extra_vars)
+    expected_worker = (extra_vars or {}).get("_expected_worker_id")
+    expected_gen = (extra_vars or {}).get("_expected_generation")
+    if expected_worker is not None or expected_gen is not None:
+        ok_target, reject_reason = verify_worker_execution_target(
+            expected_worker_id=str(expected_worker) if expected_worker else None,
+            expected_generation=int(expected_gen) if expected_gen is not None else None,
+        )
+        if not ok_target:
+            run.status = RunStatus.error
+            run.error_message = f"{reject_reason}: 执行节点身份或实例代次不匹配，拒绝执行旧任务"
+            await db.commit()
+            await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+            return
+
+    device_id, device_serial = extract_target_device_spec(cfg, extra_vars)
+    require_claimed = bool(settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE)
+    resolved_device_id: int | None = None
     if device_id is not None or (settings.ANDROID_MULTI_NODE_ENABLED and device_serial):
         try:
             device = await resolve_device_async(
                 db,
                 device_id=device_id,
                 serial=str(device_serial) if device_serial else None,
+                require_claimed=require_claimed,
             )
-            device_serial = device.serial
+            resolved_device_id = int(device.id)
+            device_serial = getattr(device, "serial", None) or device_serial
             active_worker = settings.ANDROID_WORKER_ID.strip()
-            if (
-                settings.ANDROID_MULTI_NODE_ENABLED
-                and active_worker
-                and device.worker_id
-                and device.worker_id != active_worker
-            ):
+            dev_worker = (getattr(device, "worker_id", None) or "").strip()
+            if require_claimed and active_worker and dev_worker != active_worker:
                 run.status = RunStatus.error
-                run.error_message = f"worker_id_mismatch: 设备归属节点为 {device.worker_id}，当前节点为 {active_worker}"
+                run.error_message = (
+                    f"worker_id_mismatch: 设备归属节点为 {dev_worker or '未认领'}，当前节点为 {active_worker}"
+                )
                 await db.commit()
                 await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
                 return
@@ -123,11 +144,49 @@ async def run_android_case(
         await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
         return
 
+    try:
+        timeout_sec = int(cfg.get("timeout", 120))
+    except (TypeError, ValueError):
+        timeout_sec = 120
+    if timeout_sec < 1:
+        timeout_sec = 1
+
+    lease_token: str | None = None
+    if resolved_device_id is not None:
+        try:
+            lease = await acquire_device_lease(
+                db,
+                resolved_device_id,
+                owner_id=getattr(run, "triggered_by", None),
+                owner_label=f"case-run:{run.id}",
+                ttl_seconds=max(90, timeout_sec + 60),
+            )
+            lease_token = lease.lease_token
+            existing_summary = getattr(run, "result_summary", None)
+            if isinstance(existing_summary, dict) or existing_summary is None:
+                run.result_summary = {
+                    **(existing_summary or {}),
+                    "device_id": resolved_device_id,
+                    "device_serial": str(device_serial),
+                }
+            await db.commit()
+        except (DeviceLeaseConflict, LookupError) as exc:
+            run.status = RunStatus.error
+            run.error_message = f"设备租约冲突: {exc}"
+            await db.commit()
+            await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+            return
+
     apk_object_name = cfg.get("apk_object_name")  # MinIO path of APK
     reachable, device_message = await asyncio.get_event_loop().run_in_executor(
         None, _check_device_reachable, device_serial
     )
     if not reachable:
+        if lease_token and resolved_device_id is not None:
+            try:
+                await release_device_lease(db, resolved_device_id, lease_token)
+            except Exception:
+                pass
         run.status = RunStatus.error
         run.error_message = (
             f"Android 设备不可达：{device_message}。"
@@ -137,12 +196,6 @@ async def run_android_case(
         await db.commit()
         await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
         return
-    try:
-        timeout_sec = int(cfg.get("timeout", 120))
-    except (TypeError, ValueError):
-        timeout_sec = 120
-    if timeout_sec < 1:
-        timeout_sec = 1
 
     tmpdir = Path(tempfile.mkdtemp(prefix=f"atp_android_{run.id}_"))
     total_start = time.monotonic()
@@ -496,6 +549,12 @@ def device_serial():
         run.error_message = str(e)[:500]
 
     finally:
+        if lease_token and resolved_device_id is not None:
+            try:
+                await release_device_lease(db, resolved_device_id, lease_token)
+                await db.commit()
+            except Exception:
+                logger.exception("Failed to release Android lease for run %s", run.id)
         shutil.rmtree(tmpdir, ignore_errors=True)
 
     total_ms = int((time.monotonic() - total_start) * 1000)

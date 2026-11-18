@@ -465,7 +465,11 @@ class _DeviceDB:
 
     async def execute(self, stmt):
         device = self.device
-        return types.SimpleNamespace(scalar_one_or_none=lambda: device)
+        items = [] if device is None else [device]
+        return types.SimpleNamespace(
+            scalar_one_or_none=lambda: device,
+            scalars=lambda: types.SimpleNamespace(all=lambda: items),
+        )
 
     def add(self, item):
         self.added.append(item)
@@ -537,7 +541,7 @@ def test_run_android_lowcode_unregistered_device(monkeypatch):
     case.config = {"steps": [{"action": "click"}], "device_serial": "S1"}
     asyncio.run(ale.run_android_lowcode(db, run, case, {}))
     assert run.status == RunStatus.error
-    assert run.error_message == "设备未注册: S1"
+    assert run.error_message == "设备未注册: serial=S1"
     assert events.published[-1]["status"] == "error"
 
 
@@ -875,8 +879,8 @@ def test_run_android_device_matrix_rejects_unregistered_devices(monkeypatch):
     run, case = _matrix_parent()
     asyncio.run(ale._run_android_device_matrix(db, run, case, {}))
     assert run.status == RunStatus.error
-    assert run.error_message == "设备矩阵中包含未注册设备"
-    assert run.result_summary["device_matrix_error"] == "设备矩阵中包含未注册设备"
+    assert run.error_message == "设备未注册或不在当前设备池: S2"
+    assert run.result_summary["device_matrix_error"] == "设备未注册或不在当前设备池: S2"
     assert published[-1]["status"] == "error"
 
 

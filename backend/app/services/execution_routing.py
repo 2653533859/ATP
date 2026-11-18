@@ -66,6 +66,13 @@ def enqueue_case_run(
     return queue
 
 
+def http_status_for_device_resolution(code: str) -> int:
+    """Map DeviceResolutionError codes to HTTP status codes per frozen contract."""
+    if code in {"worker_offline", "worker_registry_unavailable"}:
+        return 503
+    return 409
+
+
 async def resolve_android_device_queue(
     db: Any,
     *,
@@ -73,10 +80,29 @@ async def resolve_android_device_queue(
     device_serial: str | None = None,
 ) -> str:
     """Resolve the target ``android.<worker_id>`` queue for a specific Android device."""
-    if not settings.ANDROID_MULTI_NODE_ENABLED or settings.ATP_LOCAL_MODE:
-        return ANDROID_EXECUTION_QUEUE
+    queue, _meta = await resolve_android_device_dispatch(
+        db,
+        device_id=device_id,
+        device_serial=device_serial,
+    )
+    return queue
 
-    from app.services.android_worker_registry import get_android_worker, worker_android_queue
+
+async def resolve_android_device_dispatch(
+    db: Any,
+    *,
+    device_id: int | None = None,
+    device_serial: str | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Resolve ``(queue, worker_meta)`` for an Android device, converting Redis errors to 503 codes."""
+    if not settings.ANDROID_MULTI_NODE_ENABLED or settings.ATP_LOCAL_MODE:
+        return ANDROID_EXECUTION_QUEUE, {}
+
+    from app.services.android_worker_registry import (
+        AndroidWorkerRegistryError,
+        get_android_worker,
+        worker_android_queue,
+    )
     from app.services.device_resolution import DeviceResolutionError, resolve_device_async
 
     device = await resolve_device_async(
@@ -86,13 +112,62 @@ async def resolve_android_device_queue(
         require_claimed=True,
     )
     worker_id = (device.worker_id or "").strip()
-    worker_info = await get_android_worker(worker_id)
+    try:
+        worker_info = await get_android_worker(worker_id)
+    except AndroidWorkerRegistryError as exc:
+        raise DeviceResolutionError("worker_registry_unavailable", str(exc)) from exc
     if not worker_info:
         raise DeviceResolutionError(
             "worker_offline",
             f"设备 {device.serial} 所属节点 '{worker_id}' 当前离线，无法执行",
         )
-    return worker_android_queue(worker_id)
+    meta: dict[str, Any] = {
+        "_expected_worker_id": worker_id,
+        "device_id": int(device.id),
+        "device_serial": str(device.serial),
+    }
+    if worker_info.get("instance_generation") is not None:
+        meta["_expected_generation"] = int(worker_info["instance_generation"])
+    return worker_android_queue(worker_id), meta
+
+
+async def resolve_android_case_dispatch_target(
+    db: Any,
+    case: Any,
+    extra_vars: dict[str, Any] | None = None,
+) -> tuple[str | None, dict[str, Any]]:
+    """Determine ``(queue_override, dispatch_vars_patch)`` before creating an Android TestRun."""
+    case_type = getattr(case, "case_type", None)
+    case_type_val = str(getattr(case_type, "value", case_type or ""))
+    if case_type_val != CaseType.android.value:
+        return None, {}
+
+    cfg = getattr(case, "config", None) or {}
+    merged_extra = extra_vars or {}
+    is_matrix_parent = bool(
+        cfg.get("device_matrix")
+        and not cfg.get("_device_matrix_variant")
+        and not merged_extra.get("_device_matrix_variant")
+        and not merged_extra.get("device_id")
+        and not merged_extra.get("device_serial")
+    )
+    if is_matrix_parent:
+        if settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE:
+            return DEFAULT_EXECUTION_QUEUE, {}
+        return None, {}
+
+    if not settings.ANDROID_MULTI_NODE_ENABLED or settings.ATP_LOCAL_MODE:
+        return None, {}
+
+    from app.services.device_resolution import extract_target_device_spec
+
+    target_id, target_serial = extract_target_device_spec(cfg, merged_extra)
+    queue, meta = await resolve_android_device_dispatch(
+        db,
+        device_id=target_id,
+        device_serial=target_serial,
+    )
+    return queue, meta
 
 
 def enqueue_task(task: Any, args: tuple[Any, ...], queue: str) -> None:

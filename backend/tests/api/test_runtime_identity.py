@@ -12,13 +12,21 @@ def test_runtime_identity_reports_both_profiles(monkeypatch):
         "database": "sqlite",
         "storage": "filesystem",
         "execution": "local",
+        "adb_scan_mode": "local",
+        "android_multi_node_enabled": False,
     }
-    monkeypatch.setattr(runtime, "settings", SimpleNamespace(ATP_LOCAL_MODE=False))
+    monkeypatch.setattr(
+        runtime,
+        "settings",
+        SimpleNamespace(ATP_LOCAL_MODE=False, ADB_SCAN_MODE="worker", ANDROID_MULTI_NODE_ENABLED=True),
+    )
     assert runtime.get_runtime_identity().model_dump() == {
         "mode": "server",
         "database": "postgresql",
         "storage": "minio",
         "execution": "celery",
+        "adb_scan_mode": "worker",
+        "android_multi_node_enabled": True,
     }
 
 

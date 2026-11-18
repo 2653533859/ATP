@@ -111,8 +111,11 @@ async def execute_case_run(
     try:
         if route_to_worker:
             from app.models.case import CaseType
-            from app.services.device_resolution import DeviceResolutionError, extract_device_id
-            from app.services.execution_routing import enqueue_case_run, resolve_android_device_queue
+            from app.services.device_resolution import DeviceResolutionError
+            from app.services.execution_routing import (
+                enqueue_case_run,
+                resolve_android_case_dispatch_target,
+            )
 
             if run_case_task is None:
                 from app.worker.tasks import run_test_case
@@ -120,20 +123,20 @@ async def execute_case_run(
                 run_case_task = run_test_case
 
             queue_override: str | None = None
+            dispatch_vars = dict(extra_vars or {})
             if (
                 getattr(case, "case_type", None) == CaseType.android
                 and settings.ANDROID_MULTI_NODE_ENABLED
                 and not settings.ATP_LOCAL_MODE
             ):
-                cfg = getattr(case, "config", None) or {}
-                target_dev_id = extract_device_id(extra_vars) or extract_device_id(cfg)
-                target_serial = extra_vars.get("device_serial") or cfg.get("device_serial")
                 try:
-                    queue_override = await resolve_android_device_queue(
+                    queue_override, worker_meta = await resolve_android_case_dispatch_target(
                         db,
-                        device_id=target_dev_id,
-                        device_serial=str(target_serial) if target_serial else None,
+                        case,
+                        dispatch_vars,
                     )
+                    if worker_meta:
+                        dispatch_vars = {**dispatch_vars, **worker_meta}
                 except DeviceResolutionError as exc:
                     case_run.status = RunStatus.error
                     case_run.error_message = f"{exc.code}: {exc.message}"
@@ -150,13 +153,13 @@ async def execute_case_run(
                 enqueue_case_run(
                     run_case_task,
                     case_run.id,
-                    extra_vars,
+                    dispatch_vars,
                     suite_run.trace_id,
                     case.case_type,
                     queue_override=queue_override,
                 )
             else:
-                enqueue_case_run(run_case_task, case_run.id, extra_vars, suite_run.trace_id, case.case_type)
+                enqueue_case_run(run_case_task, case_run.id, dispatch_vars, suite_run.trace_id, case.case_type)
             deadline = asyncio.get_running_loop().time() + max(1, settings.SUITE_CHILD_TASK_TIMEOUT_SECONDS)
             while asyncio.get_running_loop().time() < deadline:
                 await asyncio.sleep(0.2)
@@ -292,11 +295,59 @@ async def execute_suite_cases(
             case_queue_by_id[case_id] = execution_queue_for_case_type(ctype)
 
     device_matrix = raw_config.get("device_matrix")
-    if isinstance(device_matrix, list) and device_matrix and android_case_ids:
+    if isinstance(device_matrix, list) and device_matrix and android_case_ids and fixture_error is None:
         from app.services.device_leases import expand_case_items_for_device_matrix
+        from app.services.device_resolution import DeviceResolutionError, extract_device_id, resolve_device_async
 
-        case_items = expand_case_items_for_device_matrix(case_items, android_case_ids, device_matrix)
-        total_cases = len(case_items)
+        normalized_matrix: list[dict] = []
+        require_claimed = bool(settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE)
+        for dev_entry in device_matrix:
+            if isinstance(dev_entry, int) and not isinstance(dev_entry, bool):
+                normalized_matrix.append({"device_id": dev_entry})
+                continue
+            if isinstance(dev_entry, str) and dev_entry.strip():
+                if hasattr(db, "execute"):
+                    try:
+                        resolved_dev = await resolve_device_async(
+                            db,
+                            serial=dev_entry.strip(),
+                            require_claimed=require_claimed,
+                        )
+                        normalized_matrix.append(
+                            {"device_id": int(resolved_dev.id), "device_serial": resolved_dev.serial}
+                        )
+                    except DeviceResolutionError as exc:
+                        fixture_error = f"{exc.code}: {exc.message}"
+                        break
+                else:
+                    normalized_matrix.append({"device_serial": dev_entry.strip()})
+                continue
+            if isinstance(dev_entry, dict):
+                entry_id = extract_device_id(dev_entry)
+                entry_serial = str(dev_entry.get("device_serial") or dev_entry.get("serial") or "").strip() or None
+                if entry_id is not None:
+                    normalized_matrix.append(
+                        {"device_id": entry_id, **({"device_serial": entry_serial} if entry_serial else {})}
+                    )
+                elif entry_serial:
+                    if hasattr(db, "execute"):
+                        try:
+                            resolved_dev = await resolve_device_async(
+                                db,
+                                serial=entry_serial,
+                                require_claimed=require_claimed,
+                            )
+                            normalized_matrix.append(
+                                {"device_id": int(resolved_dev.id), "device_serial": resolved_dev.serial}
+                            )
+                        except DeviceResolutionError as exc:
+                            fixture_error = f"{exc.code}: {exc.message}"
+                            break
+                    else:
+                        normalized_matrix.append({"device_serial": entry_serial})
+        if fixture_error is None:
+            case_items = expand_case_items_for_device_matrix(case_items, android_case_ids, normalized_matrix)
+            total_cases = len(case_items)
 
     remote_case_ids = {
         case_id for case_id, queue in case_queue_by_id.items() if queue != "default" and queue != execution_queue

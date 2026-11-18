@@ -40,8 +40,12 @@ from app.schemas.android_precheck import (
     CasePrecheckIn,
 )
 from app.services.android_precheck import precheck_android_execution
-from app.services.execution_routing import enqueue_case_run, resolve_android_device_queue
-from app.services.device_resolution import DeviceResolutionError, extract_device_id
+from app.services.execution_routing import (
+    enqueue_case_run,
+    http_status_for_device_resolution,
+    resolve_android_case_dispatch_target,
+)
+from app.services.device_resolution import DeviceResolutionError
 from app.services.failure_diagnosis import generate_failure_diagnosis
 from app.services.project_scope import visible_project_ids
 from app.services.web_run_control import request_cancel
@@ -111,17 +115,15 @@ async def trigger_run(
         merged_vars = {**env_vars, **body.extra_vars}
 
     queue_override: str | None = None
-    if getattr(case, "case_type", None) and str(getattr(case.case_type, "value", case.case_type)) == "android":
-        cfg = case.config or {}
-        if not cfg.get("device_matrix"):
-            try:
-                queue_override = await resolve_android_device_queue(
-                    db,
-                    device_id=extract_device_id(cfg),
-                    device_serial=cfg.get("device_serial"),
-                )
-            except DeviceResolutionError as exc:
-                raise HTTPException(status_code=409, detail=f"{exc.code}: {exc.message}") from exc
+    try:
+        queue_override, worker_meta = await resolve_android_case_dispatch_target(db, case, merged_vars)
+    except DeviceResolutionError as exc:
+        raise HTTPException(
+            status_code=http_status_for_device_resolution(exc.code),
+            detail=f"{exc.code}: {exc.message}",
+        ) from exc
+    if worker_meta:
+        merged_vars = {**merged_vars, **worker_meta}
 
     run = TestRun(
         case_id=case_id,
@@ -158,12 +160,14 @@ async def precheck_android_draft(
     await assert_project_access(db, current_user, body.project_id, ProjectRole.viewer)
     return await precheck_android_execution(
         db,
+        device_id=body.device_id,
         device_serial=body.device_serial,
         config=body.config,
         steps=body.steps,
         extra_vars=body.extra_vars,
         env_id=body.env_id,
         project_id=body.project_id,
+        api_layer=True,
     )
 
 
@@ -185,12 +189,14 @@ async def precheck_case(
     return await precheck_android_execution(
         db,
         case=case,
+        device_id=body.device_id,
         device_serial=body.device_serial,
         config=body.config,
         steps=body.steps,
         extra_vars=body.extra_vars,
         env_id=body.env_id,
         project_id=module.project_id,
+        api_layer=True,
     )
 
 

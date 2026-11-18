@@ -91,6 +91,47 @@ def _enqueue_mobile_run(run_id: int, *, worker_id: str | None = None) -> None:
         run_mobile_special_task.delay(run_id)
 
 
+async def _resolve_mobile_run_target(
+    db: AsyncSession,
+    *,
+    device_id: int | None,
+    device_serial: str | None,
+) -> tuple[int | None, str | None, str | None, int | None]:
+    """Validate target device and live worker BEFORE persisting a pending MobileSpecialRun."""
+    if not settings.ANDROID_MULTI_NODE_ENABLED or settings.ATP_LOCAL_MODE:
+        return device_id, device_serial, None, None
+
+    from app.services.android_worker_registry import AndroidWorkerRegistryError, get_android_worker
+    from app.services.device_resolution import DeviceResolutionError, resolve_device_async
+    from app.services.execution_routing import http_status_for_device_resolution
+
+    try:
+        device = await resolve_device_async(
+            db,
+            device_id=device_id,
+            serial=device_serial,
+            require_claimed=True,
+        )
+    except DeviceResolutionError as exc:
+        raise HTTPException(
+            status_code=http_status_for_device_resolution(exc.code),
+            detail=f"{exc.code}: {exc.message}",
+        ) from exc
+
+    resolved_worker_id = (device.worker_id or "").strip()
+    try:
+        worker_info = await get_android_worker(resolved_worker_id)
+    except AndroidWorkerRegistryError as exc:
+        raise HTTPException(status_code=503, detail=f"worker_registry_unavailable: {exc}") from exc
+    if not worker_info:
+        raise HTTPException(
+            status_code=503,
+            detail=f"worker_offline: 设备所属节点 '{resolved_worker_id}' 当前离线",
+        )
+    gen = int(worker_info["instance_generation"]) if worker_info.get("instance_generation") is not None else None
+    return int(device.id), device.serial, resolved_worker_id, gen
+
+
 async def _enqueue_mobile_run_or_fail(
     run: MobileSpecialRun,
     db: AsyncSession,
@@ -99,25 +140,15 @@ async def _enqueue_mobile_run_or_fail(
 ) -> None:
     resolved_worker_id = worker_id
     if settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE and not resolved_worker_id:
-        from app.services.android_worker_registry import get_android_worker
-        from app.services.device_resolution import DeviceResolutionError, resolve_device_async
-
-        try:
-            device = await resolve_device_async(
-                db,
-                device_id=run.device_id,
-                serial=run.device_serial or (run.config_snapshot or {}).get("device_serial"),
-                require_claimed=True,
-            )
-        except DeviceResolutionError as exc:
-            raise HTTPException(status_code=409, detail=f"{exc.code}: {exc.message}") from exc
-        resolved_worker_id = (device.worker_id or "").strip()
-        worker_info = await get_android_worker(resolved_worker_id)
-        if not worker_info:
-            raise HTTPException(
-                status_code=503,
-                detail=f"worker_offline: 设备所属节点 '{resolved_worker_id}' 当前离线",
-            )
+        resolved_dev_id, resolved_serial, resolved_worker_id, _gen = await _resolve_mobile_run_target(
+            db,
+            device_id=run.device_id,
+            device_serial=run.device_serial or (run.config_snapshot or {}).get("device_serial"),
+        )
+        if resolved_dev_id is not None and run.device_id is None:
+            run.device_id = resolved_dev_id
+        if resolved_serial and not run.device_serial:
+            run.device_serial = resolved_serial
 
     try:
         _enqueue_mobile_run(run.id, worker_id=resolved_worker_id)
@@ -381,6 +412,18 @@ async def trigger_task_run(
     elif body.app_package:
         config["app_package"] = body.app_package
 
+    resolved_dev_id, resolved_serial, resolved_worker_id, expected_gen = await _resolve_mobile_run_target(
+        db,
+        device_id=selected_device_id,
+        device_serial=config.get("device_serial"),
+    )
+    if resolved_worker_id:
+        config["_expected_worker_id"] = resolved_worker_id
+        if expected_gen is not None:
+            config["_expected_generation"] = expected_gen
+    if resolved_serial:
+        config["device_serial"] = resolved_serial
+
     run = MobileSpecialRun(
         task_id=task.id,
         task_type=task.task_type,
@@ -388,7 +431,8 @@ async def trigger_task_run(
         trigger_type=TriggerType.manual,
         triggered_by=current_user.id,
         config_snapshot=config,
-        device_id=selected_device_id,
+        device_id=resolved_dev_id,
+        device_serial=resolved_serial,
         apk_id=selected_apk_id,
         app_package=selected_apk_package or body.app_package or task.app_package,
     )
@@ -396,7 +440,7 @@ async def trigger_task_run(
     await db.commit()
     await db.refresh(run)
 
-    await _enqueue_mobile_run_or_fail(run, db)
+    await _enqueue_mobile_run_or_fail(run, db, worker_id=resolved_worker_id)
 
     return run
 
@@ -446,6 +490,18 @@ async def replay_run(
 
     config = dict(source_run.config_snapshot or {})
     config["replay_of_run_id"] = source_run.id
+    resolved_dev_id, resolved_serial, resolved_worker_id, expected_gen = await _resolve_mobile_run_target(
+        db,
+        device_id=source_run.device_id,
+        device_serial=source_run.device_serial or config.get("device_serial"),
+    )
+    if resolved_worker_id:
+        config["_expected_worker_id"] = resolved_worker_id
+        if expected_gen is not None:
+            config["_expected_generation"] = expected_gen
+    if resolved_serial:
+        config["device_serial"] = resolved_serial
+
     replay = MobileSpecialRun(
         task_id=task.id,
         task_type=task.task_type,
@@ -453,8 +509,8 @@ async def replay_run(
         trigger_type=TriggerType.manual,
         triggered_by=current_user.id,
         config_snapshot=config,
-        device_id=source_run.device_id,
-        device_serial=source_run.device_serial,
+        device_id=resolved_dev_id,
+        device_serial=resolved_serial or source_run.device_serial,
         apk_id=source_run.apk_id,
         app_package=source_run.app_package,
     )
@@ -462,7 +518,7 @@ async def replay_run(
     await db.commit()
     await db.refresh(replay)
 
-    await _enqueue_mobile_run_or_fail(replay, db)
+    await _enqueue_mobile_run_or_fail(replay, db, worker_id=resolved_worker_id)
     return replay
 
 

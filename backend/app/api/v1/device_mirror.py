@@ -375,7 +375,7 @@ def _adb_ui_target(serial: str, x: int, y: int, timeout: int = 10) -> dict[str, 
 
 
 def _use_android_worker() -> bool:
-    return settings.ADB_SCAN_MODE.strip().lower() == "worker"
+    return settings.ANDROID_MULTI_NODE_ENABLED or settings.ADB_SCAN_MODE.strip().lower() == "worker"
 
 
 async def _dispatch_worker_operation(
@@ -444,10 +444,18 @@ async def _dispatch_for_device(
     device: Any,
     operation: str,
     params: dict | None = None,
+    *,
+    lease_token: str | None = None,
 ) -> dict:
     worker_id = getattr(device, "worker_id", None)
     if settings.ANDROID_MULTI_NODE_ENABLED:
-        return await _dispatch_worker_operation(operation, device.serial, params, worker_id=worker_id)
+        merged_params = dict(params or {})
+        dev_id = getattr(device, "id", None)
+        if dev_id is not None:
+            merged_params.setdefault("device_id", int(dev_id))
+        if lease_token:
+            merged_params.setdefault("lease_token", lease_token)
+        return await _dispatch_worker_operation(operation, device.serial, merged_params, worker_id=worker_id)
     return await _dispatch_worker_operation(operation, device.serial, params)
 
 
@@ -524,7 +532,7 @@ async def device_tap(
     device = await _get_online_device(device_id, db)
     await _require_control_lease(db, device_id, lease_token)
     if _use_android_worker():
-        await _dispatch_for_device(device, "tap", {"x": body.x, "y": body.y})
+        await _dispatch_for_device(device, "tap", {"x": body.x, "y": body.y}, lease_token=lease_token)
         return {"success": True}
     ok = await asyncio.to_thread(_adb_input, device.serial, "tap", str(body.x), str(body.y))
     if not ok:
@@ -675,6 +683,24 @@ async def device_package_history(
     return [DevicePackageSnapshotOut.model_validate(row) for row in rows]
 
 
+async def _require_multi_node_device_worker(device: Device) -> str | None:
+    """Validate claimed worker_id and live registration upfront before background/streaming work."""
+    worker_id = (getattr(device, "worker_id", None) or "").strip()
+    if not settings.ANDROID_MULTI_NODE_ENABLED or settings.ATP_LOCAL_MODE:
+        return worker_id or None
+    if not worker_id:
+        raise HTTPException(status_code=409, detail="device_unclaimed: 设备尚未认领归属节点，请先在设备管理中认领")
+    from app.services.android_worker_registry import AndroidWorkerRegistryError, get_android_worker
+
+    try:
+        worker_info = await get_android_worker(worker_id)
+    except AndroidWorkerRegistryError as exc:
+        raise HTTPException(status_code=503, detail=f"worker_registry_unavailable: {exc}") from exc
+    if not worker_info:
+        raise HTTPException(status_code=503, detail=f"worker_offline: 设备所属节点 '{worker_id}' 当前离线")
+    return worker_id
+
+
 @router.post("/devices/{device_id}/packages/refresh", status_code=202)
 async def refresh_device_packages(
     device_id: int,
@@ -685,6 +711,7 @@ async def refresh_device_packages(
 ):
     """异步触发一次设备包名读取；结果写入快照历史，前端轮询 GET。"""
     device = await _get_online_device(device_id, db)
+    worker_id = await _require_multi_node_device_worker(device)
     if settings.ANDROID_MULTI_NODE_ENABLED:
         background.add_task(
             _capture_device_packages,
@@ -692,7 +719,7 @@ async def refresh_device_packages(
             device.serial,
             current_user.id,
             include_system,
-            getattr(device, "worker_id", None),
+            worker_id,
         )
     else:
         background.add_task(
@@ -722,6 +749,7 @@ async def device_swipe(
             device,
             "swipe",
             {"x1": body.x1, "y1": body.y1, "x2": body.x2, "y2": body.y2, "duration_ms": duration_ms},
+            lease_token=lease_token,
         )
         return {"success": True}
     ok = await asyncio.to_thread(
@@ -752,7 +780,7 @@ async def device_keyevent(
     await _require_control_lease(db, device_id, lease_token)
     keycode_str = str(body.keycode).strip()
     if _use_android_worker():
-        await _dispatch_for_device(device, "keyevent", {"keycode": keycode_str})
+        await _dispatch_for_device(device, "keyevent", {"keycode": keycode_str}, lease_token=lease_token)
         return {"success": True, "keycode": keycode_str}
     ok = await asyncio.to_thread(_adb_input, device.serial, "keyevent", keycode_str)
     if not ok:
@@ -776,7 +804,7 @@ async def device_text(
     if not safe_text:
         raise HTTPException(status_code=422, detail="文本不包含可输入的字符")
     if _use_android_worker():
-        await _dispatch_for_device(device, "text", {"text": safe_text})
+        await _dispatch_for_device(device, "text", {"text": safe_text}, lease_token=lease_token)
         return {"success": True}
     ok = await asyncio.to_thread(_adb_input, device.serial, "text", safe_text)
     if not ok:
@@ -787,6 +815,7 @@ async def device_text(
 async def _mjpeg_generator(serial: str, fps: float = 2.0, *, worker_id: str | None = None):
     """生成 MJPEG 帧流"""
     interval = 1.0 / fps
+    consecutive_failures = 0
     while True:
         try:
             data = (
@@ -797,12 +826,17 @@ async def _mjpeg_generator(serial: str, fps: float = 2.0, *, worker_id: str | No
         except HTTPException:
             data = None
         if data:
+            consecutive_failures = 0
             # MJPEG boundary frame (PNG → 直接推送，前端用 img 标签轮询更简单)
             yield (
                 b"--frame\r\n"
                 b"Content-Type: image/png\r\n"
                 b"Content-Length: " + str(len(data)).encode() + b"\r\n\r\n" + data + b"\r\n"
             )
+        else:
+            consecutive_failures += 1
+            if consecutive_failures >= 5:
+                break
         await asyncio.sleep(interval)
 
 
@@ -815,11 +849,12 @@ async def device_screen_stream(
 ):
     """MJPEG 设备屏幕实时流"""
     device = await _get_online_device(device_id, db)
+    worker_id = await _require_multi_node_device_worker(device)
 
     fps = max(0.5, min(fps, 5.0))
 
     stream = (
-        _mjpeg_generator(device.serial, fps, worker_id=getattr(device, "worker_id", None))
+        _mjpeg_generator(device.serial, fps, worker_id=worker_id)
         if settings.ANDROID_MULTI_NODE_ENABLED
         else _mjpeg_generator(device.serial, fps)
     )

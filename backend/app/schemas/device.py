@@ -141,6 +141,7 @@ class RemoteDeviceDisconnectIn(BaseModel):
 class DeviceClaimIn(BaseModel):
     worker_id: str = Field(min_length=1, max_length=128, description="要认领到的 Android Worker 节点 ID")
     worker_hostname: str | None = Field(default=None, max_length=128)
+    force: bool = Field(default=False, description="若已绑定其他节点，是否强制改绑（设备空闲时允许）")
 
 
 class RemoteDeviceConnectOut(BaseModel):

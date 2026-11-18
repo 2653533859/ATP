@@ -41,6 +41,7 @@ class AndroidPrecheckSummary(BaseModel):
 
 class AndroidPrecheckResponse(BaseModel):
     ok: bool
+    device_id: int | None = None
     device_serial: str | None = None
     platform: str = "android"
     summary: AndroidPrecheckSummary
@@ -48,6 +49,7 @@ class AndroidPrecheckResponse(BaseModel):
 
 
 class CasePrecheckIn(BaseModel):
+    device_id: int | None = None
     device_serial: str | None = None
     env_id: int | None = None
     extra_vars: dict[str, Any] = Field(default_factory=dict)
@@ -57,6 +59,7 @@ class CasePrecheckIn(BaseModel):
 
 class AndroidDraftPrecheckIn(BaseModel):
     project_id: int
+    device_id: int | None = None
     device_serial: str | None = None
     env_id: int | None = None
     extra_vars: dict[str, Any] = Field(default_factory=dict)

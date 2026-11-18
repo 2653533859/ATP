@@ -134,6 +134,7 @@ async def precheck_android_execution(
     ignore_lease_token: str | None = None,
     check_adb_environment: bool = True,
     strict_adb_environment: bool = False,
+    api_layer: bool = False,
 ) -> AndroidPrecheckResponse:
     """对 Android 用例与选定设备进行执行前诊断。"""
     items: list[PrecheckItem] = []
@@ -157,16 +158,15 @@ async def precheck_android_execution(
     else:
         resolved_steps = []
 
-    # 目标设备 ID / 序列号
-    target_device_id = (
-        device_id or extract_device_id(merged_cfg) or (extract_device_id(case.config) if case and case.config else None)
-    )
-    target_serial = (
-        device_serial
-        or merged_cfg.get("device_serial")
-        or (case.config.get("device_serial") if case and case.config else None)
-    )
-    target_serial = str(target_serial).strip() if target_serial else None
+    # 目标设备 ID / 序列号（显式传参 > extra_vars > config；单独覆盖 serial 时不混入旧 device_id）
+    explicit_serial = str(device_serial).strip() if device_serial else None
+    if device_id is not None or explicit_serial:
+        target_device_id = device_id
+        target_serial = explicit_serial
+    else:
+        from app.services.device_resolution import extract_target_device_spec
+
+        target_device_id, target_serial = extract_target_device_spec(merged_cfg, extra_vars)
 
     # 2. 设备与平台诊断
     device: Device | None = None
@@ -236,19 +236,59 @@ async def precheck_android_execution(
                     )
 
         if device is not None:
+            target_device_id = getattr(device, "id", None) or target_device_id
             target_serial = device.serial
             from app.core.config import settings
 
-            if settings.ANDROID_MULTI_NODE_ENABLED and not (device.worker_id or "").strip():
-                items.append(
-                    PrecheckItem(
-                        scope=PrecheckScope.device,
-                        status=PrecheckStatus.FAIL,
-                        code="DEVICE_UNCLAIMED",
-                        message=f"设备 {device.serial} 尚未认领归属节点",
-                        suggestion="请前往「设备管理」将该设备认领到对应 ADB 节点后再执行",
+            dev_worker_id = (getattr(device, "worker_id", None) or "").strip()
+            worker_mode = settings.ANDROID_MULTI_NODE_ENABLED or settings.ADB_SCAN_MODE.strip().lower() == "worker"
+
+            if settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE:
+                if not dev_worker_id:
+                    items.append(
+                        PrecheckItem(
+                            scope=PrecheckScope.device,
+                            status=PrecheckStatus.FAIL,
+                            code="DEVICE_UNCLAIMED",
+                            message=f"设备 {device.serial} 尚未认领归属节点",
+                            suggestion="请前往「设备管理」将该设备认领到对应 ADB 节点后再执行",
+                        )
                     )
-                )
+                elif api_layer:
+                    from app.services.android_worker_registry import AndroidWorkerRegistryError, get_android_worker
+
+                    try:
+                        worker_info = await get_android_worker(dev_worker_id)
+                        if not worker_info:
+                            items.append(
+                                PrecheckItem(
+                                    scope=PrecheckScope.environment,
+                                    status=PrecheckStatus.FAIL,
+                                    code="WORKER_OFFLINE",
+                                    message=f"设备所属节点 '{dev_worker_id}' 当前处于离线状态",
+                                    suggestion="请启动目标工位上的 Android Worker 并确认心跳正常",
+                                )
+                            )
+                        elif worker_info.get("adb_ok") is False:
+                            items.append(
+                                PrecheckItem(
+                                    scope=PrecheckScope.environment,
+                                    status=PrecheckStatus.FAIL,
+                                    code="ADB_UNAVAILABLE",
+                                    message=f"节点 '{dev_worker_id}' 上报本机 ADB 不可用",
+                                    suggestion="请检查目标节点主机是否已安装并配置 platform-tools (adb)",
+                                )
+                            )
+                    except AndroidWorkerRegistryError:
+                        items.append(
+                            PrecheckItem(
+                                scope=PrecheckScope.environment,
+                                status=PrecheckStatus.FAIL,
+                                code="WORKER_REGISTRY_UNAVAILABLE",
+                                message="无法连接 Android Worker 注册中心校验节点在线状态",
+                                suggestion="请检查 Redis 服务连通性后重试",
+                            )
+                        )
             # 设备在线状态
             if device.status == DeviceStatus.offline:
                 items.append(
@@ -284,8 +324,11 @@ async def precheck_android_execution(
                         )
                     )
 
-            # 环境层 ADB 状态检查（不操作业务 App）
-            if check_adb_environment and device.status != DeviceStatus.offline:
+            # 环境层 ADB 状态检查（API 层处于远程 Worker 模式时不在 Backend 容器本机调 adb）
+            should_run_local_adb = check_adb_environment and not (
+                api_layer and worker_mode and not settings.ATP_LOCAL_MODE
+            )
+            if should_run_local_adb and device.status != DeviceStatus.offline:
                 adb_ok, adb_code = await asyncio.to_thread(_check_adb_environment_state, target_serial)
                 if not adb_ok:
                     if adb_code in {"ADB_UNAVAILABLE", "DEVICE_ADB_TIMEOUT", "DEVICE_ADB_ERROR"}:
@@ -717,6 +760,7 @@ async def precheck_android_execution(
 
     return AndroidPrecheckResponse(
         ok=ok,
+        device_id=target_device_id,
         device_serial=target_serial,
         platform="android",
         summary=summary,

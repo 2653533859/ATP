@@ -101,12 +101,14 @@ class AndroidRunControl:
         *,
         cancel_run_ids: tuple[int, ...] = (),
         device_id: int | None = None,
+        device_serial: str | None = None,
         lease_token: str | None = None,
         ttl_seconds: int = 900,
     ):
         self.run_id = run_id
         self.cancel_run_ids = tuple(dict.fromkeys((run_id, *cancel_run_ids)))
         self.device_id = device_id
+        self.device_serial = device_serial
         self.lease_token = lease_token
         self.ttl_seconds = ttl_seconds
         self.heartbeats = 0
@@ -805,27 +807,55 @@ async def _run_android_lowcode_with_lease(
 ) -> None:
     cfg = case.config or {}
     steps = cfg.get("steps", [])
-    device_id = extract_device_id(cfg)
-    device_serial = cfg.get("device_serial")
+    from app.core.config import settings
+    from app.services.android_worker_registry import verify_worker_execution_target
+    from app.services.device_resolution import extract_target_device_spec
+
+    device_id, device_serial = extract_target_device_spec(cfg, extra_vars)
+    is_matrix_parent = bool(
+        cfg.get("device_matrix")
+        and not cfg.get("_device_matrix_variant")
+        and not (extra_vars or {}).get("_device_matrix_variant")
+        and not (extra_vars or {}).get("device_id")
+        and not (extra_vars or {}).get("device_serial")
+    )
     # Keep validation errors in the core so they do not require a database lookup.
-    if (
-        not steps
-        or (device_id is None and not device_serial)
-        or (cfg.get("device_matrix") and not cfg.get("_device_matrix_variant"))
-    ):
+    if not steps or (device_id is None and not device_serial) or is_matrix_parent:
         await _run_android_lowcode_steps(db, run, case, extra_vars)
         return
 
+    expected_worker = (extra_vars or {}).get("_expected_worker_id")
+    expected_gen = (extra_vars or {}).get("_expected_generation")
+    if expected_worker is not None or expected_gen is not None:
+        ok_target, reject_reason = verify_worker_execution_target(
+            expected_worker_id=str(expected_worker) if expected_worker else None,
+            expected_generation=int(expected_gen) if expected_gen is not None else None,
+        )
+        if not ok_target:
+            await _mark_run_error(db, run, f"{reject_reason}: 执行节点身份或实例代次不匹配，拒绝执行旧任务")
+            return
+
+    require_claimed = bool(settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE)
     try:
         device = await resolve_device_async(
             db,
             device_id=device_id,
             serial=str(device_serial) if device_serial else None,
+            require_claimed=require_claimed,
         )
     except DeviceResolutionError as exc:
         await _mark_run_error(db, run, exc.message)
         return
-    device_serial = device.serial
+    device_serial = getattr(device, "serial", None) or device_serial
+    active_worker = settings.ANDROID_WORKER_ID.strip()
+    dev_worker = (getattr(device, "worker_id", None) or "").strip()
+    if require_claimed and active_worker and dev_worker != active_worker:
+        await _mark_run_error(
+            db,
+            run,
+            f"worker_id_mismatch: 设备归属节点为 {dev_worker or '未认领'}，当前节点为 {active_worker}",
+        )
+        return
 
     lease_token: str | None = None
     try:
@@ -838,6 +868,14 @@ async def _run_android_lowcode_with_lease(
             ttl_seconds=lease_ttl,
         )
         lease_token = lease.lease_token
+        existing_summary = getattr(run, "result_summary", None)
+        if isinstance(existing_summary, dict) or existing_summary is None:
+            run.result_summary = {
+                **(existing_summary or {}),
+                "device_id": int(device.id),
+                "device_serial": str(device_serial),
+                **({"worker_id": dev_worker} if dev_worker else {}),
+            }
         await db.commit()
         await _safe_publish(
             run.id,
@@ -876,6 +914,7 @@ async def _run_android_lowcode_with_lease(
         control = AndroidRunControl(
             run.id,
             device_id=int(device.id),
+            device_serial=str(device_serial),
             lease_token=lease_token,
             ttl_seconds=lease_ttl,
         )
@@ -928,7 +967,14 @@ async def _run_android_lowcode_steps(
     """Android 低代码模式执行入口"""
     cfg = case.config or {}
     evidence_redact_fields = cfg.get("dataset_redact_fields") or []
-    if cfg.get("device_matrix") and not cfg.get("_device_matrix_variant"):
+    is_matrix_parent = bool(
+        cfg.get("device_matrix")
+        and not cfg.get("_device_matrix_variant")
+        and not (extra_vars or {}).get("_device_matrix_variant")
+        and not (extra_vars or {}).get("device_id")
+        and not (extra_vars or {}).get("device_serial")
+    )
+    if is_matrix_parent:
         await _run_android_device_matrix(db, run, case, extra_vars)
         return
     steps = cfg.get("steps", [])
@@ -936,7 +982,12 @@ async def _run_android_lowcode_steps(
         await _mark_run_error(db, run, "低代码用例未配置任何步骤")
         return
 
-    device_serial = cfg.get("device_serial")
+    resolved_device_id = getattr(control, "device_id", None) if control is not None else None
+    device_serial = (
+        (getattr(control, "device_serial", None) if control is not None else None)
+        or (extra_vars or {}).get("device_serial")
+        or cfg.get("device_serial")
+    )
     if not device_serial:
         await _mark_run_error(db, run, "未选择执行设备")
         return
@@ -1161,6 +1212,7 @@ async def _run_android_lowcode_steps(
         **(getattr(run, "result_summary", None) or {}),
         "android_artifacts": artifact_urls,
         "device_serial": device_serial,
+        **({"device_id": resolved_device_id} if resolved_device_id is not None else {}),
         "execution_control": {
             "strict_replay": strict_replay,
             "strict_package": strict_package,
@@ -1214,7 +1266,7 @@ async def _run_android_device_matrix(
         {
             "id": item.id,
             "serial": item.serial,
-            "worker_id": item.worker_id,
+            "worker_id": getattr(item, "worker_id", None),
             "model": item.model,
             "brand": item.brand,
             "os_version": item.os_version,
@@ -1262,21 +1314,32 @@ async def _run_android_device_matrix(
         await db.refresh(child)
         child_specs.append((child.id, index, variant))
 
-    matrix_results = await asyncio.gather(
-        *(
-            _run_android_device_matrix_variant(
-                child_id=child_id,
-                case_id=case.id,
-                module_id=getattr(case, "module_id", None),
-                base_config=config,
-                extra_vars=extra_vars,
-                index=index,
-                variant=variant,
-                owner_id=parent_run.triggered_by,
-            )
-            for child_id, index, variant in child_specs
+    from app.core.config import settings
+
+    if settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE:
+        matrix_results = await _dispatch_multi_node_matrix_children(
+            db,
+            parent_run=parent_run,
+            case=case,
+            extra_vars=extra_vars,
+            child_specs=child_specs,
         )
-    )
+    else:
+        matrix_results = await asyncio.gather(
+            *(
+                _run_android_device_matrix_variant(
+                    child_id=child_id,
+                    case_id=case.id,
+                    module_id=getattr(case, "module_id", None),
+                    base_config=config,
+                    extra_vars=extra_vars,
+                    index=index,
+                    variant=variant,
+                    owner_id=parent_run.triggered_by,
+                )
+                for child_id, index, variant in child_specs
+            )
+        )
     counts = {"passed": 0, "failed": 0, "error": 0, "cancelled": 0}
     for item in matrix_results:
         status_value = item["status"]
@@ -1302,6 +1365,135 @@ async def _run_android_device_matrix(
         parent_run.id,
         {"type": "completed", "run_id": parent_run.id, "status": parent_run.status.value},
     )
+
+
+async def _dispatch_multi_node_matrix_children(
+    db: AsyncSession,
+    *,
+    parent_run: TestRun,
+    case: TestCase,
+    extra_vars: dict,
+    child_specs: list[tuple[int, int, dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Route each matrix variant to its own Android Worker queue and aggregate child outcomes."""
+    from app.core.config import settings
+    from app.services.execution_routing import enqueue_case_run, resolve_android_device_dispatch
+    from app.worker.tasks import run_test_case
+
+    dispatched_ids: list[tuple[int, int, dict[str, Any]]] = []
+    results_by_child: dict[int, dict[str, Any]] = {}
+
+    for child_id, index, variant in child_specs:
+        child = await db.get(TestRun, child_id)
+        if child is None:
+            results_by_child[child_id] = {
+                "run_id": child_id,
+                "index": index,
+                "serial": variant.get("serial"),
+                "device_id": variant.get("device_id"),
+                "status": RunStatus.error.value,
+                "duration_ms": None,
+                "error": "设备矩阵子运行不存在",
+            }
+            continue
+
+        try:
+            queue, worker_meta = await resolve_android_device_dispatch(
+                db,
+                device_id=variant.get("device_id"),
+                device_serial=variant.get("serial"),
+            )
+        except DeviceResolutionError as exc:
+            err_text = f"{exc.code}: {exc.message}"
+            child.status = RunStatus.error
+            child.error_message = err_text
+            await db.commit()
+            results_by_child[child_id] = {
+                "run_id": child_id,
+                "index": index,
+                "serial": variant.get("serial"),
+                "device_id": variant.get("device_id"),
+                "status": RunStatus.error.value,
+                "duration_ms": None,
+                "error": err_text,
+            }
+            continue
+
+        child_vars = {
+            **(extra_vars or {}),
+            **worker_meta,
+            "_device_matrix_variant": True,
+            "device_id": worker_meta.get("device_id") or variant.get("device_id"),
+            "device_serial": worker_meta.get("device_serial") or variant.get("serial"),
+        }
+        enqueue_case_run(
+            run_test_case,
+            child_id,
+            child_vars,
+            parent_run.trace_id,
+            getattr(case, "case_type", "android"),
+            queue_override=queue,
+        )
+        dispatched_ids.append((child_id, index, variant))
+
+    terminal = {
+        RunStatus.passed,
+        RunStatus.failed,
+        RunStatus.error,
+        RunStatus.skipped,
+        RunStatus.cancelled,
+    }
+    deadline = asyncio.get_running_loop().time() + max(1, int(settings.SUITE_CHILD_TASK_TIMEOUT_SECONDS))
+    pending = {cid for cid, _idx, _var in dispatched_ids}
+
+    while pending and asyncio.get_running_loop().time() < deadline:
+        if await asyncio.to_thread(is_cancel_requested, parent_run.id):
+            from app.services.web_run_control import request_cancel
+
+            for cid in list(pending):
+                try:
+                    await asyncio.to_thread(request_cancel, cid)
+                except Exception:
+                    pass
+        await asyncio.sleep(0.2)
+        for cid, idx, variant in dispatched_ids:
+            if cid not in pending:
+                continue
+            child = await db.get(TestRun, cid)
+            if child is not None:
+                await db.refresh(child)
+                if child.status in terminal:
+                    pending.discard(cid)
+                    results_by_child[cid] = {
+                        "run_id": cid,
+                        "index": idx,
+                        "serial": variant.get("serial"),
+                        "device_id": variant.get("device_id"),
+                        "status": child.status.value if hasattr(child.status, "value") else str(child.status),
+                        "duration_ms": child.duration_ms,
+                        "error": child.error_message,
+                    }
+
+    for cid, idx, variant in dispatched_ids:
+        if cid not in pending:
+            continue
+        child = await db.get(TestRun, cid)
+        timeout_err = "专用 Worker 执行矩阵子任务超时，请检查目标节点是否在线"
+        if child is not None:
+            child.status = RunStatus.error
+            child.error_message = timeout_err
+            await db.commit()
+        results_by_child[cid] = {
+            "run_id": cid,
+            "index": idx,
+            "serial": variant.get("serial"),
+            "device_id": variant.get("device_id"),
+            "status": RunStatus.error.value,
+            "duration_ms": None,
+            "error": timeout_err,
+        }
+
+    return [results_by_child[cid] for cid, _idx, _var in child_specs]
 
 
 async def _run_android_device_matrix_variant(
@@ -1338,6 +1530,8 @@ async def _run_android_device_matrix_variant(
         child_config.pop("device_matrix", None)
         child_config["_device_matrix_variant"] = True
         child_config["device_serial"] = variant["serial"]
+        if variant.get("device_id") is not None:
+            child_config["device_id"] = int(variant["device_id"])
         child_case = SimpleNamespace(id=case_id, module_id=module_id, config=child_config)
         lease_token: str | None = None
         try:
@@ -1360,6 +1554,7 @@ async def _run_android_device_matrix_variant(
                 child.id,
                 cancel_run_ids=parent_ids,
                 device_id=int(device_id),
+                device_serial=str(variant["serial"]),
                 lease_token=lease_token,
                 ttl_seconds=lease_ttl,
             )

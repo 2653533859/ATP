@@ -34,6 +34,12 @@ class _FakeDB:
             def scalar_one_or_none(self):
                 return _Obj(id=41)
 
+            def scalars(self):
+                return self
+
+            def all(self):
+                return [_Obj(id=41)]
+
         return _ScalarResult()
 
     def steps(self):

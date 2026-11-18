@@ -315,8 +315,7 @@ function Start-AndroidWorker {
 
   $previousEnvironment = $null
   try {
-    $envValues = Get-DotEnvValues
-    $previousEnvironment = Push-AtpProcessEnvironment -Values $envValues
+    $previousEnvironment = Push-AtpProcessEnvironment -Values (Get-DotEnvValues)
     Add-AtpOptionalToolPath
 
     $workerIdFile = Join-Path $RunDir 'android-worker-id'

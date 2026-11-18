@@ -199,7 +199,17 @@ async def handle_run_case(db: AsyncSession, user: User, args: dict[str, Any]) ->
     if module:
         await assert_project_access(db, user, module.project_id, ProjectRole.editor)
 
-    extra_vars = args.get("extra_vars") or {}
+    extra_vars = dict(args.get("extra_vars") or {})
+    from app.services.device_resolution import DeviceResolutionError
+    from app.services.execution_routing import resolve_android_case_dispatch_target
+
+    try:
+        queue_override, worker_meta = await resolve_android_case_dispatch_target(db, case, extra_vars)
+    except DeviceResolutionError as exc:
+        raise ValueError(f"{exc.code}: {exc.message}") from exc
+    if worker_meta:
+        extra_vars = {**extra_vars, **worker_meta}
+
     run = TestRun(
         case_id=case_id,
         triggered_by=user.id,
@@ -209,7 +219,17 @@ async def handle_run_case(db: AsyncSession, user: User, args: dict[str, Any]) ->
     await db.commit()
     await db.refresh(run)
 
-    enqueue_case_run(run_test_case, run.id, extra_vars, run.trace_id, case.case_type)
+    if queue_override:
+        enqueue_case_run(
+            run_test_case,
+            run.id,
+            extra_vars,
+            run.trace_id,
+            case.case_type,
+            queue_override=queue_override,
+        )
+    else:
+        enqueue_case_run(run_test_case, run.id, extra_vars, run.trace_id, case.case_type)
 
     return {
         "run_id": run.id,

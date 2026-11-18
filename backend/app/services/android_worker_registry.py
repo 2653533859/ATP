@@ -32,8 +32,7 @@ WORKER_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
 _RENEW_IF_TOKEN_MATCHES_LUA = """
 local current = redis.call('GET', KEYS[1])
 if not current then
-  redis.call('SET', KEYS[1], ARGV[2], 'EX', tonumber(ARGV[3]))
-  return 1
+  return 0
 end
 local ok, decoded = pcall(cjson.decode, current)
 if ok and type(decoded) == 'table' and decoded['instance_token'] == ARGV[1] then
@@ -185,7 +184,15 @@ async def register_android_worker(
         raise AndroidWorkerRegistryError("Android Worker ID 不能为空")
     owns_client = client is None
     redis = client or _redis()
-    payload = build_worker_payload(normalized_id, queues=queues)
+    runtime_gen = get_current_worker_generation() if get_current_worker_id() == normalized_id else None
+    runtime_tok = get_current_worker_token() if get_current_worker_id() == normalized_id else ""
+    payload = build_worker_payload(
+        normalized_id,
+        queues=queues,
+        instance_generation=runtime_gen,
+        instance_token=runtime_tok or None,
+        busy=is_slot_busy(),
+    )
     try:
         await redis.set(
             worker_key(normalized_id),
@@ -329,7 +336,7 @@ def renew_android_worker_sync(
     adb_ok: bool = True,
     busy: bool = False,
 ) -> bool:
-    """Renew worker heartbeat only if token still matches or slot expired."""
+    """Renew worker heartbeat only if token still matches a live record."""
     normalized_id = normalize_worker_id(worker_id)
     ttl = max(5, int(ttl_seconds or settings.ANDROID_WORKER_TTL_SECONDS))
     payload = build_worker_payload(
@@ -345,6 +352,16 @@ def renew_android_worker_sync(
     if hasattr(redis_client, "eval"):
         result = redis_client.eval(_RENEW_IF_TOKEN_MATCHES_LUA, 1, key, instance_token, raw_json, str(ttl))
         return bool(int(result or 0))
+    if hasattr(redis_client, "get"):
+        raw_current = _decode(redis_client.get(key))
+        if not raw_current:
+            return False
+        try:
+            current = json.loads(raw_current)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return False
+        if not isinstance(current, dict) or current.get("instance_token") != instance_token:
+            return False
     return bool(redis_client.set(key, raw_json, ex=ttl))
 
 
@@ -356,6 +373,27 @@ def release_android_worker_sync(redis_client: Any, worker_id: str, *, instance_t
     key = worker_key(normalized_id)
     if hasattr(redis_client, "eval"):
         redis_client.eval(_RELEASE_IF_TOKEN_MATCHES_LUA, 1, key, instance_token)
+    else:
+        redis_client.delete(key)
+
+
+def acquire_worker_scan_lock_sync(redis_client: Any, worker_id: str, *, ttl_seconds: int = 60) -> str | None:
+    """Acquire a short cross-process scan lock for one worker to prevent out-of-order commits."""
+    normalized_id = normalize_worker_id(worker_id)
+    token = uuid4().hex
+    key = f"{_prefix()}:scan-lock:{normalized_id}"
+    acquired = redis_client.set(key, _json({"instance_token": token}), ex=max(5, int(ttl_seconds)), nx=True)
+    return token if acquired else None
+
+
+def release_worker_scan_lock_sync(redis_client: Any, worker_id: str, *, lock_token: str) -> None:
+    """Release a cross-process scan lock if still owned by this scan invocation."""
+    normalized_id = worker_id.strip()
+    if not normalized_id or not lock_token:
+        return
+    key = f"{_prefix()}:scan-lock:{normalized_id}"
+    if hasattr(redis_client, "eval"):
+        redis_client.eval(_RELEASE_IF_TOKEN_MATCHES_LUA, 1, key, lock_token)
     else:
         redis_client.delete(key)
 
@@ -373,8 +411,10 @@ class AndroidWorkerHeartbeatThread:
         interval_seconds: float | None = None,
         ttl_seconds: float | None = None,
         redis_client: Any | None = None,
+        owns_client: bool | None = None,
         adb_ok_fn: Callable[[], bool] | None = None,
         busy_fn: Callable[[], bool] | None = None,
+        on_conflict: Callable[[], None] | None = None,
     ) -> None:
         self.worker_id = normalize_worker_id(worker_id)
         self.instance_token = instance_token
@@ -386,12 +426,14 @@ class AndroidWorkerHeartbeatThread:
         self.ttl_seconds = float(
             ttl_seconds if ttl_seconds is not None else max(5, int(settings.ANDROID_WORKER_TTL_SECONDS))
         )
-        self._owns_client = redis_client is None
+        self._owns_client = (redis_client is None) if owns_client is None else bool(owns_client)
         self._redis = redis_client
         self._adb_ok_fn = adb_ok_fn or (lambda: shutil.which("adb") is not None)
         self._busy_fn = busy_fn or (lambda: False)
+        self._on_conflict = on_conflict
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
+        self._initialized = False
         self.conflict_detected = False
 
     def _client(self) -> Any:
@@ -408,20 +450,78 @@ class AndroidWorkerHeartbeatThread:
             busy = bool(self._busy_fn())
         except Exception:
             busy = False
+        client = self._client()
+        ttl = max(1, int(round(self.ttl_seconds)))
         ok = renew_android_worker_sync(
-            self._client(),
+            client,
             self.worker_id,
             instance_generation=self.instance_generation,
             instance_token=self.instance_token,
             queues=self.queues,
-            ttl_seconds=max(1, int(round(self.ttl_seconds))),
+            ttl_seconds=ttl,
             adb_ok=adb_ok,
             busy=busy,
         )
-        if not ok:
-            self.conflict_detected = True
-            self._stop_event.set()
-        return ok
+        if ok:
+            self._initialized = True
+            return True
+
+        # Initial start without prior claim_android_worker_sync: try claiming current identity once.
+        if not self._initialized:
+            try:
+                claim_android_worker_sync(
+                    client,
+                    self.worker_id,
+                    instance_generation=self.instance_generation,
+                    instance_token=self.instance_token,
+                    queues=self.queues,
+                    ttl_seconds=ttl,
+                    adb_ok=adb_ok,
+                    busy=busy,
+                )
+                self._initialized = True
+                return True
+            except AndroidWorkerConflictError:
+                pass
+        else:
+            # Lease expired while running: only re-acquire with a NEW instance_generation if slot is empty.
+            new_gen, new_token = generate_instance_identity()
+            if new_gen <= self.instance_generation:
+                new_gen = self.instance_generation + 1
+            try:
+                claim_android_worker_sync(
+                    client,
+                    self.worker_id,
+                    instance_generation=new_gen,
+                    instance_token=new_token,
+                    queues=self.queues,
+                    ttl_seconds=ttl,
+                    adb_ok=adb_ok,
+                    busy=busy,
+                )
+                self.instance_generation = new_gen
+                self.instance_token = new_token
+                if get_current_worker_id() == self.worker_id:
+                    set_current_worker_runtime(self.worker_id, new_gen, new_token)
+                logger.warning(
+                    "Android Worker %s heartbeat expired; re-claimed with new generation %s",
+                    self.worker_id,
+                    new_gen,
+                )
+                return True
+            except AndroidWorkerConflictError:
+                pass
+
+        self.conflict_detected = True
+        if get_current_worker_id() == self.worker_id:
+            mark_worker_runtime_conflict()
+        self._stop_event.set()
+        if self._on_conflict is not None:
+            try:
+                self._on_conflict()
+            except Exception:
+                logger.warning("Failed to run conflict callback for Android Worker %s", self.worker_id, exc_info=True)
+        return False
 
     def _run(self) -> None:
         while not self._stop_event.wait(self.interval_seconds):
@@ -435,6 +535,8 @@ class AndroidWorkerHeartbeatThread:
             return
         self._stop_event.clear()
         self.beat_once()
+        if self.conflict_detected:
+            return
         self._thread = threading.Thread(
             target=self._run,
             name=f"android-worker-heartbeat-{self.worker_id}",
@@ -467,23 +569,47 @@ _RUNTIME_WORKER_ID: str = ""
 _RUNTIME_GENERATION: int | None = None
 _RUNTIME_TOKEN: str = ""
 _RUNTIME_ACTIVE_TASKS: int = 0
+_RUNTIME_CONFLICT: bool = False
 
 
 def set_current_worker_runtime(worker_id: str, generation: int, token: str) -> None:
-    global _RUNTIME_WORKER_ID, _RUNTIME_GENERATION, _RUNTIME_TOKEN
+    global _RUNTIME_WORKER_ID, _RUNTIME_GENERATION, _RUNTIME_TOKEN, _RUNTIME_CONFLICT
     with _RUNTIME_LOCK:
         _RUNTIME_WORKER_ID = worker_id
         _RUNTIME_GENERATION = int(generation)
         _RUNTIME_TOKEN = token
+        _RUNTIME_CONFLICT = False
 
 
 def clear_current_worker_runtime() -> None:
-    global _RUNTIME_WORKER_ID, _RUNTIME_GENERATION, _RUNTIME_TOKEN, _RUNTIME_ACTIVE_TASKS
+    global _RUNTIME_WORKER_ID, _RUNTIME_GENERATION, _RUNTIME_TOKEN, _RUNTIME_ACTIVE_TASKS, _RUNTIME_CONFLICT
     with _RUNTIME_LOCK:
         _RUNTIME_WORKER_ID = ""
         _RUNTIME_GENERATION = None
         _RUNTIME_TOKEN = ""
         _RUNTIME_ACTIVE_TASKS = 0
+        _RUNTIME_CONFLICT = False
+
+
+def mark_worker_runtime_conflict() -> None:
+    global _RUNTIME_CONFLICT
+    with _RUNTIME_LOCK:
+        _RUNTIME_CONFLICT = True
+
+
+def is_worker_runtime_conflicted() -> bool:
+    with _RUNTIME_LOCK:
+        return _RUNTIME_CONFLICT
+
+
+def get_current_worker_id() -> str:
+    with _RUNTIME_LOCK:
+        return _RUNTIME_WORKER_ID
+
+
+def get_current_worker_token() -> str:
+    with _RUNTIME_LOCK:
+        return _RUNTIME_TOKEN
 
 
 def get_current_worker_generation() -> int | None:
@@ -508,11 +634,17 @@ def verify_worker_execution_target(
     expected_generation: int | None = None,
 ) -> tuple[bool, str | None]:
     """Verify the executing worker matches the dispatched target worker and generation."""
-    active_worker_id = settings.ANDROID_WORKER_ID.strip() or _RUNTIME_WORKER_ID
-    if expected_worker_id and active_worker_id and expected_worker_id.strip() != active_worker_id:
-        return False, "worker_id_mismatch"
+    if is_worker_runtime_conflicted():
+        return False, "worker_conflict_detected"
+    active_worker_id = settings.ANDROID_WORKER_ID.strip() or get_current_worker_id()
+    if expected_worker_id:
+        if not active_worker_id or expected_worker_id.strip() != active_worker_id:
+            return False, "worker_id_mismatch"
     if expected_generation is not None:
         current_gen = get_current_worker_generation()
-        if current_gen is not None and int(expected_generation) != int(current_gen):
+        if current_gen is None:
+            if settings.ANDROID_MULTI_NODE_ENABLED:
+                return False, "worker_generation_mismatch"
+        elif int(expected_generation) != int(current_gen):
             return False, "worker_generation_mismatch"
     return True, None

@@ -25,6 +25,20 @@ class DeviceResolutionError(ValueError):
         self.message = message
 
 
+def _extract_result_rows(result: Any) -> list[Any]:
+    scalars_fn = getattr(result, "scalars", None)
+    if callable(scalars_fn):
+        scalars_obj = scalars_fn()
+        all_fn = getattr(scalars_obj, "all", None)
+        if callable(all_fn):
+            return list(all_fn())
+    scalar_one = getattr(result, "scalar_one_or_none", None)
+    if callable(scalar_one):
+        item = scalar_one()
+        return [] if item is None else [item]
+    return []
+
+
 def _validate_resolved_device(
     device: Device | None,
     *,
@@ -37,16 +51,17 @@ def _validate_resolved_device(
         raise DeviceResolutionError("device_not_found", f"设备未注册: {target}")
 
     normalized_serial = str(serial).strip() if serial else ""
-    if normalized_serial and device.serial != normalized_serial:
+    actual_serial = getattr(device, "serial", None)
+    if normalized_serial and isinstance(actual_serial, str) and actual_serial != normalized_serial:
         raise DeviceResolutionError(
             "device_identity_mismatch",
-            f"设备 {device.id} 的序列号不匹配（期望 {normalized_serial}，实际 {device.serial}）",
+            f"设备 {device.id} 的序列号不匹配（期望 {normalized_serial}，实际 {actual_serial}）",
         )
 
-    if require_claimed and not (device.worker_id or "").strip():
+    if require_claimed and not (getattr(device, "worker_id", None) or "").strip():
         raise DeviceResolutionError(
             "device_unclaimed",
-            f"设备 {device.serial} (id={device.id}) 尚未认领归属节点，请先在设备管理中认领",
+            f"设备 {actual_serial or ''} (id={device.id}) 尚未认领归属节点，请先在设备管理中认领",
         )
     return device
 
@@ -60,7 +75,12 @@ async def resolve_device_async(
 ) -> Device:
     """Resolve a unique ``Device`` asynchronously by ``device_id`` or unambiguous ``serial``."""
     if device_id is not None:
-        device = await db.get(Device, int(device_id))
+        if hasattr(db, "execute"):
+            res = await db.execute(select(Device).where(Device.id == int(device_id)))
+            rows = _extract_result_rows(res)
+            device = rows[0] if rows else None
+        else:
+            device = await db.get(Device, int(device_id))
         return _validate_resolved_device(
             device,
             device_id=int(device_id),
@@ -73,7 +93,7 @@ async def resolve_device_async(
         raise DeviceResolutionError("device_not_found", "未指定目标设备")
 
     result = await db.execute(select(Device).where(Device.serial == normalized_serial))
-    matches = list(result.scalars().all())
+    matches = _extract_result_rows(result)
     if len(matches) > 1:
         raise DeviceResolutionError(
             "device_serial_ambiguous",
@@ -134,3 +154,24 @@ def extract_device_id(mapping: dict[str, Any] | None) -> int | None:
         return value if value > 0 else None
     except (TypeError, ValueError):
         return None
+
+
+def extract_target_device_spec(
+    config: dict[str, Any] | None,
+    extra_vars: dict[str, Any] | None = None,
+) -> tuple[int | None, str | None]:
+    """Resolve target ``(device_id, device_serial)`` with ``extra_vars`` overriding ``config``.
+
+    When ``extra_vars`` specifies ``device_id`` or ``device_serial``, stale
+    fields on ``config`` are not mixed into the override.
+    """
+    ext_id = extract_device_id(extra_vars)
+    ext_serial_raw = extra_vars.get("device_serial") if isinstance(extra_vars, dict) else None
+    ext_serial = str(ext_serial_raw).strip() if ext_serial_raw else None
+    if ext_id is not None or ext_serial:
+        return ext_id, ext_serial
+
+    cfg_id = extract_device_id(config)
+    cfg_serial_raw = config.get("device_serial") if isinstance(config, dict) else None
+    cfg_serial = str(cfg_serial_raw).strip() if cfg_serial_raw else None
+    return cfg_id, cfg_serial

@@ -17,12 +17,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.websockets import WebSocket
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_engineer
 from app.core.config import settings
 from app.core.package_paths import bundled_resource
 from app.core.database import AsyncSessionLocal, sync_engine as engine
 from app.core.security import decode_token
-from app.device_agents.tunnel_hub import tunnel_hub
+from app.device_agents.tunnel_hub import tunnel_hub, tunnel_worker_id
 from app.device_agents.protocol import tunnel_serial
 from app.models.device import Device
 from app.models.device_agent import RemoteAgent, RemoteAgentDevice
@@ -134,7 +134,7 @@ def download_agent_script(current_user: User = Depends(get_current_user)):
 @router.delete("/{agent_id}")
 def delete_device_agent(
     agent_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     """删除离线接入点及其设备端口映射（释放隧道端口）。"""
     with Session(engine) as session:
@@ -148,13 +148,16 @@ def delete_device_agent(
             )
 
         agent_name = str(agent.name)
+        t_wid = tunnel_worker_id(agent_name, agent_id)
         operator = str(getattr(current_user, "username", "?") or "?")
         mappings = session.scalars(select(RemoteAgentDevice).where(RemoteAgentDevice.agent_id == agent_id)).all()
         released_ports = sorted(int(m.tunnel_port) for m in mappings)
         serials = [tunnel_serial(m.tunnel_port) for m in mappings]
         if serials:
             for dev in session.scalars(select(Device).where(Device.serial.in_(serials))).all():
-                session.delete(dev)
+                dev_wid = getattr(dev, "worker_id", None)
+                if dev_wid is None or dev_wid == t_wid:
+                    session.delete(dev)
         for mapping in mappings:
             session.delete(mapping)
         session.delete(agent)

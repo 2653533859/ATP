@@ -227,6 +227,22 @@ async def _trigger_regression_run(
         env_vars = decrypt_env_vars(result.scalars().all())
         merged_vars = {**env_vars, **body.extra_vars}
 
+    from app.services.device_resolution import DeviceResolutionError
+    from app.services.execution_routing import (
+        http_status_for_device_resolution,
+        resolve_android_case_dispatch_target,
+    )
+
+    try:
+        queue_override, worker_meta = await resolve_android_case_dispatch_target(db, case, merged_vars)
+    except DeviceResolutionError as exc:
+        raise HTTPException(
+            status_code=http_status_for_device_resolution(exc.code),
+            detail=f"{exc.code}: {exc.message}",
+        ) from exc
+    if worker_meta:
+        merged_vars = {**merged_vars, **worker_meta}
+
     run = TestRun(
         case_id=case.id,
         triggered_by=user.id,
@@ -244,5 +260,15 @@ async def _trigger_regression_run(
     await db.commit()
     await db.refresh(run)
 
-    enqueue_case_run(_cases.run_test_case, run.id, merged_vars, run.trace_id, case.case_type)
+    if queue_override:
+        enqueue_case_run(
+            _cases.run_test_case,
+            run.id,
+            merged_vars,
+            run.trace_id,
+            case.case_type,
+            queue_override=queue_override,
+        )
+    else:
+        enqueue_case_run(_cases.run_test_case, run.id, merged_vars, run.trace_id, case.case_type)
     return run.id

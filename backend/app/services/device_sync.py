@@ -228,7 +228,7 @@ def mark_worker_devices_offline_sync(session: Session, worker_id: str) -> int:
         .where(Device.status != DeviceStatus.offline)
         .values(status=DeviceStatus.offline)
     )
-    return int(result.rowcount or 0)
+    return int(getattr(result, "rowcount", 0) or 0)
 
 
 async def mark_worker_devices_offline_async(db: AsyncSession, worker_id: str) -> int:
@@ -239,4 +239,4 @@ async def mark_worker_devices_offline_async(db: AsyncSession, worker_id: str) ->
         .where(Device.status != DeviceStatus.offline)
         .values(status=DeviceStatus.offline)
     )
-    return int(result.rowcount or 0)
+    return int(getattr(result, "rowcount", 0) or 0)

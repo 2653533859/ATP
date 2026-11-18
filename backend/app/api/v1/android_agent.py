@@ -311,8 +311,9 @@ async def control_agent_session(
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
     await _get_project_session(db, project_id, session_id)
     session = await _lock_agent_session(db, session_id)
-    if payload.action.value == "resume":
+    if payload.action.value in {"resume", "takeover"}:
         _require_android_agent_interactive_allowed()
+    if payload.action.value == "resume":
         await _require_no_manual_dispatch(db, session_id)
 
     # 乐观并发版本检查
@@ -506,6 +507,8 @@ async def _execute_manual_action(
         async def check(self, captured_epoch: int) -> None:
             if not settings.ANDROID_AGENT_ENABLED:
                 raise ControlRejected("android_agent_disabled")
+            if settings.ANDROID_MULTI_NODE_ENABLED:
+                raise ControlRejected("multi_node_feature_disabled")
             await super().check(captured_epoch)
             async with self.session_factory() as check_db:
                 current = await check_db.get(AndroidAgentSession, session_id)
@@ -1025,12 +1028,45 @@ async def start_agent_draft_replay(
     draft = await _get_project_draft(db, project_id, draft_id)
     session = await _get_project_session(db, project_id, draft.session_id)
 
-    device_serial = None
-    if payload.device_id:
+    from app.services.device_resolution import DeviceResolutionError, resolve_device_async
+    from app.services.execution_routing import (
+        http_status_for_device_resolution,
+        resolve_android_device_dispatch,
+    )
+
+    resolved_device_id: int | None = payload.device_id if payload.device_id is not None else session.device_id
+    device_serial: str | None = None
+    queue_override: str | None = None
+    if payload.device_id is not None:
         device = await db.get(Device, payload.device_id)
         if device is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="设备不存在")
+        resolved_device_id = int(device.id)
         device_serial = device.serial
+    elif session.device_id is not None:
+        session_device = await db.get(Device, session.device_id)
+        if session_device is not None:
+            device_serial = session_device.serial
+
+    if resolved_device_id is not None and settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE:
+        try:
+            checked_dev = await resolve_device_async(
+                db,
+                device_id=resolved_device_id,
+                serial=device_serial,
+                require_claimed=True,
+            )
+            device_serial = checked_dev.serial
+            queue_override, _meta = await resolve_android_device_dispatch(
+                db,
+                device_id=checked_dev.id,
+                device_serial=checked_dev.serial,
+            )
+        except DeviceResolutionError as exc:
+            raise HTTPException(
+                status_code=http_status_for_device_resolution(exc.code),
+                detail=f"{exc.code}: {exc.message}",
+            ) from exc
 
     replay, case, run = await start_replay(
         db,
@@ -1041,6 +1077,7 @@ async def start_agent_draft_replay(
         idempotency_key=payload.idempotency_key,
         initial_state_confirmed=payload.initial_state_confirmed,
         device_serial=device_serial,
+        device_id=resolved_device_id,
     )
     await coordinator.append_event(
         db,
@@ -1059,7 +1096,10 @@ async def start_agent_draft_replay(
 
     try:
         # 回放与正式执行走同一条 Android 低代码派发链路，Agent 决策已关闭
-        _enqueue_replay_run(run, case, session)
+        if queue_override:
+            _enqueue_replay_run(run, case, session, queue_override=queue_override)
+        else:
+            _enqueue_replay_run(run, case, session)
     except Exception:
         # 回放记录已持久化；派发失败不伪造通过，由调用方按 run 状态重试
         replay.status = "dispatch_failed"

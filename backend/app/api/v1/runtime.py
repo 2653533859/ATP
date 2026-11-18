@@ -41,6 +41,14 @@ def get_runtime_capabilities() -> dict:
         "schedule": not settings.ATP_LOCAL_MODE,
         "remote_nodes": not settings.ATP_LOCAL_MODE,
         "android_agent": android_agent_enabled,
+        "adb_scan_mode": (
+            "local"
+            if settings.ATP_LOCAL_MODE
+            else str(getattr(settings, "ADB_SCAN_MODE", "local") or "local").strip().lower()
+        ),
+        "android_multi_node_enabled": (
+            False if settings.ATP_LOCAL_MODE else bool(getattr(settings, "ANDROID_MULTI_NODE_ENABLED", False))
+        ),
     }
 
 
@@ -49,10 +57,26 @@ class RuntimeIdentity(BaseModel):
     database: str
     storage: str
     execution: str
+    adb_scan_mode: str = "local"
+    android_multi_node_enabled: bool = False
 
 
 @router.get("", response_model=RuntimeIdentity)
 def get_runtime_identity() -> RuntimeIdentity:
     if settings.ATP_LOCAL_MODE:
-        return RuntimeIdentity(mode="local", database="sqlite", storage="filesystem", execution="local")
-    return RuntimeIdentity(mode="server", database="postgresql", storage="minio", execution="celery")
+        return RuntimeIdentity(
+            mode="local",
+            database="sqlite",
+            storage="filesystem",
+            execution="local",
+            adb_scan_mode="local",
+            android_multi_node_enabled=False,
+        )
+    return RuntimeIdentity(
+        mode="server",
+        database="postgresql",
+        storage="minio",
+        execution="celery",
+        adb_scan_mode=str(getattr(settings, "ADB_SCAN_MODE", "local") or "local").strip().lower(),
+        android_multi_node_enabled=bool(getattr(settings, "ANDROID_MULTI_NODE_ENABLED", False)),
+    )

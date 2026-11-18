@@ -16,7 +16,7 @@ from jwt import InvalidTokenError
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_engineer
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.security import decode_token
@@ -65,15 +65,17 @@ class TouchEvent(BaseModel):
 
 
 def _require_scrcpy_allowed() -> None:
-    if settings.ANDROID_MULTI_NODE_ENABLED:
+    if settings.ANDROID_MULTI_NODE_ENABLED or (
+        not settings.ATP_LOCAL_MODE and settings.ADB_SCAN_MODE.strip().lower() == "worker"
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="multi_node_feature_disabled: 多节点模式下暂不支持 Scrcpy 实时流，请使用截图轮询",
+            detail="multi_node_feature_disabled: 节点 Worker 模式下暂不支持 Scrcpy 直连流，请使用截图轮询",
         )
 
 
 @rest_router.post("/devices/{serial}/touch")
-def send_touch(serial: str, event: TouchEvent):
+def send_touch(serial: str, event: TouchEvent, _=Depends(require_engineer)):
     """向设备 scrcpy 控制通道毫秒级发送触控事件。"""
     _require_scrcpy_allowed()
     try:
@@ -86,7 +88,7 @@ def send_touch(serial: str, event: TouchEvent):
 
 
 @rest_router.post("/devices/{serial}/reconnect")
-def reconnect_scrcpy(serial: str):
+def reconnect_scrcpy(serial: str, _=Depends(require_engineer)):
     """重新连接设备的 scrcpy 流。"""
     _require_scrcpy_allowed()
     scrcpy_manager.ensure_device_stream(serial)
@@ -96,7 +98,9 @@ def reconnect_scrcpy(serial: str):
 @ws_router.websocket("/ws/scrcpy/{serial}")
 async def scrcpy_video_stream(websocket: WebSocket, serial: str):
     """全双工 WebSocket：下行推送 60FPS H.264 视频流，上行毫秒级接收触控与按键。"""
-    if settings.ANDROID_MULTI_NODE_ENABLED:
+    if settings.ANDROID_MULTI_NODE_ENABLED or (
+        not settings.ATP_LOCAL_MODE and settings.ADB_SCAN_MODE.strip().lower() == "worker"
+    ):
         await websocket.close(code=4009, reason="multi_node_feature_disabled")
         return
     user = await _get_ws_user(websocket)

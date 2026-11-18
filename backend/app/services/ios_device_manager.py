@@ -157,6 +157,8 @@ def format_unified_device(device_item: Device | IosDevice, platform: str) -> dic
             "brand": android_dev.brand or "Android",
             "model": android_dev.model or "Generic Android",
             "identifier": android_dev.serial,
+            "worker_id": getattr(android_dev, "worker_id", None),
+            "worker_hostname": getattr(android_dev, "worker_hostname", None),
             "os_version": android_dev.os_version or "-",
             "status": android_dev.status.value,
             "appium_server_url": None,

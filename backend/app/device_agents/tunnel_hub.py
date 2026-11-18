@@ -294,7 +294,8 @@ class TunnelHub:
                         session.add(agent)
                 remote_devs = session.scalars(select(Device).where(Device.ip_address == "127.0.0.1")).all()
                 for dev in remote_devs:
-                    if parse_tunnel_serial(dev.serial) is not None:
+                    wid = getattr(dev, "worker_id", None)
+                    if (wid is None or str(wid).startswith("tunnel.")) and parse_tunnel_serial(dev.serial) is not None:
                         dev.status = DeviceStatus.offline
                         dev.last_seen_at = now
                         session.add(dev)
@@ -826,15 +827,18 @@ class TunnelHub:
                 agent.last_seen_at = now
                 agent.updated_at = now
                 session.add(agent)
+                t_wid = tunnel_worker_id(agent.name, agent_id)
                 mappings = session.scalars(
                     select(RemoteAgentDevice).where(RemoteAgentDevice.agent_id == agent_id)
                 ).all()
                 serials = [tunnel_serial(m.tunnel_port) for m in mappings]
                 if serials:
                     for dev in session.scalars(select(Device).where(Device.serial.in_(serials))).all():
-                        dev.status = DeviceStatus.offline
-                        dev.last_seen_at = now
-                        session.add(dev)
+                        dev_wid = getattr(dev, "worker_id", None)
+                        if dev_wid is None or dev_wid == t_wid:
+                            dev.status = DeviceStatus.offline
+                            dev.last_seen_at = now
+                            session.add(dev)
                 session.commit()
         except Exception:
             logger.exception("更新接入点离线状态失败: agent_id=%s", agent_id)
@@ -843,6 +847,9 @@ class TunnelHub:
         port_map: Dict[str, int] = {}
         errors: Dict[str, str] = {}
         with Session(engine) as session:
+            agent_obj = session.scalar(select(RemoteAgent).where(RemoteAgent.id == agent_id))
+            agent_name = getattr(agent_obj, "name", None)
+            t_wid = tunnel_worker_id(agent_name, agent_id)
             used_ports = {int(row.tunnel_port) for row in session.scalars(select(RemoteAgentDevice)).all()}
             now = datetime.now(timezone.utc)
             for usb_serial, meta in reported.items():
@@ -875,11 +882,18 @@ class TunnelHub:
                     mapping.last_seen_at = now
                     session.add(mapping)
                 serial_str = tunnel_serial(mapping.tunnel_port)
-                dev = session.scalar(select(Device).where(Device.serial == serial_str))
+                dev = session.scalar(
+                    select(Device).where(
+                        Device.serial == serial_str,
+                        (Device.worker_id == t_wid) | Device.worker_id.is_(None),
+                    )
+                )
                 dev_name = f"{meta.get('brand') or 'Remote'} {meta.get('model') or 'Android'} ({usb_serial[:6]})"
                 if dev is None:
                     dev = Device(
                         serial=serial_str,
+                        worker_id=t_wid,
+                        worker_hostname=str(agent_name) if agent_name else None,
                         name=dev_name,
                         model=meta.get("model"),
                         brand=meta.get("brand"),
@@ -890,6 +904,9 @@ class TunnelHub:
                     )
                     session.add(dev)
                 else:
+                    dev.worker_id = t_wid
+                    if agent_name:
+                        dev.worker_hostname = str(agent_name)
                     dev.name = dev.name or dev_name
                     dev.model = meta.get("model") or dev.model
                     dev.brand = meta.get("brand") or dev.brand
@@ -930,6 +947,21 @@ class TunnelHub:
                 self._keeper.trigger()
             except Exception:
                 logger.exception("通知 adb keeper 失败")
+
+
+def tunnel_worker_id(agent_name: str | None = None, agent_id: int | None = None) -> str:
+    """Derive a collision-free, valid worker_id namespace for a reverse-tunnel RemoteAgent."""
+    import hashlib
+    import re
+
+    raw_text = str(agent_name or "").strip()
+    slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", raw_text).strip("-._")
+    if raw_text and slug != raw_text:
+        digest = hashlib.sha1(raw_text.encode("utf-8")).hexdigest()[:8]
+        slug = f"{slug}-{digest}" if slug else f"agent-{digest}"
+    if not slug:
+        slug = f"agent-{agent_id}" if agent_id is not None else "agent"
+    return f"tunnel.{slug[:50]}"
 
 
 tunnel_hub = TunnelHub()

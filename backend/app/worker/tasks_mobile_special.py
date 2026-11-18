@@ -84,7 +84,62 @@ def run_mobile_special_task(self, run_id: int):
             run.device_id = _resolve_run_device_id(run, task)
             run.apk_id = run.apk_id or task.apk_id
             run.app_package = _resolve_run_app_package(run, task)
-            run.device_serial = run.config_snapshot.get("device_serial") or await _get_device_serial(db, run.device_id)
+
+            from app.core.config import settings
+            from app.services.android_worker_registry import verify_worker_execution_target
+            from app.services.device_resolution import DeviceResolutionError, resolve_device_async
+
+            expected_worker = (run.config_snapshot or {}).get("_expected_worker_id")
+            expected_gen = (run.config_snapshot or {}).get("_expected_generation")
+            if expected_worker is not None or expected_gen is not None:
+                ok_target, reject_reason = verify_worker_execution_target(
+                    expected_worker_id=str(expected_worker) if expected_worker else None,
+                    expected_generation=int(expected_gen) if expected_gen is not None else None,
+                )
+                if not ok_target:
+                    err_msg = f"{reject_reason}: 执行节点身份或代次不匹配，拒绝执行旧任务"
+                    run.status = RunStatus.failed
+                    run.finished_at = datetime.now(timezone.utc)
+                    run.summary_json = {"error_message": err_msg}
+                    await db.commit()
+                    return
+
+            candidate_serial = run.device_serial or (run.config_snapshot or {}).get("device_serial")
+            require_claimed = bool(settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE)
+            if require_claimed or (run.device_id is None and candidate_serial):
+                try:
+                    resolved_device = await resolve_device_async(
+                        db,
+                        device_id=run.device_id,
+                        serial=str(candidate_serial) if candidate_serial else None,
+                        require_claimed=require_claimed,
+                    )
+                    run.device_id = int(resolved_device.id)
+                    run.device_serial = getattr(resolved_device, "serial", None) or candidate_serial
+                    active_worker = settings.ANDROID_WORKER_ID.strip()
+                    dev_worker = (getattr(resolved_device, "worker_id", None) or "").strip()
+                    if require_claimed and active_worker and dev_worker != active_worker:
+                        err_msg = (
+                            f"worker_id_mismatch: 设备归属节点为 {dev_worker or '未认领'}，当前节点为 {active_worker}"
+                        )
+                        run.status = RunStatus.failed
+                        run.finished_at = datetime.now(timezone.utc)
+                        run.summary_json = {"error_message": err_msg}
+                        await db.commit()
+                        return
+                except DeviceResolutionError as exc:
+                    if require_claimed or exc.code in {"device_serial_ambiguous", "device_identity_mismatch"}:
+                        run.status = RunStatus.failed
+                        run.finished_at = datetime.now(timezone.utc)
+                        run.summary_json = {"error_message": f"{exc.code}: {exc.message}"}
+                        await db.commit()
+                        return
+
+            run.device_serial = (
+                run.device_serial
+                or run.config_snapshot.get("device_serial")
+                or await _get_device_serial(db, run.device_id)
+            )
             if run.device_serial:
                 run.config_snapshot["device_serial"] = run.device_serial
             await db.commit()
@@ -423,17 +478,61 @@ def check_mobile_special_schedules():
             result = await db.execute(q)
             tasks = result.scalars().all()
 
+            from app.core.config import settings
+            from app.services.android_worker_registry import (
+                AndroidWorkerRegistryError,
+                get_android_worker,
+                worker_execution_queue,
+            )
+            from app.services.device_resolution import DeviceResolutionError, resolve_device_async
+
             for task in tasks:
+                cfg_snapshot = dict(task.config_json or {})
+                target_queue: str | None = None
+                dispatch_error: str | None = None
+                resolved_dev_id = task.device_id
+                resolved_serial = cfg_snapshot.get("device_serial")
+
+                if settings.ANDROID_MULTI_NODE_ENABLED and not settings.ATP_LOCAL_MODE:
+                    try:
+                        dev = await resolve_device_async(
+                            db,
+                            device_id=resolved_dev_id,
+                            serial=str(resolved_serial) if resolved_serial else None,
+                            require_claimed=True,
+                        )
+                        resolved_dev_id = int(dev.id)
+                        resolved_serial = dev.serial
+                        wid = (dev.worker_id or "").strip()
+                        winfo = await get_android_worker(wid)
+                        if not winfo:
+                            dispatch_error = f"worker_offline: 设备所属节点 '{wid}' 当前离线"
+                        else:
+                            target_queue = worker_execution_queue(wid)
+                            cfg_snapshot["_expected_worker_id"] = wid
+                            if winfo.get("instance_generation") is not None:
+                                cfg_snapshot["_expected_generation"] = int(winfo["instance_generation"])
+                    except DeviceResolutionError as exc:
+                        dispatch_error = f"{exc.code}: {exc.message}"
+                    except AndroidWorkerRegistryError as exc:
+                        dispatch_error = f"worker_registry_unavailable: {exc}"
+
+                if resolved_serial:
+                    cfg_snapshot["device_serial"] = resolved_serial
+
                 # 创建 Run 记录
                 run = MobileSpecialRun(
                     task_id=task.id,
                     task_type=task.task_type,
-                    status=RunStatus.pending,
-                    device_id=task.device_id,
+                    status=RunStatus.failed if dispatch_error else RunStatus.pending,
+                    finished_at=now if dispatch_error else None,
+                    summary_json={"error_message": dispatch_error} if dispatch_error else {},
+                    device_id=resolved_dev_id,
+                    device_serial=resolved_serial,
                     app_package=task.app_package,
                     trigger_type=TriggerType.schedule,
                     triggered_by=None,
-                    config_snapshot=task.config_json or {},
+                    config_snapshot=cfg_snapshot,
                 )
                 db.add(run)
                 await db.commit()
@@ -450,8 +549,14 @@ def check_mobile_special_schedules():
                 task.last_run_at = now
                 await db.commit()
 
-                run_mobile_special_task.delay(run.id)
-                logger.info(f"Schedule triggered task {task.id} -> run {run.id}")
+                if dispatch_error:
+                    logger.warning("Scheduled mobile special task %s rejected: %s", task.id, dispatch_error)
+                elif target_queue:
+                    run_mobile_special_task.apply_async(args=(run.id,), queue=target_queue)
+                    logger.info(f"Schedule triggered task {task.id} -> run {run.id} on {target_queue}")
+                else:
+                    run_mobile_special_task.delay(run.id)
+                    logger.info(f"Schedule triggered task {task.id} -> run {run.id}")
 
     run_async(_check())
 
