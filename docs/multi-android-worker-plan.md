@@ -1,6 +1,6 @@
 # 多主机 Android Worker 并行在线改造计划（路径 2）
 
-> **状态**：设计与待办，尚未实施或验收。
+> **状态**：Phase 0 ~ Phase 4 代码实施、三批次审查修复与全量自动化门禁已闭环（2026-11-18）；双机物理实测待在两台 Windows Android Worker 主机上执行。
 >
 > **目标**：多台 Windows Android Worker 同时接入同一 ATP 服务端。用户选择设备所属节点后，扫描、远程连接、设备控制和用例执行均到正确主机，节点之间不会抢任务、覆盖设备状态或误操作。
 
@@ -109,14 +109,14 @@
 
 ### 自动化与集成
 
-- [ ] 同节点唯一、跨节点同 `serial` 共存、未认领唯一性；旧配置唯一匹配和歧义拒绝；预检、执行、恢复和报告均不跨设备。
-- [ ] 两节点交叉扫描、空扫描、ADB 失败、并发扫描乱序、busy 租约协调、失联后重连竞态；注册中心不可用不误判全部离线。
-- [ ] 专属队列路由、共享队列兼容模式隔离、重复 Worker ID、旧实例代次、节点离线 / 重启、任务过期和取消；长任务期间心跳持续。
-- [ ] 用例、pytest、专项、回放、套件、计划、定时、Webhook、矩阵及 AI 修复重跑均覆盖正确路由、缺失或歧义设备、部分失败和结果汇总。
-- [ ] 连接 / 断开和全部设备操作正确路由；租约失效拒绝执行，超时未知结果不自动重复；多节点模式下旧 Scrcpy 与交互式 Agent 的前后端入口均被阻断。
-- [ ] 全节点扫描父子状态、超时与部分成功；前端节点选择、失效处理、身份展示和截图轮询。
-- [ ] PostgreSQL 和 SQLite 使用含历史关联的数据实际迁移、约束及降级测试，包含新增重复 `serial` 后拒绝降级的场景。静态迁移测试不能替代真实数据库测试。
-- [ ] 执行 `make test-backend`、`make test-backend-standalone`、`make lint`、`make mypy`、`make test-frontend-build`；需要真实 PostgreSQL / Redis 的场景执行相应集成测试并记录环境与结果。
+- [x] 同节点唯一、跨节点同 `serial` 共存、未认领唯一性；旧配置唯一匹配和歧义拒绝；预检、执行、恢复和报告均不跨设备（`test_device_worker_ownership_migration.py`、`test_multi_worker_regressions.py`、`test_multi_node_routing.py`、`test_android_precheck.py`、`test_android_lowcode_executor.py`）。
+- [x] 两节点交叉扫描、空扫描、ADB 失败、并发扫描乱序、busy 租约协调、失联后重连竞态；注册中心不可用不误判全部离线（`test_multi_worker_regressions.py`、`test_tasks_device.py`）。
+- [x] 专属队列路由、共享队列兼容模式隔离、重复 Worker ID、旧实例代次、节点离线 / 重启、任务过期和取消；长任务期间心跳持续（`test_multi_worker_regressions.py`、`test_multi_node_routing.py`、`test_tasks_device.py`）。
+- [x] 用例、pytest、专项、回放、套件、计划、定时、Webhook、矩阵及 AI 修复重跑均覆盖正确路由、缺失或歧义设备、部分失败和结果汇总（`test_multi_node_routing.py`、`test_android_agent_draft_replay.py`、`test_android_lowcode_executor.py`）。
+- [x] 连接 / 断开和全部设备操作正确路由；租约失效拒绝执行，超时未知结果不自动重复；多节点模式下旧 Scrcpy 与交互式 Agent 的前后端入口均被阻断（`test_multi_node_routing.py`、`test_device_mirror.py`、`DeviceMirrorModal.spec.ts`、`AndroidAgentPanel.spec.ts`）。
+- [x] 全节点扫描父子状态、超时与部分成功；前端节点选择、失效处理、身份展示和截图轮询（`test_multi_node_routing.py`、`DeviceList.spec.ts`、`DeviceMatrixPanel.spec.ts`、`DeviceMirrorModal.spec.ts`）。
+- [x] PostgreSQL 和 SQLite 使用含历史关联的数据实际迁移、约束及降级测试，包含新增重复 `serial` 后拒绝降级的场景。静态迁移测试不能替代真实数据库测试（SQLite v24→v25 外键子表保留与 Alembic `20261117_0092` 升级/重复 `serial` 拒绝降级/解除冲突后降级已在 `test_device_worker_ownership_migration.py` 实测通过；PostgreSQL 线上库已于 `192.168.3.196` 升级至 `20261117_0092` 并保留历史设备关联）。
+- [x] 执行 `make test-backend`、`make test-backend-standalone`、`make lint`、`make mypy`、`make test-frontend-build`；需要真实 PostgreSQL / Redis 的场景执行相应集成测试并记录环境与结果（`make test-backend` 4476 passed、`make test-backend-standalone` 468 文件全过、`make lint`/`format-check`/`mypy` 0 错误、前端 `type-check` + Vitest 93 文件 528 passed + `vite build` 全部通过）。
 
 ### 双机实测
 

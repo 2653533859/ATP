@@ -1,5 +1,16 @@
 # ATP 项目任务跟踪
 
+## 多主机 Android Worker 并行在线改造与审查收口（2026-11-18，Phase 0–4 代码与自动化门禁闭环）
+
+实施依据：[多主机 Android Worker 并行在线改造计划](docs/multi-android-worker-plan.md)、[Phase 0 冻结契约](docs/multi-android-worker-contract.md)。
+
+- [x] 2026-11-18 多主机 Android Worker 隔离、专属队列路由与三批次审查修复：
+  - **设备与节点身份（Phase 1）**：`devices` 表新增 `worker_id`、`worker_hostname` 与 `(worker_id, serial)` 唯一约束及待认领部分唯一索引 `uq_devices_unclaimed_serial`（Alembic `20261117_0092` + 本地 SQLite Schema v25）；修复 SQLite v25 建表迁移在 `PRAGMA foreign_keys=ON` 下的子表外键保留与 `foreign_key_check` 校验，并验证跨节点重复 `serial` 时的降级阻断保护。
+  - **节点注册、独立心跳与扫描收敛（Phase 2）**：`android_worker_registry.py` 落地 `worker_id` 正则校验、`.local-run/android-worker-id` 持久化、`instance_generation` / `instance_token` Redis `SET NX EX` 原子抢占与 Lua 令牌校验；`AndroidWorkerHeartbeatThread` 独立于 Celery `solo` 执行槽续期，冲突或 Redis 异常在 `@worker_ready` 直接 `SystemExit(1)` 退出，挂载 `@worker_shutdown` 与 `@worker_process_shutdown` 释放锁，失联节点经 `ANDROID_WORKER_OFFLINE_GRACE_SECONDS` 与 Redis 二次确认后收敛设备离线（Redis 故障不误判），同节点扫描增加跨进程 Redis 互斥锁；设备 API 支持定向/全节点聚合扫描（`agg-<uuid>` 过期返回 `404 scan_expired`、`STARTED` 超时收敛 `timed_out`）及管理员设备认领接口 `POST /api/v1/devices/{id}/claim`（带租约保护、`force` 改绑保护与审计日志）。
+  - **全链路执行路由与写门禁（Phase 3）**：用例（低代码 / pytest / AI 自愈重跑 / MCP）、Agent 草稿回放、套件/用例级跨节点 `device_matrix` 拆分、移动端专项测试（入库前校验 + 定时调度）、网络 ADB `connect/disconnect` 及镜像实时控制统一按 `device_id -> worker_id` 路由至 `execution.<worker_id>` / `android.<worker_id>`，Worker 侧二次校验归属、代次与 `DeviceLease`；API 层 `android_precheck` 在 Worker/多节点模式下校验 Redis 节点在线与 `adb_ok`（不再误调 API 主机本机 `adb`）；掉线恢复严格按 `device_id` / 租约绑定 Run 收敛，反向隧道设备隔离至 `tunnel.<slug>` 命名空间；多节点模式下前后端同步阻断无节点身份的 Scrcpy 直连与交互式 Agent 接管，同时保留本地直连模式 Scrcpy 能力。
+  - **前端契约与 Linux 自动发布脚本加固（Phase 4）**：`/api/v1/runtime` 暴露 `adb_scan_mode` 与 `android_multi_node_enabled`；补齐 `DeviceList.vue` / `DeviceMatrixPanel.vue` 节点展示、认领弹窗、`partial_failed` 聚合扫描提示与 `device_id` 断开参数；补齐 `AndroidCaseDrawer.vue` 按 `device_id` 选机与矩阵存储、`AndroidAgentPanel.vue` 多节点禁用提示；加固 `scripts/deploy-linux.ps1` 与 `scripts/deploy-linux.sh`（移除覆盖线上 `ADB_SCAN_MODE: local` 硬编码、改用 `git archive HEAD` 干净打包、无 `pwsh` 或 `ATP_SKIP_DEPLOY=1` 时 `pre-push` 安全放行、跨平台 `npm` 与 `requirements.txt`/`nginx.conf` 变更同步）。
+  - **自动化门禁终验**：`make lint`、`make format-check`（906 文件）、`make mypy`（232 文件）零错误；后端 `make test-backend` **4476 passed, 10 skipped**、`make test-backend-standalone` **468 passed, 0 failed**；前端 `vue-tsc --noEmit`、Vitest **93 文件 528 passed**、`vite build` 全部通过。双机物理实测待在两台 Windows Android Worker 主机上执行。
+
 ## Android 自然语言自动化（2026-11-06 细化，M1–M3 代码完成）
 
 实施依据：[实施清单与接口契约](docs/plans/2026-11-06-android-agent-implementation-backlog.md)。本节登记计划与代码进度；除另有标注外，真机/模拟器验收与 v1 契约冻结仍未完成。
