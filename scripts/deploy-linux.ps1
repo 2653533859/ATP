@@ -41,6 +41,8 @@ param(
   [string]$ServerHost = '192.168.3.196',
   [int]$ServerPort = 2222,
   [string]$ServerUser = 'root',
+  [string]$AdbScanMode = '',
+  [string]$AdbServerSocket = '',
   [switch]$HookMode,
   [switch]$Force,
   [switch]$SkipBuild
@@ -68,8 +70,10 @@ if ($HookMode) {
     exit 0
   }
 
-  $targetBranch = if ($env:PRE_COMMIT_LOCAL_BRANCH) {
-    $env:PRE_COMMIT_LOCAL_BRANCH -replace '^refs/heads/', ''
+  $rawRef = if ($env:PRE_COMMIT_REMOTE_BRANCH) {
+    $env:PRE_COMMIT_REMOTE_BRANCH
+  } elseif ($env:PRE_COMMIT_LOCAL_BRANCH) {
+    $env:PRE_COMMIT_LOCAL_BRANCH
   } else {
     try {
       (& git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null).Trim()
@@ -77,6 +81,7 @@ if ($HookMode) {
       'unknown'
     }
   }
+  $targetBranch = $rawRef -replace '^refs/heads/', '' -replace '^origin/', ''
 
   if ($targetBranch -ne 'main') {
     Log-Info "当前推送分支为 '$targetBranch'（非 'main'），跳过 Linux 服务端部署。"
@@ -130,9 +135,10 @@ try {
   # 4. 前端构建
   if (-not $SkipBuild) {
     Log-Info "执行前端生产构建..."
+    $npmCmd = if (Get-Command npm.cmd -ErrorAction SilentlyContinue) { 'npm.cmd' } else { 'npm' }
     Push-Location $FrontendDir
     try {
-      & npm.cmd run build
+      & $npmCmd run build
       if ($LASTEXITCODE -ne 0) {
         throw "前端构建失败 (exit code $LASTEXITCODE)"
       }
@@ -151,22 +157,12 @@ try {
   $sourceFileName = "source-$currentCommit.tar"
   $frontendFileName = "frontend-dist-$currentCommit.tar.gz"
 
-  # 5. 打包归档
-  Log-Info "打包本地源码与前端产物..."
+  # 5. 打包归档（源码严格使用 git archive 导出指定提交，杜绝混入工作区未提交脏文件或本地 .env）
+  Log-Info "打包已提交源码 ($currentCommit) 与前端产物..."
   Push-Location $RepoRoot
   try {
-    & tar --exclude="backend/.venv*" `
-          --exclude="backend/.local-data*" `
-          --exclude="backend/__pycache__" `
-          --exclude="backend/**/__pycache__" `
-          --exclude="backend/.pytest_cache" `
-          --exclude="backend/.mypy_cache" `
-          --exclude="backend/.ruff_cache" `
-          --exclude="backend/.coverage" `
-          --exclude="backend/coverage.xml" `
-          --exclude="*.pyc" `
-          -cf $sourceFileName backend deploy
-    if ($LASTEXITCODE -ne 0) { throw "打包源码失败" }
+    & git -C $RepoRoot archive --format=tar -o $sourceFileName $currentCommit backend deploy frontend/nginx.conf
+    if ($LASTEXITCODE -ne 0) { throw "git archive 打包源码失败" }
 
     Push-Location $FrontendDir
     try {
@@ -201,6 +197,16 @@ try {
 
   # 8. 远端解包、构建镜像、导入 K3s 并割接 Helm
   Log-Info "远端解包、构建镜像并割接 K3s / Cloud-Web..."
+  $helmConfigLines = ""
+  if (-not [string]::IsNullOrWhiteSpace($AdbScanMode) -or -not [string]::IsNullOrWhiteSpace($AdbServerSocket)) {
+    $helmConfigLines = "config:`n"
+    if (-not [string]::IsNullOrWhiteSpace($AdbScanMode)) {
+      $helmConfigLines += "  ADB_SCAN_MODE: $($AdbScanMode.Trim())`n"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($AdbServerSocket)) {
+      $helmConfigLines += "  ADB_SERVER_SOCKET: $($AdbServerSocket.Trim())`n"
+    }
+  }
   $remoteCommands = @(
     "set -e",
     "cd $releaseDir",
@@ -208,12 +214,14 @@ try {
     "tar -xzf frontend-dist-$currentCommit.tar.gz",
     "printf 'ARG BASE_IMAGE=registry.local/atp/backend:42b8558f
 FROM `${BASE_IMAGE}
+RUN cp /app/requirements.txt /tmp/base-requirements.txt 2>/dev/null || touch /tmp/base-requirements.txt
 COPY backend/ /app/
-RUN chmod 0755 /app/docker-start.sh && find /app -type d -name __pycache__ -exec rm -rf {} +
+RUN if ! cmp -s /tmp/base-requirements.txt /app/requirements.txt; then pip install --no-cache-dir -r /app/requirements.txt; fi && rm -f /tmp/base-requirements.txt && chmod 0755 /app/docker-start.sh && find /app -type d -name __pycache__ -exec rm -rf {} +
 LABEL org.opencontainers.image.revision=$currentCommit
 ' > Dockerfile.overlay",
     "printf 'FROM registry.local/atp/frontend:42b8558f
 RUN rm -rf /usr/share/nginx/html/*
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY dist/ /usr/share/nginx/html/
 LABEL org.opencontainers.image.revision=$currentCommit
 ' > Dockerfile.frontend",
@@ -228,10 +236,7 @@ worker:
   imageTag: $currentCommit
 performanceWorker:
   imageTag: $currentCommit
-config:
-  ADB_SCAN_MODE: local
-  ADB_SERVER_SOCKET: tcp:172.16.102.195:5037
-' > site-image-overrides.yaml",
+$helmConfigLines' > site-image-overrides.yaml",
     "mkdir -p cloud-web",
     "printf 'services:
   atp-web:
