@@ -139,15 +139,19 @@
         <a-col :span="8">
           <a-form-item :label="t('case.drawer.android.target_device')">
             <a-select
-              v-model:value="cfg.device_serial"
+              :value="selectedDeviceOptionValue"
               :placeholder="t('case.drawer.android.select_device')"
               allow-clear
               style="width: 100%"
               :loading="devicesLoading"
+              @change="handleTargetDeviceChange"
             >
-              <a-select-option v-for="device in devices" :key="device.serial" :value="device.serial">
+              <a-select-option v-for="device in devices" :key="device.id" :value="`id:${device.id}`">
                 <a-badge :status="device.status === 'online' ? 'success' : 'default'" />
                 {{ device.brand }} {{ device.model }} ({{ device.serial }})
+                <span v-if="device.worker_hostname || device.worker_id" class="muted">
+                  · {{ device.worker_hostname || device.worker_id }}
+                </span>
               </a-select-option>
             </a-select>
           </a-form-item>
@@ -431,11 +435,12 @@ const form = reactive({
 const datasetBinding = ref<CaseDatasetBindingState>(createCaseDatasetBinding())
 
 const cfg = reactive({
+  device_id: undefined as number | undefined,
   device_serial: undefined as string | undefined,
   apk_id: undefined as number | undefined,
   timeout: 120,
   device_group_id: undefined as number | undefined,
-  device_matrix: [] as Array<{ serial: string }>,
+  device_matrix: [] as Array<{ device_id?: number; serial: string }>,
   record_video: false,
   strict_replay: false,
 })
@@ -475,9 +480,38 @@ const requirementsContent = ref('')
 const savingRequirements = ref(false)
 const initSeq = ref(0)
 
-const selectedDeviceId = computed(() =>
-  devices.value.find((device) => device.serial === cfg.device_serial)?.id ?? null,
-)
+const selectedDeviceId = computed(() => {
+  if (typeof cfg.device_id === 'number' && cfg.device_id > 0) {
+    return cfg.device_id
+  }
+  const matches = devices.value.filter((device) => device.serial === cfg.device_serial)
+  return matches.length === 1 ? matches[0].id : null
+})
+
+const selectedDeviceOptionValue = computed(() => {
+  if (selectedDeviceId.value) {
+    return `id:${selectedDeviceId.value}`
+  }
+  return cfg.device_serial
+})
+
+function handleTargetDeviceChange(value: unknown) {
+  if (!value || typeof value !== 'string') {
+    cfg.device_id = undefined
+    cfg.device_serial = undefined
+    return
+  }
+  if (value.startsWith('id:')) {
+    const id = Number(value.slice(3))
+    const matched = devices.value.find((item) => item.id === id)
+    cfg.device_id = Number.isFinite(id) && id > 0 ? id : undefined
+    cfg.device_serial = matched?.serial
+    return
+  }
+  cfg.device_serial = value
+  const matches = devices.value.filter((item) => item.serial === value)
+  cfg.device_id = matches.length === 1 ? matches[0].id : undefined
+}
 
 function resolveEditMode(config: Record<string, unknown>) {
   if (Array.isArray(config.steps)) {
@@ -509,6 +543,7 @@ function resetDrawerState() {
   form.preconditions = []
   form.postconditions = []
   datasetBinding.value = createCaseDatasetBinding()
+  cfg.device_id = undefined
   cfg.device_serial = undefined
   cfg.device_group_id = undefined
   cfg.apk_id = undefined
@@ -750,6 +785,9 @@ function handleImportHistoryRecord(record: RecordingRecordItem) {
       activeRecordingRecordId.value = null
     }
   }
+  if (record.device_id && !cfg.device_id) {
+    cfg.device_id = record.device_id
+  }
   if (record.device_serial && !cfg.device_serial) {
     cfg.device_serial = record.device_serial
   }
@@ -825,6 +863,7 @@ watch(
       managementSteps.value = detail.steps ?? []
       standardStepsDirty.value = managementSteps.value.length > 0
 
+      cfg.device_id = typeof config.device_id === 'number' ? config.device_id : undefined
       cfg.device_serial = typeof config.device_serial === 'string' ? config.device_serial : undefined
       cfg.device_group_id = typeof config.device_group_id === 'number' ? config.device_group_id : undefined
       cfg.apk_id = typeof config.apk_id === 'number' ? config.apk_id : undefined
@@ -833,8 +872,11 @@ watch(
       cfg.strict_replay = config.strict_replay === true
       cfg.device_matrix = Array.isArray(config.device_matrix)
         ? config.device_matrix
-          .filter((item): item is { serial: string } => Boolean(item && typeof item === 'object' && typeof (item as Record<string, unknown>).serial === 'string'))
-          .map((item) => ({ serial: item.serial }))
+          .filter((item): item is { device_id?: number; serial: string } => Boolean(item && typeof item === 'object' && typeof (item as Record<string, unknown>).serial === 'string'))
+          .map((item) => ({
+            ...(typeof item.device_id === 'number' ? { device_id: item.device_id } : {}),
+            serial: item.serial,
+          }))
         : []
       deviceMatrixEnabled.value = cfg.device_matrix.length > 0
       scriptPath.value = typeof config.script_path === 'string' ? config.script_path : null
@@ -976,8 +1018,14 @@ function buildConfig() {
   if (deviceMatrixEnabled.value && cfg.device_matrix.length) {
     config.device_matrix = cfg.device_matrix.filter((item) => item.serial.trim())
     if (cfg.device_group_id) config.device_group_id = cfg.device_group_id
-  } else if (cfg.device_serial) {
-    config.device_serial = cfg.device_serial
+  } else {
+    const resolvedId = cfg.device_id ?? selectedDeviceId.value ?? undefined
+    if (resolvedId) {
+      config.device_id = resolvedId
+    }
+    if (cfg.device_serial) {
+      config.device_serial = cfg.device_serial
+    }
   }
   if (cfg.apk_id) {
     config.apk_id = cfg.apk_id
@@ -996,13 +1044,17 @@ function buildConfig() {
 }
 
 function addDeviceVariant() {
-  cfg.device_matrix.push({ serial: cfg.device_serial || devices.value[0]?.serial || '' })
+  const defaultDev = (selectedDeviceId.value ? devices.value.find((d) => d.id === selectedDeviceId.value) : undefined) || devices.value[0]
+  cfg.device_matrix.push({
+    ...(defaultDev?.id ? { device_id: defaultDev.id } : {}),
+    serial: cfg.device_serial || defaultDev?.serial || '',
+  })
 }
 
 function applyDeviceGroup(groupId: unknown) {
   const group = deviceGroups.value.find((item) => item.id === Number(groupId))
   if (!group) return
-  cfg.device_matrix = group.devices.map((device) => ({ serial: device.serial }))
+  cfg.device_matrix = group.devices.map((device) => ({ device_id: device.id, serial: device.serial }))
 }
 
 function removeDeviceVariant(index: number) {
@@ -1110,9 +1162,11 @@ async function handlePrecheck() {
   try {
     const config = buildConfig()
     const projectId = Number(route.params.id) || props.projectId || 0
+    const resolvedId = cfg.device_id ?? selectedDeviceId.value ?? undefined
     let res: AndroidPrecheckResponse
     if (localCaseId.value) {
       res = await caseApi.precheck(localCaseId.value, {
+        ...(resolvedId ? { device_id: resolvedId } : {}),
         device_serial: cfg.device_serial,
         steps: lowcodeSteps.value,
         config,
@@ -1120,6 +1174,7 @@ async function handlePrecheck() {
     } else {
       res = await caseApi.precheckAndroidDraft({
         project_id: projectId,
+        ...(resolvedId ? { device_id: resolvedId } : {}),
         device_serial: cfg.device_serial,
         steps: lowcodeSteps.value,
         config,

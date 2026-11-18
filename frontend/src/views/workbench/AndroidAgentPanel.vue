@@ -37,6 +37,14 @@
     />
 
     <a-alert
+      v-else-if="multiNodeDisabled"
+      class="agent-alert"
+      type="info"
+      show-icon
+      message="当前处于多节点 Android Worker 模式，一期暂不支持交互式自然语言会话；历史会话查看、草稿编辑、独立回放与用例发布仍可正常使用。"
+    />
+
+    <a-alert
       v-if="errorMessage"
       class="agent-alert"
       type="error"
@@ -580,6 +588,7 @@ const appInstance = getCurrentInstance()
 const models = ref<AgentVisionModelItem[]>([])
 const modelsLoaded = ref(false)
 const agentDisabled = ref(false)
+const multiNodeDisabled = ref(false)
 
 const sessions = ref<AgentSessionItem[]>([])
 const session = ref<AgentSessionItem | null>(null)
@@ -712,9 +721,10 @@ const packageHint = computed(() => {
 })
 
 const statusValue = computed(() => session.value?.status ?? '')
+const interactiveAllowed = computed(() => !agentDisabled.value && !multiNodeDisabled.value)
 const canCreate = computed(
   () =>
-    !agentDisabled.value &&
+    interactiveAllowed.value &&
     props.canModify &&
     Boolean(props.projectId) &&
     formDeviceId.value !== undefined &&
@@ -722,16 +732,17 @@ const canCreate = computed(
     formGoal.value.trim() !== '' &&
     formOutcome.value.trim() !== '',
 )
-const canStart = computed(() => !agentDisabled.value && props.canModify && statusValue.value === 'created')
+const canStart = computed(() => interactiveAllowed.value && props.canModify && statusValue.value === 'created')
 const canPause = computed(() => props.canModify && ['running', 'prechecking'].includes(statusValue.value))
 const canTakeover = computed(
   () =>
+    interactiveAllowed.value &&
     props.canModify &&
     ['prechecking', 'running', 'pause_requested', 'paused'].includes(statusValue.value) &&
     session.value?.controller !== 'manual',
 )
-const canRunLoop = computed(() => !agentDisabled.value && props.canModify && statusValue.value === 'running')
-const canResume = computed(() => !agentDisabled.value && props.canModify && statusValue.value === 'paused')
+const canRunLoop = computed(() => interactiveAllowed.value && props.canModify && statusValue.value === 'running')
+const canResume = computed(() => interactiveAllowed.value && props.canModify && statusValue.value === 'paused')
 const canCancel = computed(
   () => props.canModify && !['completed', 'failed', 'cancelled'].includes(statusValue.value),
 )
@@ -739,7 +750,7 @@ const canComplete = computed(
   () => props.canModify && ['running', 'paused'].includes(statusValue.value),
 )
 const showManualConsole = computed(
-  () => props.canModify && statusValue.value === 'paused' && session.value?.controller === 'manual',
+  () => interactiveAllowed.value && props.canModify && statusValue.value === 'paused' && session.value?.controller === 'manual',
 )
 const hasValidCompleteAssertion = computed(() =>
   completeAssertions.value.some((item) => item.resource_id.trim() !== ''),
@@ -857,6 +868,9 @@ function checkRuntimeFeatureFlag() {
     const mode = getRuntimeMode()
     if (mode?.mode === 'local' && Array.isArray(mode.features) && !mode.features.includes('android_agent')) {
       agentDisabled.value = true
+    }
+    if (mode?.android_multi_node_enabled) {
+      multiNodeDisabled.value = true
     }
   } catch {
     // 测试环境未注入完整 runtimeMode 时忽略

@@ -214,6 +214,7 @@
       v-show="viewMode === 'card'"
       :devices="displayDevices"
       @edit="openEdit"
+      @claim="openClaimModal"
       @delete="handleDelete"
       @use="openMirror"
       @disconnect="handleRemoteDisconnect"
@@ -244,6 +245,12 @@
               <a-tag v-if="record.serial && record.serial.includes(':')" color="blue" style="margin-left: 6px; font-size: 11px">
                 远程 ADB
               </a-tag>
+              <a-tag v-if="record.worker_hostname || record.worker_id" style="margin-left: 4px; font-size: 11px">
+                {{ record.worker_hostname || record.worker_id }}
+              </a-tag>
+              <a-tag v-else color="orange" style="margin-left: 4px; font-size: 11px">
+                待认领
+              </a-tag>
             </div>
             <div style="color: var(--c-text-tertiary); font-size: 12px">{{ record.serial }}</div>
           </template>
@@ -268,10 +275,18 @@
                 <EyeOutlined /> {{ t('device.mirror') }}
               </a-button>
               <a-button type="link" size="small" @click="openEdit(asDevice(record))">{{ t('common.edit') }}</a-button>
+              <a-button
+                v-if="!record.worker_id"
+                type="link"
+                size="small"
+                @click="openClaimModal(asDevice(record))"
+              >
+                认领
+              </a-button>
               <a-popconfirm
                 v-if="record.serial && record.serial.includes(':')"
                 title="确定要断开该远程设备的 ADB 连接吗？"
-                @confirm="handleRemoteDisconnect(record.serial)"
+                @confirm="handleRemoteDisconnect(asDevice(record))"
               >
                 <a-button type="link" size="small" style="color: #fa8c16">
                   <DisconnectOutlined /> 断开
@@ -325,6 +340,34 @@
       :can-modify="true"
       @close="closeMirror"
     />
+
+    <!-- 认领历史设备弹窗 -->
+    <a-modal
+      v-model:open="claimOpen"
+      title="认领设备归属节点"
+      ok-text="确认认领"
+      :cancel-text="t('common.cancel')"
+      :confirm-loading="claiming"
+      @ok="handleClaimSubmit"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="目标设备">
+          <a-input :value="claimTarget ? `${claimTarget.brand || ''} ${claimTarget.model || ''} (${claimTarget.serial})`.trim() : ''" disabled />
+        </a-form-item>
+        <a-form-item label="归属 Android Worker 节点" required>
+          <a-select
+            v-if="workers.length > 0"
+            v-model:value="claimForm.worker_id"
+            placeholder="请选择在线 ADB 节点"
+          >
+            <a-select-option v-for="w in workers" :key="w.worker_id" :value="w.worker_id">
+              {{ w.hostname || w.worker_id }} ({{ w.worker_id }})
+            </a-select-option>
+          </a-select>
+          <a-input v-else v-model:value="claimForm.worker_id" placeholder="输入目标节点 worker_id（如 android-win-PC）" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <!-- 接入远程设备弹窗 -->
     <a-modal
@@ -495,6 +538,11 @@ const groupForm = ref({ name: '', description: '', device_ids: [] as number[] })
 const mirrorOpen = ref(false)
 const mirrorDevice = ref<DeviceItem | null>(null)
 
+const claimOpen = ref(false)
+const claiming = ref(false)
+const claimTarget = ref<DeviceItem | null>(null)
+const claimForm = ref({ worker_id: '' })
+
 const remoteConnectModalVisible = ref(false)
 const remoteConnectTab = ref('direct')
 const remoteConnecting = ref(false)
@@ -584,16 +632,50 @@ async function handleRemoteConnect() {
   }
 }
 
-async function handleRemoteDisconnect(serial: string) {
+async function handleRemoteDisconnect(target: DeviceItem | string) {
+  const serial = typeof target === 'string' ? target : target.serial
+  const deviceId = typeof target === 'string' ? undefined : target.id
+  const workerId = typeof target === 'string' ? selectedWorkerId.value : (target.worker_id || selectedWorkerId.value)
   try {
     await deviceApi.disconnect({
       serial,
-      ...(selectedWorkerId.value ? { worker_id: selectedWorkerId.value } : {}),
+      ...(deviceId ? { device_id: deviceId } : {}),
+      ...(workerId ? { worker_id: workerId } : {}),
     })
     message.success(`已断开远程设备 ${serial}`)
     await loadDevices()
   } catch (err: any) {
-    message.error(`断开连接失败: ${err?.message || err}`)
+    message.error(`断开连接失败: ${err?.response?.data?.detail || err?.message || err}`)
+  }
+}
+
+function openClaimModal(device: DeviceItem) {
+  claimTarget.value = device
+  claimForm.value = { worker_id: selectedWorkerId.value || workers.value[0]?.worker_id || '' }
+  claimOpen.value = true
+}
+
+async function handleClaimSubmit() {
+  if (!claimTarget.value) return
+  const wid = claimForm.value.worker_id.trim()
+  if (!wid) {
+    ;(message.warning ?? message.info)('请选择或输入目标 Android Worker 节点 ID')
+    return
+  }
+  claiming.value = true
+  try {
+    const matched = workers.value.find((w) => w.worker_id === wid)
+    await deviceApi.claim(claimTarget.value.id, {
+      worker_id: wid,
+      ...(matched?.hostname ? { worker_hostname: matched.hostname } : {}),
+    })
+    message.success(`设备 ${claimTarget.value.serial} 已认领至节点 ${wid}`)
+    claimOpen.value = false
+    await loadDevices()
+  } catch (err: any) {
+    message.error(err?.response?.data?.detail || err?.message || '认领失败')
+  } finally {
+    claiming.value = false
   }
 }
 
@@ -857,7 +939,14 @@ async function handleScan() {
       }
       message.info(t('device.msg.scan_queued'))
       await waitForScan(result.scan_id)
+    } else if (result.status === 'partial_failed') {
+      await loadDevices()
+      ;(message.warning ?? message.info)(`部分节点扫描失败（失败 ${result.failed_workers ?? 1}/${result.total_workers ?? 1}）`)
+      markSynced()
     } else {
+      if (selectedWorkerId.value || statusFilter.value) {
+        await loadDevices()
+      }
       const onlineCount = devices.value.filter((d) => d.status !== 'offline').length
       message.success(t('device.msg.scan_success', { count: onlineCount }))
       markSynced()
@@ -875,9 +964,27 @@ async function waitForScan(scanId: string) {
     await new Promise((resolve) => setTimeout(resolve, 500))
     const status = await deviceApi.scanStatus(scanId)
     if (status.status === 'completed') {
-      devices.value = status.devices
-      const onlineCount = status.devices.filter((d) => d.status !== 'offline').length
+      if (selectedWorkerId.value || statusFilter.value) {
+        await loadDevices()
+      } else {
+        devices.value = status.devices
+      }
+      const onlineCount = devices.value.filter((d) => d.status !== 'offline').length
       message.success(t('device.msg.scan_success', { count: onlineCount }))
+      markSynced()
+      return
+    }
+    if (status.status === 'partial_failed') {
+      if (selectedWorkerId.value || statusFilter.value) {
+        await loadDevices()
+      } else {
+        devices.value = status.devices
+      }
+      const failedItems = (status.items || []).filter((item) => item.status !== 'completed')
+      const detail = failedItems.map((item) => `${item.worker_id}: ${item.error || item.status}`).join('；')
+      ;(message.warning ?? message.info)(
+        detail ? `部分节点扫描异常（${detail}）` : '部分节点扫描失败，已更新成功节点设备',
+      )
       markSynced()
       return
     }

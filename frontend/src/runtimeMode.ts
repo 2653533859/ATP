@@ -3,6 +3,8 @@ export interface RuntimeMode {
   database: 'sqlite' | 'postgresql'
   storage: 'filesystem' | 'minio'
   execution: 'local' | 'celery'
+  adb_scan_mode?: string
+  android_multi_node_enabled?: boolean
   features?: string[]
 }
 

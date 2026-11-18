@@ -36,7 +36,7 @@
           <div class="spec-row"><span class="spec-label">系统</span><span class="spec-val">Android {{ device.os_version || '--' }}</span></div>
           <div class="spec-row"><span class="spec-label">分辨率</span><span class="spec-val">{{ device.resolution || '--' }}</span></div>
           <div class="spec-row"><span class="spec-label">最后使用人</span><span class="spec-val user-val">--</span></div>
-          <div class="spec-row"><span class="spec-label">Agent</span><span class="spec-val agent-val">--</span></div>
+          <div class="spec-row"><span class="spec-label">节点</span><span class="spec-val agent-val">{{ device.worker_hostname || device.worker_id || '--' }}</span></div>
           <div class="spec-row"><span class="spec-label">备注</span><span class="spec-val remark-val">{{ device.description || '--' }}</span></div>
         </div>
       </div>
@@ -44,13 +44,22 @@
       <div class="card-footer-actions">
         <div class="minor-actions">
           <a-button type="link" size="small" class="footer-link" @click="emit('edit', device)">详情</a-button>
+          <a-button
+            v-if="!device.worker_id"
+            type="link"
+            size="small"
+            class="footer-link"
+            @click="emit('claim', device)"
+          >
+            认领
+          </a-button>
           <a-tooltip title="后端暂未提供远程重启能力">
             <a-button type="link" size="small" class="footer-link" disabled>重启</a-button>
           </a-tooltip>
           <a-popconfirm
             v-if="device.serial && device.serial.includes(':')"
             title="确定要断开该远程设备的 ADB 连接吗？"
-            @confirm="emit('disconnect', device.serial)"
+            @confirm="emit('disconnect', device)"
           >
             <a-button type="link" size="small" class="footer-link" style="color: #fa8c16">断开</a-button>
           </a-popconfirm>
@@ -82,9 +91,10 @@ import type { DeviceItem, DeviceStatus } from '@/api'
 defineProps<{ devices: DeviceItem[] }>()
 const emit = defineEmits<{
   edit: [device: DeviceItem]
+  claim: [device: DeviceItem]
   delete: [id: number]
   use: [device: DeviceItem]
-  disconnect: [serial: string]
+  disconnect: [device: DeviceItem]
 }>()
 const { t } = useI18n()
 

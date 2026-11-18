@@ -712,4 +712,49 @@ describe('DeviceMirrorModal', () => {
     expect(input.attributes('type')).toBe('text')
     wrapper.unmount()
   })
+
+  it('skips Scrcpy WebSocket for worker-owned devices while preserving Scrcpy for local devices', async () => {
+    vi.useFakeTimers()
+    const OriginalWebSocket = globalThis.WebSocket
+    const wsUrls: string[] = []
+    class FakeWS {
+      static OPEN = 1
+      readyState = 1
+      binaryType = 'arraybuffer'
+      onopen: (() => void) | null = null
+      onclose: (() => void) | null = null
+      onerror: (() => void) | null = null
+      onmessage: ((e: any) => void) | null = null
+      constructor(url: string) {
+        wsUrls.push(url)
+      }
+      send() {}
+      close() {}
+    }
+    globalThis.WebSocket = FakeWS as unknown as typeof WebSocket
+    try {
+      const workerWrapper = mountModal({
+        open: true,
+        device: { id: 11, serial: 'DEV-WIN-A', worker_id: 'win-a', status: 'online' },
+        leaseToken: 'lease-worker',
+      })
+      await vi.advanceTimersByTimeAsync(80)
+      await flushPromises()
+      expect(wsUrls).toEqual([])
+      expect(workerWrapper.find('.mirror-img').exists()).toBe(true)
+      workerWrapper.unmount()
+
+      const localWrapper = mountModal({
+        open: true,
+        device: { id: 12, serial: 'DEV-LOCAL', worker_id: 'local', status: 'online' },
+        leaseToken: 'lease-local',
+      })
+      await vi.advanceTimersByTimeAsync(80)
+      await flushPromises()
+      expect(wsUrls.some((url) => url.includes('/ws/scrcpy/DEV-LOCAL'))).toBe(true)
+      localWrapper.unmount()
+    } finally {
+      globalThis.WebSocket = OriginalWebSocket
+    }
+  })
 })

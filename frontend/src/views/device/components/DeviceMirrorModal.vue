@@ -289,6 +289,7 @@ import {
 } from '@ant-design/icons-vue'
 import { deviceApi, type DeviceItem } from '@/api'
 import { isWebCodecsSupported, useWebCodecsDecoder } from '@/composables/useWebCodecsDecoder'
+import { getRuntimeMode } from '@/runtimeMode'
 import {
   buildAndroidAutoAssertionSteps,
   buildAndroidBestAssertionStepFromTarget,
@@ -677,7 +678,14 @@ function triggerScreenshotFallback(session: number) {
 function initScrcpyStream(serial: string) {
   closeScrcpyStream()
   const activeSession = mirrorSession
-  if (props.device?.worker_id) {
+  const runtime = getRuntimeMode()
+  const deviceWorkerId = props.device?.worker_id?.trim()
+  const skipScrcpyForWorkerMode = Boolean(
+    runtime?.android_multi_node_enabled ||
+    runtime?.adb_scan_mode === 'worker' ||
+    (deviceWorkerId && deviceWorkerId !== 'local'),
+  )
+  if (skipScrcpyForWorkerMode) {
     streamFallbackReason.value = '当前节点模式使用截图轮询，已跳过 Scrcpy 直连通道'
     triggerScreenshotFallback(activeSession)
     return

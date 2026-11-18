@@ -202,6 +202,38 @@ describe('DeviceList mount', () => {
     }
   })
 
+  it('handles partial_failed aggregate worker scan without throwing fatal error', async () => {
+    vi.useFakeTimers()
+    try {
+      deviceScan.mockResolvedValue({ status: 'queued', scan_id: 'agg-550e8400-e29b-41d4-a716-446655440000', devices: [] })
+      deviceScanStatus.mockResolvedValueOnce({
+        status: 'partial_failed',
+        scan_id: 'agg-550e8400-e29b-41d4-a716-446655440000',
+        completed_workers: 1,
+        failed_workers: 1,
+        total_workers: 2,
+        devices: DEVICES,
+      })
+
+      const wrapper = mountDeviceList()
+      await flushPromises()
+      deviceList.mockClear()
+      messageInfo.mockClear()
+
+      const clickPromise = wrapper.findAll('button')[0].trigger('click')
+      await flushPromises()
+      await vi.advanceTimersByTimeAsync(500)
+      await clickPromise
+
+      expect(messageError).not.toHaveBeenCalled()
+      expect(messageInfo).toHaveBeenCalled()
+      expect(wrapper.findAll('.device-card-item')).toHaveLength(3)
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('deletes a device via the row action and reloads', async () => {
     const wrapper = mountDeviceList()
     await flushPromises()

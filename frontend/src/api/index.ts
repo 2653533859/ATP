@@ -2097,9 +2097,9 @@ export const caseApi = {
   reactivate: (id: number, data?: { comment?: string }) => http.post<unknown, CaseDetailItem>(`/cases/${id}/reactivate`, data ?? {}),
   run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
     http.post<unknown, CaseRunStartResponse>(`/cases/${id}/run`, data ?? {}),
-  precheck: (id: number, data?: { device_serial?: string; env_id?: number; extra_vars?: object; steps?: unknown[]; config?: object }) =>
+  precheck: (id: number, data?: { device_id?: number; device_serial?: string; env_id?: number; extra_vars?: object; steps?: unknown[]; config?: object }) =>
     http.post<unknown, AndroidPrecheckResponse>(`/cases/${id}/precheck`, data ?? {}),
-  precheckAndroidDraft: (data: { project_id: number; device_serial?: string; env_id?: number; extra_vars?: object; steps?: unknown[]; config?: object }) =>
+  precheckAndroidDraft: (data: { project_id: number; device_id?: number; device_serial?: string; env_id?: number; extra_vars?: object; steps?: unknown[]; config?: object }) =>
     http.post<unknown, AndroidPrecheckResponse>('/cases/android/precheck', data),
   listSnapshots: (caseId: number, params?: { page?: number; page_size?: number }) =>
     http.get<unknown, { items: CaseSnapshotItem[]; total: number; page: number; page_size: number }>(
@@ -2431,7 +2431,7 @@ export const deviceApi = {
     http.post<unknown, DeviceScanResult>('/devices/scan', undefined, {
       params: workerId ? { worker_id: workerId } : undefined,
     }),
-  claim: (id: number, data: { worker_id: string; worker_hostname?: string }) =>
+  claim: (id: number, data: { worker_id: string; worker_hostname?: string; force?: boolean }) =>
     http.post<unknown, DeviceItem>(`/devices/${id}/claim`, data),
   scanStatus: (scanId: string) => http.get<unknown, DeviceScanResult>(`/devices/scan/${scanId}`),
   get: (id: number) => http.get('/devices/' + id),
