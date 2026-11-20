@@ -142,6 +142,8 @@ class Settings(BaseSettings):
     ANDROID_WORKER_HEARTBEAT_SECONDS: int = 15
     ANDROID_WORKER_TTL_SECONDS: int = 45
     ANDROID_WORKER_OFFLINE_GRACE_SECONDS: int = 15
+    # 仅绑定 127.0.0.1 的只读身份回环端口，供同机浏览器自动识别当前电脑的 Android Worker；设为 0 关闭
+    ANDROID_WORKER_LOCAL_IDENTITY_PORT: int = 17321
     # ADB 自愈：执行器检测设备不可达时是否自动 disconnect/connect 重试（仅对 ip:port serial 生效）
     ADB_RECONNECT_ENABLED: bool = True
     ADB_RECONNECT_MAX_ATTEMPTS: int = 3  # ensure_reachable 总尝试次数（含首次）

@@ -4,7 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DeviceList from './DeviceList.vue'
 
-const { deviceList, deviceWorkers, deviceScan, deviceScanStatus, deviceUpdate, deviceDelete, messageError, messageInfo, messageSuccess } = vi.hoisted(() => ({
+const {
+  deviceList,
+  deviceWorkers,
+  deviceScan,
+  deviceScanStatus,
+  deviceUpdate,
+  deviceDelete,
+  messageError,
+  messageInfo,
+  messageSuccess,
+  probeLocalAndroidWorker,
+} = vi.hoisted(() => ({
   deviceList: vi.fn(),
   deviceWorkers: vi.fn(),
   deviceScan: vi.fn(),
@@ -14,10 +25,14 @@ const { deviceList, deviceWorkers, deviceScan, deviceScanStatus, deviceUpdate, d
   messageError: vi.fn(),
   messageInfo: vi.fn(),
   messageSuccess: vi.fn(),
+  probeLocalAndroidWorker: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('ant-design-vue', () => ({ message: { error: messageError, info: messageInfo, success: messageSuccess } }))
+vi.mock('@/utils/localAndroidWorker', () => ({
+  probeLocalAndroidWorker,
+}))
 vi.mock('@/api', () => ({
     deviceApi: {
       list: deviceList,
@@ -105,6 +120,8 @@ enableAutoUnmount(afterEach)
 beforeEach(() => {
   vi.unstubAllEnvs()
   vi.clearAllMocks()
+  window.localStorage.clear()
+  probeLocalAndroidWorker.mockResolvedValue(null)
   deviceList.mockResolvedValue(DEVICES)
   deviceWorkers.mockResolvedValue([])
   deviceScan.mockResolvedValue({ status: 'completed', scan_id: null, devices: DEVICES })
@@ -252,6 +269,29 @@ describe('DeviceList mount', () => {
     mountDeviceList()
     await flushPromises()
     expect(messageError).toHaveBeenCalled()
+  })
+
+  it('auto-selects the local Android Worker when loopback identity matches an online worker', async () => {
+    deviceWorkers.mockResolvedValue([
+      { worker_id: 'android-win-other', hostname: 'OTHER', status: 'online' },
+      { worker_id: 'android-win-local', hostname: 'LOCAL-PC', status: 'online' },
+    ])
+    probeLocalAndroidWorker.mockResolvedValue({
+      worker_id: 'android-win-local',
+      hostname: 'LOCAL-PC',
+      adb_ok: true,
+    })
+
+    const wrapper = mountDeviceList()
+    await flushPromises()
+
+    expect(window.localStorage.getItem('atp:selected_android_worker_id')).toBe('android-win-local')
+    expect(deviceList).toHaveBeenLastCalledWith({ worker_id: 'android-win-local' })
+    expect(wrapper.text()).toContain('本机 ADB: android-win-local')
+
+    await wrapper.findAll('button')[0].trigger('click')
+    await flushPromises()
+    expect(deviceScan).toHaveBeenCalledWith('android-win-local')
   })
 })
 

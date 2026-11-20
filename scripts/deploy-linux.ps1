@@ -161,7 +161,7 @@ try {
   Log-Info "打包已提交源码 ($currentCommit) 与前端产物..."
   Push-Location $RepoRoot
   try {
-    & git -C $RepoRoot archive --format=tar -o $sourceFileName $currentCommit backend deploy frontend/nginx.conf
+    & git -C $RepoRoot archive --format=tar -o $sourceFileName $currentCommit backend deploy
     if ($LASTEXITCODE -ne 0) { throw "git archive 打包源码失败" }
 
     Push-Location $FrontendDir
@@ -196,6 +196,7 @@ try {
   }
 
   # 8. 远端解包、构建镜像、导入 K3s 并割接 Helm
+  # 等待 K3s 各核心 Deployment 滚动完成后再启动 cloud-web，避开并发网络规则竞争。
   Log-Info "远端解包、构建镜像并割接 K3s / Cloud-Web..."
   $helmConfigLines = ""
   if (-not [string]::IsNullOrWhiteSpace($AdbScanMode) -or -not [string]::IsNullOrWhiteSpace($AdbServerSocket)) {
@@ -208,7 +209,7 @@ try {
     }
   }
   $remoteCommands = @(
-    "set -e",
+    "set -eo pipefail",
     "cd $releaseDir",
     "tar -xf source-$currentCommit.tar",
     "tar -xzf frontend-dist-$currentCommit.tar.gz",
@@ -221,7 +222,6 @@ LABEL org.opencontainers.image.revision=$currentCommit
 ' > Dockerfile.overlay",
     "printf 'FROM registry.local/atp/frontend:42b8558f
 RUN rm -rf /usr/share/nginx/html/*
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY dist/ /usr/share/nginx/html/
 LABEL org.opencontainers.image.revision=$currentCommit
 ' > Dockerfile.frontend",
@@ -262,9 +262,10 @@ ATP_WEB_PORT=8080
     "docker save registry.local/atp/backend:$currentCommit | k3s ctr images import -",
     "docker save registry.local/atp/worker:$currentCommit | k3s ctr images import -",
     "helm upgrade atp-single-node deploy/helm/atp -n atp-single-node --reuse-values -f site-image-overrides.yaml | tee helm-upgrade.log",
-    "cd cloud-web && docker compose up -d",
     "kubectl -n atp-single-node rollout status deployment/atp-single-node-atp-backend --timeout=120s",
-    "kubectl -n atp-single-node rollout status deployment/atp-single-node-atp-worker --timeout=120s"
+    "kubectl -n atp-single-node rollout status deployment/atp-single-node-atp-worker --timeout=120s",
+    "kubectl -n atp-single-node rollout status deployment/atp-single-node-atp-beat --timeout=120s",
+    "(cd cloud-web && docker compose up -d)"
   ) -join " && "
 
   & ssh @sshOpts $sshTarget $remoteCommands
@@ -274,10 +275,12 @@ ATP_WEB_PORT=8080
 
   # 9. 探针验证
   Log-Info "执行线上服务健康探针..."
-  $probeCmd = "curl -sS -f http://127.0.0.1:8000/health > /dev/null && curl -sS -f http://127.0.0.1:8000/api/v1/runtime > /dev/null && curl -sS -f -I http://192.168.3.196:8080/ > /dev/null && echo 'PROBE_ALL_OK'"
-  $probeOutput = (& ssh @sshOpts $sshTarget $probeCmd).Trim()
-  if ($probeOutput -notmatch 'PROBE_ALL_OK') {
-    throw "线上健康探针未通过"
+  $probeCmd = "curl -sS -f --retry 5 --retry-delay 1 --retry-connrefused http://127.0.0.1:8000/health > /dev/null && curl -sS -f --retry 5 --retry-delay 1 --retry-connrefused http://127.0.0.1:8000/api/v1/runtime > /dev/null && curl -sS -f --retry 5 --retry-delay 1 --retry-connrefused -I http://192.168.3.196:8080/ > /dev/null && curl -sS -f --retry 5 --retry-delay 1 --retry-connrefused http://192.168.3.196:8080/api/v1/runtime > /dev/null && echo 'PROBE_ALL_OK'"
+  $probeRaw = & ssh @sshOpts $sshTarget $probeCmd
+  $probeExit = $LASTEXITCODE
+  $probeOutput = (($probeRaw | ForEach-Object { "$_" }) -join "`n").Trim()
+  if ($probeExit -ne 0 -or $probeOutput -notmatch 'PROBE_ALL_OK') {
+    throw "线上健康探针未通过 (exit=$probeExit)"
   }
 
   Log-Ok "服务端已成功发布并验证通过！版本: $currentCommit"

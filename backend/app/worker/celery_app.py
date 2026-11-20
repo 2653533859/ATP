@@ -243,19 +243,22 @@ def _schedule_performance_node_heartbeat(**_kwargs):
 
 
 _android_heartbeat_thread = None
+_android_local_identity_server = None
 
 
 @worker_ready.connect
 def _schedule_android_worker_heartbeat(sender=None, **_kwargs):
     """Start an independent daemon heartbeat thread for explicitly identified Android Workers."""
-    global _android_heartbeat_thread
+    global _android_heartbeat_thread, _android_local_identity_server
     worker_id = settings.ANDROID_WORKER_ID.strip()
     if not worker_id:
         return
+    from app.services.android_worker_local_identity import AndroidWorkerLocalIdentityServer
     from app.services.android_worker_registry import (
         AndroidWorkerHeartbeatThread,
         claim_android_worker_sync,
         generate_instance_identity,
+        get_current_worker_generation,
         is_slot_busy,
         mark_worker_runtime_conflict,
         normalize_worker_id,
@@ -280,6 +283,10 @@ def _schedule_android_worker_heartbeat(sender=None, **_kwargs):
         set_current_worker_runtime(normalized_id, generation, token)
 
         def _stop_conflicted_worker() -> None:
+            global _android_local_identity_server
+            if _android_local_identity_server is not None:
+                _android_local_identity_server.stop()
+                _android_local_identity_server = None
             logger.critical(
                 "Android Worker '%s' lost registry ownership to another instance; stopping consumer",
                 normalized_id,
@@ -309,6 +316,16 @@ def _schedule_android_worker_heartbeat(sender=None, **_kwargs):
         thread._initialized = True
         thread.start()
         _android_heartbeat_thread = thread
+        identity_port = int(settings.ANDROID_WORKER_LOCAL_IDENTITY_PORT)
+        if identity_port > 0:
+            identity_server = AndroidWorkerLocalIdentityServer(
+                worker_id=normalized_id,
+                queues=queues,
+                port=identity_port,
+                generation_fn=get_current_worker_generation,
+            )
+            if identity_server.start():
+                _android_local_identity_server = identity_server
     except Exception as exc:
         mark_worker_runtime_conflict()
         if client is not None:
@@ -327,7 +344,10 @@ def _schedule_android_worker_heartbeat(sender=None, **_kwargs):
 @worker_shutdown.connect
 @worker_process_shutdown.connect
 def _shutdown_android_worker_heartbeat(**_kwargs):
-    global _android_heartbeat_thread
+    global _android_heartbeat_thread, _android_local_identity_server
+    if _android_local_identity_server is not None:
+        _android_local_identity_server.stop()
+        _android_local_identity_server = None
     if _android_heartbeat_thread is not None:
         _android_heartbeat_thread.stop(release=True)
         _android_heartbeat_thread = None

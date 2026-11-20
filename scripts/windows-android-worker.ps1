@@ -63,6 +63,10 @@ function Get-DotEnvValues {
       if ($value.Length -ge 2 -and (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'")))) {
         $value = $value.Substring(1, $value.Length - 2)
       }
+      # Never let an exported Linux container PATH/HOME overwrite the Windows host environment.
+      if ($key -in @('PATH', 'HOME') -and $value.StartsWith('/')) {
+        continue
+      }
       $values[$key] = $value
     }
   }
@@ -131,7 +135,7 @@ function Get-WorkerProcess {
   }
 
   $commandLine = [string]$process.CommandLine
-  if ($commandLine -notmatch 'app\.worker\.celery_app\s+worker' -or $commandLine -notmatch 'android,mobile_special') {
+  if ($commandLine -notmatch 'app\.worker\.celery_app\s+worker' -or $commandLine -notmatch '(?:-Q|--queues)\s+"?android(?:\.|,)') {
     Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue
     return $null
   }
@@ -378,7 +382,23 @@ function Show-Status {
     Write-Host 'Windows Android Worker: stopped'
   } else {
     Write-Host "Windows Android Worker: running (PID $($process.ProcessId))"
-    Write-Host "Queues: $QueueList"
+    $activeQueues = if ([string]$process.CommandLine -match '(?:-Q|--queues)\s+([^\s]+)') { $Matches[1].Trim('"') } else { $QueueList }
+    Write-Host "Queues: $activeQueues"
+  }
+
+  $values = Get-DotEnvValues
+  $identityPort = if ($values.ContainsKey('ANDROID_WORKER_LOCAL_IDENTITY_PORT') -and -not [string]::IsNullOrWhiteSpace($values['ANDROID_WORKER_LOCAL_IDENTITY_PORT'])) {
+    $values['ANDROID_WORKER_LOCAL_IDENTITY_PORT']
+  } else {
+    '17321'
+  }
+  if ($identityPort -ne '0') {
+    try {
+      $identityResp = Invoke-RestMethod -Uri "http://127.0.0.1:$identityPort/identity" -TimeoutSec 2
+      Write-Host "Local identity: http://127.0.0.1:$identityPort/identity -> worker_id=$($identityResp.worker_id) adb_ok=$($identityResp.adb_ok)"
+    } catch {
+      Write-Host "Local identity: unavailable on http://127.0.0.1:$identityPort/identity"
+    }
   }
 
   $adb = Get-Command adb.exe -ErrorAction SilentlyContinue

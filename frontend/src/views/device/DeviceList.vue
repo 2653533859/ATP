@@ -51,6 +51,20 @@
           {{ workers.map((worker) => worker.worker_id).join(', ') }} · {{ t('device.worker.online') }}
         </span>
         <span v-else class="worker-offline">{{ t('device.worker.offline') }}</span>
+        <a-tag
+          v-if="localWorkerIdentity && isLocalWorkerOnline"
+          color="green"
+          style="margin-left: 8px; font-size: 11px"
+        >
+          本机 ADB: {{ localWorkerIdentity.worker_id }}
+        </a-tag>
+        <a-tag
+          v-else-if="localWorkerIdentity && !isLocalWorkerOnline"
+          color="orange"
+          style="margin-left: 8px; font-size: 11px"
+        >
+          本机 Worker ({{ localWorkerIdentity.worker_id }}) 未注册到当前服务端
+        </a-tag>
       </div>
       <div class="group-chips">
         <span class="group-label">设备组:</span>
@@ -162,7 +176,7 @@
             :key="worker.worker_id"
             :value="worker.worker_id"
           >
-            {{ worker.hostname || worker.worker_id }} ({{ worker.worker_id }})
+            {{ worker.hostname || worker.worker_id }} ({{ worker.worker_id }}){{ localWorkerIdentity?.worker_id === worker.worker_id ? ' [本机]' : '' }}
           </a-select-option>
         </a-select>
         <a-select
@@ -499,6 +513,7 @@ import { useI18n } from 'vue-i18n'
 import { deviceApi } from '@/api'
 import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import type { AndroidWorkerItem, DeviceGroupItem, DeviceItem, DeviceStatus, RemoteAgentItem } from '@/api'
+import { probeLocalAndroidWorker, type LocalAndroidWorkerIdentity } from '@/utils/localAndroidWorker'
 import DeviceMatrixPanel from './components/DeviceMatrixPanel.vue'
 import DeviceMirrorModal from './components/DeviceMirrorModal.vue'
 
@@ -515,6 +530,13 @@ const SELECTED_WORKER_STORAGE_KEY = 'atp:selected_android_worker_id'
 const statusFilter = ref<string | undefined>(undefined)
 const selectedWorkerId = ref<string | undefined>(
   typeof window !== 'undefined' ? (window.localStorage.getItem(SELECTED_WORKER_STORAGE_KEY) || undefined) : undefined,
+)
+const localWorkerIdentity = ref<LocalAndroidWorkerIdentity | null>(null)
+const userManuallySelectedWorker = ref(false)
+const isLocalWorkerOnline = computed(
+  () =>
+    !!localWorkerIdentity.value &&
+    workers.value.some((w) => w.worker_id === localWorkerIdentity.value?.worker_id),
 )
 const keyword = ref('')
 
@@ -769,6 +791,7 @@ const DEVICE_POLL_INTERVAL_MS = 15000
 let deviceLoadSequence = 0
 
 function handleWorkerChange(value: unknown) {
+  userManuallySelectedWorker.value = true
   selectedWorkerId.value = typeof value === 'string' && value.trim() ? value : undefined
   if (typeof window !== 'undefined') {
     if (selectedWorkerId.value) {
@@ -888,13 +911,32 @@ function getPrototypeMockDevices(): DeviceItem[] {
 
 async function loadWorkers() {
   try {
-    workers.value = await deviceApi.workers()
+    const [remoteWorkers, localIdentity] = await Promise.all([
+      deviceApi.workers(),
+      probeLocalAndroidWorker(),
+    ])
+    workers.value = remoteWorkers
+    localWorkerIdentity.value = localIdentity
+
+    const localOnline =
+      !!localIdentity && remoteWorkers.some((w) => w.worker_id === localIdentity.worker_id)
+    if (localOnline && localIdentity && !userManuallySelectedWorker.value) {
+      if (selectedWorkerId.value !== localIdentity.worker_id) {
+        selectedWorkerId.value = localIdentity.worker_id
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(SELECTED_WORKER_STORAGE_KEY, localIdentity.worker_id)
+        }
+        void loadDevices()
+      }
+      return
+    }
+
     if (
       selectedWorkerId.value &&
       workers.value.length > 0 &&
       !workers.value.some((w) => w.worker_id === selectedWorkerId.value)
     ) {
-      message.warning(`已记忆的 ADB 节点 ${selectedWorkerId.value} 当前不在线，请重新选择`)
+      ;(message.warning ?? message.info)(`已记忆的 ADB 节点 ${selectedWorkerId.value} 当前不在线，请重新选择`)
     }
   } catch (_e) {
     workers.value = []
