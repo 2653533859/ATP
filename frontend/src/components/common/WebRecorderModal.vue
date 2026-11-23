@@ -2,12 +2,13 @@
   <a-modal
     :open="open"
     :title="t('case.drawer.web.recorder.title')"
-    :width="680"
+    :width="active ? 1160 : 680"
     :footer="null"
+    class="web-recorder-modal"
     @cancel="handleClose"
   >
     <a-alert
-      v-if="props.replaySteps && props.replaySteps.length"
+      v-if="props.replaySteps && props.replaySteps.length && !active"
       type="info"
       show-icon
       class="resume-mode-banner"
@@ -16,7 +17,8 @@
       style="margin-bottom: 16px"
     />
 
-    <a-form layout="vertical">
+    <!-- 未启动录制时的配置表单 -->
+    <a-form v-if="!active" layout="vertical">
       <a-form-item :label="t('case.drawer.web.recorder.start_url')" required>
         <a-input
           v-model:value="startUrl"
@@ -42,7 +44,7 @@
     </a-form>
 
     <a-alert
-      v-if="workerStatusError"
+      v-if="!active && workerStatusError"
       type="warning"
       show-icon
       :message="t('case.drawer.web.recorder.worker_status_error')"
@@ -50,7 +52,7 @@
       style="margin-bottom: 16px"
     />
     <a-alert
-      v-else-if="workerStatus"
+      v-else-if="!active && workerStatus"
       :type="workerStatus.ready ? 'success' : 'error'"
       show-icon
       :message="workerStatusMessage"
@@ -63,60 +65,135 @@
       </a-button>
     </div>
 
-    <a-alert
-      v-if="active"
-      type="info"
-      show-icon
-      :message="status === 'starting'
-        ? (props.replaySteps?.length ? t('case.drawer.web.recorder.resuming_state') : t('case.drawer.web.recorder.starting'))
-        : (props.replaySteps?.length ? t('case.drawer.web.recorder.resume_ready') : t('case.drawer.web.recorder.recording'))"
-      :description="t('case.drawer.web.recorder.recording_hint')"
-      style="margin-bottom: 16px"
-    />
+    <!-- 录制中的云端交互双栏控制台 -->
+    <div v-if="active" class="cloud-recorder-layout">
+      <!-- 左侧：云端虚拟浏览器视窗 -->
+      <div class="cloud-viewport-pane">
+        <!-- 浏览器地址栏导航 -->
+        <div class="browser-navbar">
+          <a-button-group size="small">
+            <a-button :title="t('case.drawer.web.recorder.browser_back')" @click="handleSendKey('Alt+ArrowLeft')">
+              <ArrowLeftOutlined />
+            </a-button>
+            <a-button :title="t('case.drawer.web.recorder.browser_reload')" @click="handleInteract('reload')">
+              <ReloadOutlined />
+            </a-button>
+          </a-button-group>
+          <a-input
+            v-model:value="navInputUrl"
+            size="small"
+            class="browser-url-bar"
+            placeholder="http://..."
+            @press-enter="handleNavigate"
+          >
+            <template #prefix>
+              <CompassOutlined style="color: var(--c-text-tertiary)" />
+            </template>
+            <template #suffix>
+              <span class="live-dot" :title="t('case.drawer.web.recorder.click_hint')"></span>
+            </template>
+          </a-input>
+          <a-button size="small" type="primary" @click="handleNavigate">前往</a-button>
+        </div>
+
+        <!-- 交互视口画布 -->
+        <div
+          class="viewport-screen-wrap"
+          :title="t('case.drawer.web.recorder.click_hint')"
+          @click="handleCanvasClick"
+          @wheel.prevent="handleCanvasWheel"
+        >
+          <img
+            v-if="frameUrl"
+            :src="frameUrl"
+            class="viewport-frame-img"
+            alt="Cloud Browser Live View"
+          />
+          <div v-else class="viewport-loading-state">
+            <a-spin :tip="t('common.loading')" />
+          </div>
+          <div class="viewport-crosshair-badge">
+            <DesktopOutlined /> {{ t('case.drawer.web.recorder.cloud_viewport_title') }}
+          </div>
+        </div>
+
+        <!-- 键盘打字与功能按键条 -->
+        <div class="viewport-keyboard-bar">
+          <div class="input-send-box">
+            <a-input
+              v-model:value="inputText"
+              size="small"
+              :placeholder="t('case.drawer.web.recorder.input_placeholder')"
+              @press-enter="handleSendInput"
+            >
+              <template #append>
+                <a-button size="small" type="primary" @click="handleSendInput">
+                  <SendOutlined /> {{ t('case.drawer.web.recorder.send_text') }}
+                </a-button>
+              </template>
+            </a-input>
+          </div>
+          <a-space size="small" wrap class="quick-keys-row">
+            <a-button size="small" @click="handleSendKey('Enter')">{{ t('case.drawer.web.recorder.key_enter') }}</a-button>
+            <a-button size="small" @click="handleSendKey('Tab')">{{ t('case.drawer.web.recorder.key_tab') }}</a-button>
+            <a-button size="small" @click="handleSendKey('Backspace')">{{ t('case.drawer.web.recorder.key_backspace') }}</a-button>
+            <a-button size="small" @click="handleSendKey('Escape')">{{ t('case.drawer.web.recorder.key_esc') }}</a-button>
+          </a-space>
+        </div>
+      </div>
+
+      <!-- 右侧：捕获步骤列表 -->
+      <div class="cloud-steps-pane">
+        <div class="steps-pane-header">
+          <span class="steps-pane-title">录制捕获步骤 ({{ steps.length }})</span>
+          <span class="cloud-status-badge">实时捕获中</span>
+        </div>
+
+        <a-empty v-if="!steps.length" :description="t('case.drawer.web.recorder.no_steps')" style="margin: 40px 0" />
+
+        <a-list v-if="steps.length" size="small" bordered class="cloud-steps-list">
+          <a-list-item v-for="(step, index) in steps" :key="`${step.action}-${index}`">
+            <div class="recorded-step-row">
+              <span class="recorded-step-index">#{{ index + 1 }}</span>
+              <a-tag :color="isAssertionAction(step.action) ? 'green' : 'blue'">{{ actionLabel(step.action) }}</a-tag>
+              <span class="recorded-step-name" :title="step.name">{{ step.name }}</span>
+            </div>
+          </a-list-item>
+        </a-list>
+
+        <section v-if="evidenceArtifacts.length || evidence?.artifact_error" class="recording-evidence">
+          <div v-if="evidenceArtifacts.length" class="evidence-links">
+            <a
+              v-for="artifact in evidenceArtifacts"
+              :key="artifact.kind"
+              :href="artifact.url"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {{ artifactLabel(artifact.kind) }}
+            </a>
+          </div>
+          <a-collapse v-if="evidenceEventCount" size="small" class="evidence-collapse">
+            <a-collapse-panel key="events" :header="t('case.drawer.web.recorder.evidence_events', { count: evidenceEventCount })">
+              <pre class="evidence-preview">{{ formatEvidence(evidence?.network_events?.slice(-8)) }}</pre>
+            </a-collapse-panel>
+          </a-collapse>
+        </section>
+      </div>
+    </div>
+
+    <!-- 异常提示 -->
     <a-alert
       v-if="error"
       type="error"
       show-icon
       :message="t('case.drawer.web.recorder.error')"
       :description="error"
-      style="margin-bottom: 16px"
+      style="margin: 16px 0 0"
     />
 
-    <a-empty v-if="!active && !steps.length && !error" :description="t('case.drawer.web.recorder.no_steps')" />
-
-    <a-list v-if="steps.length" size="small" bordered style="max-height: 280px; overflow: auto">
-      <a-list-item v-for="(step, index) in steps" :key="`${step.action}-${index}`">
-        <a-tag :color="isAssertionAction(step.action) ? 'green' : 'blue'">{{ actionLabel(step.action) }}</a-tag>
-        <span class="step-name">{{ step.name }}</span>
-      </a-list-item>
-    </a-list>
-
-    <section v-if="evidenceArtifacts.length || evidence?.artifact_error" class="recording-evidence">
-      <a-alert
-        :type="evidence?.artifact_error ? 'warning' : 'success'"
-        show-icon
-        :message="t('case.drawer.web.recorder.evidence_title')"
-        :description="evidence?.artifact_error || t('case.drawer.web.recorder.evidence_ready', { count: evidenceArtifacts.length })"
-      />
-      <div v-if="evidenceArtifacts.length" class="evidence-links">
-        <a
-          v-for="artifact in evidenceArtifacts"
-          :key="artifact.kind"
-          :href="artifact.url"
-          target="_blank"
-          rel="noreferrer"
-        >
-          {{ artifactLabel(artifact.kind) }}
-        </a>
-      </div>
-      <a-collapse v-if="evidenceEventCount" size="small" class="evidence-collapse">
-        <a-collapse-panel key="events" :header="t('case.drawer.web.recorder.evidence_events', { count: evidenceEventCount })">
-          <pre class="evidence-preview">{{ formatEvidence(evidence?.network_events?.slice(-8)) }}</pre>
-        </a-collapse-panel>
-      </a-collapse>
-    </section>
-
-    <div class="recorder-actions">
+    <!-- 底部操作按钮 -->
+    <div class="recorder-actions" :class="{ 'in-session': active }">
       <a-button v-if="!active" type="primary" :loading="starting" :disabled="workerUnavailable" @click="startRecording">
         {{ t('case.drawer.web.recorder.start') }}
       </a-button>
@@ -139,6 +216,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import {
+  ArrowLeftOutlined,
+  ReloadOutlined,
+  CompassOutlined,
+  DesktopOutlined,
+  SendOutlined,
+} from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { normalizeRecordingUrl, recordingErrorMessage } from '@/utils/webRecording'
 import {
@@ -186,6 +270,75 @@ const workerStatus = ref<WebRecordingWorkersResponse | null>(null)
 const workerStatusError = ref('')
 const workerStatusLoading = ref(false)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
+
+const frameUrl = ref('')
+const frameLoading = ref(false)
+const navInputUrl = ref('')
+const inputText = ref('')
+let lastFrameBlobUrl = ''
+
+async function refreshFrame() {
+  if (!recordingId.value || !active.value || frameLoading.value) return
+  frameLoading.value = true
+  try {
+    const blob = await webRecordingApi.screenshot(recordingId.value)
+    if (lastFrameBlobUrl) {
+      URL.revokeObjectURL(lastFrameBlobUrl)
+    }
+    const newUrl = URL.createObjectURL(blob)
+    lastFrameBlobUrl = newUrl
+    frameUrl.value = newUrl
+  } catch {
+    // 忽略单次截图错误
+  } finally {
+    frameLoading.value = false
+  }
+}
+
+async function handleInteract(action: string, params: Record<string, unknown> = {}) {
+  if (!recordingId.value || !active.value) return
+  try {
+    const res = await webRecordingApi.interact(recordingId.value, action, params)
+    if (res?.snapshot) {
+      applyRecordingResult(res.snapshot)
+    }
+    setTimeout(() => void refreshFrame(), 260)
+  } catch (err: any) {
+    message.warning(err?.response?.data?.detail || err?.message || '交互动作执行失败')
+  }
+}
+
+function handleCanvasClick(e: MouseEvent) {
+  const el = e.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  if (!rect.width || !rect.height) return
+  const scaleX = 1280 / rect.width
+  const scaleY = 720 / rect.height
+  const x = Math.round((e.clientX - rect.left) * scaleX)
+  const y = Math.round((e.clientY - rect.top) * scaleY)
+  void handleInteract('click', { x, y, button: 'left' })
+}
+
+function handleCanvasWheel(e: WheelEvent) {
+  void handleInteract('scroll', { delta_x: e.deltaX, delta_y: e.deltaY })
+}
+
+function handleSendInput() {
+  const text = inputText.value
+  if (!text) return
+  void handleInteract('type', { text })
+  inputText.value = ''
+}
+
+function handleSendKey(key: string) {
+  void handleInteract('press', { key })
+}
+
+function handleNavigate() {
+  const url = navInputUrl.value.trim()
+  if (!url) return
+  void handleInteract('goto', { url })
+}
 
 const recordingSource = computed<WebRecordingSource | undefined>(() => {
   if (props.source) return props.source
@@ -247,6 +400,13 @@ function reset() {
   workerStatus.value = null
   workerStatusError.value = ''
   workerStatusLoading.value = false
+  if (lastFrameBlobUrl) {
+    URL.revokeObjectURL(lastFrameBlobUrl)
+    lastFrameBlobUrl = ''
+  }
+  frameUrl.value = ''
+  navInputUrl.value = ''
+  inputText.value = ''
 }
 
 function clearPoll() {
@@ -278,6 +438,9 @@ function applyRecordingResult(result: WebRecordingItem) {
   steps.value = result.steps ?? []
   assetIds.value = result.asset_ids ?? assetIds.value
   currentUrl.value = result.current_url ?? currentUrl.value
+  if (currentUrl.value && !navInputUrl.value) {
+    navInputUrl.value = currentUrl.value
+  }
   if (result.recording_record_id !== undefined) {
     recordingRecordId.value = result.recording_record_id ?? null
   }
@@ -338,7 +501,9 @@ async function startRecording() {
     assetIds.value = []
     applyRecordingResult(result)
     currentUrl.value = result.current_url ?? result.start_url
+    navInputUrl.value = currentUrl.value
     schedulePoll()
+    setTimeout(() => void refreshFrame(), 400)
   } catch (e: unknown) {
     error.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
     status.value = 'error'
@@ -358,6 +523,7 @@ async function pollRecording() {
   try {
     const result = await webRecordingApi.get(recordingId.value)
     applyRecordingResult(result)
+    void refreshFrame()
     schedulePoll()
   } catch (e: unknown) {
     error.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
@@ -442,7 +608,13 @@ watch(() => props.open, (open) => {
   }
 }, { immediate: true })
 
-onBeforeUnmount(() => clearPoll())
+onBeforeUnmount(() => {
+  clearPoll()
+  if (lastFrameBlobUrl) {
+    URL.revokeObjectURL(lastFrameBlobUrl)
+    lastFrameBlobUrl = ''
+  }
+})
 </script>
 
 <style scoped>
@@ -506,5 +678,175 @@ onBeforeUnmount(() => clearPoll())
   justify-content: flex-end;
   margin-top: -12px;
   margin-bottom: 8px;
+}
+
+/* 云端交互双栏控制台 */
+.cloud-recorder-layout {
+  display: flex;
+  gap: 16px;
+  min-height: 480px;
+}
+
+.cloud-viewport-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+}
+
+.browser-navbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--c-bg-subtle);
+  border-bottom: 1px solid var(--c-border-subtle);
+}
+
+.browser-url-bar {
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #52c41a;
+  box-shadow: 0 0 6px #52c41a;
+}
+
+.viewport-screen-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 400px;
+  max-height: 480px;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.viewport-frame-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.viewport-loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.viewport-crosshair-badge {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.viewport-keyboard-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--c-bg-subtle);
+  border-top: 1px solid var(--c-border-subtle);
+  flex-wrap: wrap;
+}
+
+.input-send-box {
+  flex: 1;
+  min-width: 220px;
+}
+
+.quick-keys-row {
+  flex: none;
+}
+
+.cloud-steps-pane {
+  width: 340px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md, 8px);
+  padding: 12px;
+}
+
+.steps-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--c-border-subtle);
+}
+
+.steps-pane-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--c-text);
+}
+
+.cloud-status-badge {
+  font-size: 11px;
+  color: #1677ff;
+  background: #e6f4ff;
+  border: 1px solid #91caff;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.cloud-steps-list {
+  flex: 1;
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.recorded-step-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.recorded-step-index {
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+  font-family: monospace;
+}
+
+.recorded-step-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.recorder-actions.in-session {
+  border-top: 1px solid var(--c-border-subtle);
+  padding-top: 12px;
 }
 </style>

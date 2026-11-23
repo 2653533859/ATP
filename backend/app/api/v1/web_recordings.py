@@ -630,6 +630,53 @@ class WebRecordingSession:
         except Exception as exc:
             raise RuntimeError(f"录制浏览器当前不可截图: {exc}") from exc
 
+    async def interact(self, action: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """向录制页面派发用户交互动作（点击、按键输入、滚动、导航），供云端内嵌浏览器交互。"""
+        if (
+            self.page is None
+            or getattr(self.page, "is_closed", lambda: False)()
+            or self.status not in {"starting", "recording"}
+        ):
+            raise RuntimeError("录制浏览器当前不可交互")
+
+        params = params or {}
+        act = str(action or "").strip().lower()
+        try:
+            if act == "click":
+                x = float(params.get("x", 0))
+                y = float(params.get("y", 0))
+                button = str(params.get("button") or "left").lower()
+                if button not in ("left", "right", "middle"):
+                    button = "left"
+                await self.page.mouse.click(x, y, button=button)  # type: ignore[arg-type]
+            elif act == "type":
+                text = str(params.get("text") or "")
+                if text:
+                    await self.page.keyboard.type(text)
+            elif act == "press":
+                key = str(params.get("key") or "").strip()
+                if key:
+                    await self.page.keyboard.press(key)
+            elif act == "scroll":
+                dx = float(params.get("delta_x", 0))
+                dy = float(params.get("delta_y", 0))
+                await self.page.mouse.wheel(dx, dy)
+            elif act in ("goto", "navigate"):
+                url = str(params.get("url") or "").strip()
+                if url:
+                    with contextlib.suppress(Exception):
+                        await self.page.goto(url, wait_until="commit", timeout=12_000)
+            elif act == "reload":
+                with contextlib.suppress(Exception):
+                    await self.page.reload(wait_until="commit", timeout=12_000)
+            else:
+                return {"ok": False, "error": f"不支持的交互动作: {action}"}
+        except Exception as exc:
+            logger.warning("页面交互动作执行失败 (action=%s): %s", action, exc)
+            return {"ok": False, "error": str(exc)[:200]}
+
+        return {"ok": True}
+
     def current_url(self) -> str:
         if self.page is not None and not getattr(self.page, "is_closed", lambda: False)():
             try:
@@ -1344,6 +1391,31 @@ async def capture_recording_screenshot(session_id: str, user: User = Depends(get
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return Response(content=data, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+class WebRecordingInteractIn(BaseModel):
+    action: str = Field(min_length=1, max_length=64)
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/{session_id}/interact")
+async def interact_recording_page(
+    session_id: str,
+    body: WebRecordingInteractIn,
+    user: User = Depends(get_current_user),
+):
+    """向云端录制页面下发用户交互动作（点击坐标、输入文字、按键、滚动、导航等）。"""
+    if settings.WEB_RECORDER_MODE.strip().lower() == "worker":
+        try:
+            return await remote_manager.interact(session_id, user.id, body.action, body.params)
+        except WebRecordingTransportError as exc:
+            raise _recording_http_error(exc) from exc
+    session = manager.get(session_id, user.id)
+    try:
+        res = await session.interact(body.action, body.params)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"ok": True, "result": res, "snapshot": session.snapshot()}
 
 
 @router.post("/{session_id}/stop")

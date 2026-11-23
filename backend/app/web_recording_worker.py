@@ -131,6 +131,16 @@ class WebRecordingWorker:
             except RuntimeError as exc:
                 return {"ok": False, "code": "not_ready", "error": str(exc)}
             return {"ok": True, "data": base64.b64encode(data).decode("ascii")}
+        if action == "interact":
+            payload = command.get("payload") or {}
+            try:
+                res = await session.interact(
+                    action=str(payload.get("action") or ""),
+                    params=payload.get("params") or {},
+                )
+            except RuntimeError as exc:
+                return {"ok": False, "code": "not_ready", "error": str(exc)}
+            return {"ok": True, "result": res, "snapshot": session.snapshot()}
         if action == "stop":
             await session.stop()
             snapshot = session.snapshot()

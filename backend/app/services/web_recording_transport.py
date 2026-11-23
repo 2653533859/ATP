@@ -434,6 +434,25 @@ class RemoteWebRecordingManager:
         except (ValueError, TypeError) as exc:
             raise WebRecordingTransportError("录制 Worker 返回了无效截图") from exc
 
+    async def interact(
+        self, session_id: str, owner_id: int, action: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        metadata = await self._route(session_id, owner_id)
+        if isinstance(metadata.get("final_snapshot"), dict):
+            raise WebRecordingTransportError("录制会话已结束，无法继续交互", 409)
+        response = await send_recording_command(
+            str(metadata["worker_id"]),
+            "interact",
+            session_id=session_id,
+            payload={"action": action, "params": params or {}},
+        )
+        if not response.get("ok"):
+            if response.get("code") == "not_found":
+                await delete_session_metadata(session_id)
+            raise _transport_error(response, fallback="交互动作执行失败")
+        snapshot = response.get("snapshot")
+        return snapshot if isinstance(snapshot, dict) else {"ok": True}
+
     async def stop(self, session_id: str, owner_id: int) -> dict[str, Any]:
         metadata = await self._route(session_id, owner_id)
         final_snapshot = metadata.get("final_snapshot")

@@ -1174,3 +1174,66 @@ def test_recording_persist_assets_links_assert_visible_selectors():
     assert db.items[0].locator == {"strategy": "css", "value": "#title"}
     assert session.steps[0]["params"]["element_asset_id"] == 1
     assert session.asset_ids == [1]
+
+
+def test_recording_session_interact_dispatch():
+    session = WebRecordingSession(
+        session_id="interact-session",
+        owner_id=1,
+        project_id=1,
+        start_url="https://example.com",
+        viewport_width=1280,
+        viewport_height=720,
+    )
+    session.status = "recording"
+
+    actions: list[tuple] = []
+
+    class _FakeMouse:
+        async def click(self, x, y, button="left"):
+            actions.append(("click", x, y, button))
+
+        async def wheel(self, dx, dy):
+            actions.append(("wheel", dx, dy))
+
+    class _FakeKeyboard:
+        async def type(self, text):
+            actions.append(("type", text))
+
+        async def press(self, key):
+            actions.append(("press", key))
+
+    class _FakePage:
+        def is_closed(self):
+            return False
+
+        mouse = _FakeMouse()
+        keyboard = _FakeKeyboard()
+
+        async def goto(self, url, **kwargs):
+            actions.append(("goto", url))
+
+        async def reload(self, **kwargs):
+            actions.append(("reload",))
+
+    session.page = _FakePage()
+
+    res = asyncio.run(session.interact("click", {"x": 100, "y": 200}))
+    assert res["ok"] is True
+    res = asyncio.run(session.interact("type", {"text": "hello"}))
+    assert res["ok"] is True
+    res = asyncio.run(session.interact("press", {"key": "Enter"}))
+    assert res["ok"] is True
+    res = asyncio.run(session.interact("scroll", {"delta_x": 0, "delta_y": 50}))
+    assert res["ok"] is True
+    res = asyncio.run(session.interact("goto", {"url": "https://example.com/page2"}))
+    assert res["ok"] is True
+    res = asyncio.run(session.interact("reload"))
+    assert res["ok"] is True
+
+    assert ("click", 100.0, 200.0, "left") in actions
+    assert ("type", "hello") in actions
+    assert ("press", "Enter") in actions
+    assert ("wheel", 0.0, 50.0) in actions
+    assert ("goto", "https://example.com/page2") in actions
+    assert ("reload",) in actions

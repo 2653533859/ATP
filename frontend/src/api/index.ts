@@ -2370,6 +2370,8 @@ export const webRecordingApi = {
     http.post<unknown, WebRecordingItem>('/web-recordings', data),
   get: (id: string) => http.get<unknown, WebRecordingItem>(`/web-recordings/${id}`),
   screenshot: (id: string) => http.post<unknown, Blob>(`/web-recordings/${id}/screenshot`, undefined, { responseType: 'blob' }),
+  interact: (id: string, action: string, params?: Record<string, unknown>) =>
+    http.post<unknown, { ok: boolean; snapshot?: WebRecordingItem }>(`/web-recordings/${id}/interact`, { action, params: params || {} }),
   stop: (id: string) => http.post<unknown, WebRecordingItem>(`/web-recordings/${id}/stop`),
 }
 
