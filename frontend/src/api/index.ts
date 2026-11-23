@@ -2308,6 +2308,8 @@ export const runApi = {
     http.post<unknown, void>(`/runs/${runId}/steps/${stepId}/healing/feedback`, { action }),
   updateTriage: (id: number, data: RunTriageIn) =>
     http.patch<unknown, RunDetailItem>(`/runs/${id}/triage`, data),
+  generateGif: (id: number) =>
+    http.post<unknown, RunDetailItem>(`/runs/${id}/generate-gif`),
 }
 
 export const workbenchApi = {

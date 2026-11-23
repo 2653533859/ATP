@@ -263,7 +263,14 @@ function Show-Doctor {
   $adb = Get-Command adb.exe -ErrorAction SilentlyContinue
   $failed += Write-Check -Label 'adb.exe is available' -Passed ($null -ne $adb) -Hint 'Install Android Platform Tools and add its directory to PATH.'
   if ($null -ne $adb) {
-    $devicesOutput = (& $adb.Source devices 2>&1 | Out-String)
+    $prevEap = $ErrorActionPreference
+    $devicesOutput = ''
+    try {
+      $ErrorActionPreference = 'Continue'
+      $devicesOutput = (& $adb.Source devices 2>&1 | Out-String)
+    } finally {
+      $ErrorActionPreference = $prevEap
+    }
     $deviceSummary = Get-AdbDeviceStateSummary -Output $devicesOutput
     $hasDevice = $deviceSummary.online -gt 0
     $deviceHint = if ($hasDevice) {

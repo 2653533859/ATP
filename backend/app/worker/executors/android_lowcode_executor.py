@@ -43,6 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.minio_client import upload_bytes, upload_file, presigned_url
+from app.services.gif_recorder import generate_and_upload_run_gif
 from app.core.redis_client import publish_run_event
 from app.models.apk import Apk
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
@@ -205,18 +206,18 @@ def _adb_screenshot(serial: str) -> bytes | None:
         return None
 
 
-async def _take_screenshot(serial: str, run_id: int, step_index: int) -> str | None:
-    """截图并上传到 MinIO，返回预签名 URL"""
+async def _take_screenshot(serial: str, run_id: int, step_index: int) -> tuple[str | None, bytes | None]:
+    """截图并上传到 MinIO，返回 (预签名 URL, 截图字节)"""
     try:
         data = await asyncio.get_event_loop().run_in_executor(None, _adb_screenshot, serial)
         if not data:
-            return None
+            return None, None
         obj_name = f"screenshots/runs/{run_id}/step_{step_index}.png"
         await asyncio.get_event_loop().run_in_executor(None, upload_bytes, obj_name, data, "image/png")
-        return presigned_url(obj_name)
+        return presigned_url(obj_name), data
     except Exception as e:
         logger.warning("Screenshot failed for run %s step %s: %s", run_id, step_index, e)
-        return None
+        return None, None
 
 
 async def _capture_android_text_artifact(
@@ -1062,6 +1063,7 @@ async def _run_android_lowcode_steps(
     lease_lost_message: str | None = None
     executed_steps = 0
     step_collector = StepResultBatchCollector(db)
+    gif_frames: list[tuple[bytes, str | None]] = []
     try:
         for idx, step_def in enumerate(steps):
             # 每步开始前：先看取消，再续期租约；续期失败即视为失去设备控制权。
@@ -1122,7 +1124,10 @@ async def _run_android_lowcode_steps(
             executed_steps += 1
 
             # 每步截图
-            screenshot_url = await _take_screenshot(device_serial, run.id, idx)
+            screenshot_url, screenshot_bytes = await _take_screenshot(device_serial, run.id, idx)
+            if screenshot_bytes:
+                status_tag = f" [{status.value}]"
+                gif_frames.append((screenshot_bytes, f"步骤 {idx + 1}: {step_name}{status_tag}"))
 
             duration_ms = int((time.monotonic() - step_start) * 1000)
             persisted_request_data = redact_execution_evidence(
@@ -1199,6 +1204,14 @@ async def _run_android_lowcode_steps(
         artifact_urls["screen_recording_error"] = recording_error
 
     total_ms = int((time.monotonic() - total_start) * 1000)
+    gif_url = None
+    if gif_frames:
+        try:
+            gif_url = await asyncio.get_event_loop().run_in_executor(
+                None, generate_and_upload_run_gif, run.id, gif_frames
+            )
+        except Exception as e:
+            logger.warning("GIF recording failed for run %s: %s", run.id, e)
     if cancelled_at_step is not None:
         run.status = RunStatus.cancelled
         run.error_message = f"用户取消执行（共 {len(steps)} 步，停止于第 {cancelled_at_step + 1} 步）"
@@ -1210,6 +1223,7 @@ async def _run_android_lowcode_steps(
     run.duration_ms = total_ms
     run.result_summary = {
         **(getattr(run, "result_summary", None) or {}),
+        **({"gif_url": gif_url} if gif_url else {}),
         "android_artifacts": artifact_urls,
         "device_serial": device_serial,
         **({"device_id": resolved_device_id} if resolved_device_id is not None else {}),

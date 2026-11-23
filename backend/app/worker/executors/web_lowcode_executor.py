@@ -39,6 +39,7 @@ from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.minio_client import download_file, read_bytes, upload_bytes, upload_file, presigned_url
+from app.services.gif_recorder import generate_and_upload_run_gif
 from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.models.project import Module
@@ -194,16 +195,16 @@ async def _safe_publish(run_id: int, payload: dict) -> None:
         pass
 
 
-async def _take_screenshot(page: Page, run_id: int, step_index: int) -> str | None:
-    """截图并上传到 MinIO，返回预签名 URL"""
+async def _take_screenshot(page: Page, run_id: int, step_index: int) -> tuple[str | None, bytes | None]:
+    """截图并上传到 MinIO，返回 (预签名 URL, 截图字节)"""
     try:
         screenshot_bytes = await page.screenshot(type="png")
         obj_name = f"screenshots/runs/{run_id}/step_{step_index}.png"
         await asyncio.get_event_loop().run_in_executor(None, upload_bytes, obj_name, screenshot_bytes, "image/png")
-        return presigned_url(obj_name)
+        return presigned_url(obj_name), screenshot_bytes
     except Exception as e:
         logger.warning("Screenshot failed for run %s step %s: %s", run_id, step_index, e)
-        return None
+        return None, None
 
 
 async def _execute_step(
@@ -806,6 +807,7 @@ async def run_web_lowcode(
             )
 
         step_collector = StepResultBatchCollector(db)
+        gif_frames: list[tuple[bytes, str | None]] = []
         for idx, step_def in enumerate(steps):
             step_start = time.monotonic()
             action = step_def.get("action", "")
@@ -875,7 +877,10 @@ async def run_web_lowcode(
                 await _mark_element_asset_failed(db, asset, error_message)
 
             # 每步都截图（失败时特别重要）
-            screenshot_url = await _take_screenshot(page, run.id, idx)
+            screenshot_url, screenshot_bytes = await _take_screenshot(page, run.id, idx)
+            if screenshot_bytes:
+                status_tag = f" [{status.value}]"
+                gif_frames.append((screenshot_bytes, f"步骤 {idx + 1}: {step_name}{status_tag}"))
 
             duration_ms = int((time.monotonic() - step_start) * 1000)
             persisted_request_data = redact_execution_evidence(
@@ -965,6 +970,15 @@ async def run_web_lowcode(
         await release_browser_context(browser_context, browser, pw, is_pooled)
         # 运行结束即释放该 run 的自愈配额计数，避免长生命周期 worker 里字典无界增长
         runtime_locator_healer.reset_run(run.id)
+        gif_url = None
+        if gif_frames:
+            try:
+                gif_url = await asyncio.get_event_loop().run_in_executor(
+                    None, generate_and_upload_run_gif, run.id, gif_frames
+                )
+            except Exception as e:
+                logger.warning("GIF recording generation failed for run %s: %s", run.id, e)
+
         # 上传录像到 MinIO
         try:
             video_files = list(video_dir.glob("*.webm"))
@@ -999,6 +1013,7 @@ async def run_web_lowcode(
     run.result_summary = {
         **(run.result_summary or {}),
         **({"video_url": video_url} if video_url else {}),
+        **({"gif_url": gif_url} if gif_url else {}),
         **({"trace_url": trace_url} if trace_url else {}),
         "network_events": network_events[-500:],
         "console_events": console_events[-500:],
@@ -1014,6 +1029,7 @@ async def run_web_lowcode(
             "status": run.status.value,
             "duration_ms": total_ms,
             **({"video_url": video_url} if video_url else {}),
+            **({"gif_url": gif_url} if gif_url else {}),
             **({"trace_url": trace_url} if trace_url else {}),
         },
     )

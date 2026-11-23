@@ -430,20 +430,67 @@
           />
         </div>
 
-        <!-- 录像播放 -->
-        <div v-if="videoUrl || videoError" class="video-section">
+        <!-- 录像与动图回放 -->
+        <div v-if="videoUrl || videoError || gifUrl || hasStepScreenshots" class="video-section">
           <a-divider orientation="left" style="margin: 16px 0 12px">
-            <VideoCameraOutlined /> {{ t('run.labels.video') }}
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%">
+              <span>
+                <PictureOutlined v-if="playbackTab === 'gif'" />
+                <VideoCameraOutlined v-else />
+                {{ t('run.labels.playback_section') }}
+              </span>
+              <a-space size="small">
+                <a-radio-group v-if="(videoUrl || videoError) && gifUrl" v-model:value="playbackTab" size="small">
+                  <a-radio-button value="gif">{{ t('run.labels.gif_tab') }}</a-radio-button>
+                  <a-radio-button value="video">{{ t('run.labels.video_tab') }}</a-radio-button>
+                </a-radio-group>
+                <a-button
+                  v-if="!gifUrl && hasStepScreenshots"
+                  size="small"
+                  type="dashed"
+                  :loading="generatingGif"
+                  @click="handleGenerateGif"
+                >
+                  <PictureOutlined /> {{ t('run.labels.generate_gif_btn') }}
+                </a-button>
+              </a-space>
+            </div>
           </a-divider>
-          <video
-            v-if="videoUrl"
-            :src="videoUrl"
-            controls
-            class="video-player"
-          >
-            {{ t('run.no_video_support') }}
-          </video>
-          <div v-else class="video-error" role="alert">{{ videoError }}</div>
+
+          <!-- GIF 动图播放区 -->
+          <div v-if="playbackTab === 'gif' && gifUrl" class="gif-player-card">
+            <div class="gif-actions-bar">
+              <span class="gif-badge">{{ t('run.labels.gif_tab') }}</span>
+              <a-space size="small">
+                <a-button size="small" @click="copyGifUrl">
+                  <CopyOutlined /> {{ t('run.labels.copy_gif_link') }}
+                </a-button>
+                <a :href="gifUrl" target="_blank" rel="noopener noreferrer" class="ant-btn ant-btn-sm" style="display: inline-flex; align-items: center">
+                  <FullscreenOutlined style="margin-right: 4px" /> {{ t('run.labels.open_in_new_tab') }}
+                </a>
+              </a-space>
+            </div>
+            <div class="gif-image-container">
+              <img :src="gifUrl" :alt="t('run.labels.gif_tab')" class="gif-player-img" />
+            </div>
+          </div>
+
+          <!-- 视频播放区 -->
+          <div v-else-if="videoUrl || videoError">
+            <video
+              v-if="videoUrl"
+              :src="videoUrl"
+              controls
+              class="video-player"
+            >
+              {{ t('run.no_video_support') }}
+            </video>
+            <div v-else class="video-error" role="alert">{{ videoError }}</div>
+          </div>
+
+          <div v-else-if="!gifUrl && hasStepScreenshots" class="gif-placeholder">
+            <span>{{ t('run.labels.gif_placeholder_tip') }}</span>
+          </div>
         </div>
 
         <a-collapse
@@ -818,10 +865,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
-import { AuditOutlined, VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined, CloudSyncOutlined, SyncOutlined, StopOutlined } from '@ant-design/icons-vue'
+import { AuditOutlined, VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined, CloudSyncOutlined, SyncOutlined, StopOutlined, PictureOutlined, CopyOutlined, FullscreenOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, cloudSyncApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem, type RunSyncStatus, type RunTriageCategory, type RunTriageInfo } from '@/api'
 import { getRuntimeMode } from '@/runtimeMode'
@@ -1460,6 +1507,53 @@ const videoError = computed(() => {
   const error = (artifacts as Record<string, unknown>).screen_recording_error
   return typeof error === 'string' ? error : ''
 })
+
+const gifUrl = computed(() => {
+  const summary = run.value?.result_summary
+  return typeof summary?.gif_url === 'string' && summary.gif_url ? summary.gif_url : ''
+})
+
+const hasStepScreenshots = computed(() => {
+  return steps.value.some((s) => typeof s.screenshot_url === 'string' && s.screenshot_url)
+})
+
+const playbackTab = ref<'gif' | 'video'>('gif')
+
+watch([videoUrl, gifUrl], ([hasVideo, hasGif]) => {
+  if (hasGif) {
+    playbackTab.value = 'gif'
+  } else if (hasVideo) {
+    playbackTab.value = 'video'
+  }
+}, { immediate: true })
+
+const generatingGif = ref(false)
+async function handleGenerateGif() {
+  if (!run.value?.id) return
+  generatingGif.value = true
+  try {
+    const updated = await runApi.generateGif(run.value.id)
+    run.value = updated
+    message.success(t('run.labels.gif_generate_success'))
+  } catch (err: any) {
+    message.error(err?.response?.data?.detail || err?.message || t('run.labels.gif_generate_failed'))
+  } finally {
+    generatingGif.value = false
+  }
+}
+
+function copyGifUrl() {
+  if (!gifUrl.value) return
+  if (navigator?.clipboard?.writeText) {
+    navigator.clipboard.writeText(gifUrl.value).then(() => {
+      message.success(t('run.labels.gif_copied'))
+    }).catch(() => {
+      message.info(gifUrl.value)
+    })
+  } else {
+    message.info(gifUrl.value)
+  }
+}
 
 const runHealing = computed<RunHealingPayload | null>(() =>
   normalizeRunHealing(run.value?.result_summary?.healing),
@@ -2234,5 +2328,47 @@ onUnmounted(() => {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+.gif-player-card {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--c-bg-elevated);
+  padding: 12px;
+  overflow: hidden;
+}
+.gif-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.gif-badge {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--c-text-secondary);
+}
+.gif-image-container {
+  display: flex;
+  justify-content: center;
+  background: #000;
+  border-radius: var(--radius-sm, 4px);
+  overflow: hidden;
+  max-height: 520px;
+}
+.gif-player-img {
+  max-width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+}
+.gif-placeholder {
+  padding: 12px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border-subtle);
+  border-radius: var(--radius-md, 8px);
+  font-size: 12px;
+  color: var(--c-text-secondary);
+  text-align: center;
 }
 </style>

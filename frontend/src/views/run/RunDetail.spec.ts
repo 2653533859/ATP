@@ -26,7 +26,7 @@ vi.mock('@/utils/websocket', () => ({ createRunWebSocket }))
 vi.mock('@/api', () => ({
   aiHealingPatchApi: { apply: vi.fn(), preview: vi.fn() },
   bugTrackerApi: { createBug: vi.fn(), list: vi.fn().mockResolvedValue([]), linkBug: vi.fn(), refreshStatus: vi.fn() },
-  runApi: { exportHtml: runExportHtml, exportPdf: vi.fn(), exportJunit: runExportJunit, get: runGet, stop: runStop },
+  runApi: { exportHtml: runExportHtml, exportPdf: vi.fn(), exportJunit: runExportJunit, get: runGet, stop: runStop, generateGif: vi.fn() },
   tracingApi: { getConfig: tracingGetConfig },
 }))
 
@@ -283,5 +283,31 @@ describe('RunDetail mount', () => {
     await flushPromises()
 
     expect(wrapper.find('video').attributes('src')).toBe('https://minio/android-artifacts/runs/42/screen-recording.mp4')
+  })
+
+  it('renders an animated GIF recording when available in result_summary', async () => {
+    runGet.mockResolvedValueOnce({
+      id: 42,
+      case_id: 100,
+      status: 'passed',
+      trace_id: null,
+      environment: 'staging',
+      duration_ms: 120,
+      created_at: '2026-07-11T01:00:00Z',
+      error_message: null,
+      result_summary: {
+        gif_url: 'https://minio/gifs/runs/42/recording.gif',
+      },
+      steps: [
+        { step_index: 0, name: '打开页面', status: 'passed', screenshot_url: 'http://test/step_0.png' },
+      ],
+    })
+
+    const wrapper = mountRunDetail()
+    await flushPromises()
+
+    const img = wrapper.find('img.gif-player-img')
+    expect(img.exists()).toBe(true)
+    expect(img.attributes('src')).toBe('https://minio/gifs/runs/42/recording.gif')
   })
 })

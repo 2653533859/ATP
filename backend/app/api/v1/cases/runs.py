@@ -307,6 +307,28 @@ async def stop_web_run(
     return run
 
 
+@router.post("/runs/{run_id}/generate-gif", response_model=TestRunOut)
+async def generate_run_gif(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """提取该运行的步骤截图并合成动画 GIF 回放，更新至 result_summary."""
+    from app.services.gif_recorder import generate_gif_from_run_step_records
+
+    run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
+    gif_url = await asyncio.to_thread(generate_gif_from_run_step_records, run.id, run.steps)
+    if not gif_url:
+        raise HTTPException(status_code=400, detail="该运行记录没有可用的步骤截图，无法生成动图回放")
+
+    summary = dict(run.result_summary or {})
+    summary["gif_url"] = gif_url
+    run.result_summary = summary
+    await db.commit()
+    await db.refresh(run)
+    return run
+
+
 @router.post("/runs/{run_id}/failure-diagnosis", response_model=FailureDiagnosisOut)
 async def diagnose_run_failure(
     run_id: int,
