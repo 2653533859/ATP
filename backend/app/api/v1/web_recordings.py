@@ -460,8 +460,13 @@ class WebRecordingSession:
             self.trace_path = self.artifact_dir / "trace.zip"
             self.har_path = self.artifact_dir / "network.har"
             self.report_path = self.artifact_dir / "report.json"
+            user_agent = (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            )
             self.context = await self.browser.new_context(
                 viewport={"width": self.viewport_width, "height": self.viewport_height},
+                user_agent=user_agent,
                 record_har_path=str(self.har_path),
                 record_har_content="omit",
                 record_har_mode="minimal",
@@ -481,9 +486,15 @@ class WebRecordingSession:
                     self._replaying_prefix = False
             else:
                 self._append_step("goto", f"打开 {self.start_url}", {"url": self.start_url})
-                await self.page.goto(self.start_url, wait_until="domcontentloaded", timeout=30_000)
+                try:
+                    await self.page.goto(self.start_url, wait_until="domcontentloaded", timeout=12_000)
+                except Exception as goto_err:
+                    logger.info("domcontentloaded timeout for %s, falling back to commit: %s", self.start_url, goto_err)
+                    with contextlib.suppress(Exception):
+                        await self.page.goto(self.start_url, wait_until="commit", timeout=10_000)
                 if self.auto_assert:
-                    await self._capture_page_assertions()
+                    with contextlib.suppress(Exception):
+                        await self._capture_page_assertions()
 
             await self.page.expose_binding("atpRecordEvent", self._handle_binding)
             await self.page.add_init_script(_RECORDING_SCRIPT)
