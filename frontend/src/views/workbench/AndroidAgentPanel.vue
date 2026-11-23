@@ -169,7 +169,7 @@
               {{ pkg }}
             </button>
           </div>
-          <div class="package-meta">
+          <div v-if="packageHint || devicePackages.length" class="package-meta">
             <span v-if="packageHint" class="form-hint">{{ packageHint }}</span>
             <span v-if="devicePackages.length" class="package-count tabular-nums">
               {{ t('android_agent.packages_count', { count: devicePackages.length }) }}
@@ -183,7 +183,7 @@
             id="agent-goal-input"
             v-model:value="formGoal"
             :placeholder="t('android_agent.goal_placeholder')"
-            :rows="2"
+            :rows="3"
             :maxlength="500"
             show-count
           />
@@ -195,7 +195,7 @@
             id="agent-outcome-input"
             v-model:value="formOutcome"
             :placeholder="t('android_agent.outcome_placeholder')"
-            :rows="2"
+            :rows="3"
             :maxlength="500"
             show-count
           />
@@ -235,18 +235,19 @@
           </div>
         </div>
 
-        <p class="agent-sensitive-hint">{{ t('android_agent.sensitive_hint') }}</p>
-
-        <div class="setup-actions">
-          <span v-if="!canCreate" class="setup-required">{{ t('android_agent.setup_required') }}</span>
-          <a-button
-            type="primary"
-            :disabled="!canCreate"
-            :loading="creating"
-            @click="createSession"
-          >
-            {{ t('android_agent.create') }}
-          </a-button>
+        <div class="setup-footer">
+          <p class="agent-sensitive-hint">{{ t('android_agent.sensitive_hint') }}</p>
+          <div class="setup-actions">
+            <span v-if="!canCreate" class="setup-required">{{ t('android_agent.setup_required') }}</span>
+            <a-button
+              type="primary"
+              :disabled="!canCreate"
+              :loading="creating"
+              @click="createSession"
+            >
+              {{ t('android_agent.create') }}
+            </a-button>
+          </div>
         </div>
       </div>
     </section>
@@ -1601,6 +1602,7 @@ defineExpose({
   background: var(--c-bg-elevated);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
   padding: 20px;
 }
 
@@ -1609,6 +1611,14 @@ defineExpose({
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--c-border-subtle);
+}
+
+.panel-title-block {
+  min-width: 0;
+  flex: 1;
 }
 
 .panel-kicker {
@@ -1630,6 +1640,7 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .session-select {
@@ -1637,7 +1648,7 @@ defineExpose({
 }
 
 .agent-description {
-  margin: 6px 0 var(--space-4);
+  margin: 4px 0 0;
   color: var(--c-text-secondary);
   font-size: 13px;
   line-height: 1.5;
@@ -1649,11 +1660,12 @@ defineExpose({
 }
 
 .agent-empty {
-  padding: 24px;
-  text-align: center;
-  color: var(--c-text-tertiary);
-  font-size: 13px;
+  padding: 10px 14px;
+  text-align: left;
+  color: var(--c-text-secondary);
+  font-size: 12px;
   background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border-subtle);
   border-radius: var(--radius-md);
   margin-bottom: 16px;
 }
@@ -1683,7 +1695,8 @@ defineExpose({
 .setup-fields {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: var(--space-4);
+  gap: 14px var(--space-4);
+  align-items: start;
 }
 
 .field {
@@ -1701,21 +1714,45 @@ defineExpose({
   line-height: 1.4;
 }
 
-.field-device {
+.field-title {
+  grid-column: span 5;
+}
+
+.field-model {
   grid-column: span 4;
 }
 
+.field-device {
+  grid-column: span 3;
+}
+
 .field-package {
-  grid-column: span 8;
+  grid-column: span 12;
 }
 
 .field-goal,
 .field-outcome {
-  grid-column: span 12;
+  grid-column: span 6;
+  padding-bottom: 4px;
+}
+
+.field-vars {
+  grid-column: span 7;
+  align-self: stretch;
+  padding: 12px 14px;
+  border: 1px solid var(--c-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-subtle);
 }
 
 .field-budget {
-  grid-column: span 6;
+  grid-column: span 5;
+  align-self: stretch;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border: 1px solid var(--c-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-subtle);
 }
 
 .field-control,
@@ -1790,7 +1827,7 @@ defineExpose({
 }
 
 .package-history-item:hover {
-  background: var(--c-bg-hover, rgba(0, 0, 0, 0.04));
+  background: var(--c-bg-subtle);
 }
 
 .package-history-foreground {
@@ -1801,36 +1838,48 @@ defineExpose({
 }
 
 .budget-row {
-  display: flex;
-  gap: var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
 }
 
 .budget-input {
   display: flex;
-  flex: 1;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  color: var(--c-text-tertiary);
-  font-size: 11px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
 }
 
 .budget-input span {
   flex: none;
 }
 
+.setup-footer {
+  grid-column: span 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-top: 14px;
+  margin-top: 2px;
+  border-top: 1px solid var(--c-border-subtle);
+}
+
 .setup-actions {
-  grid-column: span 6;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
+  margin-left: auto;
   min-width: 0;
 }
 
 .setup-required {
   color: var(--c-text-tertiary);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
   text-align: right;
 }
@@ -1921,25 +1970,6 @@ defineExpose({
   background: transparent;
 }
 
-@media (max-width: 1180px) {
-  .agent-session-body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .field-device,
-  .field-package,
-  .field-budget,
-  .setup-actions {
-    grid-column: span 12;
-  }
-
-  .setup-actions {
-    justify-content: space-between;
-  }
-}
-
 .agent-events {
   margin-bottom: 0;
 }
@@ -1980,8 +2010,7 @@ defineExpose({
 }
 
 .agent-event-row {
-  display: grid;
-  grid-template-columns: 60px 1fr 100px;
+  display: flex;
   gap: 12px;
   font-size: 12px;
   padding: 6px 12px;
@@ -1994,17 +2023,21 @@ defineExpose({
 }
 
 .agent-event-seq {
+  flex: 0 0 48px;
   color: var(--c-text-tertiary);
   font-family: 'JetBrains Mono', monospace, sans-serif;
   font-variant-numeric: tabular-nums;
 }
 
 .agent-event-type {
+  flex: 0 0 auto;
   color: var(--c-text);
   font-weight: 500;
 }
 
 .agent-event-time {
+  flex: 0 0 auto;
+  margin-left: auto;
   color: var(--c-text-tertiary);
   font-size: 11px;
   text-align: right;
@@ -2115,9 +2148,12 @@ defineExpose({
 }
 
 .agent-sensitive-hint {
+  flex: 1 1 360px;
+  min-width: 0;
   margin: 0;
   font-size: 12px;
-  color: var(--c-text-muted, #64748b);
+  line-height: 1.5;
+  color: var(--c-text-secondary);
 }
 
 .apk-quick-pick {
@@ -2130,7 +2166,7 @@ defineExpose({
 
 .apk-quick-chip {
   border: 1px solid var(--c-border);
-  background: var(--c-bg);
+  background: var(--c-bg-elevated);
   color: var(--c-text);
   border-radius: 999px;
   padding: 2px 10px;
@@ -2139,14 +2175,23 @@ defineExpose({
 }
 
 .apk-quick-chip:hover {
-  border-color: var(--c-primary, #1677ff);
+  border-color: var(--c-primary, #2563eb);
 }
 
 .vars-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
+}
+
+.vars-head .field-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.vars-head button {
+  flex: none;
 }
 
 .vars-row,
@@ -2180,7 +2225,7 @@ defineExpose({
   padding: 12px;
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md, 8px);
-  background: var(--c-bg);
+  background: var(--c-bg-elevated);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2203,9 +2248,10 @@ defineExpose({
 }
 
 .agent-event-detail {
-  color: var(--c-text-muted, #64748b);
+  color: var(--c-text-secondary);
   font-size: 12px;
   flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2214,5 +2260,67 @@ defineExpose({
 .agent-assertions {
   font-size: 12px;
   margin-bottom: 8px;
+}
+
+@media (max-width: 1180px) {
+  .field-title {
+    grid-column: span 12;
+  }
+
+  .field-model {
+    grid-column: span 7;
+  }
+
+  .field-device {
+    grid-column: span 5;
+  }
+
+  .agent-session-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .panel-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .agent-head-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .field-model,
+  .field-device,
+  .field-package,
+  .field-goal,
+  .field-outcome,
+  .field-vars,
+  .field-budget {
+    grid-column: span 12;
+  }
+
+  .setup-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .agent-sensitive-hint {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  .setup-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .setup-required {
+    margin-right: auto;
+    text-align: left;
+  }
 }
 </style>
