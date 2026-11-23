@@ -15,6 +15,7 @@ import contextlib
 import json
 import os
 import socket
+import sys
 import time
 import uuid
 from typing import Any
@@ -108,8 +109,8 @@ async def list_recording_workers() -> list[dict[str, Any]]:
         await _close_redis(client)
 
 
-def _available_workers(workers: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    available: list[tuple[int, str, dict[str, Any]]] = []
+def _available_workers(workers: list[dict[str, Any]], *, target_worker_id: str | None = None) -> list[dict[str, Any]]:
+    available: list[tuple[int, int, str, dict[str, Any]]] = []
     for worker in workers:
         try:
             active = max(0, int(worker.get("active_sessions", 0)))
@@ -117,17 +118,28 @@ def _available_workers(workers: list[dict[str, Any]]) -> list[dict[str, Any]]:
         except (TypeError, ValueError):
             continue
         worker_id = str(worker.get("worker_id") or "").strip()
-        if worker_id and active < capacity:
-            available.append((active, worker_id, worker))
-    available.sort(key=lambda item: (item[0], item[1]))
-    return [item[2] for item in available]
+        if not worker_id or active >= capacity:
+            continue
+        if target_worker_id and worker_id != target_worker_id.strip():
+            continue
+        # 优先派发给具有桌面交互能力的节点（例如 Windows 本地桌面 Worker，可直接弹窗交互）
+        is_desktop = bool(worker.get("is_desktop", False))
+        priority = 0 if is_desktop else 1
+        available.append((priority, active, worker_id, worker))
+    available.sort(key=lambda item: (item[0], item[1], item[2]))
+    return [item[3] for item in available]
 
 
-async def choose_recording_worker() -> dict[str, Any]:
+async def choose_recording_worker(target_worker_id: str | None = None) -> dict[str, Any]:
     workers = await list_recording_workers()
-    available = _available_workers(workers)
+    available = _available_workers(workers, target_worker_id=target_worker_id)
     if not available:
-        raise WebRecordingTransportError("没有可用的 Web 录制 Worker，请先启动独立录制 Worker", 503)
+        detail = (
+            f"目标录制节点 {target_worker_id} 不在线或已达并发上限"
+            if target_worker_id
+            else "没有可用的 Web 录制 Worker，请先启动独立录制 Worker"
+        )
+        raise WebRecordingTransportError(detail, 503)
     return available[0]
 
 
@@ -141,6 +153,9 @@ async def register_recording_worker(
     owns_client = client is None
     redis = client or get_async_redis()
     try:
+        is_desktop = sys.platform in ("win32", "darwin") or (
+            bool(os.environ.get("DISPLAY")) and not os.environ.get("ATP_CONTAINER")
+        )
         payload = {
             "worker_id": worker_id,
             "active_sessions": max(0, int(active_sessions)),
@@ -148,6 +163,8 @@ async def register_recording_worker(
             "updated_at": time.time(),
             "pid": os.getpid(),
             "hostname": socket.gethostname(),
+            "platform": sys.platform,
+            "is_desktop": is_desktop,
         }
         ttl = max(5, int(settings.WEB_RECORDER_WORKER_TTL_SECONDS))
         await redis.set(worker_key(worker_id), _json(payload), ex=ttl)
@@ -319,7 +336,8 @@ class RemoteWebRecordingManager:
     """API-side proxy for sessions owned by an independent recorder worker."""
 
     async def start(self, payload: dict[str, Any], owner_id: int) -> dict[str, Any]:
-        worker = await choose_recording_worker()
+        target_worker_id = str(payload.get("worker_id") or "").strip() or None
+        worker = await (choose_recording_worker(target_worker_id) if target_worker_id else choose_recording_worker())
         session_id = uuid.uuid4().hex
         attempted_worker_ids: set[str] = set()
         response: dict[str, Any] = {}
@@ -346,7 +364,7 @@ class RemoteWebRecordingManager:
                 raise _transport_error(response)
             candidates = [
                 candidate
-                for candidate in _available_workers(await list_recording_workers())
+                for candidate in _available_workers(await list_recording_workers(), target_worker_id=target_worker_id)
                 if str(candidate.get("worker_id") or "") not in attempted_worker_ids
             ]
             if not candidates:

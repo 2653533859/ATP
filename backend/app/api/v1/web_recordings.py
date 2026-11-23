@@ -377,6 +377,7 @@ class WebRecordingStart(BaseModel):
     replay_steps: list[dict[str, Any]] = Field(default_factory=list)
     auto_assert: bool = True
     source: WebRecordingSource = "workbench"
+    worker_id: str | None = None
 
     @field_validator("start_url")
     @classmethod
