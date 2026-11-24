@@ -98,16 +98,23 @@
 
         <!-- 交互视口画布 -->
         <div
+          ref="viewportRef"
+          tabindex="0"
           class="viewport-screen-wrap"
           :title="t('case.drawer.web.recorder.click_hint')"
           @click="handleCanvasClick"
           @wheel.prevent="handleCanvasWheel"
+          @keydown="handleViewportKeydown"
+          @compositionend="handleViewportCompositionEnd"
+          @paste="handleViewportPaste"
         >
           <img
             v-if="frameUrl"
+            ref="frameImgRef"
             :src="frameUrl"
             class="viewport-frame-img"
             alt="Cloud Browser Live View"
+            draggable="false"
           />
           <div v-else class="viewport-loading-state">
             <a-spin :tip="t('common.loading')" />
@@ -126,8 +133,8 @@
               :placeholder="t('case.drawer.web.recorder.input_placeholder')"
               @press-enter="handleSendInput"
             >
-              <template #append>
-                <a-button size="small" type="primary" @click="handleSendInput">
+              <template #addonAfter>
+                <a-button type="link" size="small" style="height: 22px; padding: 0 4px" @click="handleSendInput">
                   <SendOutlined /> {{ t('case.drawer.web.recorder.send_text') }}
                 </a-button>
               </template>
@@ -275,6 +282,8 @@ const frameUrl = ref('')
 const frameLoading = ref(false)
 const navInputUrl = ref('')
 const inputText = ref('')
+const viewportRef = ref<HTMLElement | null>(null)
+const frameImgRef = ref<HTMLImageElement | null>(null)
 let lastFrameBlobUrl = ''
 
 async function refreshFrame() {
@@ -302,25 +311,76 @@ async function handleInteract(action: string, params: Record<string, unknown> = 
     if (res?.snapshot) {
       applyRecordingResult(res.snapshot)
     }
-    setTimeout(() => void refreshFrame(), 260)
+    setTimeout(() => void refreshFrame(), 220)
   } catch (err: any) {
     message.warning(err?.response?.data?.detail || err?.message || '交互动作执行失败')
   }
 }
 
 function handleCanvasClick(e: MouseEvent) {
-  const el = e.currentTarget as HTMLElement
-  const rect = el.getBoundingClientRect()
+  viewportRef.value?.focus()
+  const targetEl = frameImgRef.value ?? (e.currentTarget as HTMLElement)
+  const rect = targetEl.getBoundingClientRect()
   if (!rect.width || !rect.height) return
   const scaleX = 1280 / rect.width
   const scaleY = 720 / rect.height
-  const x = Math.round((e.clientX - rect.left) * scaleX)
-  const y = Math.round((e.clientY - rect.top) * scaleY)
+  const rawX = (e.clientX - rect.left) * scaleX
+  const rawY = (e.clientY - rect.top) * scaleY
+  if (rawX < 0 || rawY < 0 || rawX > 1280 || rawY > 720) return
+  const x = Math.round(rawX)
+  const y = Math.round(rawY)
   void handleInteract('click', { x, y, button: 'left' })
 }
 
 function handleCanvasWheel(e: WheelEvent) {
   void handleInteract('scroll', { delta_x: e.deltaX, delta_y: e.deltaY })
+}
+
+const FORWARD_KEYS = new Set([
+  'Enter',
+  'Backspace',
+  'Tab',
+  'Escape',
+  'Delete',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'Home',
+  'End',
+])
+
+function handleViewportKeydown(e: KeyboardEvent) {
+  if (!active.value || e.isComposing) return
+  // 允许 Ctrl/Cmd+V 触发 paste 事件
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') return
+  if (FORWARD_KEYS.has(e.key)) {
+    e.preventDefault()
+    e.stopPropagation()
+    void handleInteract('press', { key: e.key })
+    return
+  }
+  if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+    e.preventDefault()
+    e.stopPropagation()
+    void handleInteract('type', { text: e.key })
+  }
+}
+
+function handleViewportCompositionEnd(e: CompositionEvent) {
+  if (!active.value) return
+  if (e.data) {
+    void handleInteract('type', { text: e.data })
+  }
+}
+
+function handleViewportPaste(e: ClipboardEvent) {
+  if (!active.value) return
+  const text = e.clipboardData?.getData('text')
+  if (text) {
+    e.preventDefault()
+    void handleInteract('type', { text })
+  }
 }
 
 function handleSendInput() {
@@ -724,21 +784,25 @@ onBeforeUnmount(() => {
 .viewport-screen-wrap {
   position: relative;
   flex: 1;
-  min-height: 400px;
-  max-height: 480px;
-  background: #000;
+  aspect-ratio: 16 / 9;
+  background: #0f172a;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   cursor: crosshair;
   user-select: none;
+  outline: none;
+}
+
+.viewport-screen-wrap:focus {
+  box-shadow: inset 0 0 0 2px #1677ff;
 }
 
 .viewport-frame-img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: fill;
   pointer-events: none;
 }
 
