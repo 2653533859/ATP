@@ -75,7 +75,6 @@
               <template #icon><ApiOutlined /></template>
               <template #title>{{ t('menu.groups.intelligence_center') }}</template>
               <a-menu-item key="/hermes">{{ t('menu.intelligence.hermes') }}</a-menu-item>
-              <a-menu-item key="/ai-chat">{{ t('menu.intelligence.ai_chat') }}</a-menu-item>
               <a-menu-item key="/requirements">{{ t('menu.intelligence.requirements') }}</a-menu-item>
               <a-menu-item key="/knowledge">{{ t('menu.intelligence.knowledge') }}</a-menu-item>
               <a-menu-item v-if="canAccess(['admin'])" key="/system/healing-examples">{{ t('menu.system.ai_healing_examples') }}</a-menu-item>

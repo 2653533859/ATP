@@ -1,1246 +1,1057 @@
 <template>
-  <div class="page-shell hermes-page">
-    <header class="hermes-toolbar">
-      <div class="toolbar-left">
-        <div class="toolbar-identity">
-          <RobotOutlined class="toolbar-icon" />
-          <span class="toolbar-name">{{ t('menu.intelligence.hermes') }}</span>
+  <div class="hermes-shell">
+    <!-- 顶部单行极简工具栏 -->
+    <header class="hermes-topbar">
+      <div class="topbar-left">
+        <div class="brand-chip">
+          <RobotOutlined class="brand-icon" />
+          <span class="brand-title">{{ t('menu.intelligence.hermes') }}</span>
         </div>
-        <div class="toolbar-sep">/</div>
-        <div class="toolbar-project">
-          <label for="hermes-project" class="sr-only">{{ t('hermes.project_label') }}</label>
-          <a-select
-            id="hermes-project"
-            v-model:value="projectSelectId"
-            :options="projectOptions"
-            allow-clear
-            size="small"
-            class="project-select-dropdown"
-            :placeholder="t('hermes.project_placeholder')"
-            @change="handleProjectChange"
-          />
-        </div>
-        <div v-if="selectedProjectId" class="toolbar-chips">
-          <span class="toolbar-chip"><b>{{ moduleCount }}</b> {{ t('hermes.context_modules') }}</span>
-          <span class="toolbar-chip"><b>{{ cases.length }}</b> {{ t('hermes.context_cases') }}</span>
-          <span class="toolbar-chip chip-fail"><b>{{ failedTasks.length }}</b> {{ t('hermes.context_failures') }}</span>
+        <a-select
+          v-model:value="selectedProjectId"
+          :options="projectOptions"
+          allow-clear
+          size="small"
+          class="project-picker"
+          :placeholder="t('hermes.project_placeholder')"
+          @change="handleProjectChange"
+        />
+        <div v-if="selectedProjectId" class="metric-pills">
+          <span class="metric-pill">用例 {{ casesCount }}</span>
+          <span class="metric-pill" :class="{ warn: failedTasks.length > 0 }">失败 {{ failedTasks.length }}</span>
+          <span class="metric-pill">通过率 {{ passRateText }}</span>
         </div>
       </div>
 
-      <div class="toolbar-right">
-        <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshWorkbench">
-          <ReloadOutlined /> {{ t('common.refresh') }}
+      <div class="topbar-right">
+        <a-button
+          size="small"
+          :type="historyOpen ? 'primary' : 'default'"
+          ghost
+          @click="historyOpen = !historyOpen"
+        >
+          <HistoryOutlined /> 会话 ({{ chatStore.sessions.length }})
         </a-button>
-        <a-button v-if="selectedProjectId" type="primary" size="small" class="toolbar-btn" @click="resetConversation">
-          <PlusOutlined /> {{ t('hermes.new_conversation') }}
+        <a-button
+          v-if="selectedProjectId"
+          size="small"
+          :type="contextOpen ? 'primary' : 'default'"
+          ghost
+          @click="contextOpen = !contextOpen"
+        >
+          <DashboardOutlined /> 项目面板
+        </a-button>
+        <a-button type="primary" size="small" @click="handleNewSession">
+          <PlusOutlined /> 新对话
         </a-button>
       </div>
     </header>
 
-    <a-alert
-      v-if="loadError"
-      class="load-alert"
-      type="warning"
-      show-icon
-      :message="t('hermes.load_warning')"
-      :description="loadError"
-    />
-    <a-empty v-if="!selectedProjectId" class="project-empty" :description="t('hermes.select_project_hint')" />
+    <div class="hermes-body">
+      <!-- 左侧历史会话（可收起） -->
+      <aside v-if="historyOpen" class="history-pane">
+        <div class="pane-header">
+          <span>历史会话</span>
+          <a-button type="text" size="small" @click="handleNewSession"><PlusOutlined /></a-button>
+        </div>
+        <div class="history-scroll">
+          <div
+            v-for="session in chatStore.sessions"
+            :key="session.id"
+            class="history-item"
+            :class="{ active: session.id === chatStore.currentSessionId }"
+            @click="switchSession(session.id)"
+          >
+            <MessageOutlined class="history-icon" />
+            <span class="history-title">{{ session.title }}</span>
+            <DeleteOutlined class="history-del" @click.stop="chatStore.deleteSession(session.id)" />
+          </div>
+        </div>
+      </aside>
 
-    <template v-else>
-      <HermesActionsPanel
-        ref="actionsPanel"
-        :project-id="selectedProjectId"
-        :can-modify="canModify"
-        :latest-answer="latestAnswer"
-        @completed="handleActionCompleted"
-      />
+      <!-- 中间核心对话区 -->
+      <main class="chat-pane">
+        <div ref="messagesRef" class="messages-scroll">
+          <div v-if="!currentMessages.length && !isStreaming" class="empty-stage">
+            <div class="empty-avatar"><RobotOutlined /></div>
+            <h2>Hermes 智能助手</h2>
+            <div class="quick-grid">
+              <button
+                v-for="(item, idx) in quickPrompts"
+                :key="idx"
+                type="button"
+                class="quick-chip"
+                @click="sendQuickPrompt(item)"
+              >
+                {{ item }}
+              </button>
+            </div>
+          </div>
 
-      <div class="assistant-layout">
-        <HermesConversationPanel
-          v-model:input-text="inputText"
-          :messages="messages"
-          :prompt-options="promptOptions"
-          :task-names="failedTaskNames"
-          :loading="loading"
-          :diagnosing="diagnosing"
-          :querying="querying"
-          @select-task="selectFailureTask"
-          @open-source="openSource"
-          @rate-message="rateMessage"
-          @ask-prompt="askPrompt"
-          @submit="submitPrompt"
-        />
+          <div v-else class="message-list">
+            <div
+              v-for="msg in currentMessages"
+              :key="msg.id"
+              class="msg-row"
+              :class="msg.role"
+            >
+              <div class="msg-avatar">
+                <UserOutlined v-if="msg.role === 'user'" />
+                <RobotOutlined v-else />
+              </div>
+              <div class="msg-content">
+                <!-- 工具调用胶囊 -->
+                <div v-if="msg.toolEvents?.length" class="tool-chips">
+                  <span v-for="(evt, i) in msg.toolEvents" :key="i" class="tool-chip">
+                    ✓ {{ evt.label }} · {{ evt.summary }}
+                  </span>
+                </div>
 
-        <HermesEvidencePanel
-          :quality-score="qualityScore"
-          :pass-rate="passRate"
-          :total-runs="totalRuns"
-          :coverage-rate="coverageRate"
-          :open-defects="openDefects"
-          :failed-tasks="failedTasks"
-          :selected-task-id="selectedTaskId"
-          :diagnosing="diagnosing"
-          @ask-quality="askPrompt('quality')"
-          @select-task="selectFailureTask"
-          @explain-failure="explainFailure"
-          @open-task-center="openTaskCenter"
-          @open-runs="openRuns"
-        />
-      </div>
+                <!-- 气泡正文 -->
+                <div class="msg-bubble">
+                  <div v-if="msg.role === 'user'" class="user-text">{{ msg.text }}</div>
+                  <div v-else class="markdown-body" v-html="renderMarkdown(msg.text)" />
+                </div>
 
-      <HermesDiagnosisPanel v-if="diagnosis" :diagnosis="diagnosis" @open-task="openTaskById" />
+                <!-- 可控项目操作确认卡 -->
+                <div v-if="msg.actionProposal" class="action-card">
+                  <div class="action-card-head">
+                    <a-tag color="blue">{{ actionTypeLabel(msg.actionProposal.action) }}</a-tag>
+                    <strong>{{ msg.actionProposal.title }}</strong>
+                  </div>
+                  <div v-if="msg.actionProposal.summary" class="action-card-summary">
+                    {{ msg.actionProposal.summary }}
+                  </div>
+                  <div class="action-card-footer">
+                    <template
+                      v-if="!msg.actionProposal.status || msg.actionProposal.status === 'pending' || msg.actionProposal.status === 'failed' || msg.actionProposal.status === 'executing'"
+                    >
+                      <a-button
+                        type="primary"
+                        size="small"
+                        :loading="msg.actionProposal.status === 'executing'"
+                        @click="confirmAction(msg)"
+                      >
+                        确认执行
+                      </a-button>
+                      <a-button size="small" :disabled="msg.actionProposal.status === 'executing'" @click="cancelAction(msg)">
+                        取消
+                      </a-button>
+                    </template>
+                    <span v-else-if="msg.actionProposal.status === 'cancelled'" class="action-status muted">已取消</span>
+                    <div v-else-if="msg.actionProposal.status === 'executed'" class="action-done">
+                      <span>✓ {{ msg.actionProposal.resultMessage }}</span>
+                      <a-button
+                        v-if="msg.actionProposal.resultRoute"
+                        type="link"
+                        size="small"
+                        @click="router.push(msg.actionProposal.resultRoute!)"
+                      >
+                        查看
+                      </a-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-      <HermesPlanDraftPanel
-        v-model:draft="planDraft"
-        :saving="savingDraft"
-        :confirmed="draftConfirmed"
-        :changed-count="draftChangedCount"
-        :selected-module-count="selectedDraftModuleCount"
-        :selected-case-count="selectedDraftCaseCount"
-        :selected-regression-count="selectedDraftRegressionCount"
-        :selected-suite-count="selectedDraftSuiteCount"
-        :failed-task-count="failedTasks.length"
-        :diff-rows="planDraftDiffRows"
-        @save="savePlanDraft"
-        @confirm="confirmPlanDraft"
-        @add-point="addPlanPoint"
-        @remove-point="removePlanPoint"
-        @open-path="openPath"
-        @open-source="openSource"
-      />
+            <!-- 流式输出中的临时气泡 -->
+            <div v-if="isStreaming" class="msg-row assistant">
+              <div class="msg-avatar"><RobotOutlined /></div>
+              <div class="msg-content">
+                <div v-if="streamingToolEvents.length" class="tool-chips">
+                  <span v-for="(evt, i) in streamingToolEvents" :key="i" class="tool-chip">
+                    ✓ {{ evt.label }} · {{ evt.summary }}
+                  </span>
+                </div>
+                <div class="msg-bubble">
+                  <div v-if="streamingText" class="markdown-body" v-html="renderMarkdown(streamingText)" />
+                  <span v-else class="typing-dots"><span /><span /><span /></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <details class="hermes-disclosure context-disclosure">
-        <summary>
-          <span>{{ t('hermes.context_settings') }}</span>
-          <span class="disclosure-note">{{ t('hermes.context_summary', { count: sourceTypes.length, budget: contextBudget }) }}</span>
-        </summary>
-        <HermesConversationContextPanel
-          v-model:source-types="sourceTypes"
-          v-model:date-range="dateRange"
-          v-model:context-budget="contextBudget"
-          :short-conversation-id="shortConversationId"
-          :source-type-options="sourceTypeOptions"
-          :context-budget-options="contextBudgetOptions"
-          :history-used="historyUsed"
-          :history-omitted="historyOmitted"
-          :context-chars="contextChars"
-          @new-conversation="startNewConversation"
-        />
-      </details>
+        <!-- 底部输入框 -->
+        <div class="composer-wrap">
+          <div class="composer-box">
+            <textarea
+              v-model="inputText"
+              rows="2"
+              class="composer-input"
+              :placeholder="selectedProjectId ? '询问当前项目数据、排查失败或让 Hermes 执行操作... (Enter 发送)' : '输入任意测试或技术问题... (Enter 发送)'"
+              @keydown.enter.exact.prevent="handleSend"
+            />
+            <div class="composer-actions">
+              <a-button v-if="isStreaming" danger size="small" @click="stopStreaming">停止</a-button>
+              <a-button
+                v-else
+                type="primary"
+                size="small"
+                :disabled="!inputText.trim()"
+                @click="handleSend"
+              >
+                <SendOutlined /> 发送
+              </a-button>
+            </div>
+          </div>
+        </div>
+      </main>
 
-      <details v-if="governanceSummary" class="hermes-disclosure governance-disclosure">
-        <summary>
-          <span>{{ t('hermes.governance_title') }}</span>
-          <span class="disclosure-note">{{ t('hermes.evaluation_hint') }}</span>
-        </summary>
-        <HermesGovernancePanel :summary="governanceSummary" />
-      </details>
-    </template>
+      <!-- 右侧精简项目面板（仅选中项目且展开时显示） -->
+      <aside v-if="selectedProjectId && contextOpen" class="context-pane">
+        <div class="pane-header">
+          <span>项目快照</span>
+          <a-button type="text" size="small" :loading="contextLoading" @click="loadProjectSnapshot">
+            <ReloadOutlined />
+          </a-button>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-cell">
+            <span class="stat-label">通过率</span>
+            <strong>{{ passRateText }}</strong>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-label">总运行</span>
+            <strong>{{ totalRuns }}</strong>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-label">用例数</span>
+            <strong>{{ casesCount }}</strong>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-label">待处理缺陷</span>
+            <strong>{{ openDefectsCount }}</strong>
+          </div>
+        </div>
+
+        <div class="failure-section">
+          <div class="section-title">最近失败任务</div>
+          <a-empty v-if="!failedTasks.length" description="暂无失败任务" :image="false" style="margin: 16px 0" />
+          <div v-else class="failure-list">
+            <button
+              v-for="task in failedTasks"
+              :key="`${task.task_type}-${task.run_id}`"
+              type="button"
+              class="failure-item"
+              @click="analyzeFailureTask(task)"
+            >
+              <span class="failure-name">{{ task.name }}</span>
+              <span class="failure-meta">#{{ task.run_id }} · {{ task.status }}</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { message, Modal } from 'ant-design-vue'
-import { useI18n } from 'vue-i18n'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import {
+  DashboardOutlined,
+  DeleteOutlined,
+  HistoryOutlined,
+  MessageOutlined,
   PlusOutlined,
   ReloadOutlined,
   RobotOutlined,
+  SendOutlined,
+  UserOutlined,
 } from '@ant-design/icons-vue'
 import {
   caseApi,
-  hermesApi,
+  defectApi,
   projectApi,
   reportApi,
-  runApi,
-  planApi,
-  statisticsApi,
-  suiteApi,
   workbenchApi,
-  type HermesGovernanceSummary,
-  type HermesOrchestrationResult,
-  type HermesSourceType,
-  type HermesQueryResult,
-  type ModuleTreeItem,
   type ProjectItem,
-  type PlanItem,
-  type SuiteItem,
   type WorkbenchTaskItem,
-  type ReportOverviewItem,
 } from '@/api'
-import type { Dayjs } from 'dayjs'
-import HermesActionsPanel from './components/HermesActionsPanel.vue'
-import HermesConversationContextPanel from './components/HermesConversationContextPanel.vue'
-import HermesConversationPanel from './components/HermesConversationPanel.vue'
-import HermesDiagnosisPanel from './components/HermesDiagnosisPanel.vue'
-import HermesEvidencePanel from './components/HermesEvidencePanel.vue'
-import HermesGovernancePanel from './components/HermesGovernancePanel.vue'
-import HermesPlanDraftPanel from './components/HermesPlanDraftPanel.vue'
-import type {
-  HermesDiagnosis,
-  HermesMessage,
-  HermesPromptKey as PromptKey,
-  HermesSource,
-} from './components/hermesPanelTypes'
 import {
-  useHermesPlanDraft,
-  type DraftCase,
-  type DraftModule,
-  type DraftRegressionItem,
-  type DraftSuiteSuggestion,
-  type PlanDraft,
-} from './composables/useHermesPlanDraft'
-import { useAuthStore } from '@/stores/auth'
-import { canEditProjectByRole } from '@/utils/permissions'
+  executeAiChatAction,
+  streamAiChat,
+  type AiChatActionProposal,
+  type AiChatToolEvent,
+  type ChatActionType,
+} from '@/api/aiChat'
+import { useAiChatStore, type ChatMessage } from '@/stores/aiChat'
+import { projectIdFromQuery } from '@/utils/projectContext'
 
-const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
+const chatStore = useAiChatStore()
 
-let auth: ReturnType<typeof useAuthStore> | null = null
-try {
-  auth = useAuthStore()
-} catch {
-  auth = null
-}
-const actionsPanel = ref<InstanceType<typeof HermesActionsPanel> | null>(null)
 const projects = ref<ProjectItem[]>([])
-const selectedProjectId = ref<number | null>(positiveInt(route.query.project_id))
-const projectSelectId = computed<number | undefined>({
-  get: () => selectedProjectId.value ?? undefined,
-  set: (value) => { selectedProjectId.value = positiveInt(value) },
-})
-const modules = ref<ModuleTreeItem[]>([])
-const cases = ref<Array<{ id?: number; name?: string; module_id?: number; automation_status?: string | null }>>([])
-const suites = ref<SuiteItem[]>([])
-const plans = ref<PlanItem[]>([])
-const failedTasks = ref<WorkbenchTaskItem[]>([])
-const reportOverview = ref<ReportOverviewItem | null>(null)
-const failureHotspots = ref<Array<{ case_name: string; failure_count: number }>>([])
-const governanceSummary = ref<HermesGovernanceSummary | null>(null)
-const messages = ref<HermesMessage[]>([])
-const sessionId = ref<number | null>(null)
-const savingDraft = ref(false)
+const selectedProjectId = ref<number | undefined>(projectIdFromQuery(route.query.project_id))
+const historyOpen = ref(false)
+const contextOpen = ref(true)
 const inputText = ref('')
-const selectedTaskId = ref<string | null>(null)
-const diagnosis = ref<HermesDiagnosis | null>(null)
-const planDraft = ref<PlanDraft | null>(null)
-const draftConfirmed = ref(false)
-const loading = ref(false)
-const diagnosing = ref(false)
-const querying = ref(false)
-const loadError = ref('')
-const conversationId = ref('')
-const sourceTypes = ref<HermesSourceType[]>([])
-const dateRange = ref<[Dayjs, Dayjs] | undefined>(undefined)
-const contextBudget = ref(6_000)
-const historyUsed = ref(0)
-const historyOmitted = ref(0)
-const contextChars = ref(0)
-const {
-  selectedModuleCount: selectedDraftModuleCount,
-  selectedCaseCount: selectedDraftCaseCount,
-  selectedRegressionCount: selectedDraftRegressionCount,
-  selectedSuiteCount: selectedDraftSuiteCount,
-  diffRows: planDraftDiffRows,
-  changedCount: draftChangedCount,
-  addPoint: addPlanPoint,
-  removePoint: removePlanPoint,
-  buildHandoff: buildPlanDraftHandoff,
-} = useHermesPlanDraft(planDraft)
-let loadSequence = 0
-let projectsSequence = 0
-let messageSequence = 0
-let querySequence = 0
+const isStreaming = ref(false)
+const streamingText = ref('')
+const streamingToolEvents = ref<AiChatToolEvent[]>([])
+const messagesRef = ref<HTMLElement | null>(null)
+let abortController: AbortController | null = null
 
-const projectOptions = computed(() => projects.value.map((project) => ({ label: project.name, value: project.id })))
-const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
-const selectedProjectName = computed(() => selectedProject.value?.name || '')
-const canModify = computed(() =>
-  canEditProjectByRole(auth?.user?.role, selectedProject.value?.current_user_role),
+const contextLoading = ref(false)
+const casesCount = ref(0)
+const totalRuns = ref(0)
+const passRate = ref(0)
+const openDefectsCount = ref(0)
+const failedTasks = ref<WorkbenchTaskItem[]>([])
+
+const currentMessages = computed(() => chatStore.currentMessages)
+const projectOptions = computed(() => projects.value.map((p) => ({ label: p.name, value: p.id })))
+const passRateText = computed(() => (totalRuns.value > 0 ? `${passRate.value.toFixed(1)}%` : '--'))
+
+const quickPrompts = computed(() =>
+  selectedProjectId.value
+    ? [
+        '查看当前项目概览和用例分布',
+        '分析最近失败的测试任务及可能原因',
+        '帮我创建一条 Web 登录测试用例',
+        '针对当前项目给出测试质量改进建议',
+      ]
+    : [
+        '如何设计稳定的 Web UI 自动化断言？',
+        'Pytest 接口自动化如何管理动态 Token？',
+        'Playwright 元素定位易失效怎么治理？',
+        '帮我写一个幂等接口测试思路',
+      ],
 )
-const latestAnswer = computed(() => {
-  for (let i = messages.value.length - 1; i >= 0; i -= 1) {
-    const item = messages.value[i]
-    if (item.role === 'assistant' && !item.isWelcome) return item.text
+
+function renderMarkdown(text: string): string {
+  const html = marked.parse(text || '', { async: false }) as string
+  return DOMPurify.sanitize(html)
+}
+
+function actionTypeLabel(action: ChatActionType): string {
+  const map: Record<ChatActionType, string> = {
+    run_case: '执行用例',
+    run_suite: '执行套件',
+    create_case: '创建用例',
+    update_case: '更新用例',
+    create_defect: '提交缺陷',
+    update_defect: '更新缺陷',
+    create_knowledge: '沉淀知识',
   }
-  return ''
-})
-const moduleCount = computed(() => flattenModules(modules.value).length)
-const totalRuns = computed(() => reportOverview.value?.total_runs ?? 0)
-const passRate = computed(() => Math.round(Number(reportOverview.value?.pass_rate ?? 0)))
-const qualityScore = computed(() => Math.round(Number(reportOverview.value?.quality_score ?? passRate.value)))
-const coverageRate = computed(() => Math.round(Number(reportOverview.value?.coverage_rate ?? 0)))
-const openDefects = computed(() => reportOverview.value?.open_defects ?? 0)
-const failedTaskNames = computed(() => Object.fromEntries(failedTasks.value.map((task) => [task.id, task.name])))
-const promptOptions = computed(() => [
-  { key: 'failed_tasks' as const, mark: '!', title: t('hermes.prompts.failed_tasks'), description: t('hermes.prompts.failed_tasks_hint') },
-  { key: 'explain_failure' as const, mark: '?', title: t('hermes.prompts.explain_failure'), description: t('hermes.prompts.explain_failure_hint') },
-  { key: 'test_plan' as const, mark: '+', title: t('hermes.prompts.test_plan'), description: t('hermes.prompts.test_plan_hint') },
-  { key: 'quality' as const, mark: '%', title: t('hermes.prompts.quality'), description: t('hermes.prompts.quality_hint') },
-])
-const sourceTypeOptions = computed(() => [
-  { label: t('hermes.source_types.knowledge'), value: 'knowledge' as const },
-  { label: t('hermes.source_types.requirement'), value: 'requirement' as const },
-  { label: t('hermes.source_types.case'), value: 'case' as const },
-])
-const contextBudgetOptions = computed(() => [
-  { label: t('hermes.context_budget_option', { chars: 4_000 }), value: 4_000 },
-  { label: t('hermes.context_budget_option', { chars: 6_000 }), value: 6_000 },
-  { label: t('hermes.context_budget_option', { chars: 8_000 }), value: 8_000 },
-  { label: t('hermes.context_budget_option', { chars: 12_000 }), value: 12_000 },
-])
-const shortConversationId = computed(() => conversationId.value.slice(-8) || '—')
-
-function positiveInt(value: unknown): number | null {
-  const raw = Array.isArray(value) ? value[0] : value
-  const parsed = Number(raw)
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+  return map[action] || action
 }
 
-function flattenModules(items: ModuleTreeItem[]): ModuleTreeItem[] {
-  return items.flatMap((item) => [item, ...flattenModules(item.children || [])])
-}
-
-function newConversationId() {
-  const randomPart = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  return `hermes-${selectedProjectId.value || 'none'}-${randomPart}`
-}
-
-function isConversationId(value: unknown): value is string {
-  return typeof value === 'string' && /^[A-Za-z0-9._:-]{8,80}$/.test(value)
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'object' && error !== null) {
-    const response = (error as { response?: { data?: { detail?: unknown } }; message?: unknown }).response
-    if (typeof response?.data?.detail === 'string') return response.data.detail
-    if (typeof (error as { message?: unknown }).message === 'string') return String((error as { message: string }).message)
-  }
-  return error instanceof Error ? error.message : fallback
-}
-
-function errorStatus(error: unknown) {
-  if (typeof error !== 'object' || error === null) return null
-  const status = (error as { response?: { status?: unknown } }).response?.status
-  return typeof status === 'number' ? status : null
-}
-
-function source(label: string, path: string): HermesSource {
-  const projectId = selectedProjectId.value
-  const separator = path.includes('?') ? '&' : '?'
-  return { label, path: projectId ? `${path}${separator}project_id=${projectId}` : path }
-}
-
-function resetConversation() {
-  querySequence += 1
-  querying.value = false
-  conversationId.value = newConversationId()
-  historyUsed.value = 0
-  historyOmitted.value = 0
-  contextChars.value = 0
-  messages.value = [{
-    id: ++messageSequence,
-    role: 'assistant',
-    text: t('hermes.welcome', { project: selectedProjectName.value }),
-    createdAt: new Date().toISOString(),
-    sources: [source(t('hermes.source_reports'), '/reports'), source(t('hermes.source_tasks'), '/tasks')],
-    isWelcome: true,
-  }]
-}
-
-function startNewConversation() {
-  sessionId.value = null
-  resetConversation()
-}
-
-function clearProjectData() {
-  modules.value = []
-  cases.value = []
-  suites.value = []
-  plans.value = []
-  failedTasks.value = []
-  reportOverview.value = null
-  failureHotspots.value = []
-  selectedTaskId.value = null
-  diagnosis.value = null
-  planDraft.value = null
-  governanceSummary.value = null
-  sessionId.value = null
-  draftConfirmed.value = false
-  resetConversation()
-}
-
-function syncRoute() {
-  void router.replace({ query: selectedProjectId.value ? { project_id: String(selectedProjectId.value) } : {} })
-}
-
-async function loadProjectData() {
-  const projectId = selectedProjectId.value
-  const sequence = ++loadSequence
-  loadError.value = ''
-  clearProjectData()
-  if (!projectId) {
-    loading.value = false
-    return
-  }
-  loading.value = true
-  const results = await Promise.allSettled([
-    projectApi.getModules(projectId),
-    caseApi.list({ project_id: projectId }),
-    suiteApi.list({ project_id: projectId }),
-    planApi.list({ project_id: projectId }),
-    workbenchApi.tasks({ project_id: projectId, limit: 100 }),
-    reportApi.overview({ project_id: projectId, days: 30, recent_limit: 20 }),
-    statisticsApi.failureTop({ project_id: projectId, days: 30, top: 8 }),
-  ])
-  if (sequence !== loadSequence) return
-  const failures: string[] = []
-  const [moduleResult, caseResult, suiteResult, planResult, taskResult, reportResult, hotspotResult] = results
-  if (moduleResult.status === 'fulfilled') modules.value = moduleResult.value
-  else failures.push(t('hermes.load_modules_failed'))
-  if (caseResult.status === 'fulfilled') cases.value = caseResult.value
-  else failures.push(t('hermes.load_cases_failed'))
-  if (suiteResult.status === 'fulfilled') suites.value = suiteResult.value
-  else failures.push(t('hermes.load_suites_failed'))
-  if (planResult.status === 'fulfilled') plans.value = planResult.value
-  else failures.push(t('hermes.load_plans_failed'))
-  if (taskResult.status === 'fulfilled') {
-    failedTasks.value = taskResult.value.items.filter((item) => ['failed', 'error'].includes(item.status))
-  } else failures.push(t('hermes.load_tasks_failed'))
-  if (reportResult.status === 'fulfilled') reportOverview.value = reportResult.value
-  else failures.push(t('hermes.load_report_failed'))
-  if (hotspotResult.status === 'fulfilled') failureHotspots.value = hotspotResult.value
-  else failures.push(t('hermes.load_hotspots_failed'))
-  if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
-    failedTasks.value = [
-      {
-        id: 'task-101',
-        name: 'PJX110 手机端冷启动测试',
-        detail_path: '/mobile-special/reports/101',
-        status: 'failed',
-        error_message: 'Cold start duration exceeded limit: 2450ms > 1800ms',
-        created_at: '2026-09-07T14:30:00Z',
-      } as unknown as WorkbenchTaskItem,
-      {
-        id: 'task-102',
-        name: 'MIX 3 短信验证码识别回放',
-        detail_path: '/mobile-special/reports/102',
-        status: 'error',
-        error_message: 'ADB connection timeout while waiting for UIAutomator dump',
-        created_at: '2026-09-07T14:40:00Z',
-      } as unknown as WorkbenchTaskItem,
-    ]
-    reportOverview.value = {
-      days: 30,
-      total_cases: 120,
-      executed_cases: 110,
-      passed_runs: 118,
-      failed_runs: 8,
-      error_runs: 2,
-      total_runs: 128,
-      pass_rate: 92,
-      quality_score: 88,
-      coverage_rate: 85,
-      open_defects: 3,
-      recent_runs: [],
-    } as unknown as ReportOverviewItem
-    modules.value = [
-      { id: 1, name: '用户与登录模块', children: [] } as unknown as (typeof modules.value)[number],
-      { id: 2, name: '设备自动化管理', children: [] } as unknown as (typeof modules.value)[number],
-    ]
-    cases.value = [
-      { id: 1, name: '用户冷启动正常进入主界面' } as unknown as (typeof cases.value)[number],
-      { id: 2, name: '设备拔插重连与状态同步' } as unknown as (typeof cases.value)[number],
-    ]
-    loadError.value = ''
-  } else {
-    loadError.value = failures.join('；')
-  }
-  resetConversation()
-  try {
-    const sessions = await hermesApi.sessions(projectId)
-    if (sequence !== loadSequence || selectedProjectId.value !== projectId) return
-    const latest = sessions[0]
-    if (latest) {
-      sessionId.value = latest.id
-      const storedConversationId = latest.context_filters?.conversation_id
-      if (isConversationId(storedConversationId)) conversationId.value = storedConversationId
-      const restored = latest.messages
-        .map((item, index): HermesMessage | null => {
-          const role = item.role === 'assistant' ? 'assistant' : item.role === 'user' ? 'user' : null
-          if (!role || typeof item.content !== 'string') return null
-          const storedSources = Array.isArray(item.sources) ? item.sources : []
-          return {
-            id: ++messageSequence,
-            role,
-            text: item.content,
-            createdAt: typeof item.at === 'string' ? item.at : latest.updated_at,
-            sources: storedSources.map((entry) => {
-              const sourceItem = entry as Record<string, unknown>
-              return { label: String(sourceItem.source_ref || sourceItem.title || sourceItem.source_type || 'source'), path: String(sourceItem.path || '/') }
-            }),
-            mode: item.mode as HermesQueryResult['mode'] | undefined,
-            toolSteps: Array.isArray(item.tool_steps)
-              ? item.tool_steps
-                .filter((step): step is Record<string, unknown> => typeof step === 'object' && step !== null)
-                .map((step) => ({
-                  tool: String(step.tool || ''),
-                  status: String(step.status || ''),
-                  reason: typeof step.reason === 'string' ? step.reason : undefined,
-                }))
-                .filter((step) => step.tool && step.status)
-              : undefined,
-            planner: typeof item.planner === 'object' && item.planner !== null
-              ? item.planner as HermesMessage['planner']
-              : undefined,
-            backendIndex: role === 'assistant' && !['orchestration_clarification', 'orchestration_cancellation'].includes(String(item.kind))
-              && typeof item.message_id === 'string' && /^[0-9a-f]{32}$/.test(item.message_id)
-              ? index
-              : undefined,
-            backendMessageId: typeof item.message_id === 'string' && /^[0-9a-f]{32}$/.test(item.message_id)
-              ? item.message_id
-              : undefined,
-          }
-        })
-        .filter((item): item is HermesMessage => item !== null)
-      if (restored.length) messages.value = restored
+function scrollToBottom() {
+  void nextTick(() => {
+    if (messagesRef.value) {
+      messagesRef.value.scrollTop = messagesRef.value.scrollHeight
     }
-  } catch {
-    failures.push(t('hermes.load_sessions_failed'))
-  }
-  if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA !== 'true') {
-    loadError.value = failures.join('；')
-  }
-  loading.value = false
-  await loadGovernance(projectId)
-}
-
-async function loadGovernance(projectId: number) {
-  const sequence = loadSequence
-  try {
-    const summary = await hermesApi.governance(projectId)
-    if (sequence === loadSequence && selectedProjectId.value === projectId) governanceSummary.value = summary
-  } catch {
-    if (sequence === loadSequence && selectedProjectId.value === projectId) governanceSummary.value = null
-  }
+  })
 }
 
 async function loadProjects() {
-  const sequence = ++projectsSequence
-  loading.value = true
   try {
-    const nextProjects = await projectApi.list()
-    if (sequence !== projectsSequence) return
-    projects.value = nextProjects
-    if (!selectedProjectId.value || !projects.value.some((project) => project.id === selectedProjectId.value)) {
-      selectedProjectId.value = projects.value[0]?.id ?? null
-      syncRoute()
+    projects.value = await projectApi.list()
+    if (!selectedProjectId.value && chatStore.currentSession?.projectId) {
+      selectedProjectId.value = chatStore.currentSession.projectId
+    } else if (!selectedProjectId.value && projects.value.length === 1) {
+      selectedProjectId.value = projects.value[0].id
     }
-    await loadProjectData()
-  } catch (error) {
-    if (sequence === projectsSequence) {
-      if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
-        projects.value = [
-          { id: 1, name: 'LexGuard Mobile Clean', description: '移动端核心测试项目' } as unknown as (typeof projects.value)[number],
-          { id: 2, name: 'ATP 移动端核心业务', description: 'ATP 核心自动化业务' } as unknown as (typeof projects.value)[number],
-        ]
-        selectedProjectId.value = 1
-        projectSelectId.value = 1
-        await loadProjectData()
-        loading.value = false
-        return
-      }
-      loadError.value = errorMessage(error, t('hermes.load_projects_failed'))
-      loading.value = false
-    }
+  } catch {
+    projects.value = []
   }
 }
 
-async function handleProjectChange(value?: unknown) {
-  selectedProjectId.value = positiveInt(value)
-  syncRoute()
-  await loadProjectData()
-}
-
-async function refreshWorkbench() {
-  await loadProjectData()
-}
-
-function appendMessage(
-  role: HermesMessage['role'],
-  text: string,
-  sources?: HermesSource[],
-  taskIds?: string[],
-  mode?: HermesQueryResult['mode'],
-  toolSteps?: Array<{ tool: string; status: string; reason?: string }>,
-  planner?: HermesMessage['planner'],
-) {
-  messages.value.push({
-    id: ++messageSequence,
-    role,
-    text,
-    createdAt: new Date().toISOString(),
-    sources,
-    taskIds,
-    mode,
-    toolSteps,
-    planner,
-    isWelcome: false,
-  })
-}
-function handleActionCompleted(text: string, path?: string) {
-  appendMessage(
-    'assistant',
-    text,
-    path ? [{ label: t('hermes.actions.open_result'), path }] : undefined,
-  )
-}
-function conversationHistory() {
-  return messages.value
-    .filter((message) => !message.isWelcome && message.text.trim())
-    .slice(-12)
-    .map((message) => ({ role: message.role, content: message.text }))
-}
-
-function selectedFailureTask() {
-  return failedTasks.value.find((task) => task.id === selectedTaskId.value) || failedTasks.value[0]
-}
-
-function selectFailureTask(taskId: string) {
-  selectedTaskId.value = taskId
-}
-
-function openSource(item: HermesSource) {
-  openPath(item.path)
-}
-
-function openPath(path: string) {
-  void router.push(path)
-}
-
-function openTaskById(taskId: string) {
-  const task = failedTasks.value.find((item) => item.id === taskId)
-  if (task) void router.push(task.detail_path)
-}
-
-function openTaskCenter() {
-  void router.push(source(t('hermes.source_tasks'), '/tasks').path)
-}
-
-function openRuns() {
-  void router.push(source(t('hermes.source_runs'), '/runs').path)
-}
-
-function openPlans() {
-  if (planDraft.value && !draftConfirmed.value) return
-  if (planDraft.value && selectedProjectId.value) {
-    const handoff = buildPlanDraftHandoff(selectedProjectId.value)
-    if (!handoff) return
-    void router.push({
-      path: '/plans',
-      query: { project_id: String(selectedProjectId.value), hermes_draft: '1' },
-      state: { hermesPlanDraft: handoff },
-    })
-    return
-  }
-  void router.push(source(t('hermes.source_plans'), '/plans').path)
-}
-
-function confirmPlanDraft() {
-  if (!planDraft.value) return
-  draftConfirmed.value = true
-  appendMessage('assistant', t('hermes.answers.plan_confirmed'), planDraft.value.sources)
-  openPlans()
-}
-
-async function queryHermes(text: string, history = conversationHistory()) {
-  const projectId = selectedProjectId.value
-  if (!projectId) return
-  const requestConversationId = conversationId.value
-  const requestSequence = ++querySequence
-  querying.value = true
+async function loadProjectSnapshot() {
+  const pid = selectedProjectId.value
+  if (!pid) return
+  contextLoading.value = true
   try {
-    const range = dateRange.value
-    const result = await hermesApi.query({
-      project_id: projectId,
-      query: text,
-      limit: 8,
-      conversation_id: requestConversationId,
-      history,
-      source_types: [...sourceTypes.value],
-      updated_from: range?.[0]?.format('YYYY-MM-DD'),
-      updated_to: range?.[1]?.format('YYYY-MM-DD'),
-      context_budget: contextBudget.value,
-      session_id: sessionId.value ?? undefined,
-    })
-    if (
-      querySequence !== requestSequence
-      || selectedProjectId.value !== projectId
-      || conversationId.value !== requestConversationId
-    ) return
-    sessionId.value = result.session_id
-    conversationId.value = result.conversation_id
-    historyUsed.value = result.history_used
-    historyOmitted.value = result.history_omitted
-    contextChars.value = result.context_chars
-    const sources = result.sources.map((item) => ({
-      label: [item.source_ref || item.source_type, item.title].join(' · '),
-      path: item.path,
-    }))
-    appendMessage('assistant', result.answer, sources, undefined, result.mode)
-    messages.value[messages.value.length - 1].backendIndex = result.message_index
-    messages.value[messages.value.length - 1].backendMessageId = result.message_id
-    if (result.evaluation) await loadGovernance(projectId)
-  } catch (error) {
-    if (
-      querySequence !== requestSequence
-      || selectedProjectId.value !== projectId
-      || conversationId.value !== requestConversationId
-    ) return
-    appendMessage(
-      'assistant',
-      errorStatus(error) === 409
-        ? t('hermes.session_conflict')
-        : t('hermes.query_failed', { error: errorMessage(error, t('hermes.query_unavailable')) }),
-    )
+    const [caseList, overview, defects, tasks] = await Promise.all([
+      caseApi.list({ project_id: pid }).catch(() => []),
+      reportApi.overview({ project_id: pid, days: 30 }).catch(() => null),
+      defectApi.list({ project_id: pid, status: 'open', page_size: 1 }).catch(() => null),
+      workbenchApi.tasks({ project_id: pid, status: 'failed', limit: 6 }).catch(() => null),
+    ])
+    if (selectedProjectId.value !== pid) return
+    casesCount.value = caseList.length
+    totalRuns.value = overview?.total_runs ?? 0
+    passRate.value = overview?.pass_rate ?? 0
+    openDefectsCount.value = defects?.total ?? 0
+    failedTasks.value = tasks?.items ?? []
   } finally {
-    if (querySequence === requestSequence) querying.value = false
+    if (selectedProjectId.value === pid) {
+      contextLoading.value = false
+    }
   }
 }
 
-async function orchestratePrompt(text: string): Promise<boolean> {
-  const projectId = selectedProjectId.value
-  if (!projectId) return false
-  const requestConversationId = conversationId.value
-  const requestSequence = ++querySequence
-  querying.value = true
-  try {
-    const result: HermesOrchestrationResult = await hermesApi.orchestrate({
-      project_id: projectId,
-      query: text,
-      conversation_id: requestConversationId,
-      session_id: sessionId.value ?? undefined,
-    })
-    if (
-      querySequence !== requestSequence
-      || selectedProjectId.value !== projectId
-      || conversationId.value !== requestConversationId
-    ) return true
-    if (result.status === 'no_match') {
-      sessionId.value = result.session_id ?? sessionId.value
-      return false
-    }
-    if (result.status === 'needs_input') {
-      sessionId.value = result.session_id ?? sessionId.value
-      appendMessage('assistant', result.clarification || result.answer)
-      return true
-    }
-    if (result.status === 'cancelled') {
-      sessionId.value = result.session_id ?? sessionId.value
-      appendMessage('assistant', result.answer)
-      return true
-    }
-    sessionId.value = result.session_id ?? sessionId.value
-    const sources = result.steps.flatMap((step) => step.evidence.map((item) => ({
-      label: [item.source_ref, item.title].filter(Boolean).join(' · '),
-      path: item.path,
-    })))
-    appendMessage(
-      'assistant',
-      result.answer,
-      sources,
-      undefined,
-      undefined,
-      result.steps.map((step) => ({
-        tool: step.tool,
-        status: step.status,
-        reason: result.plans.find((plan) => plan.tool === step.tool)?.reason,
-      })),
-      result.planner,
-    )
-    messages.value[messages.value.length - 1].backendIndex = result.message_index ?? undefined
-    messages.value[messages.value.length - 1].backendMessageId = result.message_id ?? undefined
-    if (result.evaluation) await loadGovernance(projectId)
-    return true
-  } catch (error) {
-    if (
-      querySequence !== requestSequence
-      || selectedProjectId.value !== projectId
-      || conversationId.value !== requestConversationId
-    ) return true
-    if (errorStatus(error) === 409) {
-      appendMessage('assistant', t('hermes.session_conflict'))
-      return true
-    }
-    return false
-  } finally {
-    if (querySequence === requestSequence) querying.value = false
+function handleProjectChange(val: unknown) {
+  const nextId = typeof val === 'number' && Number.isFinite(val) ? val : undefined
+  selectedProjectId.value = nextId
+  chatStore.setSessionProject(nextId)
+  if (nextId) {
+    void loadProjectSnapshot()
+  } else {
+    casesCount.value = 0
+    totalRuns.value = 0
+    passRate.value = 0
+    openDefectsCount.value = 0
+    failedTasks.value = []
   }
 }
 
-async function rateMessage(item: HermesMessage, rating: 'helpful' | 'not_helpful') {
-  if (!sessionId.value || item.backendIndex == null || !item.backendMessageId || !selectedProjectId.value) return
-  try {
-    await hermesApi.feedback(sessionId.value, {
-      project_id: selectedProjectId.value,
-      message_index: item.backendIndex,
-      message_id: item.backendMessageId,
-      rating,
-    })
-    message.success(t('hermes.feedback_saved'))
-    await loadGovernance(selectedProjectId.value)
-  } catch (error) {
-    if (errorStatus(error) === 409) {
-      item.backendIndex = undefined
-      item.backendMessageId = undefined
-      message.warning(t('hermes.session_conflict'))
-    }
-    else message.error(errorMessage(error, t('hermes.feedback_save_failed')))
+function switchSession(id: string) {
+  if (isStreaming.value) return
+  chatStore.switchSession(id)
+  const sessionProj = chatStore.currentSession?.projectId
+  if (sessionProj && sessionProj !== selectedProjectId.value) {
+    handleProjectChange(sessionProj)
+  }
+  scrollToBottom()
+}
+
+function handleNewSession() {
+  if (isStreaming.value) stopStreaming()
+  chatStore.createSession('新对话', selectedProjectId.value)
+}
+
+function sendQuickPrompt(prompt: string) {
+  inputText.value = prompt
+  void handleSend()
+}
+
+function analyzeFailureTask(task: WorkbenchTaskItem) {
+  inputText.value = `请帮我分析运行 #${task.run_id}（${task.name}）的失败原因，并给出排查建议。`
+  void handleSend()
+}
+
+function stopStreaming() {
+  if (abortController) {
+    abortController.abort()
+    abortController = null
   }
 }
 
-async function savePlanDraft() {
-  if (!selectedProjectId.value || !planDraft.value) return
-  savingDraft.value = true
-  try {
-    const currentSessionId = sessionId.value ?? (await hermesApi.createSession(selectedProjectId.value, t('hermes.conversation_title'))).id
-    sessionId.value = currentSessionId
-    const draft = await hermesApi.createDraft(currentSessionId, {
-      project_id: selectedProjectId.value,
-      draft_type: 'test_plan',
-      payload: planDraft.value,
-      sources: planDraft.value.sources.map((item) => ({ path: item.path })),
-    })
-    Modal.confirm({
-      title: t('hermes.confirm_draft_title'),
-      content: t('hermes.confirm_draft_content'),
-      async onOk() {
-        try {
-          const result = await hermesApi.confirmDraft(currentSessionId, { project_id: selectedProjectId.value!, draft_id: draft.id, confirmation: 'CONFIRM' })
-          draftConfirmed.value = true
-          message.success(t('hermes.draft_saved', { id: result.plan_id }))
-        } catch (error) {
-          if (errorStatus(error) === 409) message.warning(t('hermes.session_conflict'))
-          else message.error(errorMessage(error, t('hermes.draft_save_failed')))
-          throw error
-        }
-      },
-    })
-  } catch (error) {
-    if (errorStatus(error) === 409) message.warning(t('hermes.session_conflict'))
-    else message.error(errorMessage(error, t('hermes.draft_save_failed')))
-  } finally {
-    savingDraft.value = false
-  }
-}
+async function handleSend() {
+  const query = inputText.value.trim()
+  if (!query || isStreaming.value) return
 
-function buildFailedTaskAnswer() {
-  if (!failedTasks.value.length) {
-    appendMessage('assistant', t('hermes.answers.no_failed_tasks'), [source(t('hermes.source_runs'), '/runs')])
-    return
-  }
-  appendMessage(
-    'assistant',
-    t('hermes.answers.failed_tasks', { count: failedTasks.value.length }),
-    [source(t('hermes.source_tasks'), '/tasks'), source(t('hermes.source_reports'), '/reports')],
-    failedTasks.value.slice(0, 5).map((task) => task.id),
-  )
-}
-
-function buildQualityAnswer() {
-  const hotspots = failureHotspots.value.slice(0, 3).map((item) => `${item.case_name}（${item.failure_count}）`).join('、')
-  appendMessage(
-    'assistant',
-    t('hermes.answers.quality', {
-      score: qualityScore.value,
-      passRate: passRate.value,
-      runs: totalRuns.value,
-      hotspots: hotspots || t('hermes.answers.no_hotspots'),
-    }),
-    [source(t('hermes.source_reports'), '/reports'), source(t('hermes.source_statistics'), '/dashboard')],
-  )
-}
-
-function buildPlanDraft() {
-  type SuiteCandidate = { suite: SuiteItem; taskIds: Set<string>; taskNames: Set<string>; caseIds: Set<number> }
-  const candidates = new Map<number, SuiteCandidate>()
-  const suitesById = new Map(suites.value.filter((suite) => suite.status === 'active').map((suite) => [suite.id, suite]))
-  const addSuiteCandidate = (suiteId: number, task: WorkbenchTaskItem, caseId?: number) => {
-    const suite = suitesById.get(suiteId)
-    if (!suite) return
-    const candidate = candidates.get(suiteId) || {
-      suite,
-      taskIds: new Set<string>(),
-      taskNames: new Set<string>(),
-      caseIds: new Set<number>(),
-    }
-    candidate.taskIds.add(task.id)
-    candidate.taskNames.add(task.name)
-    if (caseId) candidate.caseIds.add(caseId)
-    candidates.set(suiteId, candidate)
-  }
-  failedTasks.value.slice(0, 20).forEach((task) => {
-    if (task.task_type === 'case') {
-      suites.value
-        .filter((suite) => suite.case_ids.some((item) => item.case_id === task.source_id))
-        .forEach((suite) => addSuiteCandidate(suite.id, task, task.source_id))
-    } else if (task.task_type === 'suite') {
-      addSuiteCandidate(task.source_id, task)
-    } else if (task.task_type === 'plan') {
-      plans.value
-        .find((plan) => plan.id === task.source_id)
-        ?.suite_ids.forEach((item) => addSuiteCandidate(item.suite_id, task))
-    }
-  })
-  const suiteSuggestions: DraftSuiteSuggestion[] = [...candidates.values()]
-    .sort((left, right) => right.taskIds.size - left.taskIds.size || left.suite.id - right.suite.id)
-    .slice(0, 8)
-    .map((item) => ({
-      id: item.suite.id,
-      name: item.suite.name,
-      reason: t('hermes.plan_suite_reason', {
-        count: item.taskIds.size,
-        tasks: [...item.taskNames].slice(0, 3).join('、'),
-      }),
-      matchedTaskIds: [...item.taskIds],
-      matchedCaseIds: [...item.caseIds],
-      selected: true,
-      path: source(t('hermes.source_suites'), `/suites?suite_id=${item.suite.id}`).path,
-    }))
-  const suggestedCaseIds = new Set([
-    ...failedTasks.value.filter((item) => item.task_type === 'case').map((item) => item.source_id),
-    ...suiteSuggestions.flatMap((item) => item.matchedCaseIds),
-  ])
-  const moduleDrafts: DraftModule[] = flattenModules(modules.value).slice(0, 8).map((item) => ({
-    id: item.id,
-    name: item.name,
-    selected: true,
-    path: source(t('hermes.source_cases'), `/cases?module_id=${item.id}`).path,
+  const history = currentMessages.value.slice(-10).map((m) => ({
+    role: m.role,
+    content: m.text,
   }))
-  const caseDrafts: DraftCase[] = [...cases.value]
-    .sort((left, right) => Number(suggestedCaseIds.has(positiveInt(right.id) || 0)) - Number(suggestedCaseIds.has(positiveInt(left.id) || 0)))
-    .map((item) => ({ id: positiveInt(item.id), name: item.name || '' }))
-    .filter((item): item is { id: number; name: string } => item.id !== null)
-    .slice(0, 8)
-    .map((item) => ({
-      id: item.id,
-      title: item.name,
-      expected: t('hermes.case_draft_expected', { name: item.name }),
-      selected: true,
-      path: source(t('hermes.source_cases'), `/cases?case_id=${item.id}`).path,
-    }))
-  const regressionScope: DraftRegressionItem[] = failedTasks.value.slice(0, 8).map((item) => ({
-    taskId: item.id,
-    name: item.name,
-    reason: item.error_message || t('hermes.plan_regression_default_reason'),
-    selected: true,
-    path: item.detail_path,
-  }))
-  const moduleNames = moduleDrafts.filter((item) => item.selected).map((item) => item.name)
-  const pointSeed = moduleNames.length
-    ? moduleNames.map((name) => t('hermes.plan_point_module', { name }))
-    : [t('hermes.default_plan_point')]
-  const sources = [
-    source(t('hermes.source_cases'), '/cases'),
-    source(t('hermes.source_tasks'), '/tasks'),
-    source(t('hermes.source_reports'), '/reports'),
-    source(t('hermes.source_statistics'), '/dashboard'),
-  ]
-  if (suiteSuggestions.length) sources.push(source(t('hermes.source_suites'), '/suites'))
-  const draft: PlanDraft = {
-    name: t('hermes.plan_default_name', { project: selectedProjectName.value }),
-    objective: t('hermes.plan_default_objective', { cases: cases.value.length, passRate: passRate.value }),
-    testPoints: [...pointSeed, t('hermes.plan_point_failure', { count: failedTasks.value.length })],
-    scopeModules: moduleDrafts,
-    caseDrafts,
-    regressionScope,
-    suiteSuggestions,
-    sources,
-    baseline: {
-      name: t('hermes.plan_default_name', { project: selectedProjectName.value }),
-      objective: t('hermes.plan_default_objective', { cases: cases.value.length, passRate: passRate.value }),
-      testPoints: [...pointSeed, t('hermes.plan_point_failure', { count: failedTasks.value.length })],
-      moduleNames,
-      caseTitles: caseDrafts.filter((item) => item.selected).map((item) => item.title),
-      regressionTaskIds: regressionScope.filter((item) => item.selected).map((item) => item.taskId),
-      regressionTaskNames: regressionScope.filter((item) => item.selected).map((item) => item.name),
-      suiteIds: suiteSuggestions.filter((item) => item.selected).map((item) => item.id),
-      suiteNames: suiteSuggestions.filter((item) => item.selected).map((item) => item.name),
-    },
-  }
-  planDraft.value = draft
-  draftConfirmed.value = false
-  appendMessage('assistant', t('hermes.answers.plan', { count: pointSeed.length }), [...sources, source(t('hermes.source_plans'), '/plans')])
-}
-
-async function explainFailure(task?: WorkbenchTaskItem) {
-  const target = task || selectedFailureTask()
-  if (!target) {
-    appendMessage('assistant', t('hermes.answers.no_failed_tasks'))
-    return
-  }
-  selectedTaskId.value = target.id
-  appendMessage('user', t('hermes.user_explain', { name: target.name }))
-  diagnosing.value = true
-  try {
-    const result = target.task_type === 'case'
-      ? await runApi.generateFailureDiagnosis(target.run_id)
-      : await workbenchApi.failureDiagnosis(target.task_type, target.run_id)
-    diagnosis.value = { taskId: target.id, result }
-    appendMessage('assistant', t('hermes.answers.diagnosis', { name: target.name, status: result.status }), [source(t('hermes.source_run_detail'), target.detail_path)])
-  } catch (error) {
-    appendMessage('assistant', t('hermes.answers.diagnosis_failed', { error: errorMessage(error, t('hermes.diagnosis_failed')) }), [source(t('hermes.source_run_detail'), target.detail_path)])
-  } finally {
-    diagnosing.value = false
-  }
-}
-
-function intentFor(text: string): PromptKey | null {
-  const value = text.toLowerCase()
-  if (/计划|plan|回归|测试范围/.test(value)) return 'test_plan'
-  if (/解释|原因|诊断|error|错误|失败原因/.test(value)) return 'explain_failure'
-  if (/质量|通过率|指标|quality|分数/.test(value)) return 'quality'
-  if (/失败|任务|异常|failed|task/.test(value)) return 'failed_tasks'
-  return null
-}
-
-async function executeIntent(key: PromptKey) {
-  if (key === 'failed_tasks') {
-    buildFailedTaskAnswer()
-  }
-  else if (key === 'quality') {
-    buildQualityAnswer()
-  }
-  else if (key === 'test_plan') buildPlanDraft()
-  else await explainFailure()
-}
-
-async function askPrompt(key: PromptKey) {
-  const prompt = promptOptions.value.find((item) => item.key === key)
-  if (!prompt) return
-  appendMessage('user', prompt.title)
-  await executeIntent(key)
-}
-
-async function submitPrompt() {
-  const text = inputText.value.trim()
-  if (!text) return
+  chatStore.appendMessage('user', query)
   inputText.value = ''
-  appendMessage('user', text)
-  if (actionsPanel.value?.openForText(text)) return
-  const key = intentFor(text)
-  if (key === 'test_plan' || key === 'explain_failure') await executeIntent(key)
-  else {
-    const handled = await orchestratePrompt(text)
-    if (!handled) {
-      if (key) await executeIntent(key)
-      else await queryHermes(text, conversationHistory().slice(0, -1))
+  scrollToBottom()
+
+  isStreaming.value = true
+  streamingText.value = ''
+  streamingToolEvents.value = []
+  abortController = new AbortController()
+  let pendingProposal: AiChatActionProposal | undefined
+
+  try {
+    const finalText = await streamAiChat(
+      {
+        query,
+        project_id: selectedProjectId.value,
+        history,
+      },
+      (token) => {
+        streamingText.value += token
+        scrollToBottom()
+      },
+      abortController.signal,
+      {
+        onToolEvent: (evt) => {
+          streamingToolEvents.value.push(evt)
+        },
+        onActionProposal: (proposal) => {
+          pendingProposal = { ...proposal, status: 'pending' }
+        },
+      },
+    )
+
+    const msg = chatStore.appendMessage('assistant', finalText || streamingText.value || '（无输出）')
+    if (streamingToolEvents.value.length) {
+      msg.toolEvents = [...streamingToolEvents.value]
     }
+    if (pendingProposal) {
+      msg.actionProposal = pendingProposal
+    }
+    chatStore.saveToStorage()
+  } catch (err: unknown) {
+    const isAbort = err instanceof Error && err.name === 'AbortError'
+    if (isAbort && streamingText.value) {
+      const msg = chatStore.appendMessage('assistant', `${streamingText.value}\n\n*(已中断)*`)
+      if (streamingToolEvents.value.length) msg.toolEvents = [...streamingToolEvents.value]
+      chatStore.saveToStorage()
+    } else if (!isAbort) {
+      const errMsg = err instanceof Error ? err.message : '请求失败'
+      message.error(errMsg)
+      chatStore.appendMessage('assistant', `请求失败：${errMsg}`)
+    }
+  } finally {
+    isStreaming.value = false
+    streamingText.value = ''
+    streamingToolEvents.value = []
+    abortController = null
+    scrollToBottom()
   }
 }
 
-watch(planDraft, () => {
-  draftConfirmed.value = false
-}, { deep: true, flush: 'sync' })
+async function confirmAction(msg: ChatMessage) {
+  if (!msg.actionProposal || !selectedProjectId.value) return
+  msg.actionProposal.status = 'executing'
+  chatStore.saveToStorage()
+  try {
+    const res = await executeAiChatAction({
+      project_id: selectedProjectId.value,
+      action: msg.actionProposal.action,
+      params: msg.actionProposal.params,
+    })
+    msg.actionProposal.status = 'executed'
+    msg.actionProposal.resultMessage = res.message
+    msg.actionProposal.resultRoute = res.route ?? undefined
+    chatStore.saveToStorage()
+    message.success(res.message)
+    void loadProjectSnapshot()
+  } catch (err: unknown) {
+    msg.actionProposal.status = 'failed'
+    chatStore.saveToStorage()
+    const detail = (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail
+      || (err instanceof Error ? err.message : '执行失败')
+    message.error(detail)
+  }
+}
+
+function cancelAction(msg: ChatMessage) {
+  if (!msg.actionProposal) return
+  msg.actionProposal.status = 'cancelled'
+  chatStore.saveToStorage()
+}
+
+watch(
+  () => route.query.project_id,
+  (next) => {
+    const normalized = projectIdFromQuery(next)
+    if (normalized && normalized !== selectedProjectId.value) {
+      selectedProjectId.value = normalized
+      void loadProjectSnapshot()
+    }
+  },
+)
 
 onMounted(async () => {
+  chatStore.loadFromStorage()
   await loadProjects()
-  if (!selectedProjectId.value && projects.value.length > 0) {
-    selectedProjectId.value = projects.value[0].id
-    await refreshWorkbench()
+  if (selectedProjectId.value) {
+    void loadProjectSnapshot()
   }
+  scrollToBottom()
+})
+
+onBeforeUnmount(() => {
+  stopStreaming()
 })
 </script>
 
 <style scoped>
-.hermes-page {
+.hermes-shell {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  color: var(--c-text);
-}
-
-.hermes-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  height: 48px;
-  padding: 0 16px;
-  background: var(--c-bg-elevated);
+  height: calc(100vh - 88px);
+  min-height: 540px;
+  background: var(--c-bg-body);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
+  overflow: hidden;
 }
 
-.toolbar-left {
+.hermes-topbar {
+  height: 48px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-bg-elevated);
+  gap: 12px;
 }
 
-.toolbar-identity {
+.topbar-left,
+.topbar-right {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
 }
 
-.toolbar-icon {
-  font-size: 16px;
-  color: var(--c-primary);
-  background: var(--c-primary-soft);
-  padding: 5px;
-  border-radius: 6px;
-}
-
-.toolbar-name {
-  font-size: 14px;
+.brand-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
   color: var(--c-text);
-  white-space: nowrap;
 }
 
-.toolbar-sep {
-  color: var(--c-text-tertiary);
+.brand-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+
+.project-picker {
+  width: 190px;
+}
+
+.metric-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metric-pill {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--c-bg-subtle);
+  color: var(--c-text-secondary);
+}
+
+.metric-pill.warn {
+  color: #d4380d;
+  background: rgba(255, 77, 79, 0.1);
+}
+
+.hermes-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.history-pane,
+.context-pane {
+  width: 248px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-bg-elevated);
+  min-height: 0;
+}
+
+.history-pane {
+  border-right: 1px solid var(--c-border);
+}
+
+.context-pane {
+  width: 268px;
+  border-left: 1px solid var(--c-border);
+  padding: 12px;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  border-bottom: 1px solid var(--c-border-subtle);
+}
+
+.context-pane .pane-header {
+  padding: 0 0 8px;
+}
+
+.history-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--c-text-secondary);
   font-size: 13px;
 }
 
-.project-select-dropdown {
-  width: 200px;
+.history-item:hover {
+  background: var(--c-bg-subtle);
+  color: var(--c-text);
 }
 
-.toolbar-chips {
+.history-item.active {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-weight: 500;
+}
+
+.history-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-del {
+  opacity: 0;
+  font-size: 12px;
+}
+
+.history-item:hover .history-del {
+  opacity: 0.7;
+}
+
+.chat-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.messages-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.empty-stage {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.empty-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-left: 6px;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.empty-stage h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 260px));
+  gap: 10px;
+}
+
+.quick-chip {
+  padding: 10px 14px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-elevated);
+  color: var(--c-text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.quick-chip:hover {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.msg-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.msg-row.user {
+  flex-direction: row-reverse;
+}
+
+.msg-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--c-bg-subtle);
+  color: var(--c-text-secondary);
+}
+
+.msg-row.assistant .msg-avatar {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+}
+
+.msg-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 82%;
+}
+
+.msg-row.user .msg-content {
+  align-items: flex-end;
+}
+
+.tool-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tool-chip {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--c-bg-subtle);
+  color: var(--c-text-secondary);
+}
+
+.msg-bubble {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.msg-row.user .msg-bubble {
+  background: var(--c-primary);
+  border-color: var(--c-primary);
+  color: #fff;
+}
+
+.user-text {
+  white-space: pre-wrap;
+}
+
+.markdown-body :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.markdown-body :deep(pre) {
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--c-bg-subtle);
+  overflow-x: auto;
+}
+
+.action-card {
+  padding: 10px 12px;
+  border: 1px solid var(--c-primary);
+  border-radius: 10px;
+  background: var(--c-bg-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.action-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.action-card-summary {
+  font-size: 13px;
+  color: var(--c-text-secondary);
+}
+
+.action-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.action-done {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #16a34a;
+}
+
+.action-status.muted {
   color: var(--c-text-secondary);
   font-size: 12px;
 }
 
-.toolbar-chip {
+.typing-dots {
   display: inline-flex;
-  align-items: center;
   gap: 4px;
+  padding: 4px 2px;
 }
 
-.toolbar-chip b {
-  color: var(--c-text);
-  font-weight: 600;
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-text-secondary);
+  animation: dotPulse 1s infinite ease-in-out;
 }
 
-.toolbar-chip.chip-fail,
-.toolbar-chip.chip-fail b {
-  color: var(--c-error);
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
 }
 
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes dotPulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.composer-wrap {
+  padding: 12px 24px 16px;
   flex-shrink: 0;
 }
 
-.toolbar-btn {
-  border-radius: 6px;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-}
-.load-alert,
-.project-empty {
-  border-radius: var(--radius-lg);
-}
-
-.hermes-disclosure {
+.composer-box {
+  max-width: 860px;
+  margin: 0 auto;
   border: 1px solid var(--c-border);
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   background: var(--c-bg-elevated);
-  box-shadow: var(--shadow-xs);
-  overflow: hidden;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.hermes-disclosure summary {
+.composer-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--c-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.composer-actions {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px;
-  cursor: pointer;
-  user-select: none;
+  justify-content: flex-end;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.stat-cell {
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--c-bg-body);
+  border: 1px solid var(--c-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--c-text-secondary);
+}
+
+.stat-cell strong {
+  font-size: 16px;
+  color: var(--c-text);
+}
+
+.section-title {
   font-size: 13px;
   font-weight: 600;
   color: var(--c-text);
-  background: var(--c-bg-subtle);
-  transition: background 0.15s ease;
+  margin-bottom: 8px;
 }
 
-.hermes-disclosure summary:hover {
-  background: var(--c-primary-soft);
-  color: var(--c-primary);
+.failure-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.disclosure-note {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--c-text-tertiary);
+.failure-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--c-border-subtle);
+  border-radius: 8px;
+  background: var(--c-bg-body);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.hermes-disclosure[open] {
-  border-color: var(--c-border-strong);
+.failure-item:hover {
+  border-color: var(--c-primary);
 }
 
-.hermes-disclosure[open] summary {
-  border-bottom: 1px solid var(--c-border);
+.failure-name {
+  font-size: 13px;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.hermes-disclosure :deep(.governance-card),
-.hermes-disclosure :deep(.conversation-context-card) {
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.assistant-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(310px, .85fr);
-  gap: 20px;
-  align-items: start;
-}
-
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-:deep(.ant-select-selector:focus-visible) {
-  outline: 2px solid var(--c-primary);
-  outline-offset: 2px;
-}
-
-@media (max-width: 920px) {
-  .assistant-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 680px) {
-  .toolbar-sep,
-  .toolbar-chips {
-    display: none;
-  }
+.failure-meta {
+  font-size: 12px;
+  color: var(--c-text-secondary);
 }
 </style>

@@ -1,4 +1,30 @@
+import http from '@/api/http'
 import { getRuntimeMode } from '@/runtimeMode'
+
+export interface AiChatToolEvent {
+  tool: string
+  label: string
+  summary: string
+}
+
+export type ChatActionType =
+  | 'run_case'
+  | 'run_suite'
+  | 'create_case'
+  | 'update_case'
+  | 'create_defect'
+  | 'update_defect'
+  | 'create_knowledge'
+
+export interface AiChatActionProposal {
+  action: ChatActionType
+  title: string
+  summary: string
+  params: Record<string, unknown>
+  status?: 'pending' | 'executing' | 'executed' | 'cancelled' | 'failed'
+  resultMessage?: string
+  resultRoute?: string
+}
 
 export interface AiChatStreamPayload {
   query: string
@@ -6,10 +32,33 @@ export interface AiChatStreamPayload {
   history?: Array<{ role: 'user' | 'assistant'; content: string }>
 }
 
+export interface AiChatStreamCallbacks {
+  onToolEvent?: (event: AiChatToolEvent) => void
+  onActionProposal?: (proposal: AiChatActionProposal) => void
+}
+
+export async function executeAiChatAction(data: {
+  project_id: number
+  action: ChatActionType
+  params: Record<string, unknown>
+}) {
+  return http.post<
+    unknown,
+    {
+      ok: boolean
+      action: ChatActionType
+      message: string
+      resource_id?: number | null
+      route?: string | null
+    }
+  >('/ai/chat/execute-action', data)
+}
+
 export async function streamAiChat(
   payload: AiChatStreamPayload,
   onToken: (token: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  callbacks?: AiChatStreamCallbacks,
 ): Promise<string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -50,9 +99,20 @@ export async function streamAiChat(
       const dataStr = trimmed.slice(6)
       if (dataStr === '[DONE]') break
       try {
-        const parsed = JSON.parse(dataStr) as { token?: string; error?: string }
+        const parsed = JSON.parse(dataStr) as {
+          token?: string
+          error?: string
+          tool_event?: AiChatToolEvent
+          action_proposal?: AiChatActionProposal
+        }
         if (parsed.error) {
           throw new Error(parsed.error)
+        }
+        if (parsed.tool_event) {
+          callbacks?.onToolEvent?.(parsed.tool_event)
+        }
+        if (parsed.action_proposal) {
+          callbacks?.onActionProposal?.(parsed.action_proposal)
         }
         if (parsed.token) {
           fullText += parsed.token

@@ -128,11 +128,7 @@ const router = createRouter({
         {
           path: 'ai-chat',
           name: 'ai-chat',
-          component: () => import('@/views/intelligence/AiChatView.vue'),
-          meta: {
-            menuTitleKey: 'menu.intelligence.ai_chat',
-            descriptionKey: 'navigation.placeholder.description.ai_chat',
-          },
+          redirect: '/hermes',
         },
         {
           path: 'requirements',

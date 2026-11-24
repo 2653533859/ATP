@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import type { AiChatActionProposal, AiChatToolEvent } from '@/api/aiChat'
 
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
   time: string
+  toolEvents?: AiChatToolEvent[]
+  actionProposal?: AiChatActionProposal
 }
 
 export interface ChatSession {
