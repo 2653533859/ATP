@@ -24,12 +24,6 @@
           <span v-if="localMode">{{ t('app_workbench.local_execution') }}</span>
           <span v-else>{{ workers.length ? t('app_workbench.worker_online', { count: workers.length }) : t('app_workbench.worker_offline') }}</span>
         </div>
-        <div v-if="selectedProjectId" class="toolbar-metrics">
-          <span class="metric-chip">设备 {{ onlineDeviceCount }}/{{ devices.length }}</span>
-          <span class="metric-chip">用例 {{ androidCases.length }}</span>
-          <span class="metric-chip">APK {{ apks.length }}</span>
-          <span class="metric-chip" :class="{ active: activeRunCount > 0 }">运行 {{ activeRunCount }}</span>
-        </div>
       </div>
 
       <div class="toolbar-right">
@@ -141,47 +135,37 @@
           </div>
         </aside>
 
-        <!-- 右侧：分 Tab 主工作区 -->
+        <!-- 右侧：单层分 Tab 主工作区 -->
         <main class="main-panel panel">
           <div class="workspace-tabs" role="tablist">
-            <button type="button" class="tab-btn" :class="{ active: activeTab === 'launch' }" @click="activeTab = 'launch'">
-              <PlayCircleOutlined /> 执行台
+            <button type="button" class="tab-btn" :class="{ active: activeTab === 'case' }" @click="switchMainTab('case')">
+              <MobileOutlined /> {{ t('app_workbench.android_case') }}
+              <span v-if="androidCases.length" class="tab-badge">{{ androidCases.length }}</span>
             </button>
-            <button type="button" class="tab-btn" :class="{ active: activeTab === 'agent' }" @click="activeTab = 'agent'">
+            <button type="button" class="tab-btn" :class="{ active: activeTab === 'special' }" @click="switchMainTab('special')">
+              <ThunderboltOutlined /> {{ t('app_workbench.special_task') }}
+              <span v-if="specialTasks.length" class="tab-badge">{{ specialTasks.length }}</span>
+            </button>
+            <button type="button" class="tab-btn" :class="{ active: activeTab === 'agent' }" @click="switchMainTab('agent')">
               <RobotOutlined /> AI 探索
             </button>
-            <button type="button" class="tab-btn" :class="{ active: activeTab === 'activity' }" @click="activeTab = 'activity'">
+            <button type="button" class="tab-btn" :class="{ active: activeTab === 'activity' }" @click="switchMainTab('activity')">
               <HistoryOutlined /> 最近运行
               <span v-if="recentActivities.length" class="tab-badge">{{ recentActivities.length }}</span>
             </button>
-            <button type="button" class="tab-btn" :class="{ active: activeTab === 'assets' }" @click="activeTab = 'assets'">
+            <button type="button" class="tab-btn" :class="{ active: activeTab === 'assets' }" @click="switchMainTab('assets')">
               <AndroidOutlined /> APK 与矩阵
               <span v-if="apks.length" class="tab-badge">{{ apks.length }}</span>
             </button>
           </div>
 
-          <!-- Tab 1: 用例与专项任务执行 -->
-          <div v-show="activeTab === 'launch'" class="tab-pane">
-            <div class="mode-switch" role="tablist">
-              <button type="button" :class="{ active: launchMode === 'case' }" @click="launchMode = 'case'">
-                <MobileOutlined /> {{ t('app_workbench.android_case') }}
-              </button>
-              <button type="button" :class="{ active: launchMode === 'special' }" @click="launchMode = 'special'">
-                <ThunderboltOutlined /> {{ t('app_workbench.special_task') }}
-              </button>
-            </div>
-
-            <div v-if="launchMode === 'case'" class="launch-form">
+          <!-- Tab 1: Android 用例 -->
+          <div v-show="activeTab === 'case'" class="tab-pane">
+            <div class="launch-form">
               <div class="form-header-row">
                 <label>{{ t('app_workbench.case_label') }}</label>
-                <a-button
-                  v-if="canModify"
-                  type="link"
-                  size="small"
-                  class="quick-create-btn"
-                  @click="openCreateCase"
-                >
-                  <PlusOutlined /> {{ t('app_workbench.new_android_case') }}
+                <a-button type="link" size="small" class="quick-create-btn" @click="openAndroidCases">
+                  {{ t('app_workbench.manage_cases') }}
                 </a-button>
               </div>
               <a-select
@@ -232,19 +216,19 @@
                 >
                   <EditOutlined /> {{ t('app_workbench.edit_case') }}
                 </a-button>
-                <a-button
-                  v-else
-                  :disabled="!canModify"
-                  @click="openCreateCase"
-                >
-                  <PlusOutlined /> {{ t('app_workbench.new_case') }}
-                </a-button>
-                <a-button type="link" @click="openAndroidCases">{{ t('app_workbench.manage_cases') }}</a-button>
               </div>
             </div>
+          </div>
 
-            <div v-else class="launch-form">
-              <label>{{ t('app_workbench.task_label') }}</label>
+          <!-- Tab 2: 专项任务 -->
+          <div v-show="activeTab === 'special'" class="tab-pane">
+            <div class="launch-form">
+              <div class="form-header-row">
+                <label>{{ t('app_workbench.task_label') }}</label>
+                <a-button type="link" size="small" class="quick-create-btn" @click="openSpecialTasks">
+                  {{ t('app_workbench.manage_tasks') }}
+                </a-button>
+              </div>
               <a-select
                 v-model:value="selectedSpecialTaskId"
                 :options="specialTaskOptions"
@@ -277,7 +261,6 @@
                 <a-button type="primary" :disabled="!canRunSpecialTask" :loading="runLoading" @click="runSpecialTask">
                   <PlayCircleOutlined /> {{ t('app_workbench.run_special') }}
                 </a-button>
-                <a-button type="link" @click="openSpecialTasks">{{ t('app_workbench.manage_tasks') }}</a-button>
               </div>
             </div>
           </div>
@@ -483,8 +466,15 @@ const launchDeviceSelectId = computed<number | undefined>({
 const selectedCaseId = ref<number | undefined>(undefined)
 const selectedSpecialTaskId = ref<number | undefined>(undefined)
 const selectedApkId = ref<number | undefined>(undefined)
-const activeTab = ref<'launch' | 'agent' | 'activity' | 'assets'>('launch')
+const activeTab = ref<'case' | 'special' | 'agent' | 'activity' | 'assets'>('case')
 const launchMode = ref<LaunchMode>('case')
+
+function switchMainTab(tab: 'case' | 'special' | 'agent' | 'activity' | 'assets') {
+  activeTab.value = tab
+  if (tab === 'case' || tab === 'special') {
+    launchMode.value = tab
+  }
+}
 const loading = ref(false)
 const scanning = ref(false)
 const runLoading = ref(false)
@@ -521,10 +511,6 @@ const selectedSpecialTask = computed(() => specialTasks.value.find((task) => tas
 const selectedApk = computed(() => apks.value.find((apk) => apk.id === selectedApkId.value) || null)
 const onlineDevices = computed(() => devices.value.filter((device) => device.status === 'online'))
 const onlineDeviceCount = computed(() => onlineDevices.value.length)
-const activeRunCount = computed(() =>
-  specialRuns.value.filter((run) => run.status === 'pending' || run.status === 'running').length
-  + androidRuns.value.filter((run) => run.status === 'pending' || run.status === 'running').length,
-)
 const compatibilityFamilies = computed(() => Array.from(new Set(
   devices.value
     .map((device) => [device.brand, device.model].filter(Boolean).join(' '))
@@ -1233,30 +1219,27 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.toolbar-metrics {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.metric-chip {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--c-bg-subtle);
-  color: var(--c-text-secondary);
-}
-
-.metric-chip.active {
-  color: var(--c-primary);
-  background: var(--c-primary-soft);
-}
-
 .app-workspace {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.app-workspace > .device-panel,
+.app-workspace > .main-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-workspace > .device-panel .device-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .panel-head-right {
@@ -1271,6 +1254,7 @@ onUnmounted(() => {
 }
 
 .workspace-tabs {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1316,7 +1300,10 @@ onUnmounted(() => {
 }
 
 .tab-pane {
+  flex: 1;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .subpane-head {
@@ -1328,6 +1315,10 @@ onUnmounted(() => {
 }
 
 .app-workbench {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 88px);
+  min-height: 540px;
   --app-ink: var(--c-text);
   --app-muted: var(--c-text-secondary);
   --app-line: var(--c-border);
