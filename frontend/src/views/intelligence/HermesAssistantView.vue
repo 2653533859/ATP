@@ -27,7 +27,6 @@
         <a-button
           size="small"
           :type="historyOpen ? 'primary' : 'default'"
-          ghost
           @click="historyOpen = !historyOpen"
         >
           <HistoryOutlined /> 会话 ({{ chatStore.sessions.length }})
@@ -36,7 +35,6 @@
           v-if="selectedProjectId"
           size="small"
           :type="contextOpen ? 'primary' : 'default'"
-          ghost
           @click="contextOpen = !contextOpen"
         >
           <DashboardOutlined /> 项目面板
