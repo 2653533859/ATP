@@ -97,37 +97,61 @@
         <!-- 左侧：设备池与设备实时控制 -->
         <aside class="device-panel panel">
           <div class="panel-head">
-            <h2>{{ t('app_workbench.device_pool') }}</h2>
-            <div class="panel-head-right">
-              <span class="count-pill">{{ onlineDeviceCount }} {{ t('app_workbench.online') }}</span>
+            <div class="panel-title-row">
+              <h2>{{ t('app_workbench.device_pool') }}</h2>
               <a-button size="small" :loading="scanning" :disabled="!canModify" @click="scanDevices">
                 <ReloadOutlined />
               </a-button>
             </div>
+            <div class="device-filter-bar">
+              <a-radio-group v-model:value="deviceFilter" size="small" button-style="solid">
+                <a-radio-button value="all">全部 ({{ devices.length }})</a-radio-button>
+                <a-radio-button value="online">在线 ({{ onlineDeviceCount }})</a-radio-button>
+              </a-radio-group>
+            </div>
           </div>
 
-          <div v-if="devices.length" class="device-list">
+          <div v-if="displayDevices.length" class="device-list">
             <button
-              v-for="device in devices"
+              v-for="device in displayDevices"
               :key="device.id"
               type="button"
               class="device-row"
-              :class="{ selected: device.id === selectedDeviceId, locked: lease && lease.device_id !== device.id }"
+              :class="{
+                selected: device.id === selectedDeviceId,
+                locked: lease && lease.device_id !== device.id,
+                offline: device.status !== 'online'
+              }"
               @click="selectDevice(device)"
             >
               <span class="device-status-dot" :class="`status-${device.status}`" />
-              <span class="device-row-main">
-                <strong>{{ device.name || device.model || device.serial }}</strong>
-                <small>{{ device.brand || 'Android' }} {{ device.os_version ? `v${device.os_version}` : '' }} · {{ device.serial }}</small>
-              </span>
-              <span class="device-status-text">{{ deviceStatusLabel(device.status) }}</span>
+              <div class="device-row-main">
+                <div class="device-name-row">
+                  <strong class="device-title">{{ device.name || device.model || device.serial }}</strong>
+                  <span class="device-status-badge" :class="device.status">
+                    {{ deviceStatusLabel(device.status) }}
+                  </span>
+                </div>
+                <div class="device-meta-row">
+                  <span v-if="device.brand" class="device-brand">{{ device.brand }}</span>
+                  <span v-if="device.os_version" class="device-os">v{{ device.os_version }}</span>
+                  <span class="device-serial">{{ device.serial }}</span>
+                </div>
+              </div>
             </button>
+          </div>
+          <div v-else-if="deviceFilter === 'online' && devices.length > 0" class="device-empty-filter">
+            <span>暂无在线设备（共 {{ devices.length }} 台设备处于离线状态）</span>
+            <a-button size="small" type="link" @click="deviceFilter = 'all'">查看全部设备</a-button>
           </div>
           <a-empty v-else :description="t(localMode ? 'app_workbench.no_devices_local' : 'app_workbench.no_devices')" />
 
-          <div v-if="selectedDevice" class="device-focus">
+          <div v-if="selectedDevice" class="device-focus" :class="{ 'focus-offline': selectedDevice.status !== 'online' }">
             <div class="focus-heading">
-              <strong>{{ selectedDevice.name || selectedDevice.model || selectedDevice.serial }}</strong>
+              <div class="focus-identity">
+                <span class="focus-kicker">当前选中设备</span>
+                <strong class="focus-name">{{ selectedDevice.name || selectedDevice.model || selectedDevice.serial }}</strong>
+              </div>
               <a-tag :color="selectedDevice.status === 'online' ? 'green' : 'default'">{{ deviceStatusLabel(selectedDevice.status) }}</a-tag>
             </div>
             <div class="device-specs">
@@ -135,21 +159,30 @@
               <span>API: {{ selectedDevice.sdk_version || '—' }}</span>
               <span>IP: {{ selectedDevice.ip_address || t('app_workbench.local_adb') }}</span>
             </div>
+
+            <div v-if="selectedDevice.status !== 'online'" class="offline-guidance">
+              <span class="offline-hint">⚠️ 设备已离线。请检查 USB 连线、开启调试授权，或点击重新扫描。</span>
+              <a-button size="small" :loading="scanning" :disabled="!canModify" class="offline-scan-btn" @click="scanDevices">
+                <ReloadOutlined /> 重新扫描设备
+              </a-button>
+            </div>
+
             <div v-if="lease" class="lease-banner">
               <SafetyCertificateOutlined />
               <span>{{ t('app_workbench.lease_active', { time: formatTime(lease.expires_at) }) }}</span>
             </div>
-            <div class="focus-actions">
+
+            <div v-if="selectedDevice.status === 'online'" class="focus-actions">
               <a-button
                 v-if="!lease"
                 size="small"
                 type="primary"
-                :disabled="!canModify || selectedDevice.status !== 'online'"
+                :disabled="!canModify"
                 :loading="leaseLoading"
                 @click="acquireLease"
               >{{ t('app_workbench.reserve') }}</a-button>
               <a-button v-else size="small" danger :loading="leaseLoading" @click="() => releaseLease()">{{ t('app_workbench.release') }}</a-button>
-              <a-button size="small" :disabled="!lease || selectedDevice.status !== 'online'" @click="openPreview">
+              <a-button size="small" :disabled="!lease" @click="openPreview">
                 <EyeOutlined /> {{ t('app_workbench.preview') }}
               </a-button>
               <a-button v-if="recordedDraftSteps.length && recordedDraftProjectId === selectedProjectId" size="small" :disabled="!canModify" @click="openRecordedDraft">
@@ -571,6 +604,13 @@ const specialTasks = ref<MobileSpecialTaskItem[]>([])
 const specialRuns = ref<MobileSpecialRunItem[]>([])
 const androidRuns = ref<RunDetailItem[]>([])
 const selectedDeviceId = ref<number | null>(null)
+const deviceFilter = ref<'all' | 'online'>('all')
+const displayDevices = computed(() => {
+  if (deviceFilter.value === 'online') {
+    return devices.value.filter((d) => d.status === 'online')
+  }
+  return devices.value
+})
 const launchDeviceId = ref<number | null>(null)
 const launchDeviceSelectId = computed<number | undefined>({
   get: () => launchDeviceId.value ?? undefined,
@@ -1531,8 +1571,32 @@ onUnmounted(() => {
   border: 0;
 }
 
-.live-dot, .device-status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c-success); }
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-success);
+}
 .live-dot.muted { background: var(--c-warning); }
+
+.device-status-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.device-status-dot.status-online {
+  background: #10b981 !important;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+.device-status-dot.status-offline {
+  background: #94a3b8 !important;
+}
+.device-status-dot.status-busy {
+  background: #f59e0b !important;
+}
+
 .readonly-alert { margin-top: 16px; }
 .project-empty { min-height: 320px; padding: 100px 0; }
 
@@ -1637,11 +1701,39 @@ onUnmounted(() => {
 .workspace-grid { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); gap: 16px; }
 .lower-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 16px; margin-top: 16px; }
 .panel { border: 1px solid var(--app-line); border-radius: var(--radius-lg); background: var(--c-bg-elevated); box-shadow: var(--shadow-xs); }
+
 .device-panel {
   padding: 16px;
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.panel-title-row h2 {
+  margin: 0;
+  color: var(--c-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.device-filter-bar {
+  margin-top: 10px;
+  width: 100%;
+}
+.device-filter-bar :deep(.ant-radio-group) {
+  display: flex;
+  width: 100%;
+}
+.device-filter-bar :deep(.ant-radio-button-wrapper) {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
 }
 
 .device-list {
@@ -1652,6 +1744,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 6px;
   padding-right: 2px;
+  margin-top: 10px;
 }
 
 .device-row {
@@ -1680,9 +1773,78 @@ onUnmounted(() => {
   box-shadow: 0 0 0 1px var(--app-cyan);
 }
 
+.device-row.offline {
+  opacity: 0.65;
+}
+
+.device-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.device-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.device-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-status-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.device-status-badge.online {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+.device-status-badge.offline {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.device-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-brand {
+  color: var(--c-text-secondary);
+}
+
+.device-empty-filter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: var(--c-text-tertiary);
+  font-size: 12px;
+  text-align: center;
+}
+
 .device-focus {
   flex-shrink: 0;
-  margin-top: 14px;
+  margin-top: 12px;
   padding: 12px 14px;
   border-radius: 10px;
   background: var(--c-bg-subtle);
@@ -1694,19 +1856,49 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 8px;
 }
-.focus-heading strong {
-  display: block;
-  margin-top: 4px;
-  color: var(--c-text);
+.focus-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.focus-kicker {
+  font-size: 10px;
+  color: var(--c-text-tertiary);
+}
+.focus-name {
   font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .device-specs {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 12px;
-  margin-top: 10px;
+  margin-top: 8px;
   color: var(--c-text-secondary);
-  font-size: 10px;
+  font-size: 11px;
+}
+.offline-guidance {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px dashed var(--c-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.offline-hint {
+  font-size: 11px;
+  color: var(--c-text-secondary);
+  line-height: 1.4;
+}
+.offline-scan-btn {
+  width: 100%;
 }
 .lease-banner {
   display: flex;
