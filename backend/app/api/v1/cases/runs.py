@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import asyncio
+import re
 from datetime import datetime, timezone
 from typing import Union
 
@@ -67,6 +68,15 @@ def _decode_cursor(cursor: str) -> tuple[datetime, int]:
         raise HTTPException(status_code=400, detail="cursor 格式无效") from exc
 
 
+def _normalize_storage_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    match = re.search(r"https?://(?:127\.0\.0\.1|localhost):29000/atp/([^?]+)", url)
+    if match:
+        return f"/api/v1/storage/media/{match.group(1)}"
+    return url
+
+
 async def _get_run_with_access(
     db: AsyncSession, user: User, run_id: int, required_role: ProjectRole = ProjectRole.viewer
 ) -> TestRun:
@@ -83,6 +93,18 @@ async def _get_run_with_access(
     c_type = getattr(case, "case_type", None) if case else None
     if c_type is not None:
         run.case_type = c_type.value if hasattr(c_type, "value") else str(c_type)
+
+    # 规范化历史数据中可能存在的 127.0.0.1:29000 预签名直连地址，转为同源安全代理路径
+    for step in run.steps:
+        if step.screenshot_url:
+            step.screenshot_url = _normalize_storage_url(step.screenshot_url)
+    if isinstance(run.result_summary, dict):
+        new_summary = dict(run.result_summary)
+        for key in ("video_url", "gif_url", "trace_url"):
+            if key in new_summary and isinstance(new_summary[key], str):
+                new_summary[key] = _normalize_storage_url(new_summary[key])
+        run.result_summary = new_summary
+
     return run
 
 

@@ -332,19 +332,34 @@ async def gather_project_context_for_chat(
             logger.debug("quality_trend context skipped: %s", exc)
 
     run_match = _RUN_ID_RE.search(query)
+    target_run_id: int | None = None
     if run_match:
-        run_id = int(run_match.group(1))
+        target_run_id = int(run_match.group(1))
+    elif re.search(r"(日志|报错|异常|失败|刚才|上次|为什么挂)", query):
+        # 智能感知：用户未明确指定运行 ID 时，自动查询当前项目最近一条执行记录
+        recent_run_stmt = (
+            select(TestRun.id)
+            .join(TestCase, TestRun.case_id == TestCase.id)
+            .join(Module, TestCase.module_id == Module.id)
+            .where(Module.project_id == project_id)
+            .order_by(TestRun.id.desc())
+            .limit(1)
+        )
+        recent_res = await db.execute(recent_run_stmt)
+        target_run_id = recent_res.scalar_one_or_none()
+
+    if target_run_id is not None:
         try:
             run_detail = await execute_read_tool(
                 db,
                 user,
                 project_id,
                 "run_detail",
-                HermesRunDetailArguments(task_type="case", run_id=run_id),
+                HermesRunDetailArguments(task_type="case", run_id=target_run_id),
             )
-            events.append(ChatToolEvent(tool="run_detail", label=f"运行 #{run_id}", summary="已读取"))
+            events.append(ChatToolEvent(tool="run_detail", label=f"运行 #{target_run_id}", summary="已读取"))
             sections.append(
-                f"[运行 #{run_id} 详情]\n{redact_llm_text(json.dumps(run_detail.data, ensure_ascii=False), limit=2000)}"
+                f"[运行 #{target_run_id} 详情与错误日志]\n{redact_llm_text(json.dumps(run_detail.data, ensure_ascii=False), limit=2500)}"
             )
         except Exception as exc:  # noqa: BLE001
             logger.debug("run_detail context skipped: %s", exc)

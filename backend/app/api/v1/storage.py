@@ -163,3 +163,49 @@ async def storage_alert(
     """返回当前存储告警状态，未告警时 alert 为 null。"""
     alert = await get_current_alert()
     return {"alert": alert}
+
+
+@router.get("/storage/media/{object_name:path}")
+async def get_storage_media(
+    object_name: str,
+):
+    """通过后端安全代理读取 MinIO/Local 中的截图、视频和录制文件。
+
+    彻底解决直接暴露私有 MinIO 端口、局域网访问 127.0.0.1 及 AWS v4 签名头不匹配的问题。
+    """
+    import asyncio
+    import mimetypes
+    from fastapi.responses import Response
+    from app.core.minio_client import read_bytes
+
+    clean_obj = object_name.strip().lstrip("/")
+    if ".." in clean_obj or clean_obj.startswith("/"):
+        raise HTTPException(status_code=400, detail="非法对象路径")
+
+    content_type, _ = mimetypes.guess_type(clean_obj)
+    if not content_type:
+        if clean_obj.endswith(".webm"):
+            content_type = "video/webm"
+        elif clean_obj.endswith(".gif"):
+            content_type = "image/gif"
+        elif clean_obj.endswith(".png"):
+            content_type = "image/png"
+        elif clean_obj.endswith(".zip"):
+            content_type = "application/zip"
+        else:
+            content_type = "application/octet-stream"
+
+    try:
+        data = await asyncio.to_thread(read_bytes, clean_obj)
+        disposition = "inline" if content_type.startswith(("image/", "video/")) else "attachment"
+        filename = clean_obj.split("/")[-1]
+        return Response(
+            content=data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"{disposition}; filename={filename}",
+                "Cache-Control": "public, max-age=86400",
+            },
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail="文件不存在或无法读取") from exc

@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
+from app.api.v1.cases.common import _generate_case_code, _get_module_for_case_code
 from app.api.v1.cases.runs import trigger_run
 from app.api.v1.suites import trigger_suite_run
 from app.core.database import get_db
@@ -354,9 +355,16 @@ async def execute_chat_action(
 
         case_type = normalize_case_type(params.get("case_type"))
         steps = params.get("steps") if isinstance(params.get("steps"), list) else []
+
+        module_obj = await _get_module_for_case_code(db, module_id)
+        case_code = await _generate_case_code(db, module_obj, case_type)
+        summary = str(params.get("summary") or params.get("description") or name).strip()[:512]
+
         case = TestCase(
             module_id=module_id,
             name=name,
+            case_code=case_code,
+            summary=summary,
             description=str(params.get("description") or "").strip() or None,
             case_type=case_type,
             status=default_case_status(),

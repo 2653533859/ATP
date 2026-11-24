@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access
 from app.api.v1.workbench import _FAILED_STATUSES, _collect_tasks
-from app.models.case import RunStatus, TestCase, TestRun
+from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.models.knowledge import KnowledgeEntry
 from app.models.mobile_special import MobileSpecialRun, MobileSpecialTask
 from app.models.performance import PerformanceRun, PerformanceTest
@@ -178,6 +178,7 @@ async def _load_run_detail(
     actual_project_id: int | None
     path: str
     summary: Any
+    failed_steps: list[dict[str, Any]] = []
     if task_type == "case":
         run = await db.get(TestRun, run_id)
         case = await db.get(TestCase, run.case_id) if run else None
@@ -187,6 +188,25 @@ async def _load_run_detail(
         name, actual_project_id = case.name, module.project_id
         path = f"/runs/{run_id}?project_id={actual_project_id}"
         summary = run.result_summary
+
+        # 深入读取步骤级失败信息，补齐 Playwright / API 用例中记录在从表的详细报错
+        step_res = await db.execute(
+            select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index.asc())
+        )
+        scalars_fn = getattr(step_res, "scalars", None)
+        raw_steps = scalars_fn().all() if callable(scalars_fn) else (step_res.all() if hasattr(step_res, "all") else [])
+        steps = [s for s in raw_steps if isinstance(s, StepResult)]
+        failed_steps = [
+            {
+                "step_index": s.step_index,
+                "name": s.name,
+                "status": _value(s.status),
+                "error_message": s.error_message,
+                "duration_ms": s.duration_ms,
+            }
+            for s in steps
+            if _value(s.status) not in {"passed", "pass"}
+        ]
     elif task_type == "suite":
         run = await db.get(SuiteRun, run_id)
         suite = await db.get(TestSuite, run.suite_id) if run else None
@@ -222,6 +242,14 @@ async def _load_run_detail(
 
     if actual_project_id != project_id:
         return None
+
+    resolved_error = _safe_text(getattr(run, "error_message", None), 1_000) or None
+    if not resolved_error and failed_steps:
+        first_fail = failed_steps[0]
+        resolved_error = (
+            f"第 {first_fail['step_index'] + 1} 步 [{first_fail['name']}] 失败: {first_fail['error_message']}"
+        )
+
     return {
         "task_type": task_type,
         "run_id": run_id,
@@ -230,7 +258,8 @@ async def _load_run_detail(
         "status": _value(run.status),
         "environment": _safe_text(getattr(run, "environment", None), 128) or None,
         "duration_ms": getattr(run, "duration_ms", None),
-        "error_message": _safe_text(getattr(run, "error_message", None), 1_000) or None,
+        "error_message": resolved_error,
+        "failed_steps": failed_steps,
         "result_summary": _safe_json(summary),
         "created_at": _iso(getattr(run, "created_at", None)),
         "started_at": _iso(getattr(run, "started_at", None)),

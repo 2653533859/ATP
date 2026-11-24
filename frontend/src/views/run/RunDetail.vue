@@ -643,9 +643,9 @@
                 <CameraOutlined /> {{ t('run.labels.screenshot') }}
               </div>
               <a-image
-                :src="step.screenshot_url"
+                :src="resolveMediaUrl(step.screenshot_url)"
                 :width="480"
-                :preview="{ src: step.screenshot_url }"
+                :preview="{ src: resolveMediaUrl(step.screenshot_url) }"
                 class="step-screenshot"
                 :fallback="fallbackImage"
               />
@@ -1488,15 +1488,25 @@ const bugInfo = computed<BugLinkInfo | null>(() => {
   return info && typeof info === 'object' ? info as BugLinkInfo : null
 })
 
+function resolveMediaUrl(rawUrl: string | null | undefined): string {
+  if (!rawUrl) return ''
+  const trimmed = rawUrl.trim()
+  const match = trimmed.match(/^https?:\/\/(?:127\.0\.0\.1|localhost):29000\/atp\/([^?]+)/)
+  if (match) {
+    return `/api/v1/storage/media/${match[1]}`
+  }
+  return trimmed
+}
+
 const videoUrl = computed(() => {
   const summary = run.value?.result_summary
   if (!summary) return ''
   const direct = summary.video_url
-  if (typeof direct === 'string' && direct) return direct
+  if (typeof direct === 'string' && direct) return resolveMediaUrl(direct)
   const artifacts = summary.android_artifacts
   if (artifacts && typeof artifacts === 'object' && !Array.isArray(artifacts)) {
     const recording = (artifacts as Record<string, unknown>).screen_recording
-    if (typeof recording === 'string' && recording) return recording
+    if (typeof recording === 'string' && recording) return resolveMediaUrl(recording)
   }
   return ''
 })
@@ -1510,7 +1520,7 @@ const videoError = computed(() => {
 
 const gifUrl = computed(() => {
   const summary = run.value?.result_summary
-  return typeof summary?.gif_url === 'string' && summary.gif_url ? summary.gif_url : ''
+  return typeof summary?.gif_url === 'string' && summary.gif_url ? resolveMediaUrl(summary.gif_url) : ''
 })
 
 const hasStepScreenshots = computed(() => {

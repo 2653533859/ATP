@@ -112,17 +112,15 @@ def read_bytes(object_name: str) -> bytes:
 
 
 def presigned_url(object_name: str, expires_seconds: int = 3600 * 24) -> str:
-    """生成预签名访问 URL（默认 24 小时有效）"""
-    if settings.ATP_LOCAL_MODE:
-        return local_object_store.signed_url(object_name, expires_seconds)
-    from datetime import timedelta
+    """生成统一访问 URL。
 
-    client = get_client()
-    return client.presigned_get_object(
-        settings.MINIO_BUCKET,
-        object_name,
-        expires=timedelta(seconds=expires_seconds),
-    )
+    为保证跨子网、反向代理、局域网外部客户端以及 HTTPS 转发下的 100% 连通性，
+    统一通过 `/api/v1/storage/media/{object_name}` 进行代理分发，避免暴露内部 127.0.0.1 或签名不匹配。
+    """
+    clean_obj = str(object_name or "").strip().lstrip("/")
+    if settings.ATP_LOCAL_MODE:
+        return local_object_store.signed_url(clean_obj, expires_seconds)
+    return f"/api/v1/storage/media/{clean_obj}"
 
 
 def delete_file(object_name: str) -> None:
