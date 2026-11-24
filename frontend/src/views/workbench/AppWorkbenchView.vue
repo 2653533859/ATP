@@ -161,7 +161,25 @@
 
           <!-- Tab 1: Android 用例 -->
           <div v-show="activeTab === 'case'" class="tab-pane">
-            <div class="launch-form">
+            <div v-if="!androidCases.length && !loading" class="case-empty-card empty-guide-hero">
+              <div class="empty-card-content">
+                <MobileOutlined class="empty-card-icon" />
+                <div class="empty-card-text">
+                  <strong>{{ t('app_workbench.no_cases_title') }}</strong>
+                  <p>当前项目暂无 Android 测试用例，你可以直接新建用例或在左侧连接设备投屏录制。</p>
+                </div>
+              </div>
+              <a-button
+                type="primary"
+                size="small"
+                :disabled="!canModify"
+                @click="openCreateCase"
+              >
+                <PlusOutlined /> {{ t('app_workbench.create_first_case') }}
+              </a-button>
+            </div>
+
+            <div v-else class="launch-form">
               <div class="form-header-row">
                 <label>{{ t('app_workbench.case_label') }}</label>
                 <a-button type="link" size="small" class="quick-create-btn" @click="openAndroidCases">
@@ -175,22 +193,7 @@
                 :placeholder="t('app_workbench.case_placeholder')"
                 :loading="loading"
               />
-              <div v-if="!androidCases.length && !loading" class="case-empty-card">
-                <div class="empty-card-content">
-                  <MobileOutlined class="empty-card-icon" />
-                  <div class="empty-card-text">
-                    <strong>{{ t('app_workbench.no_cases_title') }}</strong>
-                  </div>
-                </div>
-                <a-button
-                  type="primary"
-                  size="small"
-                  :disabled="!canModify"
-                  @click="openCreateCase"
-                >
-                  <PlusOutlined /> {{ t('app_workbench.create_first_case') }}
-                </a-button>
-              </div>
+
               <div v-if="selectedAndroidCase" class="selection-card">
                 <div class="selection-title">
                   <strong>{{ selectedAndroidCase.name }}</strong>
@@ -199,12 +202,23 @@
                   </a-tag>
                 </div>
                 <div class="selection-meta">
-                  <span>{{ selectedAndroidCase.case_code }}</span>
-                  <span>{{ selectedAndroidCase.priority }}</span>
-                  <span>{{ t(`case.levels.${selectedAndroidCase.case_level}`) }}</span>
-                  <span>{{ selectedAndroidCase.script_status === 'generated' ? t('app_workbench.script_generated') : t('app_workbench.script_missing') }}</span>
+                  <span>用例编号: {{ selectedAndroidCase.case_code }}</span>
+                  <span>优先级: {{ selectedAndroidCase.priority }}</span>
+                  <span>等级: {{ t(`case.levels.${selectedAndroidCase.case_level}`) }}</span>
+                  <span>状态: {{ selectedAndroidCase.script_status === 'generated' ? t('app_workbench.script_generated') : t('app_workbench.script_missing') }}</span>
+                </div>
+                <div class="target-device-banner">
+                  <span class="target-label">目标设备：</span>
+                  <template v-if="selectedDevice">
+                    <strong>{{ selectedDevice.name || selectedDevice.model || selectedDevice.serial }}</strong>
+                    <a-tag size="small" :color="selectedDevice.status === 'online' ? 'green' : 'default'">
+                      {{ deviceStatusLabel(selectedDevice.status) }}
+                    </a-tag>
+                  </template>
+                  <span v-else class="target-none">未选择设备（请在左侧设备列表中点击选中）</span>
                 </div>
               </div>
+
               <div class="launch-actions">
                 <a-button type="primary" :disabled="!canRunAndroidCase" :loading="runLoading" @click="runAndroidCase">
                   <PlayCircleOutlined /> {{ t('app_workbench.run_case') }}
@@ -1428,86 +1442,56 @@ onUnmounted(() => {
 .workspace-grid { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); gap: 16px; }
 .lower-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 16px; margin-top: 16px; }
 .panel { border: 1px solid var(--app-line); border-radius: var(--radius-lg); background: var(--c-bg-elevated); box-shadow: var(--shadow-xs); }
-.device-panel, .launch-panel, .activity-panel, .asset-panel { padding: 20px; }
-.panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }.panel-head h2 { margin: 4px 0 0; color: var(--c-text); font-size: 18px; font-weight: 600; letter-spacing: 0; }.compact-head { align-items: center; }.compact-head h2 { font-size: 16px; font-weight: 600; }.panel-caption { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0 12px; color: var(--c-text-secondary); font-size: 12px; line-height: 1.5; }.count-pill { color: var(--c-text-tertiary); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.device-list { display: flex; flex-direction: column; gap: 4px; max-height: 330px; overflow: auto; }
+.device-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.device-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+}
+
 .device-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding: 8px;
-  border: 1px solid transparent;
+  padding: 10px 12px;
+  border: 1px solid var(--c-border);
   border-radius: 8px;
   background: var(--c-bg-subtle);
   color: inherit;
   text-align: left;
-  transition: background-color 150ms ease, border-color 150ms ease;
+  cursor: pointer;
+  transition: all 150ms ease;
 }
+
 .device-row:hover {
   border-color: var(--app-cyan);
   background: var(--c-primary-soft);
 }
+
 .device-row.selected {
   border-color: var(--app-cyan);
   background: var(--c-primary-soft);
-  box-shadow: inset 3px 0 0 var(--app-cyan);
+  box-shadow: 0 0 0 1px var(--app-cyan);
 }
-.device-row.locked {
-  cursor: not-allowed;
-  opacity: .55;
-}
-.device-row:focus-visible,
-.activity-row:focus-visible,
-.mode-switch button:focus-visible {
-  outline: 2px solid var(--app-cyan);
-  outline-offset: 2px;
-}
-.device-status-dot {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  box-shadow: none;
-}
-.status-online {
-  background: var(--c-success);
-}
-.status-busy {
-  background: var(--c-warning);
-}
-.status-offline {
-  background: var(--c-text-tertiary);
-}
-.device-row-main {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-}
-.device-row-main strong {
-  overflow: hidden;
-  color: var(--c-text);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.device-row-main small {
-  overflow: hidden;
-  color: var(--c-text-tertiary);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.device-status-text {
-  color: var(--c-text-secondary);
-  font-size: 10px;
-  white-space: nowrap;
-}
+
 .device-focus {
-  margin-top: 16px;
-  padding-top: 15px;
-  border-top: 1px solid var(--c-border);
+  flex-shrink: 0;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
 }
 .focus-heading {
   display: flex;
@@ -1598,13 +1582,15 @@ onUnmounted(() => {
 }
 .case-empty-card {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  text-align: center;
   gap: 16px;
-  margin-top: 16px;
-  padding: 16px;
+  margin-top: 24px;
+  padding: 40px 24px;
   border: 1px dashed var(--c-border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--c-bg-subtle);
   transition: border-color 0.2s ease;
 }
@@ -1613,31 +1599,49 @@ onUnmounted(() => {
 }
 .empty-card-content {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 .empty-card-icon {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  font-size: 18px;
+  width: 48px;
+  height: 48px;
+  font-size: 24px;
   color: var(--app-cyan);
-  border-radius: 8px;
-  background: var(--c-bg-elevated);
-  box-shadow: var(--shadow-sm);
+  border-radius: 12px;
+  background: var(--c-primary-soft);
 }
 .empty-card-text strong {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--c-text);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 .empty-card-text p {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--c-text-tertiary);
-  line-height: 1.4;
+  line-height: 1.5;
+}
+.target-device-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border-subtle);
+  font-size: 12px;
+}
+.target-label {
+  color: var(--c-text-secondary);
+}
+.target-none {
+  color: var(--c-warning);
 }
 .launch-actions {
   display: flex;
