@@ -554,6 +554,33 @@ export interface WebRecordingItem {
   auto_assert?: boolean
   source?: WebRecordingSource
   recording_record_id?: number | null
+  page_title?: string
+  dom_summary?: string
+}
+
+export interface WebAssertionSuggestionItem {
+  action: 'assert_text' | 'assert_visible'
+  name: string
+  params: Record<string, unknown>
+  reason: string
+}
+
+export interface AIWebAssertionSuggestPayload {
+  project_id?: number | null
+  start_url?: string
+  current_url?: string
+  page_title?: string
+  dom_summary?: string
+  steps: Array<{
+    action: string
+    name: string
+    params: Record<string, unknown>
+  }>
+}
+
+export interface AIWebAssertionSuggestResult {
+  assertions: WebAssertionSuggestionItem[]
+  source: 'llm' | 'heuristic'
 }
 
 export interface WebRecordingStartPayload {
@@ -2075,6 +2102,8 @@ export const caseApi = {
     http.post<unknown, ApiRequestPreviewResult>(`/projects/${projectId}/api-request-preview`, data, { signal, timeout: 65000 }),
   suggestAssertions: (data: AIAssertionSuggestPayload) =>
     http.post<unknown, AIAssertionSuggestResult>('/ai/cases/suggest-assertions', data),
+  suggestWebAssertions: (data: AIWebAssertionSuggestPayload) =>
+    http.post<unknown, AIWebAssertionSuggestResult>('/ai/cases/suggest-web-assertions', data),
   previewImport: (projectId: number, cases: CaseSavePayload[]) =>
     http.post<unknown, CaseImportPreview>(`/projects/${projectId}/cases/import-preview`, { cases }),
   importCases: (projectId: number, cases: CaseSavePayload[], conflict_policy: 'fail' | 'skip' | 'replace' = 'fail') =>

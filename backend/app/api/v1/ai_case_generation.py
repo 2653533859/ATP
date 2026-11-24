@@ -33,6 +33,8 @@ from app.schemas.ai_case import (
     AICaseGenerateOut,
     AIParseSchemaIn,
     AIParseSchemaOut,
+    AIWebAssertionSuggestIn,
+    AIWebAssertionSuggestOut,
 )
 from app.services.audit import write_audit_log
 from app.services.ai_case.funnel import AICaseFunnelEvent, build_funnel_stats
@@ -40,6 +42,7 @@ from app.services.ai_case.context import build_dataset_context, build_mock_rule_
 from app.services.ai_case.generator import generate_case_drafts
 from app.services.ai_case.parsers import parse_schema
 from app.services.ai_case.suggestion import suggest_assertions_and_extractions
+from app.services.ai_case.web_assertion_suggestion import suggest_web_assertions
 from app.services.ai_governance import redact_llm_text
 
 router = APIRouter(prefix="/ai/cases", tags=["AI 用例生成"])
@@ -260,18 +263,10 @@ async def _record_generation_event(
         await db.commit()
 
 
-@router.post("/suggest-assertions", response_model=AIAssertionSuggestOut)
-async def suggest_assertions_endpoint(
-    body: AIAssertionSuggestIn,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
-):
-    """AI / 规则混合智能推荐测试断言与变量提取。"""
-    if body.project_id is not None:
-        await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+async def _resolve_llm_config(db: AsyncSession, project_id: int | None) -> tuple[AILLMConfig | None, str]:
     config: AILLMConfig | None = None
-    if body.project_id:
-        project = await db.get(Project, body.project_id)
+    if project_id:
+        project = await db.get(Project, project_id)
         if project and project.ai_llm_config_id:
             candidate = await db.get(AILLMConfig, project.ai_llm_config_id)
             if candidate and candidate.enabled:
@@ -288,5 +283,30 @@ async def suggest_assertions_endpoint(
         api_key = (
             "" if config.provider == "ollama" and not config.api_key_encrypted else decrypt(config.api_key_encrypted)
         )
+    return config, api_key
 
+
+@router.post("/suggest-assertions", response_model=AIAssertionSuggestOut)
+async def suggest_assertions_endpoint(
+    body: AIAssertionSuggestIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    """AI / 规则混合智能推荐测试断言与变量提取。"""
+    if body.project_id is not None:
+        await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+    config, api_key = await _resolve_llm_config(db, body.project_id)
     return await suggest_assertions_and_extractions(body, config, api_key)
+
+
+@router.post("/suggest-web-assertions", response_model=AIWebAssertionSuggestOut)
+async def suggest_web_assertions_endpoint(
+    body: AIWebAssertionSuggestIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    """AI / 规则混合推荐 Web UI 自动化断言步骤。"""
+    if body.project_id is not None:
+        await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+    config, api_key = await _resolve_llm_config(db, body.project_id)
+    return await suggest_web_assertions(body, config, api_key)

@@ -160,3 +160,30 @@ class AIAssertionSuggestOut(BaseModel):
     assertions: list[AIAssertionSuggestion] = Field(default_factory=list)
     extractions: list[AIExtractionSuggestion] = Field(default_factory=list)
     source: Literal["llm", "heuristic"] = "heuristic"
+
+
+class WebAssertionStepIn(BaseModel):
+    action: str
+    name: str = ""
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class WebAssertionSuggestion(BaseModel):
+    action: Literal["assert_text", "assert_visible"] = "assert_text"
+    name: str = ""
+    params: dict[str, Any] = Field(default_factory=dict)
+    reason: str = ""
+
+
+class AIWebAssertionSuggestIn(BaseModel):
+    project_id: int | None = None
+    start_url: str = ""
+    current_url: str = ""
+    page_title: str = ""
+    dom_summary: str = ""
+    steps: list[WebAssertionStepIn] = Field(default_factory=list)
+
+
+class AIWebAssertionSuggestOut(BaseModel):
+    assertions: list[WebAssertionSuggestion] = Field(default_factory=list)
+    source: Literal["llm", "heuristic"] = "heuristic"

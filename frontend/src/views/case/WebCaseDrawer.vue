@@ -187,6 +187,14 @@
             <a-button v-if="projectId" size="small" @click="historyDrawerOpen = true">
               <HistoryOutlined /> {{ t('recording_history.import_button') }}
             </a-button>
+            <a-button
+              size="small"
+              :disabled="!lowcodeSteps.length"
+              :loading="suggestingWebAssertions"
+              @click="openWebAssertionSuggest"
+            >
+              <BulbOutlined /> {{ t('case.drawer.web.recorder.ai_assert_btn') }}
+            </a-button>
             <a-button size="small" :disabled="!lowcodeSteps.length" @click="openGeneratedScriptPreview">
               <CodeOutlined /> {{ t('case.drawer.generate_script') }}
             </a-button>
@@ -278,6 +286,14 @@
       @close="scriptPreviewOpen = false"
       @save="handleSaveGeneratedScript"
     />
+    <WebAssertionSuggestModal
+      :open="webAssertSuggestOpen"
+      :loading="suggestingWebAssertions"
+      :source="webAssertSuggestSource"
+      :suggestions="webAssertSuggestions"
+      @close="webAssertSuggestOpen = false"
+      @apply="handleApplyWebAssertionSuggestions"
+    />
 
     <template #footer>
       <div style="display: flex; justify-content: space-between; align-items: center">
@@ -298,8 +314,9 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { CodeOutlined, HistoryOutlined, UploadOutlined, CheckCircleOutlined } from '@ant-design/icons-vue'
+import { CodeOutlined, HistoryOutlined, UploadOutlined, CheckCircleOutlined, BulbOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import WebAssertionSuggestModal from '@/components/common/WebAssertionSuggestModal.vue'
 import {
   caseApi,
   recordingRecordApi,
@@ -308,6 +325,7 @@ import {
   type CaseLevel,
   type CasePriority,
   type CaseSummaryItem,
+  type WebAssertionSuggestionItem,
   type RecordingRecordItem,
   type WebElementAssetItem,
   type WebPageObjectItem,
@@ -852,6 +870,51 @@ function handleRecorderStopped(recording: WebRecordingItem) {
   if (recording.asset_ids?.length) {
     recordedAssetIds.value = Array.from(new Set([...recordedAssetIds.value, ...recording.asset_ids]))
   }
+}
+
+const webAssertSuggestOpen = ref(false)
+const suggestingWebAssertions = ref(false)
+const webAssertSuggestions = ref<WebAssertionSuggestionItem[]>([])
+const webAssertSuggestSource = ref<'llm' | 'heuristic'>('heuristic')
+
+async function openWebAssertionSuggest() {
+  if (!lowcodeSteps.value.length) return
+  webAssertSuggestOpen.value = true
+  suggestingWebAssertions.value = true
+  webAssertSuggestions.value = []
+  const firstGoto = lowcodeSteps.value.find((s) => s.action === 'goto')
+  const startUrlFromStep = String(firstGoto?.params?.url || lastRecordedTargetUrl.value || '')
+  try {
+    const res = await caseApi.suggestWebAssertions({
+      project_id: props.projectId,
+      start_url: startUrlFromStep,
+      current_url: lastRecordedTargetUrl.value || startUrlFromStep,
+      steps: lowcodeSteps.value.map((s) => ({
+        action: s.action,
+        name: s.name,
+        params: { ...(s.params || {}) },
+      })),
+    })
+    webAssertSuggestions.value = res.assertions || []
+    webAssertSuggestSource.value = res.source || 'heuristic'
+  } catch (e: unknown) {
+    message.error((e as { message?: string })?.message || t('case.drawer.web.recorder.error'))
+    webAssertSuggestOpen.value = false
+  } finally {
+    suggestingWebAssertions.value = false
+  }
+}
+
+function handleApplyWebAssertionSuggestions(picked: WebAssertionSuggestionItem[]) {
+  const appended: LowcodeStep[] = picked.map((item) => ({
+    action: item.action,
+    name: item.name,
+    params: { ...(item.params || {}) },
+  }))
+  lowcodeSteps.value = [...lowcodeSteps.value, ...appended]
+  persistLocalWebDraft()
+  webAssertSuggestOpen.value = false
+  message.success(t('case.drawer.web.recorder.ai_assert_applied', { count: appended.length }))
 }
 
 function handleImportHistoryRecord(record: RecordingRecordItem) {

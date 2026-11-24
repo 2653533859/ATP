@@ -422,6 +422,8 @@ class WebRecordingSession:
     error_responses: list[dict[str, Any]] = field(default_factory=list)
     asset_ids: list[int] = field(default_factory=list)
     assets_persisted: bool = False
+    last_page_title: str = ""
+    last_dom_summary: str = ""
     artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
     artifact_error: str | None = None
     playwright: Playwright | None = None
@@ -601,6 +603,7 @@ class WebRecordingSession:
             await self._flush_pending_assertions()
             if self.auto_assert:
                 await self._capture_page_assertions()
+            await self._capture_page_context()
             await self.close()
             self.status = "stopped"
             self.finished_at = time.monotonic()
@@ -931,7 +934,32 @@ class WebRecordingSession:
             "source": self.source,
             "recording_record_id": self.recording_record_id,
             "assets_persisted": self.assets_persisted,
+            "page_title": self.last_page_title,
+            "dom_summary": self.last_dom_summary,
         }
+
+    async def _capture_page_context(self) -> None:
+        if (
+            self.page is None
+            or getattr(self.page, "is_closed", lambda: False)()
+            or not callable(getattr(self.page, "evaluate", None))
+        ):
+            return
+        try:
+            ctx = await self.page.evaluate(
+                """() => {
+                    const title = (document.title || '').trim();
+                    const text = (document.body && document.body.innerText) ? document.body.innerText : '';
+                    const lines = text.split(/\\n+/).map(s => s.trim()).filter(s => s.length >= 2 && s.length <= 80);
+                    const unique = Array.from(new Set(lines)).slice(0, 25);
+                    return { title, summary: unique.join('\\n').slice(0, 1200) };
+                }"""
+            )
+            if isinstance(ctx, dict):
+                self.last_page_title = str(ctx.get("title") or "").strip()[:120]
+                self.last_dom_summary = str(ctx.get("summary") or "").strip()[:1200]
+        except Exception:
+            pass
 
     def _append_assertion_step(self, action: str, name: str, params: dict[str, Any]) -> None:
         for existing in reversed(self.steps):

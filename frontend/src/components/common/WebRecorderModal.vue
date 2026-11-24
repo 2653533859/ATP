@@ -210,6 +210,13 @@
       <a-button v-if="active && !showCapture" danger :loading="stopping" @click="() => stopRecording()">
         {{ t('case.drawer.web.recorder.stop') }}
       </a-button>
+      <a-button
+        v-if="steps.length && !active && !showCapture"
+        :loading="suggestingAssertions"
+        @click="openAssertionSuggest"
+      >
+        <BulbOutlined /> {{ t('case.drawer.web.recorder.ai_assert_btn') }}
+      </a-button>
       <a-button v-if="steps.length && !active" type="primary" @click="applySteps">
         {{ t('case.drawer.web.recorder.import') }}
       </a-button>
@@ -217,6 +224,15 @@
         {{ t('common.cancel') }}
       </a-button>
     </div>
+
+    <WebAssertionSuggestModal
+      :open="suggestModalOpen"
+      :loading="suggestingAssertions"
+      :source="suggestSource"
+      :suggestions="suggestedAssertions"
+      @close="suggestModalOpen = false"
+      @apply="handleApplySuggestedAssertions"
+    />
   </a-modal>
 </template>
 
@@ -229,11 +245,15 @@ import {
   CompassOutlined,
   DesktopOutlined,
   SendOutlined,
+  BulbOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import WebAssertionSuggestModal from './WebAssertionSuggestModal.vue'
 import { normalizeRecordingUrl, recordingErrorMessage } from '@/utils/webRecording'
 import {
+  caseApi,
   webRecordingApi,
+  type WebAssertionSuggestionItem,
   type WebRecordingItem,
   type WebRecordingSource,
   type WebRecordingStatus,
@@ -467,6 +487,54 @@ function reset() {
   frameUrl.value = ''
   navInputUrl.value = ''
   inputText.value = ''
+  suggestModalOpen.value = false
+  suggestingAssertions.value = false
+  suggestedAssertions.value = []
+  suggestSource.value = 'heuristic'
+}
+
+const suggestModalOpen = ref(false)
+const suggestingAssertions = ref(false)
+const suggestedAssertions = ref<WebAssertionSuggestionItem[]>([])
+const suggestSource = ref<'llm' | 'heuristic'>('heuristic')
+
+async function openAssertionSuggest() {
+  if (!steps.value.length) return
+  suggestModalOpen.value = true
+  suggestingAssertions.value = true
+  suggestedAssertions.value = []
+  try {
+    const res = await caseApi.suggestWebAssertions({
+      project_id: props.projectId ?? undefined,
+      start_url: startUrl.value.trim(),
+      current_url: currentUrl.value || startUrl.value.trim(),
+      page_title: evidence.value?.page_title || '',
+      dom_summary: evidence.value?.dom_summary || '',
+      steps: steps.value.map((s) => ({
+        action: s.action,
+        name: s.name,
+        params: { ...(s.params || {}) },
+      })),
+    })
+    suggestedAssertions.value = res.assertions || []
+    suggestSource.value = res.source || 'heuristic'
+  } catch (e: unknown) {
+    message.error(recordingErrorMessage(e, t('case.drawer.web.recorder.error')))
+    suggestModalOpen.value = false
+  } finally {
+    suggestingAssertions.value = false
+  }
+}
+
+function handleApplySuggestedAssertions(picked: WebAssertionSuggestionItem[]) {
+  const appended: WebRecordingStep[] = picked.map((item) => ({
+    action: item.action,
+    name: item.name,
+    params: { ...(item.params || {}) },
+  }))
+  steps.value = [...steps.value, ...appended]
+  suggestModalOpen.value = false
+  message.success(t('case.drawer.web.recorder.ai_assert_applied', { count: appended.length }))
 }
 
 function clearPoll() {
