@@ -69,10 +69,10 @@
     <a-drawer
       v-model:open="drawerVisible"
       :title="editingTask ? t('mobile_special.edit_task') : t('mobile_special.new_task_full')"
-      width="560"
+      width="600"
       @close="resetForm"
     >
-      <a-form :label-col="{ span: 6 }" layout="horizontal">
+      <a-form layout="vertical">
         <a-form-item :label="t('mobile_special.form.name')" required>
           <a-input v-model:value="form.name" :placeholder="t('mobile_special.form.name_placeholder')" />
         </a-form-item>
@@ -124,7 +124,6 @@
             :placeholder="t('mobile_special.form.app_package_placeholder')"
             :disabled="Boolean(form.apk_id && selectedApkPackage)"
           />
-          <span class="form-hint">{{ t('mobile_special.form.app_package_hint') }}</span>
           <span v-if="packageHint" class="form-hint">{{ packageHint }}</span>
         </a-form-item>
 

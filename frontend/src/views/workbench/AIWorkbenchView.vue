@@ -4,10 +4,7 @@
       <div class="toolbar-left">
         <div class="toolbar-identity">
           <RobotOutlined class="toolbar-icon" />
-          <div class="toolbar-copy">
-            <span class="toolbar-name">{{ t('ai_workbench.title') }}</span>
-            <span class="toolbar-subtitle">{{ t('ai_workbench.subtitle') }}</span>
-          </div>
+          <span class="toolbar-name">{{ t('ai_workbench.title') }}</span>
         </div>
         <div class="toolbar-project">
           <label class="sr-only">{{ t('ai_workbench.project_label') }}</label>
@@ -96,7 +93,7 @@
                   <ArrowRightOutlined class="generation-arrow" />
                 </span>
                 <strong>{{ t('ai_workbench.generate_cases') }}</strong>
-                <small>{{ firstModuleId ? t('ai_workbench.generate_cases_hint') : t('ai_workbench.no_module_hint') }}</small>
+                <small v-if="!firstModuleId">{{ t('ai_workbench.no_module_hint') }}</small>
               </button>
               <button type="button" class="generation-card" :disabled="!canGenerate" @click="openDatasetGeneration">
                 <span class="generation-top">
@@ -104,7 +101,6 @@
                   <ArrowRightOutlined class="generation-arrow" />
                 </span>
                 <strong>{{ t('ai_workbench.generate_dataset') }}</strong>
-                <small>{{ t('ai_workbench.generate_dataset_hint') }}</small>
               </button>
               <button type="button" class="generation-card" :disabled="!canGenerate" @click="openMockGeneration">
                 <span class="generation-top">
@@ -112,7 +108,6 @@
                   <ArrowRightOutlined class="generation-arrow" />
                 </span>
                 <strong>{{ t('ai_workbench.generate_mock') }}</strong>
-                <small>{{ t('ai_workbench.generate_mock_hint') }}</small>
               </button>
             </div>
             <div class="context-meta">
@@ -120,7 +115,6 @@
               <span>{{ t('ai_workbench.mock_chip', { count: mockRules.length }) }}</span>
               <span>{{ t('ai_workbench.module_chip', { count: flatModules.length }) }}</span>
             </div>
-            <div class="draft-note"><CheckCircleOutlined /> {{ t('ai_workbench.draft_note') }}</div>
           </section>
 
           <section class="panel failure-panel">
@@ -220,7 +214,6 @@ import { message } from 'ant-design-vue'
 import {
   ArrowRightOutlined,
   BranchesOutlined,
-  CheckCircleOutlined,
   DatabaseOutlined,
   FileSearchOutlined,
   LockOutlined,

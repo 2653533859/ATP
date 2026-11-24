@@ -107,14 +107,16 @@
       v-model:open="showCreateModal"
       :title="editingEnv ? t('system_pages.environment.edit') : t('system_pages.environment.new')"
       :confirm-loading="envSaving"
+      width="520px"
+      centered
       @ok="handleSaveEnv"
       @cancel="resetEnvForm"
     >
-      <a-form :label-col="{ span: 5 }">
-        <a-form-item :label="t('common.name')">
+      <a-form layout="vertical">
+        <a-form-item :label="t('common.name')" required>
           <a-input v-model:value="envForm.name" :placeholder="t('system_pages.environment.name_placeholder')" />
         </a-form-item>
-        <a-form-item :label="t('common.description')">
+        <a-form-item :label="t('common.description')" style="margin-bottom: 0">
           <a-textarea v-model:value="envForm.description" :rows="3" :placeholder="t('system_pages.environment.desc_placeholder')" />
         </a-form-item>
       </a-form>

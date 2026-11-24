@@ -70,10 +70,12 @@
       v-model:open="showModal"
       :title="editingVar ? t('system_pages.global_variable.edit') : t('system_pages.global_variable.new')"
       :confirm-loading="saving"
+      width="540px"
+      centered
       @ok="handleSave"
       @cancel="resetForm"
     >
-      <a-form :label-col="{ span: 5 }" layout="horizontal">
+      <a-form layout="vertical">
         <a-form-item :label="t('common.name')" required>
           <a-input v-model:value="form.key" :placeholder="t('system_pages.global_variable.key_placeholder')" />
         </a-form-item>
@@ -82,12 +84,11 @@
         </a-form-item>
         <a-form-item :label="t('system_pages.global_variable.secret_storage')">
           <a-switch v-model:checked="form.is_secret" />
-          <span style="margin-left: 8px; color: var(--c-text-tertiary)">{{ t('system_pages.global_variable.secret_hint') }}</span>
         </a-form-item>
         <a-form-item :label="t('common.description')">
           <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('system_pages.global_variable.desc_placeholder')" />
         </a-form-item>
-        <a-form-item v-if="selectedScope === 'project'" :label="t('common.project')" required>
+        <a-form-item v-if="selectedScope === 'project'" :label="t('common.project')" required style="margin-bottom: 0">
           <a-select
             v-model:value="(form.project_id as number | undefined)"
             :placeholder="t('system_pages.global_variable.select_project')"
