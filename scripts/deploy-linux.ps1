@@ -266,7 +266,13 @@ ATP_WEB_PORT=8080
     "kubectl -n atp-single-node rollout status deployment/atp-single-node-atp-worker --timeout=120s",
     "kubectl -n atp-single-node rollout status deployment/atp-single-node-atp-beat --timeout=120s",
     "(cd cloud-web && docker compose up -d)",
-    "iptables -C DOCKER-USER -p tcp --dport 80 -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -p tcp --dport 80 -j ACCEPT"
+    "iptables -C DOCKER-USER -p tcp --dport 80 -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -p tcp --dport 80 -j ACCEPT",
+    "iptables -t nat -C PREROUTING -p tcp -d 192.168.3.196 --dport 26379 -j DNAT --to-destination 172.18.0.2:6379 2>/dev/null || iptables -t nat -I PREROUTING 1 -p tcp -d 192.168.3.196 --dport 26379 -j DNAT --to-destination 172.18.0.2:6379",
+    "iptables -C DOCKER-USER -p tcp -d 172.18.0.2 --dport 6379 -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -p tcp -d 172.18.0.2 --dport 6379 -j ACCEPT",
+    "iptables -t nat -C PREROUTING -p tcp -d 192.168.3.196 --dport 25432 -j DNAT --to-destination 172.18.0.4:5432 2>/dev/null || iptables -t nat -I PREROUTING 1 -p tcp -d 192.168.3.196 --dport 25432 -j DNAT --to-destination 172.18.0.4:5432",
+    "iptables -C DOCKER-USER -p tcp -d 172.18.0.4 --dport 5432 -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -p tcp -d 172.18.0.4 --dport 5432 -j ACCEPT",
+    "iptables -t nat -C PREROUTING -p tcp -d 192.168.3.196 --dport 29000 -j DNAT --to-destination 172.18.0.5:9000 2>/dev/null || iptables -t nat -I PREROUTING 1 -p tcp -d 192.168.3.196 --dport 29000 -j DNAT --to-destination 172.18.0.5:9000",
+    "iptables -C DOCKER-USER -p tcp -d 172.18.0.5 --dport 9000 -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -p tcp -d 172.18.0.5 --dport 9000 -j ACCEPT"
   ) -join " && "
 
   & ssh @sshOpts $sshTarget $remoteCommands
