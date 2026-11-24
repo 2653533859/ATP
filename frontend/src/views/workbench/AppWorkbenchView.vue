@@ -268,7 +268,10 @@
                     <span class="activity-status" :class="`activity-status-${activity.status}`">{{ runStatusLabel(activity.status) }}</span>
                   </button>
                 </div>
-                <a-empty v-else :description="t('app_workbench.no_activity')" :image="false" style="margin: 20px 0" />
+                <div v-else class="empty-inline-box">
+                  <HistoryOutlined class="empty-inline-icon" />
+                  <span class="empty-inline-hint">暂无运行记录，执行用例或专项任务后将在此展示</span>
+                </div>
               </div>
 
               <div class="sub-deck-card">
@@ -286,11 +289,16 @@
                     <span class="apk-code">#{{ apk.id }}</span>
                   </div>
                 </div>
-                <a-empty v-else :description="t('app_workbench.no_apks')" :image="false" style="margin: 20px 0" />
-                <div class="compatibility-strip">
+                <div v-else class="empty-inline-box">
+                  <AndroidOutlined class="empty-inline-icon" />
+                  <div class="empty-inline-text">
+                    <span class="empty-inline-hint">当前项目暂无 APK 资产</span>
+                    <a-button type="link" size="small" class="empty-inline-link" @click="openApks">+ 上传应用安装包</a-button>
+                  </div>
+                </div>
+                <div v-if="deviceFamilies.length" class="compatibility-strip">
                   <div class="strip-label"><AppstoreOutlined /> {{ t('app_workbench.compatibility_title') }}</div>
                   <span v-for="family in deviceFamilies" :key="family" class="compatibility-chip">{{ family }}</span>
-                  <span v-if="!deviceFamilies.length" class="compatibility-empty">{{ t('app_workbench.no_device_matrix') }}</span>
                 </div>
               </div>
             </div>
@@ -299,7 +307,25 @@
           <!-- Tab 2: 专项任务 -->
           <div v-show="activeTab === 'special'" class="tab-pane">
             <div class="runner-card">
-              <div class="launch-form">
+              <div v-if="!specialTasks.length && !loading" class="case-empty-card empty-guide-hero">
+                <div class="empty-card-content">
+                  <ThunderboltOutlined class="empty-card-icon" />
+                  <div class="empty-card-text">
+                    <strong>当前项目暂无专项任务</strong>
+                    <p>专项任务支持随机 Monkey 压力测试、启动流畅度分析与长时间稳定性测试。</p>
+                  </div>
+                </div>
+                <a-button
+                  type="primary"
+                  size="small"
+                  :disabled="!canModify"
+                  @click="openSpecialTasks"
+                >
+                  <PlusOutlined /> 新建专项任务
+                </a-button>
+              </div>
+
+              <div v-else class="launch-form">
                 <div class="form-header-row">
                   <label>{{ t('app_workbench.task_label') }}</label>
                   <a-button type="link" size="small" class="quick-create-btn" @click="openSpecialTasks">
@@ -359,7 +385,10 @@
                     <span class="activity-status" :class="`activity-status-${activity.status}`">{{ runStatusLabel(activity.status) }}</span>
                   </button>
                 </div>
-                <a-empty v-else :description="t('app_workbench.no_activity')" :image="false" style="margin: 20px 0" />
+                <div v-else class="empty-inline-box">
+                  <HistoryOutlined class="empty-inline-icon" />
+                  <span class="empty-inline-hint">暂无运行记录，执行用例或专项任务后将在此展示</span>
+                </div>
               </div>
 
               <div class="sub-deck-card">
@@ -377,7 +406,17 @@
                     <span class="apk-code">#{{ apk.id }}</span>
                   </div>
                 </div>
-                <a-empty v-else :description="t('app_workbench.no_apks')" :image="false" style="margin: 20px 0" />
+                <div v-else class="empty-inline-box">
+                  <AndroidOutlined class="empty-inline-icon" />
+                  <div class="empty-inline-text">
+                    <span class="empty-inline-hint">当前项目暂无 APK 资产</span>
+                    <a-button type="link" size="small" class="empty-inline-link" @click="openApks">+ 上传应用安装包</a-button>
+                  </div>
+                </div>
+                <div v-if="deviceFamilies.length" class="compatibility-strip">
+                  <div class="strip-label"><AppstoreOutlined /> {{ t('app_workbench.compatibility_title') }}</div>
+                  <span v-for="family in deviceFamilies" :key="family" class="compatibility-chip">{{ family }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1548,7 +1587,8 @@ onUnmounted(() => {
   padding: 14px 16px;
   border: 1px solid var(--c-border);
   border-radius: 10px;
-  background: var(--c-bg-subtle);
+  background: var(--c-bg-elevated);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 .sub-deck-head {
   display: flex;
@@ -1563,6 +1603,35 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 600;
   color: var(--c-text);
+}
+
+.empty-inline-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 16px;
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+.empty-inline-icon {
+  font-size: 20px;
+  color: var(--c-text-tertiary);
+}
+.empty-inline-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.empty-inline-hint {
+  color: var(--c-text-tertiary);
+  font-size: 12px;
+}
+.empty-inline-link {
+  padding: 0;
+  height: auto;
+  font-size: 12px;
 }
 
 .workspace-grid { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); gap: 16px; }
@@ -1774,6 +1843,12 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   margin-top: 16px;
+}
+.launch-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 12px 0 16px;
 }
 .launch-form > label,
 .launch-two-col label {
