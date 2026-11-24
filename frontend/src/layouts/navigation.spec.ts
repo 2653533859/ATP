@@ -40,18 +40,20 @@ describe('layout navigation state', () => {
     expect(getSelectedMenuKey('/mobile-special/reports/12')).toBe('/mobile-special/workbench')
   })
 
-  it('keeps legacy asset pages under their owning workbench while preserving the URL', () => {
-    expect(getSelectedMenuKey('/system/web-assets')).toBe('/ui-workbench')
-    expect(getSelectedMenuKey('/system/api-contract-assets')).toBe('/api-workbench')
-    expect(getSelectedMenuKey('/system/datasets')).toBe('/ai-workbench')
-    expect(getSelectedMenuKey('/system/users')).toBe('/system/config')
-    expect(getMenuOpenKeys('/system/web-assets')).toEqual(['test-capabilities'])
+  it('selects dedicated sidebar entries for asset and system pages directly', () => {
+    expect(getSelectedMenuKey('/system/web-assets')).toBe('/system/web-assets')
+    expect(getSelectedMenuKey('/system/api-contract-assets')).toBe('/system/api-contract-assets')
+    expect(getSelectedMenuKey('/system/datasets')).toBe('/system/datasets')
+    expect(getSelectedMenuKey('/system/users')).toBe('/system/users')
+    expect(getSelectedMenuKey('/system/ai-llm-configs')).toBe('/system/ai-llm-configs')
+    expect(getMenuOpenKeys('/system/web-assets')).toEqual(['test-assets'])
+    expect(getMenuOpenKeys('/system/ai-llm-configs')).toEqual(['system-center'])
   })
 
-  it('keeps AI healing pages under the AI workbench instead of the configuration center', () => {
-    expect(getSelectedMenuKey('/system/healing-examples')).toBe('/ai-workbench')
-    expect(getSelectedMenuKey('/system/ai-healing-stats')).toBe('/ai-workbench')
-    expect(getMenuOpenKeys('/system/healing-examples')).toEqual(['test-capabilities'])
+  it('keeps AI healing pages under the intelligence center group', () => {
+    expect(getSelectedMenuKey('/system/healing-examples')).toBe('/system/healing-examples')
+    expect(getSelectedMenuKey('/system/ai-healing-stats')).toBe('/system/ai-healing-stats')
+    expect(getMenuOpenKeys('/system/healing-examples')).toEqual(['intelligence-center'])
   })
 
   it('keeps intelligence center routes open and resolves their breadcrumbs', () => {

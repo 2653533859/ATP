@@ -10,14 +10,14 @@
       class="app-sider"
     >
       <div class="sider-inner">
-        <div>
-          <div class="brand" :class="{ 'brand-collapsed': collapsed }">
-            <div class="brand-logo"><ThunderboltFilled /></div>
-            <div v-if="!collapsed" class="brand-text">
-              <span class="brand-name">{{ t('layout.sider_title_full') }}</span>
-              <span class="brand-tag">PRO</span>
-            </div>
+        <div class="brand" :class="{ 'brand-collapsed': collapsed }">
+          <div class="brand-logo"><ThunderboltFilled /></div>
+          <div v-if="!collapsed" class="brand-text">
+            <span class="brand-name">{{ t('layout.sider_title_full') }}</span>
+            <span class="brand-tag">PRO</span>
           </div>
+        </div>
+        <div class="sider-menu-scroll">
           <a-menu
             :selectedKeys="selectedKeys"
             v-model:openKeys="openKeys"
@@ -54,6 +54,7 @@
               <a-menu-item key="/ui-workbench">{{ t('menu.capabilities.ui') }}</a-menu-item>
               <a-menu-item v-if="supportsFeature('performance')" key="/performance-workbench">{{ t('menu.capabilities.performance') }}</a-menu-item>
               <a-menu-item v-if="supportsFeature('ai_generation')" key="/ai-workbench">{{ t('menu.capabilities.ai') }}</a-menu-item>
+              <a-menu-item key="/mock-rules">{{ t('menu.mock_rules') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu key="test-assets">
@@ -65,6 +66,9 @@
               <a-menu-item v-if="supportsFeature('defects')" key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
               <a-menu-item key="/reports">{{ t('menu.assets.reports') }}</a-menu-item>
               <a-menu-item key="/case-reviews">{{ t('menu.assets.reviews') }}</a-menu-item>
+              <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
+              <a-menu-item key="/system/web-assets">{{ t('menu.system.web_assets') }}</a-menu-item>
+              <a-menu-item key="/system/api-contract-assets">{{ t('menu.system.api_contract_assets') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu key="intelligence-center">
@@ -74,22 +78,27 @@
               <a-menu-item key="/ai-chat">{{ t('menu.intelligence.ai_chat') }}</a-menu-item>
               <a-menu-item key="/requirements">{{ t('menu.intelligence.requirements') }}</a-menu-item>
               <a-menu-item key="/knowledge">{{ t('menu.intelligence.knowledge') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin'])" key="/system/healing-examples">{{ t('menu.system.ai_healing_examples') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-healing-stats">{{ t('menu.system.ai_healing_stats') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu v-if="canAccess(['admin', 'engineer'])" key="system-center">
               <template #icon><SettingOutlined /></template>
               <template #title>{{ t('menu.groups.system_center') }}</template>
-              <a-menu-item v-if="!localMode && canAccess(['admin', 'engineer'])" key="/system/toolbox">{{ t('menu.system_center.toolbox') }}</a-menu-item>
+              <a-menu-item key="/system/config">{{ t('menu.system_center.config') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
+              <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
+              <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
+              <a-menu-item key="/system/notifications">{{ t('menu.system.notifications') }}</a-menu-item>
+              <a-menu-item key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
+              <a-menu-item key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
+              <a-menu-item v-if="!localMode" key="/system/toolbox">{{ t('menu.system_center.toolbox') }}</a-menu-item>
               <a-menu-item v-if="!localMode && canAccess(['admin'])" key="/system/remote-nodes">{{ t('menu.system_center.remote_nodes') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/config">{{ t('menu.system_center.config') }}</a-menu-item>
-              <template v-if="localMode">
-                <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
-                <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
-                <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
-                <a-menu-item key="/system/web-assets">{{ t('menu.system.web_assets') }}</a-menu-item>
-                <a-menu-item key="/system/api-contract-assets">{{ t('menu.system.api_contract_assets') }}</a-menu-item>
-                <a-menu-item key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
-              </template>
+              <a-menu-item v-if="canAccess(['admin'])" key="/system/users">{{ t('menu.system.users') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin'])" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin'])" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin'])" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin'])" key="/system/startup-config">{{ t('menu.system.startup_config') }}</a-menu-item>
             </a-sub-menu>
           </a-menu>
         </div>
@@ -541,11 +550,34 @@ function onLocaleChange(value: unknown) {
 .sider-inner {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   height: 100%;
+  overflow: hidden;
+}
+
+.sider-menu-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-border) transparent;
+}
+
+.sider-menu-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sider-menu-scroll::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+  border-radius: 999px;
+}
+
+.sider-menu-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .brand {
+  flex-shrink: 0;
   height: 60px;
   display: flex;
   align-items: center;
@@ -595,7 +627,7 @@ function onLocaleChange(value: unknown) {
 .app-menu {
   background: transparent;
   border-inline-end: none !important;
-  padding: 10px 8px;
+  padding: 8px;
 }
 
 .menu-item-with-badge {
@@ -606,6 +638,12 @@ function onLocaleChange(value: unknown) {
   gap: 8px;
 }
 
+.menu-item-with-badge > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .menu-item-with-badge :deep(.ant-badge-count) {
   box-shadow: none;
   font-size: 11px;
@@ -613,7 +651,7 @@ function onLocaleChange(value: unknown) {
 .app-menu :deep(.ant-menu-item),
 .app-menu :deep(.ant-menu-submenu-title) {
   border-radius: var(--radius-sm);
-  margin-block: 3px;
+  margin-block: 2px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .app-menu :deep(.ant-menu-submenu > .ant-menu-submenu-title) {
@@ -624,6 +662,8 @@ function onLocaleChange(value: unknown) {
 .app-menu :deep(.ant-menu-item) {
   color: var(--c-text-secondary);
   font-size: 13px;
+  height: 36px;
+  line-height: 36px;
 }
 .app-menu :deep(.ant-menu-item:hover),
 .app-menu :deep(.ant-menu-submenu-title:hover) {
@@ -638,6 +678,7 @@ function onLocaleChange(value: unknown) {
 
 /* 侧栏底部 Worker 状态卡片 */
 .sider-footer {
+  flex-shrink: 0;
   padding: 12px;
   border-top: 1px solid var(--c-border-subtle);
   background: var(--c-bg-elevated);

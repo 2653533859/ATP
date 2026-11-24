@@ -22,12 +22,12 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/ai-chat': 'intelligence-center',
   '/requirements': 'intelligence-center',
   '/knowledge': 'intelligence-center',
-  '/system/datasets': 'test-capabilities',
-  '/system/web-assets': 'test-capabilities',
-  '/system/api-contract-assets': 'test-capabilities',
+  '/system/datasets': 'test-assets',
+  '/system/web-assets': 'test-assets',
+  '/system/api-contract-assets': 'test-assets',
   '/system/performance': 'test-capabilities',
-  '/system/ai-healing-stats': 'test-capabilities',
-  '/system/healing-examples': 'test-capabilities',
+  '/system/ai-healing-stats': 'intelligence-center',
+  '/system/healing-examples': 'intelligence-center',
   '/system': 'system-center',
   '/devices': 'test-capabilities',
   '/apks': 'test-capabilities',
@@ -72,15 +72,34 @@ export function findRouteEntry<T>(entries: Record<string, T>, path: string): T |
   return Object.entries(entries).find(([prefix]) => path.startsWith(prefix))?.[1]
 }
 
-export function getMenuOpenKeys(path: string, localMode = false): string[] {
-  if (localMode && path.startsWith('/system/')) {
-    return ['system-center']
-  }
+export function getMenuOpenKeys(path: string, _localMode = false): string[] {
   const group = findRouteEntry(routeMenuGroups, path)
   return group ? [group] : []
 }
 
-export function getSelectedMenuKey(path: string, localMode = false): string {
+const DIRECT_SYSTEM_MENU_PATHS = [
+  '/system/config',
+  '/system/ai-llm-configs',
+  '/system/environments',
+  '/system/global-variables',
+  '/system/notifications',
+  '/system/bug-trackers',
+  '/system/storage',
+  '/system/toolbox',
+  '/system/remote-nodes',
+  '/system/users',
+  '/system/audit-logs',
+  '/system/run-retention',
+  '/system/dashboard-alerts',
+  '/system/startup-config',
+  '/system/datasets',
+  '/system/web-assets',
+  '/system/api-contract-assets',
+  '/system/healing-examples',
+  '/system/ai-healing-stats',
+]
+
+export function getSelectedMenuKey(path: string, _localMode = false): string {
   if (path.startsWith('/projects/') && path.endsWith('/cases')) return '/cases'
   if (path.startsWith('/projects/')) return '/projects'
   if (path.startsWith('/cases/')) return '/cases'
@@ -88,28 +107,17 @@ export function getSelectedMenuKey(path: string, localMode = false): string {
   if (path.startsWith('/mobile-special/')) return '/mobile-special/workbench'
   if (path.startsWith('/devices') || path.startsWith('/apks') || path.startsWith('/ios-assets')) return '/mobile-special/workbench'
 
-  if (localMode) {
-    if (path.startsWith('/system/environments')) return '/system/environments'
-    if (path.startsWith('/system/global-variables')) return '/system/global-variables'
-    if (path.startsWith('/system/datasets')) return '/system/datasets'
-    if (path.startsWith('/system/web-assets')) return '/system/web-assets'
-    if (path.startsWith('/system/api-contract-assets')) return '/system/api-contract-assets'
-    if (path.startsWith('/system/ai-llm-configs')) return '/system/ai-llm-configs'
-  }
+  const matchedSystemKey = DIRECT_SYSTEM_MENU_PATHS.find((prefix) => path.startsWith(prefix))
+  if (matchedSystemKey) return matchedSystemKey
 
   if (path.startsWith('/system/performance')) return '/performance-workbench'
-  if (path.startsWith('/system/web-assets')) return '/ui-workbench'
-  if (path.startsWith('/system/api-contract-assets')) return '/api-workbench'
-  if (path.startsWith('/system/datasets') || path.startsWith('/mock-rules')) return '/ai-workbench'
-  // 自愈统计和自愈示例是 AI 能力页而非配置域，入口在 AI 工作台；若不在这里拦下，
-  // 会被下面的 '/system/' 兜底高亮成配置中心。
-  if (path.startsWith('/system/ai-healing-stats') || path.startsWith('/system/healing-examples')) return '/ai-workbench'
+  if (path.startsWith('/mock-rules')) return '/mock-rules'
   if (path.startsWith('/suites')) return '/suites'
   if (path.startsWith('/hermes')) return '/hermes'
   if (path.startsWith('/ai-chat')) return '/ai-chat'
   if (path.startsWith('/requirements')) return '/requirements'
   if (path.startsWith('/knowledge')) return '/knowledge'
-  if (path.startsWith('/system/config') || path.startsWith('/system/')) return '/system/config'
+  if (path.startsWith('/system/')) return '/system/config'
   return path
 }
 
