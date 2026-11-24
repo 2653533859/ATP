@@ -2471,6 +2471,7 @@ export const deviceApi = {
   update: (id: number, data: { name?: string; description?: string }) =>
     http.patch(`/devices/${id}`, data),
   delete: (id: number) => http.delete(`/devices/${id}`),
+  purgeOffline: () => http.delete<unknown, { deleted_count: number }>('/devices/offline/purge'),
   screenshot: (id: number, options?: { maxWidth?: number; format?: 'png' | 'jpeg' }) =>
     http.get<unknown, Blob>(`/devices/${id}/screenshot`, {
       responseType: 'blob',

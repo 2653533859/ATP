@@ -59,6 +59,10 @@ vi.mock('ant-design-vue', () => ({
 vi.mock('@ant-design/icons-vue', () => ({
   AndroidOutlined: true,
   AppstoreOutlined: true,
+  CopyOutlined: true,
+  DeleteOutlined: true,
+  DesktopOutlined: true,
+  DownloadOutlined: true,
   EyeOutlined: true,
   EditOutlined: true,
   HomeOutlined: true,
@@ -76,6 +80,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   SyncOutlined: true,
   ThunderboltOutlined: true,
   ToolOutlined: true,
+  WifiOutlined: true,
 }))
 vi.mock('@/views/device/components/DeviceMirrorModal.vue', () => ({
   default: defineComponent({

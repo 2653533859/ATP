@@ -20,13 +20,24 @@
           />
         </div>
         <div class="toolbar-status">
-          <span class="live-dot" :class="{ muted: !localMode && !workers.length }" />
-          <span v-if="localMode">{{ t('app_workbench.local_execution') }}</span>
-          <span v-else>{{ workers.length ? t('app_workbench.worker_online', { count: workers.length }) : t('app_workbench.worker_offline') }}</span>
+          <button
+            type="button"
+            class="worker-status-pill"
+            :class="{ active: localMode || workers.length, offline: !localMode && !workers.length }"
+            @click="nodeModalOpen = true"
+          >
+            <span class="live-dot" :class="{ muted: !localMode && !workers.length }" />
+            <span v-if="localMode">{{ t('app_workbench.local_execution') }}</span>
+            <span v-else>{{ workers.length ? t('app_workbench.worker_online', { count: workers.length }) : t('app_workbench.worker_offline') }}</span>
+            <span class="pill-action-hint">接入与模式 ↗</span>
+          </button>
         </div>
       </div>
 
       <div class="toolbar-right">
+        <a-button size="small" class="toolbar-btn" @click="nodeModalOpen = true">
+          <DesktopOutlined /> 节点与模式
+        </a-button>
         <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshAll">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -99,9 +110,22 @@
           <div class="panel-head">
             <div class="panel-title-row">
               <h2>{{ t('app_workbench.device_pool') }}</h2>
-              <a-button size="small" :loading="scanning" :disabled="!canModify" @click="scanDevices">
-                <ReloadOutlined />
-              </a-button>
+              <div class="panel-head-actions">
+                <a-popconfirm
+                  v-if="offlineDeviceCount > 0"
+                  title="确定清理所有已离线的设备记录吗？"
+                  ok-text="清理"
+                  cancel-text="取消"
+                  @confirm="purgeOfflineDevices"
+                >
+                  <a-button size="small" type="link" danger :loading="purgingOffline" class="purge-offline-btn">
+                    清理离线 ({{ offlineDeviceCount }})
+                  </a-button>
+                </a-popconfirm>
+                <a-button size="small" :loading="scanning" :disabled="!canModify" @click="scanDevices">
+                  <ReloadOutlined />
+                </a-button>
+              </div>
             </div>
             <div class="device-filter-bar">
               <a-radio-group v-model:value="deviceFilter" size="small" button-style="solid">
@@ -133,6 +157,9 @@
                   </span>
                 </div>
                 <div class="device-meta-row">
+                  <span class="conn-tag" :class="isWifiDevice(device) ? 'wifi' : 'usb'">
+                    {{ isWifiDevice(device) ? 'WiFi' : 'USB' }}
+                  </span>
                   <span v-if="device.brand" class="device-brand">{{ device.brand }}</span>
                   <span v-if="device.os_version" class="device-os">v{{ device.os_version }}</span>
                   <span class="device-serial">{{ device.serial }}</span>
@@ -142,7 +169,18 @@
           </div>
           <div v-else-if="deviceFilter === 'online' && devices.length > 0" class="device-empty-filter">
             <span>暂无在线设备（共 {{ devices.length }} 台设备处于离线状态）</span>
-            <a-button size="small" type="link" @click="deviceFilter = 'all'">查看全部设备</a-button>
+            <div class="empty-filter-actions">
+              <a-button size="small" type="link" @click="deviceFilter = 'all'">查看全部设备</a-button>
+              <a-popconfirm
+                v-if="offlineDeviceCount > 0"
+                title="确定清理所有已离线的设备记录吗？"
+                ok-text="清理"
+                cancel-text="取消"
+                @confirm="purgeOfflineDevices"
+              >
+                <a-button size="small" type="link" danger :loading="purgingOffline">一键清理离线设备</a-button>
+              </a-popconfirm>
+            </div>
           </div>
           <a-empty v-else :description="t(localMode ? 'app_workbench.no_devices_local' : 'app_workbench.no_devices')" />
 
@@ -162,9 +200,21 @@
 
             <div v-if="selectedDevice.status !== 'online'" class="offline-guidance">
               <span class="offline-hint">⚠️ 设备已离线。请检查 USB 连线、开启调试授权，或点击重新扫描。</span>
-              <a-button size="small" :loading="scanning" :disabled="!canModify" class="offline-scan-btn" @click="scanDevices">
-                <ReloadOutlined /> 重新扫描设备
-              </a-button>
+              <div class="offline-actions-row">
+                <a-button size="small" :loading="scanning" :disabled="!canModify" class="offline-scan-btn" @click="scanDevices">
+                  <ReloadOutlined /> 重新扫描
+                </a-button>
+                <a-popconfirm
+                  title="确定删除此离线设备记录？删除后可重新接入并扫描发现。"
+                  ok-text="删除"
+                  cancel-text="取消"
+                  @confirm="deleteOfflineDevice(selectedDevice)"
+                >
+                  <a-button size="small" danger :loading="deletingDeviceId === selectedDevice.id" class="offline-del-btn">
+                    <DeleteOutlined /> 删除记录
+                  </a-button>
+                </a-popconfirm>
+              </div>
             </div>
 
             <div v-if="lease" class="lease-banner">
@@ -500,6 +550,108 @@
       @loaded="syncRecordingRecords"
       @deleted="handleRecordDeleted"
     />
+
+    <!-- Android 执行节点管理与快速接入助手 Modal -->
+    <a-modal
+      v-model:open="nodeModalOpen"
+      title="Android 执行节点管理与接入助手"
+      width="680px"
+      :footer="null"
+      destroy-on-close
+    >
+      <div class="node-modal-content">
+        <a-tabs v-model:activeKey="nodeModalTab">
+          <!-- Tab 1: Windows 本地 Worker 快速接入 -->
+          <a-tab-pane key="worker" tab="Windows Worker 本地接入">
+            <div class="mode-summary-banner">
+              <div class="mode-icon-wrap">
+                <DesktopOutlined class="mode-icon" />
+              </div>
+              <div class="mode-info">
+                <strong>Windows 本地真机节点模式</strong>
+                <p>将测试手机插在您当前的 Windows 办公电脑上，通过运行本地 Worker 将手机接入云端平台调度。</p>
+              </div>
+              <a-tag :color="workers.length ? 'green' : 'orange'">
+                {{ workers.length ? `${workers.length} 个节点在线` : '等待心跳中' }}
+              </a-tag>
+            </div>
+
+            <!-- 在线 Worker 列表 -->
+            <div v-if="workers.length" class="worker-online-card">
+              <div class="worker-online-title">已就绪的执行节点：</div>
+              <div v-for="w in workers" :key="w.worker_id" class="worker-node-item">
+                <div class="worker-node-header">
+                  <strong>{{ w.worker_id }}</strong>
+                  <span class="node-host">{{ w.hostname || 'Windows' }} (PID: {{ w.pid || '—' }})</span>
+                </div>
+                <div class="worker-node-meta">
+                  <span>队列: {{ (w.queues || []).join(', ') || 'android' }}</span>
+                  <span>心跳时间: {{ formatTime(new Date(w.updated_at * 1000).toISOString()) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 极简启动方式 -->
+            <div class="quick-launch-section">
+              <div class="quick-step-title">方式 1：一键下载启动脚本（推荐，双击即跑）</div>
+              <p class="quick-step-desc">直接下载针对当前系统的批处理文件，下载后在本地 ATP 项目根目录下<strong>直接双击运行</strong>即可自动拉起 Worker：</p>
+              <div class="quick-action-row">
+                <a-button type="primary" @click="downloadStartWorkerBat">
+                  <DownloadOutlined /> 下载 start-worker.bat (一键启动)
+                </a-button>
+                <a-button @click="refreshWorkers">
+                  <ReloadOutlined /> 刷新心跳状态
+                </a-button>
+              </div>
+
+              <div class="quick-step-title" style="margin-top: 18px;">方式 2：复制 PowerShell 启动命令</div>
+              <p class="quick-step-desc">如果您习惯使用命令行，可在项目根目录下的 PowerShell 中直接粘贴运行：</p>
+              <div class="code-box">
+                <code>powershell -ExecutionPolicy Bypass -File .\scripts\windows-android-worker.ps1 -Action up</code>
+                <a-button size="small" type="link" @click="copyWorkerCommand('powershell -ExecutionPolicy Bypass -File .\\scripts\\windows-android-worker.ps1 -Action up')">
+                  <CopyOutlined /> 复制
+                </a-button>
+              </div>
+
+              <div class="worker-ops-row">
+                <span>管理与诊断命令：</span>
+                <a-button size="small" type="dashed" @click="copyWorkerCommand('.\\scripts\\windows-android-worker.ps1 -Action status')">复制状态查询</a-button>
+                <a-button size="small" type="dashed" @click="copyWorkerCommand('.\\scripts\\windows-android-worker.ps1 -Action doctor')">复制网络诊断</a-button>
+                <a-button size="small" type="dashed" danger @click="copyWorkerCommand('.\\scripts\\windows-android-worker.ps1 -Action down')">复制停止命令</a-button>
+              </div>
+            </div>
+          </a-tab-pane>
+
+          <!-- Tab 2: 云端/局域网直连模式 (WiFi ADB) -->
+          <a-tab-pane key="direct" tab="云端直连 / WiFi 真机模式">
+            <div class="mode-summary-banner">
+              <div class="mode-icon-wrap wifi">
+                <WifiOutlined class="mode-icon" />
+              </div>
+              <div class="mode-info">
+                <strong>局域网 WiFi / 服务端直连模式</strong>
+                <p>测试机与云端在同一局域网（开启 <code>adb tcpip 5555</code>），或者直接物理插在云端服务器机房，由服务器自主调度，<strong>完全不需要本地 Windows 电脑常驻开机</strong>。</p>
+              </div>
+            </div>
+
+            <div class="wifi-connect-box">
+              <div class="quick-step-title">快速接入 WiFi 局域网真机</div>
+              <p class="quick-step-desc">确保手机与云端服务器网络互通并开启了网络调试，在此输入手机 IP 地址即可建立直连：</p>
+              <div class="wifi-input-row">
+                <a-input v-model:value="wifiHostInput" placeholder="输入手机局域网 IP，如 172.16.101.11" style="flex: 2;" />
+                <a-input-number v-model:value="wifiPortInput" :min="1024" :max="65535" placeholder="端口 5555" style="width: 100px;" />
+                <a-button type="primary" :loading="connectingWifi" @click="quickConnectWifiDevice">
+                  连接 WiFi 设备
+                </a-button>
+              </div>
+              <div class="wifi-tip">
+                💡 手机开启 WiFi 调试步骤：插线执行 <code>adb tcpip 5555</code>，拔线并在上方输入手机 WLAN 的 IP 地址点击连接。
+              </div>
+            </div>
+          </a-tab-pane>
+        </a-tabs>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -509,6 +661,10 @@ import { message } from 'ant-design-vue'
 import {
   AndroidOutlined,
   AppstoreOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  DesktopOutlined,
+  DownloadOutlined,
   EditOutlined,
   EyeOutlined,
   HistoryOutlined,
@@ -520,6 +676,7 @@ import {
   SafetyCertificateOutlined,
   ThunderboltOutlined,
   ToolOutlined,
+  WifiOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -664,6 +821,99 @@ const selectedSpecialTask = computed(() => specialTasks.value.find((task) => tas
 const selectedApk = computed(() => apks.value.find((apk) => apk.id === selectedApkId.value) || null)
 const onlineDevices = computed(() => devices.value.filter((device) => device.status === 'online'))
 const onlineDeviceCount = computed(() => onlineDevices.value.length)
+const offlineDeviceCount = computed(() => devices.value.filter((device) => device.status !== 'online').length)
+const deletingDeviceId = ref<number | null>(null)
+const purgingOffline = ref(false)
+
+const nodeModalOpen = ref(false)
+const nodeModalTab = ref<'worker' | 'direct'>('worker')
+const wifiHostInput = ref('172.16.101.11')
+const wifiPortInput = ref(5555)
+const connectingWifi = ref(false)
+
+function isWifiDevice(device: DeviceItem): boolean {
+  return Boolean(device.ip_address || (device.serial && device.serial.includes(':')))
+}
+
+function downloadStartWorkerBat() {
+  const batContent = `@echo off
+chcp 65001 >nul
+title ATP - Windows Android Worker Launcher
+echo ========================================================
+echo       ATP Windows Android Worker 一键启动助手
+echo ========================================================
+echo.
+cd /d "%~dp0"
+if exist "scripts\\windows-android-worker.ps1" (
+    echo [OK] 找到 scripts\\windows-android-worker.ps1，正在启动 Worker...
+    powershell -ExecutionPolicy Bypass -File "scripts\\windows-android-worker.ps1" -Action up
+) else if exist "..\\scripts\\windows-android-worker.ps1" (
+    cd ..
+    echo [OK] 找到 scripts\\windows-android-worker.ps1，正在启动 Worker...
+    powershell -ExecutionPolicy Bypass -File "scripts\\windows-android-worker.ps1" -Action up
+) else (
+    echo [提示] 正在执行启动脚本...
+    powershell -ExecutionPolicy Bypass -Command "if (Test-Path 'scripts\\windows-android-worker.ps1') { .\\scripts\\windows-android-worker.ps1 -Action up } else { Write-Host '[错误] 请将本文件放置于 ATP 项目根目录运行。' -ForegroundColor Red; pause }"
+)
+echo.
+echo 启动指令已发送。请回到 ATP 网页工作台刷新查看节点在线状态。
+echo 如需关闭 Worker，可运行: powershell -File scripts\\windows-android-worker.ps1 -Action down
+pause
+`
+  const blob = new Blob([batContent], { type: 'application/x-bat;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'start-worker.bat'
+  a.click()
+  URL.revokeObjectURL(url)
+  message.success('已下载 start-worker.bat，请放置在 ATP 项目根目录下双击运行')
+}
+
+async function copyWorkerCommand(cmd: string) {
+  try {
+    await navigator.clipboard.writeText(cmd)
+    message.success('命令已复制到剪贴板')
+  } catch {
+    message.info(cmd)
+  }
+}
+
+async function refreshWorkers() {
+  if (selectedProjectId.value) {
+    await loadWorkers(selectedProjectId.value, projectSequence)
+    if (workers.value.length) {
+      message.success(`检测到 ${workers.value.length} 个 Worker 在线`)
+    } else {
+      message.info('当前暂无在线 Worker，请确认本地脚本已启动')
+    }
+  }
+}
+
+async function quickConnectWifiDevice() {
+  if (!wifiHostInput.value) {
+    message.warning('请输入设备 IP 地址')
+    return
+  }
+  connectingWifi.value = true
+  try {
+    const res = await deviceApi.connect({
+      host: wifiHostInput.value.trim(),
+      port: Number(wifiPortInput.value) || 5555,
+    })
+    if (res.success) {
+      message.success(`WiFi 设备 ${res.serial} 连接成功！已接入云端设备池`)
+      await scanDevices()
+      nodeModalOpen.value = false
+    } else {
+      message.error(res.message || '连接失败，请确认手机已开启 adb tcpip 5555')
+    }
+  } catch (err: unknown) {
+    message.error(errorMessage(err, '连接 WiFi 设备失败'))
+  } finally {
+    connectingWifi.value = false
+  }
+}
 const readyAndroidCaseCount = computed(() => androidCases.value.filter((item) => item.is_ready_for_execution).length)
 const activeRunCount = computed(() =>
   specialRuns.value.filter((run) => run.status === 'pending' || run.status === 'running').length
@@ -995,6 +1245,40 @@ async function scanDevices() {
     message.error(errorMessage(error, t('app_workbench.scan_failed')))
   } finally {
     scanning.value = false
+  }
+}
+
+async function deleteOfflineDevice(device: DeviceItem) {
+  if (!canModify.value) return
+  deletingDeviceId.value = device.id
+  try {
+    await deviceApi.delete(device.id)
+    message.success('已删除离线设备记录')
+    devices.value = devices.value.filter((d) => d.id !== device.id)
+    if (selectedDeviceId.value === device.id) {
+      selectedDeviceId.value = displayDevices.value[0]?.id ?? null
+    }
+  } catch (err: unknown) {
+    message.error(errorMessage(err, '删除设备失败'))
+  } finally {
+    deletingDeviceId.value = null
+  }
+}
+
+async function purgeOfflineDevices() {
+  if (!canModify.value) return
+  purgingOffline.value = true
+  try {
+    const res = await deviceApi.purgeOffline()
+    message.success(`已清理 ${res.deleted_count} 台离线设备`)
+    devices.value = devices.value.filter((d) => d.status === 'online')
+    if (selectedDevice.value && selectedDevice.value.status !== 'online') {
+      selectedDeviceId.value = devices.value[0]?.id ?? null
+    }
+  } catch (err: unknown) {
+    message.error(errorMessage(err, '清理离线设备失败'))
+  } finally {
+    purgingOffline.value = false
   }
 }
 
@@ -1715,6 +1999,16 @@ onUnmounted(() => {
   justify-content: space-between;
   width: 100%;
 }
+.panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.purge-offline-btn {
+  font-size: 11px;
+  padding: 0 4px;
+  height: 24px;
+}
 .panel-title-row h2 {
   margin: 0;
   color: var(--c-text);
@@ -1830,6 +2124,25 @@ onUnmounted(() => {
   color: var(--c-text-secondary);
 }
 
+.conn-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  flex-shrink: 0;
+}
+.conn-tag.wifi {
+  color: #0284c7;
+  background: rgba(2, 132, 199, 0.12);
+}
+.conn-tag.usb {
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.12);
+}
+
 .device-empty-filter {
   display: flex;
   flex-direction: column;
@@ -1840,6 +2153,11 @@ onUnmounted(() => {
   color: var(--c-text-tertiary);
   font-size: 12px;
   text-align: center;
+}
+.empty-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .device-focus {
@@ -1897,8 +2215,16 @@ onUnmounted(() => {
   color: var(--c-text-secondary);
   line-height: 1.4;
 }
-.offline-scan-btn {
+.offline-actions-row {
+  display: flex;
+  gap: 6px;
   width: 100%;
+}
+.offline-scan-btn {
+  flex: 1;
+}
+.offline-del-btn {
+  flex-shrink: 0;
 }
 .lease-banner {
   display: flex;
@@ -2170,5 +2496,178 @@ onUnmounted(() => {
 .asset-panel :deep(.ant-empty-description) {
   margin-top: 0;
   color: var(--c-text-tertiary);
+}
+
+.worker-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+  padding: 3px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--c-text-secondary);
+  transition: all 0.2s ease;
+}
+.worker-status-pill:hover {
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+}
+.worker-status-pill .pill-action-hint {
+  font-size: 10px;
+  color: var(--c-primary);
+  opacity: 0.85;
+  margin-left: 2px;
+}
+
+.node-modal-content {
+  padding: 4px 0;
+}
+.mode-summary-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+  margin-bottom: 16px;
+}
+.mode-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.mode-icon-wrap.wifi {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+.mode-info {
+  flex: 1;
+  min-width: 0;
+}
+.mode-info strong {
+  display: block;
+  font-size: 13px;
+  color: var(--c-text);
+  margin-bottom: 2px;
+}
+.mode-info p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--c-text-secondary);
+  line-height: 1.4;
+}
+
+.quick-launch-section {
+  padding: 4px 0;
+}
+.quick-step-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text);
+  margin-bottom: 4px;
+}
+.quick-step-desc {
+  font-size: 11px;
+  color: var(--c-text-secondary);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.quick-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.code-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #1e293b;
+  color: #f1f5f9;
+  border-radius: 6px;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 11px;
+  margin-bottom: 12px;
+}
+.code-box code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #38bdf8;
+}
+
+.worker-ops-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+  margin-top: 10px;
+}
+
+.wifi-connect-box {
+  padding: 14px 16px;
+  background: var(--c-bg-subtle);
+  border: 1px dashed var(--c-border);
+  border-radius: 8px;
+}
+.wifi-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.wifi-tip {
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+  line-height: 1.4;
+}
+
+.worker-online-card {
+  padding: 10px 14px;
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.worker-online-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #10b981;
+  margin-bottom: 6px;
+}
+.worker-node-item {
+  font-size: 11px;
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(16, 185, 129, 0.15);
+}
+.worker-node-item:last-child {
+  border-bottom: none;
+}
+.worker-node-header {
+  display: flex;
+  justify-content: space-between;
+  color: var(--c-text);
+  font-weight: 500;
+}
+.worker-node-meta {
+  display: flex;
+  gap: 12px;
+  color: var(--c-text-secondary);
+  font-size: 10px;
 }
 </style>

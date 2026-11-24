@@ -134,13 +134,63 @@ def _get_resolution(serial: str) -> str | None:
     return match.group(1) if match else None
 
 
+_PROP_BATCH_SEPARATOR = "___ATP_PROP_SEP___"
+_BASE_PROPS = [
+    "ro.product.model",
+    "ro.product.brand",
+    "ro.build.version.release",
+    "ro.build.version.sdk",
+]
+
+
+def _get_device_props_batch(serial: str) -> dict[str, str | None] | None:
+    """参考 AutoDroid: 单次 Shell 往返取回所有核心属性 + 分辨率。
+
+    将原本 5 次独立的子进程与网络往返压缩为 1 次，大幅降低局域网与无线 ADB 的扫描延迟。
+    若设备返回异常或环境不支持（如 mock 未匹配），返回 None 以便回退到逐项查询。
+    """
+    script = f"; echo {_PROP_BATCH_SEPARATOR}; ".join([f"getprop {prop}" for prop in _BASE_PROPS] + ["wm size"])
+    output = _run_adb("-s", serial, "shell", script, timeout=8)
+    if not output or _PROP_BATCH_SEPARATOR not in output:
+        return None
+
+    parts = output.split(_PROP_BATCH_SEPARATOR)
+    if len(parts) != len(_BASE_PROPS) + 1:
+        return None
+
+    model = parts[0].strip() or None
+    brand = parts[1].strip() or None
+    os_version = parts[2].strip() or None
+    sdk_version = parts[3].strip() or None
+    wm_output = parts[4].strip()
+    match = re.search(r"(\d+x\d+)", wm_output)
+    resolution = match.group(1) if match else None
+
+    return {
+        "model": model,
+        "brand": brand,
+        "os_version": os_version,
+        "sdk_version": sdk_version,
+        "resolution": resolution,
+    }
+
+
 def get_device_props(serial: str) -> AdbDeviceInfo:
-    """获取单台设备的详细信息（同步，在 executor 中调用）"""
-    model = _get_prop(serial, "ro.product.model") or None
-    brand = _get_prop(serial, "ro.product.brand") or None
-    os_version = _get_prop(serial, "ro.build.version.release") or None
-    sdk_version = _get_prop(serial, "ro.build.version.sdk") or None
-    resolution = _get_resolution(serial)
+    """获取单台设备的详细信息（优先 1-RTT 批量获取，失败则降级到逐项获取）"""
+    batch = _get_device_props_batch(serial)
+    if batch is not None:
+        model = batch["model"]
+        brand = batch["brand"]
+        os_version = batch["os_version"]
+        sdk_version = batch["sdk_version"]
+        resolution = batch["resolution"]
+    else:
+        model = _get_prop(serial, "ro.product.model") or None
+        brand = _get_prop(serial, "ro.product.brand") or None
+        os_version = _get_prop(serial, "ro.build.version.release") or None
+        sdk_version = _get_prop(serial, "ro.build.version.sdk") or None
+        resolution = _get_resolution(serial)
+
     ip_address, port = _parse_serial_address(serial)
 
     return AdbDeviceInfo(

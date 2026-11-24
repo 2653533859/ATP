@@ -21,8 +21,9 @@ from app.services.device_sync import device_scan_lock
 
 
 class _Result:
-    def __init__(self, rows):
+    def __init__(self, rows, rowcount=None):
         self._rows = rows
+        self.rowcount = len(rows) if rowcount is None else rowcount
 
     def scalars(self):
         return self
@@ -372,6 +373,26 @@ def test_delete_device_404_for_missing_device():
         asyncio.run(devices.delete_device(device_id=404, db=_DB(), _=None))
 
     assert exc.value.status_code == 404
+
+
+def test_delete_device_busy_forbidden():
+    dev = _device(status=DeviceStatus.busy)
+    db = _DB(objects={("Device", 1): dev})
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(devices.delete_device(device_id=1, db=db, _=None))
+
+    assert exc.value.status_code == 400
+    assert "无法删除" in exc.value.detail
+    assert db.deleted == []
+
+
+def test_purge_offline_devices_success():
+    db = _DB(rows=[[SimpleNamespace(id=1), SimpleNamespace(id=2)]])
+    res = asyncio.run(devices.purge_offline_devices(db=db, _=None))
+
+    assert res == {"deleted_count": 2}
+    assert db.commits == 1
 
 
 def _lease(token="lease-token-1234567890"):

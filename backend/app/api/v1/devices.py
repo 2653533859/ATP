@@ -7,7 +7,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -833,6 +833,19 @@ async def update_device(
     return device
 
 
+@router.delete("/devices/offline/purge", response_model=dict[str, int])
+async def purge_offline_devices(
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    """一键清理所有离线设备记录（参考 AutoDroid 离线设备清理机制）"""
+    stmt = delete(Device).where(Device.status == DeviceStatus.offline)
+    result = await db.execute(stmt)
+    deleted_count = int(getattr(result, "rowcount", 0) or 0)
+    await db.commit()
+    return {"deleted_count": deleted_count}
+
+
 @router.delete("/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_device(
     device_id: int,
@@ -842,6 +855,8 @@ async def delete_device(
     device = await db.get(Device, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="设备不存在")
+    if device.status == DeviceStatus.busy:
+        raise HTTPException(status_code=400, detail="设备正在执行任务，无法删除")
     await db.delete(device)
     await db.commit()
 

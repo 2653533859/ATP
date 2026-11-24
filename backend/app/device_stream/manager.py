@@ -48,6 +48,20 @@ SCRCPY_SERVER_VERSION = "3.3.4"
 DEFAULT_SCRCPY_MAX_SIZE = 1280
 DEFAULT_SCRCPY_BITRATE = 6_000_000
 DEFAULT_SCRCPY_MAX_FPS = 60
+
+# 远程/无线设备（ip:port 形态，如 172.16.101.11:5555）默认走低延迟低带宽档。
+# ADB 控制命令、截图与 UIAutomator 都会与视频流竞争同一条局域网/无线网络链路；
+# 将视频码率限制在 1Mbps 左右可有效避免 TCP 队列积压导致自动化测试指令超时断连。
+DEFAULT_SCRCPY_REMOTE_MAX_SIZE = 800
+DEFAULT_SCRCPY_REMOTE_BITRATE = 1_000_000
+DEFAULT_SCRCPY_REMOTE_MAX_FPS = 25
+
+
+def is_remote_serial(serial: str) -> bool:
+    """serial 是否为远程/无线形态（包含 ip:port），投屏自动启用轻量参数。"""
+    return bool(":" in str(serial or "").strip())
+
+
 SCRCPY_CONTROL_MSG_TYPE_INJECT_KEYCODE = 0
 SCRCPY_CONTROL_MSG_TYPE_INJECT_TEXT = 1
 SCRCPY_CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT = 2
@@ -362,6 +376,11 @@ class ScrcpyDeviceManager:
             device.forward(f"tcp:{local_port}", "localabstract:scrcpy")
             forward_host = _adb_forward_host()
 
+            is_remote = is_remote_serial(serial)
+            max_size = DEFAULT_SCRCPY_REMOTE_MAX_SIZE if is_remote else DEFAULT_SCRCPY_MAX_SIZE
+            bitrate = DEFAULT_SCRCPY_REMOTE_BITRATE if is_remote else DEFAULT_SCRCPY_BITRATE
+            max_fps = DEFAULT_SCRCPY_REMOTE_MAX_FPS if is_remote else DEFAULT_SCRCPY_MAX_FPS
+
             cmd = [
                 "adb",
                 "-s",
@@ -378,9 +397,9 @@ class ScrcpyDeviceManager:
                 "audio=false",
                 "control=true",
                 "cleanup=false",
-                f"max_size={DEFAULT_SCRCPY_MAX_SIZE}",
-                f"video_bit_rate={DEFAULT_SCRCPY_BITRATE}",
-                f"max_fps={DEFAULT_SCRCPY_MAX_FPS}",
+                f"max_size={max_size}",
+                f"video_bit_rate={bitrate}",
+                f"max_fps={max_fps}",
             ]
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             dev_info.scrcpy_process = proc
