@@ -23,7 +23,12 @@
           <span class="live-dot" :class="{ muted: !localMode && !workers.length }" />
           <span v-if="localMode">{{ t('app_workbench.local_execution') }}</span>
           <span v-else>{{ workers.length ? t('app_workbench.worker_online', { count: workers.length }) : t('app_workbench.worker_offline') }}</span>
-          <span v-if="selectedProjectName" class="project-pill-tag">{{ selectedProjectName }}</span>
+        </div>
+        <div v-if="selectedProjectId" class="toolbar-metrics">
+          <span class="metric-chip">设备 {{ onlineDeviceCount }}/{{ devices.length }}</span>
+          <span class="metric-chip">用例 {{ androidCases.length }}</span>
+          <span class="metric-chip">APK {{ apks.length }}</span>
+          <span class="metric-chip" :class="{ active: activeRunCount > 0 }">运行 {{ activeRunCount }}</span>
         </div>
       </div>
 
@@ -70,42 +75,17 @@
     <a-empty v-if="!selectedProjectId" class="project-empty" :description="t('app_workbench.select_project_hint')" />
 
     <template v-else>
-      <section class="signal-grid" aria-label="Android workspace summary">
-        <div class="signal-card">
-          <span class="signal-label">{{ t('app_workbench.signals.online_devices') }}</span>
-          <strong>{{ onlineDeviceCount }}<small>/{{ devices.length }}</small></strong>
-          <span class="signal-note">{{ t('app_workbench.signals.device_pool') }}</span>
-        </div>
-        <div class="signal-card">
-          <span class="signal-label">{{ t('app_workbench.signals.android_cases') }}</span>
-          <strong>{{ androidCases.length }}</strong>
-          <span class="signal-note">{{ readyAndroidCaseCount }} {{ t('app_workbench.signals.ready_cases') }}</span>
-        </div>
-        <div class="signal-card">
-          <span class="signal-label">{{ t('app_workbench.signals.apk_assets') }}</span>
-          <strong>{{ apks.length }}</strong>
-          <span class="signal-note">{{ t('app_workbench.signals.package_ready') }}</span>
-        </div>
-        <div class="signal-card">
-          <span class="signal-label">{{ t('app_workbench.signals.active_runs') }}</span>
-          <strong>{{ activeRunCount }}</strong>
-          <span class="signal-note">{{ t(localMode ? 'app_workbench.signals.local_queue' : 'app_workbench.signals.worker_queue') }}</span>
-        </div>
-      </section>
-
-      <section class="workspace-grid">
+      <section class="app-workspace">
+        <!-- 左侧：设备池与设备实时控制 -->
         <aside class="device-panel panel">
           <div class="panel-head">
-            <div>
-              <h2>{{ t('app_workbench.device_pool') }}</h2>
+            <h2>{{ t('app_workbench.device_pool') }}</h2>
+            <div class="panel-head-right">
+              <span class="count-pill">{{ onlineDeviceCount }}/{{ devices.length }}</span>
+              <a-button size="small" :loading="scanning" :disabled="!canModify" @click="scanDevices">
+                <ReloadOutlined />
+              </a-button>
             </div>
-            <a-button size="small" :loading="scanning" :disabled="!canModify" @click="scanDevices">
-              <ReloadOutlined />
-            </a-button>
-          </div>
-          <div class="panel-caption">
-            <span>{{ t('app_workbench.device_pool_caption') }}</span>
-            <span class="count-pill">{{ onlineDeviceCount }} {{ t('app_workbench.online') }}</span>
           </div>
 
           <div v-if="devices.length" class="device-list">
@@ -120,7 +100,7 @@
               <span class="device-status-dot" :class="`status-${device.status}`" />
               <span class="device-row-main">
                 <strong>{{ device.name || device.model || device.serial }}</strong>
-                <small>{{ device.brand || 'Android' }} · {{ device.os_version || '—' }} · {{ device.serial }}</small>
+                <small>{{ device.os_version || 'Android' }} · {{ device.serial }}</small>
               </span>
               <span class="device-status-text">{{ deviceStatusLabel(device.status) }}</span>
             </button>
@@ -129,10 +109,7 @@
 
           <div v-if="selectedDevice" class="device-focus">
             <div class="focus-heading">
-              <div>
-                <span class="focus-kicker">{{ t('app_workbench.selected_device') }}</span>
-                <strong>{{ selectedDevice.name || selectedDevice.model || selectedDevice.serial }}</strong>
-              </div>
+              <strong>{{ selectedDevice.name || selectedDevice.model || selectedDevice.serial }}</strong>
               <a-tag :color="selectedDevice.status === 'online' ? 'green' : 'default'">{{ deviceStatusLabel(selectedDevice.status) }}</a-tag>
             </div>
             <div class="device-specs">
@@ -149,7 +126,6 @@
                 v-if="!lease"
                 size="small"
                 type="primary"
-                ghost
                 :disabled="!canModify || selectedDevice.status !== 'online'"
                 :loading="leaseLoading"
                 @click="acquireLease"
@@ -165,193 +141,202 @@
           </div>
         </aside>
 
-        <main class="launch-panel panel">
-          <div class="panel-head launch-head">
-            <div>
-              <h2>{{ t('app_workbench.launch_title') }}</h2>
-              <p>{{ t(localMode ? 'app_workbench.launch_description_local' : 'app_workbench.launch_description') }}</p>
-            </div>
-            <div class="launch-signal">{{ t('app_workbench.local_execution') }}</div>
+        <!-- 右侧：分 Tab 主工作区 -->
+        <main class="main-panel panel">
+          <div class="workspace-tabs" role="tablist">
+            <button type="button" class="tab-btn" :class="{ active: activeTab === 'launch' }" @click="activeTab = 'launch'">
+              <PlayCircleOutlined /> 执行台
+            </button>
+            <button type="button" class="tab-btn" :class="{ active: activeTab === 'agent' }" @click="activeTab = 'agent'">
+              <RobotOutlined /> AI 探索
+            </button>
+            <button type="button" class="tab-btn" :class="{ active: activeTab === 'activity' }" @click="activeTab = 'activity'">
+              <HistoryOutlined /> 最近运行
+              <span v-if="recentActivities.length" class="tab-badge">{{ recentActivities.length }}</span>
+            </button>
+            <button type="button" class="tab-btn" :class="{ active: activeTab === 'assets' }" @click="activeTab = 'assets'">
+              <AndroidOutlined /> APK 与矩阵
+              <span v-if="apks.length" class="tab-badge">{{ apks.length }}</span>
+            </button>
           </div>
 
-          <div class="mode-switch" role="tablist">
-            <button type="button" :class="{ active: launchMode === 'case' }" @click="launchMode = 'case'">
-              <MobileOutlined /> {{ t('app_workbench.android_case') }}
-            </button>
-            <button type="button" :class="{ active: launchMode === 'special' }" @click="launchMode = 'special'">
-              <ThunderboltOutlined /> {{ t('app_workbench.special_task') }}
-            </button>
-          </div>
-
-          <div v-if="launchMode === 'case'" class="launch-form">
-            <div class="form-header-row">
-              <label>{{ t('app_workbench.case_label') }}</label>
-              <a-button
-                v-if="canModify"
-                type="link"
-                size="small"
-                class="quick-create-btn"
-                @click="openCreateCase"
-              >
-                <PlusOutlined /> {{ t('app_workbench.new_android_case') }}
-              </a-button>
+          <!-- Tab 1: 用例与专项任务执行 -->
+          <div v-show="activeTab === 'launch'" class="tab-pane">
+            <div class="mode-switch" role="tablist">
+              <button type="button" :class="{ active: launchMode === 'case' }" @click="launchMode = 'case'">
+                <MobileOutlined /> {{ t('app_workbench.android_case') }}
+              </button>
+              <button type="button" :class="{ active: launchMode === 'special' }" @click="launchMode = 'special'">
+                <ThunderboltOutlined /> {{ t('app_workbench.special_task') }}
+              </button>
             </div>
-            <a-select
-              v-model:value="selectedCaseId"
-              :options="androidCaseOptions"
-              allow-clear
-              :placeholder="t('app_workbench.case_placeholder')"
-              :loading="loading"
-            />
-            <div v-if="!androidCases.length && !loading" class="case-empty-card">
-              <div class="empty-card-content">
-                <MobileOutlined class="empty-card-icon" />
-                <div class="empty-card-text">
-                  <strong>{{ t('app_workbench.no_cases_title') }}</strong>
-                  <p>{{ t('app_workbench.no_cases_description') }}</p>
+
+            <div v-if="launchMode === 'case'" class="launch-form">
+              <div class="form-header-row">
+                <label>{{ t('app_workbench.case_label') }}</label>
+                <a-button
+                  v-if="canModify"
+                  type="link"
+                  size="small"
+                  class="quick-create-btn"
+                  @click="openCreateCase"
+                >
+                  <PlusOutlined /> {{ t('app_workbench.new_android_case') }}
+                </a-button>
+              </div>
+              <a-select
+                v-model:value="selectedCaseId"
+                :options="androidCaseOptions"
+                allow-clear
+                :placeholder="t('app_workbench.case_placeholder')"
+                :loading="loading"
+              />
+              <div v-if="!androidCases.length && !loading" class="case-empty-card">
+                <div class="empty-card-content">
+                  <MobileOutlined class="empty-card-icon" />
+                  <div class="empty-card-text">
+                    <strong>{{ t('app_workbench.no_cases_title') }}</strong>
+                  </div>
+                </div>
+                <a-button
+                  type="primary"
+                  size="small"
+                  :disabled="!canModify"
+                  @click="openCreateCase"
+                >
+                  <PlusOutlined /> {{ t('app_workbench.create_first_case') }}
+                </a-button>
+              </div>
+              <div v-if="selectedAndroidCase" class="selection-card">
+                <div class="selection-title">
+                  <strong>{{ selectedAndroidCase.name }}</strong>
+                  <a-tag :color="selectedAndroidCase.is_ready_for_execution ? 'green' : 'orange'">
+                    {{ selectedAndroidCase.is_ready_for_execution ? t('app_workbench.ready') : t('app_workbench.not_ready') }}
+                  </a-tag>
+                </div>
+                <div class="selection-meta">
+                  <span>{{ selectedAndroidCase.case_code }}</span>
+                  <span>{{ selectedAndroidCase.priority }}</span>
+                  <span>{{ t(`case.levels.${selectedAndroidCase.case_level}`) }}</span>
+                  <span>{{ selectedAndroidCase.script_status === 'generated' ? t('app_workbench.script_generated') : t('app_workbench.script_missing') }}</span>
                 </div>
               </div>
-              <a-button
-                type="primary"
-                size="small"
-                :disabled="!canModify"
-                @click="openCreateCase"
-              >
-                <PlusOutlined /> {{ t('app_workbench.create_first_case') }}
-              </a-button>
-            </div>
-            <div v-if="selectedAndroidCase" class="selection-card">
-              <div class="selection-title">
-                <strong>{{ selectedAndroidCase.name }}</strong>
-                <a-tag :color="selectedAndroidCase.is_ready_for_execution ? 'green' : 'orange'">
-                  {{ selectedAndroidCase.is_ready_for_execution ? t('app_workbench.ready') : t('app_workbench.not_ready') }}
-                </a-tag>
-              </div>
-              <div class="selection-meta">
-                <span>{{ selectedAndroidCase.case_code }}</span>
-                <span>{{ selectedAndroidCase.priority }}</span>
-                <span>{{ t(`case.levels.${selectedAndroidCase.case_level}`) }}</span>
-                <span>{{ selectedAndroidCase.script_status === 'generated' ? t('app_workbench.script_generated') : t('app_workbench.script_missing') }}</span>
+              <div class="launch-actions">
+                <a-button type="primary" :disabled="!canRunAndroidCase" :loading="runLoading" @click="runAndroidCase">
+                  <PlayCircleOutlined /> {{ t('app_workbench.run_case') }}
+                </a-button>
+                <a-button
+                  v-if="selectedAndroidCase"
+                  :disabled="!canModify"
+                  @click="openEditCase"
+                >
+                  <EditOutlined /> {{ t('app_workbench.edit_case') }}
+                </a-button>
+                <a-button
+                  v-else
+                  :disabled="!canModify"
+                  @click="openCreateCase"
+                >
+                  <PlusOutlined /> {{ t('app_workbench.new_case') }}
+                </a-button>
+                <a-button type="link" @click="openAndroidCases">{{ t('app_workbench.manage_cases') }}</a-button>
               </div>
             </div>
-            <div class="launch-actions">
-              <a-button type="primary" :disabled="!canRunAndroidCase" :loading="runLoading" @click="runAndroidCase">
-                <PlayCircleOutlined /> {{ t('app_workbench.run_case') }}
-              </a-button>
-              <a-button
-                v-if="selectedAndroidCase"
-                :disabled="!canModify"
-                @click="openEditCase"
-              >
-                <EditOutlined /> {{ t('app_workbench.edit_case') }}
-              </a-button>
-              <a-button
-                v-else
-                :disabled="!canModify"
-                @click="openCreateCase"
-              >
-                <PlusOutlined /> {{ t('app_workbench.new_case') }}
-              </a-button>
-              <a-button type="link" @click="openAndroidCases">{{ t('app_workbench.manage_cases') }}</a-button>
+
+            <div v-else class="launch-form">
+              <label>{{ t('app_workbench.task_label') }}</label>
+              <a-select
+                v-model:value="selectedSpecialTaskId"
+                :options="specialTaskOptions"
+                allow-clear
+                :placeholder="t('app_workbench.task_placeholder')"
+                :loading="loading"
+              />
+              <div class="launch-two-col">
+                <div>
+                  <label>{{ t('app_workbench.target_device') }}</label>
+                  <a-select v-model:value="launchDeviceSelectId" :options="onlineDeviceOptions" allow-clear :placeholder="t('app_workbench.device_placeholder')" />
+                </div>
+                <div>
+                  <label>{{ t('app_workbench.override_apk') }}</label>
+                  <a-select v-model:value="selectedApkId" :options="apkOptions" allow-clear :placeholder="t('app_workbench.apk_placeholder')" />
+                </div>
+              </div>
+              <div v-if="selectedSpecialTask" class="selection-card">
+                <div class="selection-title">
+                  <strong>{{ selectedSpecialTask.name }}</strong>
+                  <a-tag :color="taskTypeColor(selectedSpecialTask.task_type)">{{ taskTypeLabel(selectedSpecialTask.task_type) }}</a-tag>
+                </div>
+                <div class="selection-meta">
+                  <span>{{ sourceTypeLabel(selectedSpecialTask.source_type) }}</span>
+                  <span>{{ deviceScopeLabel(selectedSpecialTask.device_scope_type) }}</span>
+                  <span>{{ selectedSpecialTask.config_json.capture_replay ? t('app_workbench.replay_enabled') : t('app_workbench.replay_disabled') }}</span>
+                </div>
+              </div>
+              <div class="launch-actions">
+                <a-button type="primary" :disabled="!canRunSpecialTask" :loading="runLoading" @click="runSpecialTask">
+                  <PlayCircleOutlined /> {{ t('app_workbench.run_special') }}
+                </a-button>
+                <a-button type="link" @click="openSpecialTasks">{{ t('app_workbench.manage_tasks') }}</a-button>
+              </div>
             </div>
-            <p class="launch-note"><SafetyCertificateOutlined /> {{ t('app_workbench.case_device_note') }}</p>
           </div>
 
-          <div v-else class="launch-form">
-            <label>{{ t('app_workbench.task_label') }}</label>
-            <a-select
-              v-model:value="selectedSpecialTaskId"
-              :options="specialTaskOptions"
-              allow-clear
-              :placeholder="t('app_workbench.task_placeholder')"
-              :loading="loading"
+          <!-- Tab 2: AI 探索 -->
+          <div v-show="activeTab === 'agent'" class="tab-pane">
+            <AndroidAgentPanel
+              :project-id="selectedProjectId"
+              :devices="devices"
+              :modules="agentModuleOptions"
+              :apks="apks"
+              :can-modify="canModify"
             />
-            <div class="launch-two-col">
-              <div>
-                <label>{{ t('app_workbench.target_device') }}</label>
-                <a-select v-model:value="launchDeviceSelectId" :options="onlineDeviceOptions" allow-clear :placeholder="t('app_workbench.device_placeholder')" />
-              </div>
-              <div>
-                <label>{{ t('app_workbench.override_apk') }}</label>
-                <a-select v-model:value="selectedApkId" :options="apkOptions" allow-clear :placeholder="t('app_workbench.apk_placeholder')" />
+          </div>
+
+          <!-- Tab 3: 最近运行 -->
+          <div v-show="activeTab === 'activity'" class="tab-pane">
+            <div class="subpane-head">
+              <strong>{{ t('app_workbench.activity_title') }}</strong>
+              <a-button type="link" size="small" @click="openSpecialReports">{{ t('app_workbench.view_all_runs') }}</a-button>
+            </div>
+            <div v-if="recentActivities.length" class="activity-list">
+              <button v-for="activity in recentActivities" :key="activity.key" type="button" class="activity-row" @click="openActivity(activity)">
+                <span class="activity-mark" :class="`activity-${activity.kind}`"><MobileOutlined v-if="activity.kind === 'case'" /><ThunderboltOutlined v-else /></span>
+                <span class="activity-main">
+                  <strong>{{ activity.name }}</strong>
+                  <small>{{ activity.device || t('app_workbench.device_unassigned') }} · {{ formatTime(activity.created_at) }}</small>
+                </span>
+                <span class="activity-status" :class="`activity-status-${activity.status}`">{{ runStatusLabel(activity.status) }}</span>
+              </button>
+            </div>
+            <a-empty v-else :description="t('app_workbench.no_activity')" />
+          </div>
+
+          <!-- Tab 4: APK 与设备矩阵 -->
+          <div v-show="activeTab === 'assets'" class="tab-pane">
+            <div class="subpane-head">
+              <strong>{{ t('app_workbench.asset_title') }}</strong>
+              <a-button type="link" size="small" @click="openApks">{{ t('app_workbench.manage_apks') }}</a-button>
+            </div>
+            <div v-if="apks.length" class="apk-list">
+              <div v-for="apk in apks.slice(0, 6)" :key="apk.id" class="apk-row">
+                <span class="apk-mark"><AndroidOutlined /></span>
+                <span class="apk-main">
+                  <strong>{{ apk.package_name || apk.filename }}</strong>
+                  <small>{{ apk.version_name ? `v${apk.version_name}` : t('app_workbench.version_unknown') }} · {{ formatSize(apk.file_size) }}</small>
+                </span>
+                <span class="apk-code">#{{ apk.id }}</span>
               </div>
             </div>
-            <div v-if="selectedSpecialTask" class="selection-card">
-              <div class="selection-title">
-                <strong>{{ selectedSpecialTask.name }}</strong>
-                <a-tag :color="taskTypeColor(selectedSpecialTask.task_type)">{{ taskTypeLabel(selectedSpecialTask.task_type) }}</a-tag>
-              </div>
-              <div class="selection-meta">
-                <span>{{ sourceTypeLabel(selectedSpecialTask.source_type) }}</span>
-                <span>{{ deviceScopeLabel(selectedSpecialTask.device_scope_type) }}</span>
-                <span>{{ selectedSpecialTask.config_json.capture_replay ? t('app_workbench.replay_enabled') : t('app_workbench.replay_disabled') }}</span>
-              </div>
+            <a-empty v-else :description="t('app_workbench.no_apks')" />
+            <div class="compatibility-strip">
+              <div class="strip-label"><AppstoreOutlined /> {{ t('app_workbench.compatibility_title') }}</div>
+              <span v-for="family in deviceFamilies" :key="family" class="compatibility-chip">{{ family }}</span>
+              <span v-if="!deviceFamilies.length" class="compatibility-empty">{{ t('app_workbench.no_device_matrix') }}</span>
             </div>
-            <div class="launch-actions">
-              <a-button type="primary" :disabled="!canRunSpecialTask" :loading="runLoading" @click="runSpecialTask">
-                <PlayCircleOutlined /> {{ t('app_workbench.run_special') }}
-              </a-button>
-              <a-button type="link" @click="openSpecialTasks">{{ t('app_workbench.manage_tasks') }}</a-button>
-            </div>
-            <p class="launch-note"><SafetyCertificateOutlined /> {{ lease ? t('app_workbench.release_before_run') : t('app_workbench.special_device_note') }}</p>
           </div>
         </main>
       </section>
-
-      <section class="lower-grid">
-        <div class="activity-panel panel">
-          <div class="panel-head compact-head">
-            <div>
-              <h2>{{ t('app_workbench.activity_title') }}</h2>
-            </div>
-            <a-button type="link" size="small" @click="openSpecialReports">{{ t('app_workbench.view_all_runs') }}</a-button>
-          </div>
-          <div v-if="recentActivities.length" class="activity-list">
-            <button v-for="activity in recentActivities" :key="activity.key" type="button" class="activity-row" @click="openActivity(activity)">
-              <span class="activity-mark" :class="`activity-${activity.kind}`"><MobileOutlined v-if="activity.kind === 'case'" /><ThunderboltOutlined v-else /></span>
-              <span class="activity-main">
-                <strong>{{ activity.name }}</strong>
-                <small>{{ activity.device || t('app_workbench.device_unassigned') }} · {{ formatTime(activity.created_at) }}</small>
-              </span>
-              <span class="activity-status" :class="`activity-status-${activity.status}`">{{ runStatusLabel(activity.status) }}</span>
-            </button>
-          </div>
-          <a-empty v-else :description="t('app_workbench.no_activity')" />
-        </div>
-
-        <div class="asset-panel panel">
-          <div class="panel-head compact-head">
-            <div>
-              <h2>{{ t('app_workbench.asset_title') }}</h2>
-            </div>
-            <a-button type="link" size="small" @click="openApks">{{ t('app_workbench.manage_apks') }}</a-button>
-          </div>
-          <div v-if="apks.length" class="apk-list">
-            <div v-for="apk in apks.slice(0, 4)" :key="apk.id" class="apk-row">
-              <span class="apk-mark"><AndroidOutlined /></span>
-              <span class="apk-main">
-                <strong>{{ apk.package_name || apk.filename }}</strong>
-                <small>{{ apk.version_name ? `v${apk.version_name}` : t('app_workbench.version_unknown') }} · {{ formatSize(apk.file_size) }}</small>
-              </span>
-              <span class="apk-code">#{{ apk.id }}</span>
-            </div>
-          </div>
-          <a-empty v-else :description="t('app_workbench.no_apks')" />
-          <div class="compatibility-strip">
-            <div class="strip-label"><AppstoreOutlined /> {{ t('app_workbench.compatibility_title') }}</div>
-            <span v-for="family in deviceFamilies" :key="family" class="compatibility-chip">{{ family }}</span>
-            <span v-if="!deviceFamilies.length" class="compatibility-empty">{{ t('app_workbench.no_device_matrix') }}</span>
-          </div>
-        </div>
-      </section>
-
-      <AndroidAgentPanel
-        :project-id="selectedProjectId"
-        :devices="devices"
-        :modules="agentModuleOptions"
-        :apks="apks"
-        :can-modify="canModify"
-      />
     </template>
 
     <DeviceMirrorModal
@@ -402,6 +387,7 @@ import {
   PlayCircleOutlined,
   PlusOutlined,
   ReloadOutlined,
+  RobotOutlined,
   SafetyCertificateOutlined,
   ThunderboltOutlined,
   ToolOutlined,
@@ -497,6 +483,7 @@ const launchDeviceSelectId = computed<number | undefined>({
 const selectedCaseId = ref<number | undefined>(undefined)
 const selectedSpecialTaskId = ref<number | undefined>(undefined)
 const selectedApkId = ref<number | undefined>(undefined)
+const activeTab = ref<'launch' | 'agent' | 'activity' | 'assets'>('launch')
 const launchMode = ref<LaunchMode>('case')
 const loading = ref(false)
 const scanning = ref(false)
@@ -527,7 +514,6 @@ let projectDataSequence = 0
 
 const projectOptions = computed<SelectOption<number>[]>(() => projects.value.map((project) => ({ label: project.name, value: project.id })))
 const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
-const selectedProjectName = computed(() => selectedProject.value?.name || '')
 const canModify = computed(() => canEditProjectByRole(auth.user?.role, selectedProject.value?.current_user_role))
 const selectedDevice = computed(() => devices.value.find((device) => device.id === selectedDeviceId.value) || null)
 const selectedAndroidCase = computed(() => androidCases.value.find((item) => item.id === selectedCaseId.value) || null)
@@ -535,7 +521,6 @@ const selectedSpecialTask = computed(() => specialTasks.value.find((task) => tas
 const selectedApk = computed(() => apks.value.find((apk) => apk.id === selectedApkId.value) || null)
 const onlineDevices = computed(() => devices.value.filter((device) => device.status === 'online'))
 const onlineDeviceCount = computed(() => onlineDevices.value.length)
-const readyAndroidCaseCount = computed(() => androidCases.value.filter((item) => item.is_ready_for_execution).length)
 const activeRunCount = computed(() =>
   specialRuns.value.filter((run) => run.status === 'pending' || run.status === 'running').length
   + androidRuns.value.filter((run) => run.status === 'pending' || run.status === 'running').length,
@@ -1248,6 +1233,100 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.toolbar-metrics {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metric-chip {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--c-bg-subtle);
+  color: var(--c-text-secondary);
+}
+
+.metric-chip.active {
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+}
+
+.app-workspace {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.panel-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.main-panel {
+  padding: 16px;
+  min-width: 0;
+}
+
+.workspace-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--c-border-subtle);
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--c-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.tab-btn:hover {
+  background: var(--c-bg-subtle);
+  color: var(--c-text);
+}
+
+.tab-btn.active {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  border-color: var(--c-border);
+  font-weight: 600;
+}
+
+.tab-badge {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--c-bg-elevated);
+  color: var(--c-text-secondary);
+}
+
+.tab-pane {
+  min-width: 0;
+}
+
+.subpane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
 .app-workbench {
   --app-ink: var(--c-text);
   --app-muted: var(--c-text-secondary);
