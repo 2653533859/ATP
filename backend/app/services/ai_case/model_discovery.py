@@ -103,7 +103,7 @@ def _ollama_tags_url(base: str) -> str:
 
 
 def _headers(provider: str, api_key: str) -> dict[str, str]:
-    if provider == "claude":
+    if provider in {"claude", "anthropic"}:
         return {
             "x-api-key": api_key,
             "anthropic-version": "2023-06-01",

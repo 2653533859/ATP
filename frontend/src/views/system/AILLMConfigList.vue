@@ -57,106 +57,161 @@
       :confirm-loading="saving"
       :cancel-text="t('common.cancel')"
       :ok-text="t('common.ok')"
-      width="600px"
+      width="720px"
+      centered
       @ok="handleSave"
       @cancel="resetForm"
     >
-      <a-form :label-col="{ span: 6 }" layout="horizontal">
-        <a-form-item :label="t('common.name')" required>
-          <a-input v-model:value="form.name" :placeholder="t('system_pages.ai_llm.name_placeholder')" />
-        </a-form-item>
-        <a-form-item :label="t('system_pages.ai_llm.provider_label')" required>
-          <a-select
-            v-model:value="form.provider"
-            :options="providerOptions"
-            :placeholder="t('system_pages.ai_llm.provider_placeholder')"
-            @change="handleProviderChange"
-          />
-        </a-form-item>
-        <a-form-item :label="editing ? t('system_pages.ai_llm.api_key_new') : t('system_pages.ai_llm.api_key_label')" :required="!editing">
-          <a-input-password
-            v-model:value="form.api_key"
-            :placeholder="editing ? t('system_pages.ai_llm.api_key_keep_placeholder') : t('system_pages.ai_llm.api_key_placeholder')"
-            autocomplete="new-password"
-          />
-        </a-form-item>
-        <a-form-item :label="t('system_pages.ai_llm.base_url_label')">
-          <a-input
-            v-model:value="form.endpoint"
-            :placeholder="t('system_pages.ai_llm.endpoint_placeholder')"
-          />
-          <div class="endpoint-hint">{{ providerEndpointHint }}</div>
-        </a-form-item>
-        <a-form-item :label="t('system_pages.ai_llm.model_name')" required>
-          <div class="model-picker">
-            <a-auto-complete
-              v-model:value="form.model_name"
-              :options="modelSelectOptions"
-              :placeholder="t('system_pages.ai_llm.model_placeholder')"
-              class="model-picker-input"
-              @select="handleModelSelect"
-            />
-            <a-button :loading="discoveringModels" @click="handleDiscoverModels">
-              {{ t('system_pages.ai_llm.fetch_models') }}
-            </a-button>
-            <a-button :loading="testingConnection" @click="handleTestConnection">
-              {{ t('system_pages.ai_llm.test_connection') }}
-            </a-button>
-          </div>
-          <div v-if="modelOptions.length" class="model-picker-hint">
-            {{ t('system_pages.ai_llm.models_loaded', { count: modelOptions.length }) }}
-          </div>
-        </a-form-item>
-        <a-form-item :label="t('system_pages.ai_llm.default_params')">
-          <template #extra>
-            <div style="display: flex; justify-content: flex-end; margin-top: 4px">
-              <a-button size="small" type="link" style="padding: 0" @click="defaultParamsText = tryFormatJson(defaultParamsText)">
-                <FormatPainterOutlined /> 格式化 JSON
+      <div class="llm-modal-body">
+        <a-form layout="vertical" class="llm-config-form">
+          <a-row :gutter="16">
+            <a-col :xs="24" :sm="12">
+              <a-form-item :label="t('common.name')" required>
+                <a-input v-model:value="form.name" :placeholder="t('system_pages.ai_llm.name_placeholder')" />
+              </a-form-item>
+            </a-col>
+            <a-col :xs="24" :sm="12">
+              <a-form-item :label="t('system_pages.ai_llm.provider_label')" required>
+                <a-select
+                  v-model:value="form.provider"
+                  :options="providerOptions"
+                  option-label-prop="label"
+                  :placeholder="t('system_pages.ai_llm.provider_placeholder')"
+                  @change="handleProviderChange"
+                >
+                  <template #option="{ label, desc }">
+                    <div class="provider-option-item">
+                      <span class="provider-option-title">{{ label }}</span>
+                      <span class="provider-option-desc">{{ desc }}</span>
+                    </div>
+                  </template>
+                </a-select>
+              </a-form-item>
+            </a-col>
+          </a-row>
+
+          <a-row :gutter="16">
+            <a-col :xs="24" :sm="12">
+              <a-form-item
+                :label="editing ? t('system_pages.ai_llm.api_key_new') : t('system_pages.ai_llm.api_key_label')"
+                :required="!editing && form.provider !== 'ollama'"
+              >
+                <a-input-password
+                  v-model:value="form.api_key"
+                  :placeholder="currentApiKeyPlaceholder"
+                  autocomplete="new-password"
+                />
+              </a-form-item>
+            </a-col>
+            <a-col :xs="24" :sm="12">
+              <a-form-item
+                :label="t('system_pages.ai_llm.base_url_label')"
+                :required="form.provider === 'openai_compatible'"
+              >
+                <a-input
+                  v-model:value="form.endpoint"
+                  :placeholder="currentEndpointPlaceholder"
+                />
+              </a-form-item>
+            </a-col>
+          </a-row>
+          <div v-if="providerEndpointHint" class="endpoint-hint-banner">{{ providerEndpointHint }}</div>
+
+          <a-form-item :label="t('system_pages.ai_llm.model_name')" required>
+            <div class="model-picker">
+              <a-auto-complete
+                v-model:value="form.model_name"
+                :options="modelSelectOptions"
+                :placeholder="currentModelPlaceholder"
+                class="model-picker-input"
+                @select="handleModelSelect"
+              />
+              <a-button :loading="discoveringModels" @click="handleDiscoverModels">
+                {{ t('system_pages.ai_llm.fetch_models') }}
+              </a-button>
+              <a-button :loading="testingConnection" @click="handleTestConnection">
+                {{ t('system_pages.ai_llm.test_connection') }}
               </a-button>
             </div>
-          </template>
-          <a-textarea
-            v-model:value="defaultParamsText"
-            :rows="3"
-            placeholder='{"temperature": 0.4}'
-          />
-          <span v-if="defaultParamsError" style="color: var(--c-error); font-size: 12px">
-            {{ defaultParamsError }}
-          </span>
-          <a-alert
-            type="info"
-            show-icon
-            :message="t('system_pages.ai_llm.params_hint')"
-            style="margin-top: 8px"
-          />
-        </a-form-item>
-        <a-form-item :label="t('system_pages.ai_llm.thinking_label')">
-          <a-select
-            v-model:value="thinkingMode"
-            :options="thinkingModeOptions"
-            @change="handleThinkingModeChange"
-          />
-          <div class="capability-hint">{{ reasoningCapabilityHint }}</div>
-        </a-form-item>
-        <a-form-item :label="t('common.enabled')">
-          <a-switch v-model:checked="form.enabled" />
-        </a-form-item>
-        <a-form-item :label="t('system_pages.ai_llm.vision_label')">
-          <a-switch v-model:checked="form.supports_vision" />
-          <span v-if="selectedModelOption?.supports_vision === true" class="capability-hint">
-            {{ t('system_pages.ai_llm.vision_detected') }}
-          </span>
-          <span v-else-if="selectedModelOption?.supports_vision === false" class="capability-warning">
-            {{ t('system_pages.ai_llm.vision_not_detected') }}
-          </span>
-          <span v-else class="capability-hint">
-            {{ t('system_pages.ai_llm.vision_hint') }}
-          </span>
-        </a-form-item>
-        <a-form-item :label="t('common.description')">
-          <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('system_pages.ai_llm.desc_placeholder')" />
-        </a-form-item>
-      </a-form>
+            <div v-if="modelOptions.length" class="model-picker-hint">
+              {{ t('system_pages.ai_llm.models_loaded', { count: modelOptions.length }) }}
+            </div>
+          </a-form-item>
+
+          <a-row :gutter="16">
+            <a-col :xs="24" :sm="12">
+              <a-form-item :label="t('system_pages.ai_llm.thinking_label')">
+                <a-select
+                  v-model:value="thinkingMode"
+                  :options="thinkingModeOptions"
+                  @change="handleThinkingModeChange"
+                />
+                <div class="field-sub-hint">{{ reasoningCapabilityHint }}</div>
+              </a-form-item>
+            </a-col>
+            <a-col :xs="24" :sm="12">
+              <div class="switch-panel">
+                <div class="switch-row">
+                  <span class="switch-label">{{ t('common.enabled') }}</span>
+                  <a-switch v-model:checked="form.enabled" />
+                </div>
+                <div class="switch-row">
+                  <span class="switch-label">{{ t('system_pages.ai_llm.vision_label') }}</span>
+                  <a-switch v-model:checked="form.supports_vision" />
+                </div>
+                <div
+                  v-if="selectedModelOption?.supports_vision === false"
+                  class="capability-warning-line"
+                >
+                  {{ t('system_pages.ai_llm.vision_not_detected') }}
+                </div>
+                <div v-else class="field-sub-hint">
+                  {{
+                    selectedModelOption?.supports_vision === true
+                      ? t('system_pages.ai_llm.vision_detected')
+                      : t('system_pages.ai_llm.vision_hint')
+                  }}
+                </div>
+              </div>
+            </a-col>
+          </a-row>
+
+          <a-form-item>
+            <template #label>
+              <div class="label-with-action">
+                <span>{{ t('system_pages.ai_llm.default_params') }}</span>
+                <a-button
+                  size="small"
+                  type="link"
+                  style="padding: 0; height: auto"
+                  @click="defaultParamsText = tryFormatJson(defaultParamsText)"
+                >
+                  <FormatPainterOutlined /> 格式化 JSON
+                </a-button>
+              </div>
+            </template>
+            <a-textarea
+              v-model:value="defaultParamsText"
+              :rows="3"
+              placeholder='{"temperature": 0.4}'
+              class="json-textarea"
+            />
+            <span v-if="defaultParamsError" style="color: var(--c-error); font-size: 12px">
+              {{ defaultParamsError }}
+            </span>
+            <a-alert
+              type="info"
+              show-icon
+              :message="t('system_pages.ai_llm.params_hint')"
+              style="margin-top: 8px"
+            />
+          </a-form-item>
+
+          <a-form-item :label="t('common.description')" style="margin-bottom: 0">
+            <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('system_pages.ai_llm.desc_placeholder')" />
+          </a-form-item>
+        </a-form>
+      </div>
     </a-modal>
   </div>
 </template>
@@ -209,7 +264,7 @@ const testingConnection = ref(false)
 
 const form = ref<FormState>({
   name: '',
-  provider: 'deepseek',
+  provider: 'openai_compatible',
   api_key: '',
   endpoint: '',
   model_name: '',
@@ -219,28 +274,41 @@ const form = ref<FormState>({
 })
 
 const providerOptions = computed(() => [
-  { label: 'DeepSeek', value: 'deepseek' },
-  { label: 'Claude (Anthropic)', value: 'claude' },
-  { label: 'OpenAI', value: 'openai' },
-  { label: t('system_pages.ai_llm.providers.openai_compatible'), value: 'openai_compatible' },
-  { label: t('system_pages.ai_llm.providers.qwen_full'), value: 'qwen' },
-  { label: t('system_pages.ai_llm.providers.ollama_full'), value: 'ollama' },
+  {
+    label: t('system_pages.ai_llm.providers.openai_compatible'),
+    value: 'openai_compatible',
+    desc: t('system_pages.ai_llm.provider_desc.openai_compatible'),
+  },
+  {
+    label: t('system_pages.ai_llm.providers.openai_responses'),
+    value: 'openai_responses',
+    desc: t('system_pages.ai_llm.provider_desc.openai_responses'),
+  },
+  {
+    label: t('system_pages.ai_llm.providers.anthropic'),
+    value: 'anthropic',
+    desc: t('system_pages.ai_llm.provider_desc.anthropic'),
+  },
 ])
 
-const providerLabelMap: Record<LLMProvider, string> = {
+const providerLabelMap = computed<Record<LLMProvider, string>>(() => ({
+  openai_compatible: t('system_pages.ai_llm.providers.openai_compatible'),
+  openai_responses: t('system_pages.ai_llm.providers.openai_responses'),
+  anthropic: t('system_pages.ai_llm.providers.anthropic'),
   deepseek: 'DeepSeek',
-  claude: 'Claude',
+  claude: 'Anthropic',
   openai: 'OpenAI',
-  openai_compatible: 'OpenAI-compatible',
   qwen: t('system_pages.ai_llm.providers.qwen'),
   ollama: 'Ollama',
-}
+}))
 
 const providerColorMap: Record<LLMProvider, string> = {
+  openai_compatible: 'blue',
+  openai_responses: 'geekblue',
+  anthropic: 'purple',
   deepseek: 'cyan',
   claude: 'purple',
   openai: 'geekblue',
-  openai_compatible: 'blue',
   qwen: 'orange',
   ollama: 'green',
 }
@@ -277,14 +345,40 @@ const reasoningCapabilityHint = computed(() => {
   return t('system_pages.ai_llm.reasoning_unknown')
 })
 
+const currentApiKeyPlaceholder = computed(() => {
+  if (editing.value) return t('system_pages.ai_llm.api_key_keep_placeholder')
+  if (form.value.provider === 'ollama') return t('system_pages.ai_llm.api_key_ollama_placeholder')
+  return t('system_pages.ai_llm.api_key_placeholder')
+})
+
+const currentEndpointPlaceholder = computed(() => {
+  const map: Partial<Record<LLMProvider, string>> = {
+    openai_compatible: 'https://your-gateway.example.com/v1',
+    openai_responses: 'https://api.openai.com',
+    anthropic: 'https://api.anthropic.com',
+  }
+  return map[form.value.provider] || t('system_pages.ai_llm.endpoint_placeholder')
+})
+
+const currentModelPlaceholder = computed(() => {
+  const map: Partial<Record<LLMProvider, string>> = {
+    openai_compatible: 'gpt-4o-mini / deepseek-chat / qwen-plus',
+    openai_responses: 'gpt-4.1 / o4-mini',
+    anthropic: 'claude-3-7-sonnet-latest',
+  }
+  return map[form.value.provider] || t('system_pages.ai_llm.model_placeholder')
+})
+
 const providerEndpointHint = computed(() => {
-  if (form.value.provider === 'ollama') return t('system_pages.ai_llm.ollama_endpoint_hint')
-  if (form.value.provider === 'openai') return t('system_pages.ai_llm.openai_endpoint_hint')
+  if (form.value.provider === 'anthropic' || form.value.provider === 'claude') {
+    return t('system_pages.ai_llm.claude_endpoint_hint')
+  }
+  if (form.value.provider === 'openai_responses') return t('system_pages.ai_llm.openai_endpoint_hint')
   if (form.value.provider === 'openai_compatible') return t('system_pages.ai_llm.openai_compatible_endpoint_hint')
   return t('system_pages.ai_llm.compatible_endpoint_hint')
 })
 
-const providerLabel = (p: LLMProvider) => providerLabelMap[p] ?? p
+const providerLabel = (p: LLMProvider) => providerLabelMap.value[p] ?? p
 const providerColor = (p: LLMProvider) => providerColorMap[p] ?? 'default'
 
 const columns = computed(() => [
@@ -328,6 +422,14 @@ async function loadConfigs() {
   }
 }
 
+const LEGACY_PROVIDER_DEFAULTS: Partial<Record<LLMProvider, { provider: LLMProvider; endpoint: string }>> = {
+  claude: { provider: 'anthropic', endpoint: 'https://api.anthropic.com' },
+  deepseek: { provider: 'openai_compatible', endpoint: 'https://api.deepseek.com' },
+  openai: { provider: 'openai_compatible', endpoint: 'https://api.openai.com/v1' },
+  qwen: { provider: 'openai_compatible', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+  ollama: { provider: 'openai_compatible', endpoint: 'http://localhost:11434/v1' },
+}
+
 function resetForm() {
   editing.value = null
   defaultParamsText.value = '{}'
@@ -337,7 +439,7 @@ function resetForm() {
   modelOptions.value = []
   form.value = {
     name: '',
-    provider: 'deepseek',
+    provider: 'openai_compatible',
     api_key: '',
     endpoint: '',
     model_name: '',
@@ -359,11 +461,12 @@ function openEdit(record: AILLMConfigItem) {
   thinkingMode.value = inferThinkingMode(record.default_params ?? {})
   thinkingModeDirty.value = false
   modelOptions.value = []
+  const mapped = LEGACY_PROVIDER_DEFAULTS[record.provider]
   form.value = {
     name: record.name,
-    provider: record.provider,
+    provider: mapped ? mapped.provider : record.provider,
     api_key: '',
-    endpoint: record.endpoint ?? '',
+    endpoint: record.endpoint ?? (mapped?.endpoint ?? ''),
     model_name: record.model_name,
     enabled: record.enabled,
     supports_vision: record.supports_vision,
@@ -570,6 +673,59 @@ onMounted(loadConfigs)
 </script>
 
 <style scoped>
+.llm-modal-body {
+  max-height: 70vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+}
+
+.llm-config-form :deep(.ant-form-item) {
+  margin-bottom: 14px;
+}
+
+.llm-config-form :deep(.ant-form-item-label > label) {
+  width: 100%;
+  font-weight: 500;
+}
+
+.label-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.provider-option-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.provider-option-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-text, #1e293b);
+  line-height: 1.3;
+}
+
+.provider-option-desc {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.endpoint-hint-banner {
+  margin: -6px 0 14px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--c-bg-subtle, #f8fafc);
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .model-picker {
   display: flex;
   gap: 8px;
@@ -581,24 +737,42 @@ onMounted(loadConfigs)
 }
 
 .model-picker-hint,
-.endpoint-hint,
-.capability-hint {
-  color: #98a2b3;
+.field-sub-hint {
+  color: #64748b;
   font-size: 12px;
-}
-
-.endpoint-hint {
-  margin-top: 4px;
+  margin-top: 6px;
   line-height: 1.5;
 }
 
-.capability-hint {
-  margin-left: 8px;
+.switch-panel {
+  padding: 10px 12px;
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--c-bg-subtle, #f8fafc);
 }
 
-.capability-warning {
-  margin-left: 8px;
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.switch-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-text, #1e293b);
+}
+
+.capability-warning-line {
+  margin-top: 6px;
   color: var(--c-warning, #d48806);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.json-textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
 }
 </style>

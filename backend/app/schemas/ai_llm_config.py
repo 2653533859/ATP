@@ -4,7 +4,16 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-LLMProvider = Literal["deepseek", "claude", "openai", "openai_compatible", "qwen", "ollama"]
+LLMProvider = Literal[
+    "openai_compatible",
+    "openai_responses",
+    "anthropic",
+    "deepseek",
+    "claude",
+    "openai",
+    "qwen",
+    "ollama",
+]
 
 
 class AILLMConfigOut(BaseModel):

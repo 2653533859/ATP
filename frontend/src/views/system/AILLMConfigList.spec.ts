@@ -104,9 +104,15 @@ describe('AILLMConfigList', () => {
     await Promise.resolve()
     const vm = wrapper.vm as any
 
+    expect(vm.providerOptions.map((item: { value: string }) => item.value)).toEqual([
+      'openai_compatible',
+      'openai_responses',
+      'anthropic',
+    ])
     expect(vm.providerOptions).toContainEqual({
       label: 'system_pages.ai_llm.providers.openai_compatible',
       value: 'openai_compatible',
+      desc: 'system_pages.ai_llm.provider_desc.openai_compatible',
     })
 
     vm.resetForm()

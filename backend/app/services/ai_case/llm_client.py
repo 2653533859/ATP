@@ -23,9 +23,11 @@ logger = logging.getLogger(__name__)
 _DEFAULT_ENDPOINTS = {
     "deepseek": "https://api.deepseek.com",
     "openai": "https://api.openai.com",
+    "openai_responses": "https://api.openai.com",
     "qwen": "https://dashscope.aliyuncs.com/compatible-mode",
     "ollama": "http://localhost:11434",
     "claude": "https://api.anthropic.com",
+    "anthropic": "https://api.anthropic.com",
 }
 
 
@@ -162,11 +164,73 @@ async def _call_claude(request: LLMRequest) -> LLMResponse:
     return LLMResponse(text="".join(text_parts), raw=data)
 
 
+def _extract_responses_text(data: dict[str, Any]) -> str:
+    output_text = data.get("output_text")
+    if isinstance(output_text, str) and output_text:
+        return output_text
+    parts: list[str] = []
+    for item in data.get("output") or []:
+        if not isinstance(item, dict) or item.get("type") != "message":
+            continue
+        for content in item.get("content") or []:
+            if not isinstance(content, dict):
+                continue
+            if content.get("type") in {"output_text", "text"} and isinstance(content.get("text"), str):
+                parts.append(content["text"])
+    return "".join(parts)
+
+
+async def _call_openai_responses(request: LLMRequest) -> LLMResponse:
+    base = _resolve_endpoint(request.provider, request.endpoint)
+    url = _v1_url(base, "responses")
+    if request.image_base64:
+        input_payload: Any = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": request.prompt},
+                    {
+                        "type": "input_image",
+                        "image_url": f"data:{request.image_media_type};base64,{request.image_base64}",
+                    },
+                ],
+            }
+        ]
+    else:
+        input_payload = request.prompt
+
+    payload: dict[str, Any] = {
+        "model": request.model_name,
+        "input": input_payload,
+        "max_output_tokens": request.max_tokens,
+    }
+    if request.system_prompt:
+        payload["instructions"] = request.system_prompt
+    if request.extra_params:
+        payload.update(request.extra_params)
+
+    headers = {"Content-Type": "application/json"}
+    if request.api_key:
+        headers["Authorization"] = f"Bearer {request.api_key}"
+
+    async with httpx.AsyncClient(timeout=request.timeout_seconds) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+
+    text = _extract_responses_text(data)
+    if not text and not isinstance(data.get("output"), list):
+        raise ValueError(f"LLM 返回结构无效: {data}")
+    return LLMResponse(text=text, raw=data)
+
+
 async def call_llm(request: LLMRequest) -> LLMResponse:
     """统一入口：根据 provider 路由到具体适配器。"""
     provider = request.provider.lower()
-    if provider == "claude":
+    if provider in ("claude", "anthropic"):
         return await _call_claude(request)
+    if provider == "openai_responses":
+        return await _call_openai_responses(request)
     if provider in ("deepseek", "openai", "openai_compatible", "qwen", "ollama"):
         return await _call_openai_compatible(request)
     raise ValueError(f"不支持的 provider: {provider}")

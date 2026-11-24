@@ -2890,7 +2890,15 @@ export const globalVariableApi = {
 }
 
 // ---- AI LLM Config ----
-export type LLMProvider = 'deepseek' | 'claude' | 'openai' | 'openai_compatible' | 'qwen' | 'ollama'
+export type LLMProvider =
+  | 'openai_compatible'
+  | 'openai_responses'
+  | 'anthropic'
+  | 'deepseek'
+  | 'claude'
+  | 'openai'
+  | 'qwen'
+  | 'ollama'
 
 export interface AILLMConfigItem {
   id: number
