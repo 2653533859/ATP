@@ -114,6 +114,8 @@ def _sanitize_har(data: bytes) -> bytes:
 
 _RECORDING_SCRIPT = r"""
 (() => {
+  if (window.__atpRecorderInstalled) return;
+  window.__atpRecorderInstalled = true;
   const quote = (value) => String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
   function isDynamicId(id) {
@@ -499,9 +501,13 @@ class WebRecordingSession:
 
             await self.page.expose_binding("atpRecordEvent", self._handle_binding)
             await self.page.add_init_script(_RECORDING_SCRIPT)
-            if self.is_resuming:
-                with contextlib.suppress(Exception):
-                    await self.page.evaluate(_RECORDING_SCRIPT)
+            # add_init_script only runs on subsequent navigations; inject immediately into the already-loaded start page and frames.
+            with contextlib.suppress(Exception):
+                await self.page.evaluate(_RECORDING_SCRIPT)
+            for frame in getattr(self.page, "frames", []):
+                if frame is not getattr(self.page, "main_frame", None):
+                    with contextlib.suppress(Exception):
+                        await frame.evaluate(_RECORDING_SCRIPT)
             self.page.on("framenavigated", self._handle_navigation)
             if hasattr(self.page, "on"):
                 self.page.on("load", self._handle_load)
