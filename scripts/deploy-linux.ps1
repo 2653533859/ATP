@@ -265,7 +265,8 @@ ATP_WEB_PORT=8080
     "kubectl -n atp-single-node rollout status deployment/atp-single-node-atp-backend --timeout=120s",
     "kubectl -n atp-single-node rollout status deployment/atp-single-node-atp-worker --timeout=120s",
     "kubectl -n atp-single-node rollout status deployment/atp-single-node-atp-beat --timeout=120s",
-    "(cd cloud-web && docker compose up -d)"
+    "(cd cloud-web && docker compose up -d)",
+    "iptables -C DOCKER-USER -p tcp --dport 80 -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -p tcp --dport 80 -j ACCEPT"
   ) -join " && "
 
   & ssh @sshOpts $sshTarget $remoteCommands
