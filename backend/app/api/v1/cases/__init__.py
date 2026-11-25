@@ -97,6 +97,7 @@ from .workflow import (
     approve_case,
     clone_case_from_snapshot,
     create_snapshot_manual,
+    delete_case_snapshot,
     deprecate_case,
     diff_snapshots,
     export_snapshot,
@@ -107,6 +108,7 @@ from .workflow import (
     reject_case,
     rollback_case,
     submit_review,
+    update_case_snapshot,
 )
 from .runs import (
     get_run,
@@ -140,6 +142,8 @@ __all__ = [
     "reactivate_case",
     "list_snapshots",
     "get_snapshot",
+    "update_case_snapshot",
+    "delete_case_snapshot",
     "rollback_case",
     "trigger_run",
     "list_runs",

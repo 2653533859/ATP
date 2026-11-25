@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import json
@@ -655,6 +656,68 @@ async def upload_performance_script(
     return PerformanceScriptUploadOut(script_object_name=object_name, filename=filename, size=len(content))
 
 
+@router.get("/projects/{project_id}/performance/scripts")
+async def list_performance_scripts(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """列出项目下已上传的压测脚本对象。"""
+    await assert_project_access(db, user, project_id, ProjectRole.viewer)
+    prefix = f"performance/scripts/{project_id}/"
+    objects = await asyncio.to_thread(minio_client.list_objects, prefix)
+    items = []
+    for obj in objects:
+        object_name = str(getattr(obj, "object_name", "") or "")
+        if not object_name.startswith(prefix) or len(object_name) <= len(prefix):
+            continue
+        raw_name = object_name.removeprefix(prefix)
+        filename = raw_name.split("-", 1)[1] if "-" in raw_name else raw_name
+        items.append(
+            {
+                "object_name": object_name,
+                "filename": filename,
+                "size": getattr(obj, "size", 0),
+                "last_modified": obj.last_modified.isoformat() if getattr(obj, "last_modified", None) else None,
+            }
+        )
+    return items
+
+
+@router.delete("/projects/{project_id}/performance/scripts", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_performance_script(
+    project_id: int,
+    object_name: str = Query(..., min_length=1, max_length=512),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """删除未被压测定义引用的压测脚本对象。"""
+    await assert_project_access(db, user, project_id, ProjectRole.editor)
+    prefix = f"performance/scripts/{project_id}/"
+    clean_obj = object_name.strip().lstrip("/")
+    if (
+        not clean_obj.startswith(prefix)
+        or len(clean_obj) <= len(prefix)
+        or "\x00" in clean_obj
+        or "\\" in clean_obj
+        or any(part in {"", ".", ".."} for part in clean_obj.split("/"))
+    ):
+        raise HTTPException(status_code=400, detail="无效的项目脚本路径")
+    in_use = (
+        await db.execute(
+            select(PerformanceTest.id)
+            .where(PerformanceTest.project_id == project_id, PerformanceTest.script_object_name == clean_obj)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if in_use is not None:
+        raise HTTPException(status_code=409, detail="该压测脚本正被压测定义引用，无法删除")
+    existing = await asyncio.to_thread(minio_client.list_objects, clean_obj)
+    if not any(str(getattr(item, "object_name", "") or "") == clean_obj for item in existing):
+        raise HTTPException(status_code=404, detail="压测脚本不存在")
+    await asyncio.to_thread(minio_client.delete_file, clean_obj)
+
+
 @router.get("/performance/tests/{test_id}", response_model=PerformanceTestOut)
 async def get_performance_test(
     test_id: int,
@@ -705,6 +768,42 @@ async def update_performance_test(
     await db.commit()
     await db.refresh(item)
     return item
+
+
+@router.delete("/performance/tests/{test_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_performance_test(
+    test_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """删除压测定义及其历史执行记录（存在活跃执行时拒绝删除）。"""
+    item = await db.get(PerformanceTest, test_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="压测定义不存在")
+    await assert_project_access(db, user, item.project_id, ProjectRole.editor)
+    active = (
+        await db.execute(
+            select(PerformanceRun.id)
+            .where(
+                PerformanceRun.performance_test_id == test_id,
+                PerformanceRun.status.in_(
+                    [
+                        PerformanceRunStatus.pending.value,
+                        PerformanceRunStatus.running.value,
+                        PerformanceRunStatus.cancelling.value,
+                    ]
+                ),
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if active is not None:
+        raise HTTPException(status_code=409, detail="压测定义下存在运行中或排队中的任务，请先停止后再删除")
+    if item.baseline_run_id is not None:
+        item.baseline_run_id = None
+        await db.flush()
+    await db.delete(item)
+    await db.commit()
 
 
 @router.put("/performance/tests/{test_id}/baseline", response_model=PerformanceTestOut)
@@ -1068,6 +1167,49 @@ async def get_performance_run(
         raise HTTPException(status_code=404, detail="压测执行不存在")
     await assert_project_access(db, user, run.project_id, ProjectRole.viewer)
     return run
+
+
+@router.delete("/performance/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_performance_run(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """删除已结束的压测执行记录；若正作为基线则自动解除基线关联。"""
+    run = await db.get(PerformanceRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="压测执行不存在")
+    await assert_project_access(db, user, run.project_id, ProjectRole.editor)
+    if run.status in {
+        PerformanceRunStatus.pending.value,
+        PerformanceRunStatus.running.value,
+        PerformanceRunStatus.cancelling.value,
+    }:
+        raise HTTPException(status_code=409, detail="运行中或排队中的压测记录不能直接删除，请先停止执行")
+    active_shard = (
+        await db.execute(
+            select(PerformanceRun.id)
+            .where(
+                PerformanceRun.parent_run_id == run.id,
+                PerformanceRun.status.in_(
+                    [
+                        PerformanceRunStatus.pending.value,
+                        PerformanceRunStatus.running.value,
+                        PerformanceRunStatus.cancelling.value,
+                    ]
+                ),
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if active_shard is not None:
+        raise HTTPException(status_code=409, detail="压测任务下仍有分片在执行中，请先停止执行")
+    test = await db.get(PerformanceTest, run.performance_test_id)
+    if test is not None and test.baseline_run_id == run.id:
+        test.baseline_run_id = None
+        await db.flush()
+    await db.delete(run)
+    await db.commit()
 
 
 @router.get("/performance/runs/{run_id}/metrics", response_model=list[PerformanceMetricSampleOut])

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any, Literal
@@ -15,7 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import assert_project_access, get_current_user
 from app.api.v1.cases.common import _generate_case_code, _get_module_for_case_code
 from app.api.v1.cases.runs import trigger_run
+from app.api.v1.statistics import invalidate_stats_cache
 from app.api.v1.suites import trigger_suite_run
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.encryption import decrypt
 from app.models.ai_llm_config import AILLMConfig
@@ -39,6 +42,7 @@ from app.services.ai_case.agent_chat import (
 from app.services.ai_case.llm_client import LLMRequest, stream_llm
 from app.services.ai_governance import check_and_incr_daily_limit, llm_extra_params
 from app.services.audit import write_audit_log
+from app.services.local_artifact_cleanup import case_run_ids, delete_run_artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +204,12 @@ async def chat_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+def _require_positive_int(value: object, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise HTTPException(status_code=400, detail=f"缺少有效的 {field_name}")
+    return value
 
 
 @router.post("/execute-action", response_model=AiChatExecuteActionOut)
@@ -427,17 +437,155 @@ async def execute_chat_action(
             route="/bugs",
         )
 
-    title = str(params.get("title") or "").strip()[:128]
-    content = str(params.get("content") or "").strip()
+    if body.action == "delete_case":
+        raw_case_id = _require_positive_int(params.get("case_id"), "case_id")
+        case = await db.get(TestCase, raw_case_id)
+        if not case:
+            raise HTTPException(status_code=404, detail="用例不存在")
+        module = await db.get(Module, case.module_id)
+        if not module or module.project_id != body.project_id:
+            raise HTTPException(status_code=404, detail="用例不属于当前项目")
+        case_name = case.name
+        local_run_ids = await case_run_ids(db, [raw_case_id]) if settings.ATP_LOCAL_MODE else []
+        await db.delete(case)
+        await write_audit_log(
+            db,
+            action="hermes_chat_delete_case",
+            resource_type="test_case",
+            resource_id=raw_case_id,
+            user_id=user.id,
+            username=user.username,
+            project_id=body.project_id,
+            detail=f"通过 Hermes 对话删除用例 #{raw_case_id}：{case_name}",
+        )
+        await db.commit()
+        if local_run_ids:
+            await asyncio.to_thread(delete_run_artifacts, local_run_ids)
+        await invalidate_stats_cache()
+        return AiChatExecuteActionOut(
+            action="delete_case",
+            message=f"已删除测试用例 #{raw_case_id}：{case_name}",
+            resource_id=raw_case_id,
+            route="/cases",
+        )
+
+    if body.action == "delete_defect":
+        raw_defect_id = _require_positive_int(params.get("defect_id"), "defect_id")
+        defect = await db.get(Defect, raw_defect_id)
+        if not defect or defect.project_id != body.project_id:
+            raise HTTPException(status_code=404, detail="缺陷不存在或不属于当前项目")
+        defect_title = defect.title
+        await db.delete(defect)
+        await write_audit_log(
+            db,
+            action="hermes_chat_delete_defect",
+            resource_type="defect",
+            resource_id=raw_defect_id,
+            user_id=user.id,
+            username=user.username,
+            project_id=body.project_id,
+            detail=f"通过 Hermes 对话删除缺陷 #{raw_defect_id}：{defect_title}",
+        )
+        await db.commit()
+        return AiChatExecuteActionOut(
+            action="delete_defect",
+            message=f"已删除缺陷 #{raw_defect_id}：{defect_title}",
+            resource_id=raw_defect_id,
+            route="/bugs",
+        )
+
+    if body.action == "update_knowledge":
+        raw_knowledge_id = _require_positive_int(params.get("knowledge_id"), "knowledge_id")
+        entry = await db.get(KnowledgeEntry, raw_knowledge_id)
+        if not entry or entry.project_id != body.project_id:
+            raise HTTPException(status_code=404, detail="知识条目不存在或不属于当前项目")
+        updated = False
+        if "title" in params and params["title"] is not None:
+            if not isinstance(params["title"], str) or not params["title"].strip():
+                raise HTTPException(status_code=400, detail="知识标题不能为空")
+            entry.title = params["title"].strip()[:256]
+            updated = True
+        if "content" in params and params["content"] is not None:
+            if not isinstance(params["content"], str) or not params["content"].strip():
+                raise HTTPException(status_code=400, detail="知识正文不能为空")
+            entry.content = params["content"].strip()[:50000]
+            updated = True
+        if "summary" in params:
+            entry.summary = params["summary"].strip()[:1000] or None if isinstance(params["summary"], str) else None
+            updated = True
+        if "status" in params and params["status"] is not None:
+            next_status = str(params["status"]).strip().lower()
+            if next_status not in {"draft", "published", "archived"}:
+                raise HTTPException(status_code=400, detail="无效的知识状态，仅支持 draft / published / archived")
+            entry.status = next_status
+            updated = True
+        if not updated:
+            raise HTTPException(status_code=400, detail="未提供可更新的知识字段")
+        entry.version = int(entry.version or 1) + 1
+        await write_audit_log(
+            db,
+            action="hermes_chat_update_knowledge",
+            resource_type="knowledge_entry",
+            resource_id=entry.id,
+            user_id=user.id,
+            username=user.username,
+            project_id=body.project_id,
+            detail=f"通过 Hermes 对话更新知识条目 #{entry.id}：{entry.title}",
+        )
+        await db.commit()
+        return AiChatExecuteActionOut(
+            action="update_knowledge",
+            message=f"已更新知识条目 #{entry.id}：{entry.title}",
+            resource_id=entry.id,
+            route="/knowledge",
+        )
+
+    if body.action == "delete_knowledge":
+        raw_knowledge_id = _require_positive_int(params.get("knowledge_id"), "knowledge_id")
+        entry = await db.get(KnowledgeEntry, raw_knowledge_id)
+        if not entry or entry.project_id != body.project_id:
+            raise HTTPException(status_code=404, detail="知识条目不存在或不属于当前项目")
+        entry_title = entry.title
+        await db.delete(entry)
+        await write_audit_log(
+            db,
+            action="hermes_chat_delete_knowledge",
+            resource_type="knowledge_entry",
+            resource_id=raw_knowledge_id,
+            user_id=user.id,
+            username=user.username,
+            project_id=body.project_id,
+            detail=f"通过 Hermes 对话删除知识条目 #{raw_knowledge_id}：{entry_title}",
+        )
+        await db.commit()
+        return AiChatExecuteActionOut(
+            action="delete_knowledge",
+            message=f"已删除知识条目 #{raw_knowledge_id}：{entry_title}",
+            resource_id=raw_knowledge_id,
+            route="/knowledge",
+        )
+
+    title = str(params.get("title") or "").strip()[:256]
+    content = str(params.get("content") or "").strip()[:50000]
     if not title or not content:
         raise HTTPException(status_code=400, detail="知识标题和内容不能为空")
+    source_type = str(params.get("source_type") or params.get("category") or "experience").strip()
+    if source_type not in {"standard", "defect", "solution", "runbook", "experience", "requirement", "execution"}:
+        source_type = "experience"
+    tags = (
+        [str(t)[:32] for t in params.get("tags", []) if str(t).strip()]
+        if isinstance(params.get("tags"), list)
+        else ["Hermes"]
+    )
     entry = KnowledgeEntry(
         project_id=body.project_id,
+        source_type=source_type,
         title=title,
+        summary=str(params.get("summary") or "").strip()[:1000] or None,
         content=content,
-        category=str(params.get("category") or "troubleshooting")[:64],
+        tags=tags,
         status="draft",
-        created_by=user.id,
+        author_id=user.id,
     )
     db.add(entry)
     await db.flush()

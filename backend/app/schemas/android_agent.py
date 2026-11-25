@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AgentSessionStatus(str, Enum):
@@ -74,6 +74,25 @@ class AgentSessionCreate(BaseModel):
     llm_config_id: Optional[int] = None
     context_values: dict[str, str] = Field(default_factory=dict)
     budget: AgentBudgetConfig = Field(default_factory=AgentBudgetConfig)
+
+
+class AgentSessionUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    package_name: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    goal: Optional[str] = Field(default=None, min_length=1, max_length=1000)
+    expected_outcome: Optional[str] = Field(default=None, min_length=1, max_length=1000)
+
+    @field_validator("title", "package_name", "goal", "expected_outcome")
+    @classmethod
+    def reject_blank(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("字段内容不能为空白字符")
+        return cleaned
 
 
 class AgentSessionResponse(BaseModel):

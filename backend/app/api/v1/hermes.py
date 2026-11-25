@@ -11,7 +11,7 @@ from datetime import datetime, time, timedelta, timezone
 from time import perf_counter
 from typing import Any, Literal, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import ValidationError
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +34,7 @@ from app.models.user_project import ProjectRole
 from app.schemas.hermes import (
     HermesDraftConfirmIn,
     HermesDraftIn,
+    HermesDraftUpdateIn,
     HermesEvaluationSetOut,
     HermesFeedbackIn,
     HermesGovernanceSummaryOut,
@@ -41,6 +42,7 @@ from app.schemas.hermes import (
     HermesQueryOut,
     HermesSessionCreateIn,
     HermesSessionOut,
+    HermesSessionUpdateIn,
     HermesSourceOut,
 )
 from app.schemas.hermes_orchestration import (
@@ -1174,6 +1176,34 @@ async def create_hermes_session(
     return session
 
 
+@router.patch("/hermes/sessions/{session_id}", response_model=HermesSessionOut)
+async def update_hermes_session(
+    session_id: int,
+    body: HermesSessionUpdateIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+    session = await _owned_session(db, user, session_id, body.project_id)
+    session.title = body.title
+    await _commit_hermes_state(db)
+    await db.refresh(session)
+    return session
+
+
+@router.delete("/hermes/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_hermes_session(
+    session_id: int,
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, project_id, ProjectRole.viewer)
+    session = await _owned_session(db, user, session_id, project_id)
+    await db.delete(session)
+    await _commit_hermes_state(db)
+
+
 @router.get("/hermes/governance/summary", response_model=HermesGovernanceSummaryOut)
 async def hermes_governance_summary(
     project_id: int,
@@ -1233,6 +1263,49 @@ async def create_hermes_draft(
     session.drafts = [*(session.drafts or []), draft][-20:]
     await _commit_hermes_state(db)
     return draft
+
+
+@router.patch("/hermes/sessions/{session_id}/drafts/{draft_id}")
+async def update_hermes_draft(
+    session_id: int,
+    draft_id: str,
+    body: HermesDraftUpdateIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, body.project_id, ProjectRole.editor)
+    session = await _owned_session(db, user, session_id, body.project_id)
+    drafts = list(session.drafts or [])
+    target_idx = next((idx for idx, item in enumerate(drafts) if item.get("id") == draft_id), None)
+    if target_idx is None:
+        raise HTTPException(status_code=404, detail="Hermes 草稿不存在")
+    draft = dict(drafts[target_idx])
+    if draft.get("status") != "pending_confirmation":
+        raise HTTPException(status_code=409, detail="仅待确认状态的草稿可修改")
+    draft["payload"] = body.payload
+    draft["updated_at"] = datetime.now(timezone.utc).isoformat()
+    drafts[target_idx] = draft
+    session.drafts = drafts
+    await _commit_hermes_state(db)
+    return draft
+
+
+@router.delete("/hermes/sessions/{session_id}/drafts/{draft_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_hermes_draft(
+    session_id: int,
+    draft_id: str,
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, project_id, ProjectRole.editor)
+    session = await _owned_session(db, user, session_id, project_id)
+    drafts = list(session.drafts or [])
+    remaining = [item for item in drafts if item.get("id") != draft_id]
+    if len(remaining) == len(drafts):
+        raise HTTPException(status_code=404, detail="Hermes 草稿不存在")
+    session.drafts = remaining
+    await _commit_hermes_state(db)
 
 
 def _selected_suite_ids(payload: dict[str, Any]) -> list[int]:

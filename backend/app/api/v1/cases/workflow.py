@@ -6,12 +6,12 @@ import copy
 from datetime import datetime, timezone
 
 import app.api.v1.cases as _cases
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import assert_project_access, get_current_user
+from app.api.deps import assert_project_access, get_current_user, require_engineer
 from app.core.database import get_db
 from app.models.case import CaseSnapshot, CaseStatus, CaseType
 from app.models.project import Module
@@ -23,6 +23,7 @@ from app.schemas.case import (
     CaseSnapshotImport,
     CaseSnapshotManualCreate,
     CaseSnapshotOut,
+    CaseSnapshotUpdate,
     CaseWorkflowRequest,
     PaginatedSnapshotsOut,
     TestCaseDetailOut,
@@ -294,6 +295,81 @@ async def create_snapshot_manual(
     out = CaseSnapshotOut.model_validate(refreshed)
     out.updated_by_name = current_user.username or ""
     return out
+
+
+async def _get_editable_case_snapshot(
+    db: AsyncSession,
+    current_user: User,
+    case_id: int,
+    snapshot_id: int,
+) -> tuple[object, CaseSnapshot, int]:
+    case = await _cases._get_case_detail_or_404(db, case_id)
+    module_id = getattr(case, "module_id", None)
+    module = await db.get(Module, module_id) if module_id else None
+    if not module:
+        raise HTTPException(status_code=404, detail="所属模块不存在")
+    await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
+    snapshot = await db.get(CaseSnapshot, snapshot_id)
+    if not snapshot or snapshot.case_id != case_id:
+        raise HTTPException(status_code=404, detail="快照不存在")
+    return case, snapshot, module.project_id
+
+
+@router.patch("/cases/{case_id}/snapshots/{snapshot_id}", response_model=CaseSnapshotOut)
+async def update_case_snapshot(
+    case_id: int,
+    snapshot_id: int,
+    body: CaseSnapshotUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_engineer),
+) -> CaseSnapshotOut:
+    """更新指定用例快照的名称、描述或备注。"""
+    _case, snapshot, _project_id = await _get_editable_case_snapshot(db, current_user, case_id, snapshot_id)
+    if "name" in body.model_fields_set:
+        if body.name is None:
+            raise HTTPException(status_code=422, detail="快照名称不能为空")
+        cleaned_name = body.name.strip()
+        if not cleaned_name:
+            raise HTTPException(status_code=422, detail="快照名称不能为空")
+        snapshot.name = cleaned_name
+    if "description" in body.model_fields_set:
+        snapshot.description = body.description
+    if "remark" in body.model_fields_set:
+        sd = dict(snapshot.snapshot_data) if isinstance(snapshot.snapshot_data, dict) else {}
+        if body.remark is None:
+            sd.pop("remark", None)
+        else:
+            sd["remark"] = body.remark
+        snapshot.snapshot_data = sd
+    snapshot.updated_by = current_user.id
+    await db.commit()
+    refreshed = await db.get(CaseSnapshot, snapshot.id)
+    out = CaseSnapshotOut.model_validate(refreshed)
+    out.updated_by_name = current_user.username or ""
+    return out
+
+
+@router.delete("/cases/{case_id}/snapshots/{snapshot_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_case_snapshot(
+    case_id: int,
+    snapshot_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_engineer),
+) -> None:
+    """删除指定的用例历史快照。"""
+    case, snapshot, project_id = await _get_editable_case_snapshot(db, current_user, case_id, snapshot_id)
+    await _cases.write_audit_log(
+        db,
+        action="case.snapshot.delete",
+        resource_type="case_snapshot",
+        resource_id=snapshot.id,
+        user_id=current_user.id,
+        username=getattr(current_user, "username", ""),
+        detail=f"删除用例 {getattr(case, 'name', case_id)} 快照 v{snapshot.version} (snapshot_id={snapshot.id})",
+        project_id=project_id,
+    )
+    await db.delete(snapshot)
+    await db.commit()
 
 
 @router.get("/cases/{case_id}/snapshots/diff", response_model=CaseSnapshotDiffOut)

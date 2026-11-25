@@ -60,6 +60,10 @@ class NodeGrantCreateIn(BaseModel):
     access_level: Literal["read_only", "read_write"]
 
 
+class NodeGrantUpdateIn(BaseModel):
+    access_level: Literal["read_only", "read_write"]
+
+
 class NodeGrantOut(BaseModel):
     id: int
     node_client_id: str
@@ -557,6 +561,44 @@ async def create_node_grant(
     await db.commit()
     await db.refresh(grant)
     return _grant_out(grant, subject_name=subject_name, creator=current_user.username, revoker=None)
+
+
+@router.patch("/{client_id}/grants/{grant_id}", response_model=NodeGrantOut)
+async def update_node_grant(
+    client_id: str,
+    grant_id: int,
+    body: NodeGrantUpdateIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> NodeGrantOut:
+    """Update the access_level of an active node grant."""
+    grant = await db.get(RemoteNodeGrant, grant_id)
+    if grant is None or grant.node_client_id != client_id:
+        raise HTTPException(status_code=404, detail="Grant not found")
+    if grant.revoked_at is not None:
+        raise HTTPException(status_code=409, detail="Revoked grant cannot be updated")
+    if grant.user_id is not None:
+        subject = await db.get(User, grant.user_id)
+        if subject is not None:
+            if not subject.is_active and body.access_level == GRANT_READ_WRITE:
+                raise HTTPException(status_code=400, detail="Inactive users cannot be granted read-write access")
+            if subject.role == UserRole.viewer and body.access_level == GRANT_READ_WRITE:
+                raise HTTPException(status_code=400, detail="Viewer-role users can only be granted read-only access")
+    grant.access_level = body.access_level
+    await write_audit_log(
+        db,
+        action="remote_node_grant_updated",
+        resource_type="remote_node",
+        user_id=current_user.id,
+        username=current_user.username,
+        detail=f"node_client_id={client_id}; grant_id={grant_id}; access_level={body.access_level}",
+        ip_address=request.client.host if request.client else "",
+    )
+    await db.commit()
+    await db.refresh(grant)
+    outputs = await _grant_outputs(db, [grant])
+    return outputs[0]
 
 
 @router.delete("/{client_id}/grants/{grant_id}", response_model=NodeGrantOut)

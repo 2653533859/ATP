@@ -1952,6 +1952,8 @@ export const remoteNodesApi = {
     clientId: string,
     data: { subject_type: 'user' | 'project'; subject_id: number; access_level: 'read_only' | 'read_write' },
   ) => http.post<unknown, RemoteNodeGrantItem>(`/remote-nodes/${clientId}/grants`, data),
+  updateGrant: (clientId: string, grantId: number, data: { access_level: 'read_only' | 'read_write' }) =>
+    http.patch<unknown, RemoteNodeGrantItem>(`/remote-nodes/${clientId}/grants/${grantId}`, data),
   revokeGrant: (clientId: string, grantId: number) =>
     http.delete<unknown, RemoteNodeGrantItem>(`/remote-nodes/${clientId}/grants/${grantId}`),
 }
@@ -1983,6 +1985,7 @@ export const userApi = {
     role: AdminUserItem['role']
     is_active: boolean
   }>) => http.patch<unknown, AdminUserItem>(`/users/${id}`, data),
+  delete: (id: number) => http.delete<unknown, void>(`/users/${id}`),
 }
 
 export const projectApi = {
@@ -2117,6 +2120,19 @@ export const caseApi = {
     form.append('file', file)
     return http.post<unknown, ApiRequestFileUploadResponse>(`/projects/${projectId}/api-request-files`, form)
   },
+  listRequestFiles: (projectId: number) =>
+    http.get<unknown, Array<{ object_name: string; filename: string; size: number; last_modified?: string | null }>>(
+      `/projects/${projectId}/api-request-files`,
+    ),
+  renameRequestFile: (projectId: number, data: { object_name: string; filename: string }) =>
+    http.patch<unknown, ApiRequestFileUploadResponse & { old_object_name: string }>(
+      `/projects/${projectId}/api-request-files`,
+      data,
+    ),
+  deleteRequestFile: (projectId: number, objectName: string) =>
+    http.delete<unknown, void>(`/projects/${projectId}/api-request-files`, {
+      params: { object_name: objectName },
+    }),
   delete: (id: number) => http.delete(`/cases/${id}`),
   copy: (id: number) => http.post<unknown, CaseDetailItem>(`/cases/${id}/copy`),
   submitReview: (id: number, data?: { comment?: string }) => http.post<unknown, CaseDetailItem>(`/cases/${id}/submit-review`, data ?? {}),
@@ -2134,6 +2150,10 @@ export const caseApi = {
     http.get<unknown, { items: CaseSnapshotItem[]; total: number; page: number; page_size: number }>(
       `/cases/${caseId}/snapshots`, { params },
     ),
+  updateSnapshot: (caseId: number, snapshotId: number, data: { name?: string; description?: string | null; remark?: string | null }) =>
+    http.patch<unknown, CaseSnapshotItem>(`/cases/${caseId}/snapshots/${snapshotId}`, data),
+  deleteSnapshot: (caseId: number, snapshotId: number) =>
+    http.delete<unknown, void>(`/cases/${caseId}/snapshots/${snapshotId}`),
   rollback: (caseId: number, snapshotId: number) =>
     http.post<unknown, CaseDetailItem>(`/cases/${caseId}/rollback/${snapshotId}`),
   batchDelete: (caseIds: number[]) =>
@@ -2339,6 +2359,7 @@ export const runApi = {
     http.patch<unknown, RunDetailItem>(`/runs/${id}/triage`, data),
   generateGif: (id: number) =>
     http.post<unknown, RunDetailItem>(`/runs/${id}/generate-gif`),
+  delete: (id: number) => http.delete<unknown, void>(`/runs/${id}`),
 }
 
 export const workbenchApi = {
@@ -2402,6 +2423,7 @@ export const webRecordingApi = {
   interact: (id: string, action: string, params?: Record<string, unknown>) =>
     http.post<unknown, { ok: boolean; snapshot?: WebRecordingItem }>(`/web-recordings/${id}/interact`, { action, params: params || {} }),
   stop: (id: string) => http.post<unknown, WebRecordingItem>(`/web-recordings/${id}/stop`),
+  delete: (id: string) => http.delete<unknown, void>(`/web-recordings/${id}`),
 }
 
 export const environmentApi = {
@@ -2809,6 +2831,7 @@ export const defectApi = {
       `/defects/${id}/external-links/${linkId}/sync`, data ?? {},
     ),
   unlinkExternal: (id: number, linkId: number) => http.delete(`/defects/${id}/external-links/${linkId}`),
+  delete: (id: number) => http.delete<unknown, void>(`/defects/${id}`),
 }
 
 // ---- Mobile Special Testing ----
@@ -2838,6 +2861,7 @@ export const mobileSpecialApi = {
     http.get<unknown, { url: string; file_name: string }>(`/mobile-special/runs/${runId}/artifacts/${artifactId}/url`),
   stopRun: (id: number) => http.post<unknown, MobileSpecialRunItem>(`/mobile-special/runs/${id}/stop`),
   replayRun: (id: number) => http.post<unknown, MobileSpecialRunItem>(`/mobile-special/runs/${id}/replay`),
+  deleteRun: (id: number) => http.delete<unknown, void>(`/mobile-special/runs/${id}`),
   // Export
   exportRunCsv: (runId: number) =>
     http.get<unknown, Blob>(`/mobile-special/runs/${runId}/export/csv`, { responseType: 'blob' }),
@@ -2877,6 +2901,9 @@ export const dashboardAlertApi = {
   deleteRule: (id: number) => http.delete<unknown, void>(`/dashboard-alert-rules/${id}`),
   listEvents: (params?: { project_id?: number; rule_id?: number; limit?: number }) =>
     http.get<unknown, DashboardAlertEventItem[]>('/dashboard-alert-events', { params }),
+  updateEvent: (id: number, data: { actual_value?: number; snoozed_until?: string | null }) =>
+    http.patch<unknown, DashboardAlertEventItem>(`/dashboard-alert-events/${id}`, data),
+  deleteEvent: (id: number) => http.delete<unknown, void>(`/dashboard-alert-events/${id}`),
 }
 
 // ---- Global Variables ----
@@ -3462,10 +3489,19 @@ export const performanceApi = {
       params: { executor },
     })
   },
+  listScripts: (projectId: number) =>
+    http.get<unknown, Array<{ object_name: string; filename: string; size: number; last_modified?: string | null }>>(
+      `/projects/${projectId}/performance/scripts`,
+    ),
+  deleteScript: (projectId: number, objectName: string) =>
+    http.delete<unknown, void>(`/projects/${projectId}/performance/scripts`, {
+      params: { object_name: objectName },
+    }),
   createTest: (body: Required<Pick<PerformanceTestPayload, 'project_id' | 'name' | 'script_object_name'>> & PerformanceTestPayload) =>
     http.post<unknown, PerformanceTestItem>('/performance/tests', body),
   updateTest: (id: number, body: PerformanceTestPayload) =>
     http.patch<unknown, PerformanceTestItem>(`/performance/tests/${id}`, body),
+  deleteTest: (id: number) => http.delete<unknown, void>(`/performance/tests/${id}`),
   setBaseline: (testId: number, runId: number) =>
     http.put<unknown, PerformanceTestItem>(`/performance/tests/${testId}/baseline`, { run_id: runId }),
   clearBaseline: (testId: number) =>
@@ -3499,6 +3535,7 @@ export const performanceApi = {
     http.post<unknown, PerformanceCapacityAnalysis>(`/projects/${projectId}/performance/capacity/analyze`, body),
   getRun: (id: number) => http.get<unknown, PerformanceRunItem>(`/performance/runs/${id}`),
   stopRun: (id: number) => http.post<unknown, PerformanceRunItem>(`/performance/runs/${id}/stop`),
+  deleteRun: (id: number) => http.delete<unknown, void>(`/performance/runs/${id}`),
   getGate: (id: number) => http.get<unknown, PerformanceGateItem>(`/performance/runs/${id}/gate`),
   getBaselineComparison: (id: number) =>
     http.get<unknown, PerformanceBaselineComparisonItem>(`/performance/runs/${id}/baseline-comparison`),
@@ -3577,6 +3614,14 @@ export const webFilesApi = {
     form.append('file', file)
     return http.post<unknown, WebFileUploadResponse>(`/projects/${projectId}/web-files`, form)
   },
+  list: (projectId: number) =>
+    http.get<unknown, Array<{ object_name: string; filename: string; size: number; last_modified?: string | null }>>(
+      `/projects/${projectId}/web-files`,
+    ),
+  rename: (projectId: number, data: { object_name: string; filename: string }) =>
+    http.patch<unknown, WebFileUploadResponse & { old_object_name: string }>(`/projects/${projectId}/web-files`, data),
+  delete: (projectId: number, objectName: string) =>
+    http.delete<unknown, void>(`/projects/${projectId}/web-files`, { params: { object_name: objectName } }),
 }
 
 export interface WebVisualBaselineItem {

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, field_validator
 from playwright.async_api import Browser, BrowserContext, Frame, Page, Playwright, async_playwright
 from sqlalchemy import select
@@ -1145,6 +1145,11 @@ class WebRecordingManager:
             raise HTTPException(status_code=404, detail="录制会话不存在")
         return session
 
+    async def delete(self, session_id: str, owner_id: int) -> None:
+        session = self.get(session_id, owner_id)
+        await session.stop()
+        self.sessions.pop(session_id, None)
+
     async def close_all(self) -> None:
         sessions = list(self.sessions.values())
         await asyncio.gather(*(session.stop() for session in sessions), return_exceptions=True)
@@ -1468,6 +1473,22 @@ async def stop_recording(
     session = manager.get(session_id, user.id)
     await session.stop()
     return await _persist_terminal_recording(db, session, user.id, force_record_upsert=True)
+
+
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_recording(
+    session_id: str,
+    user: User = Depends(get_current_user),
+) -> None:
+    """终止并清理当前用户的实时 Web 录制会话。"""
+    if settings.WEB_RECORDER_MODE.strip().lower() == "worker":
+        try:
+            await remote_manager.delete(session_id, user.id)
+        except WebRecordingTransportError as exc:
+            raise _recording_http_error(exc) from exc
+        return None
+    await manager.delete(session_id, user.id)
+    return None
 
 
 async def close_all_recordings() -> None:

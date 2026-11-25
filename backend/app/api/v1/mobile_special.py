@@ -571,6 +571,20 @@ async def get_run(
     return await _get_run_with_access(db, user, run_id)
 
 
+@router.delete("/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_run(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_engineer),
+):
+    """Delete one finished mobile special run record."""
+    run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
+    if run.status in {RunStatus.pending, RunStatus.running}:
+        raise HTTPException(status_code=409, detail="运行中或排队中的专项记录不能直接删除，请先停止任务")
+    await db.delete(run)
+    await db.commit()
+
+
 @router.get("/runs/{run_id}/summary", response_model=dict)
 async def get_run_summary(
     run_id: int,

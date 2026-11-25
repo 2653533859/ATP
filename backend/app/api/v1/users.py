@@ -218,3 +218,38 @@ async def update_user(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="用户名或邮箱已被使用") from exc
     await db.refresh(user)
     return user
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    require_server_workspace("删除用户")
+    if user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能删除当前登录账号")
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+    await _assert_active_admin_remains(db, user, user.role, False)
+    username = user.username
+    try:
+        await db.delete(user)
+        await db.flush()
+        await write_audit_log(
+            db,
+            action="delete_user",
+            resource_type="user",
+            resource_id=user_id,
+            user_id=current_user.id,
+            username=current_user.username,
+            detail=f"删除用户 {username}",
+        )
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该用户已关联历史用例或执行记录，请通过禁用账号 (is_active=false) 保留审计完整",
+        ) from exc

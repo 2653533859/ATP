@@ -8,14 +8,22 @@ import re
 import tempfile
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import assert_project_access, require_engineer
+from app.api.deps import assert_project_access, get_current_user, require_engineer
 from app.core.database import get_db
 from app.core.minio_client import ensure_bucket, upload_file
 from app.models.user import User
 from app.models.user_project import ProjectRole
+from app.services.project_file_assets import (
+    ProjectFileAssetOut,
+    ProjectFileRenameIn,
+    ProjectFileRenameOut,
+    delete_project_file,
+    list_project_files,
+    rename_project_file,
+)
 
 router = APIRouter(tags=["Web 文件"])
 
@@ -84,3 +92,38 @@ async def upload_web_file(
         "content_type": file.content_type or "application/octet-stream",
         "size": size,
     }
+
+
+@router.get("/projects/{project_id}/web-files", response_model=list[ProjectFileAssetOut])
+async def list_web_files(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[ProjectFileAssetOut]:
+    """列出项目下已上传的 Web 文件资产。"""
+    await assert_project_access(db, current_user, project_id, ProjectRole.viewer)
+    return await list_project_files("web-files", project_id)
+
+
+@router.patch("/projects/{project_id}/web-files", response_model=ProjectFileRenameOut)
+async def rename_web_file(
+    project_id: int,
+    body: ProjectFileRenameIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_engineer),
+) -> ProjectFileRenameOut:
+    """重命名项目下的 Web 文件（生成新对象名并清理旧对象）。"""
+    await assert_project_access(db, current_user, project_id, ProjectRole.editor)
+    return await rename_project_file("web-files", project_id, body.object_name, body.filename, _object_name)
+
+
+@router.delete("/projects/{project_id}/web-files", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_web_file(
+    project_id: int,
+    object_name: str = Query(..., min_length=1),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_engineer),
+) -> None:
+    """删除项目下已上传的 Web 文件资产。"""
+    await assert_project_access(db, current_user, project_id, ProjectRole.editor)
+    await delete_project_file("web-files", project_id, object_name)

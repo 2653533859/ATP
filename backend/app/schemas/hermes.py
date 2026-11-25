@@ -147,6 +147,31 @@ class HermesSessionCreateIn(BaseModel):
         return value.strip() or "Hermes 会话"
 
 
+class HermesSessionUpdateIn(BaseModel):
+    project_id: int = Field(ge=1)
+    title: str = Field(min_length=1, max_length=80)
+
+    @field_validator("title")
+    @classmethod
+    def trim_title(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("会话标题不能为空")
+        return cleaned
+
+
+class HermesDraftUpdateIn(BaseModel):
+    project_id: int = Field(ge=1)
+    payload: dict
+
+    @field_validator("payload")
+    @classmethod
+    def bound_payload(cls, value: dict) -> dict:
+        if len(json.dumps(value, ensure_ascii=False, default=str).encode("utf-8")) > 64 * 1024:
+            raise ValueError("Hermes 草稿不能超过 64KB")
+        return value
+
+
 class HermesEvaluationQuestionOut(BaseModel):
     id: str
     prompt: str

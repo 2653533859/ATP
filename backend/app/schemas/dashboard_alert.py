@@ -57,6 +57,11 @@ class DashboardAlertEventCreate(BaseModel):
     snoozed_until: datetime | None = None
 
 
+class DashboardAlertEventUpdate(BaseModel):
+    actual_value: float | None = None
+    snoozed_until: datetime | None = None
+
+
 class DashboardAlertEventOut(BaseModel):
     id: int
     rule_id: int

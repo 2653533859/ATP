@@ -228,9 +228,11 @@ export interface HermesOrchestrationRequest {
   session_id?: number
 }
 
+export type HermesDraftType = 'test_plan' | 'record' | 'repair' | 'defect' | 'knowledge'
+
 export interface HermesDraftRequest {
   project_id: number
-  draft_type: 'test_plan'
+  draft_type: HermesDraftType
   payload: Record<string, unknown>
   sources?: Array<Record<string, unknown>>
 }
@@ -258,8 +260,21 @@ export const hermesApi = {
     http.get<unknown, HermesSessionItem[]>('/hermes/sessions', { params: { project_id: projectId } }),
   createSession: (projectId: number, title: string) =>
     http.post<unknown, HermesSessionItem>('/hermes/sessions', { project_id: projectId, title }),
+  updateSession: (sessionId: number, body: { project_id: number; title: string }) =>
+    http.patch<unknown, HermesSessionItem>(`/hermes/sessions/${sessionId}`, body),
+  deleteSession: (sessionId: number, projectId: number) =>
+    http.delete<unknown, void>(`/hermes/sessions/${sessionId}`, { params: { project_id: projectId } }),
   createDraft: (sessionId: number, body: HermesDraftRequest) =>
     http.post<unknown, { id: string; status: string }>(`/hermes/sessions/${sessionId}/drafts`, body),
+  updateDraft: (sessionId: number, draftId: string, body: { project_id: number; payload: Record<string, unknown> }) =>
+    http.patch<unknown, { id: string; status: string; payload: Record<string, unknown> }>(
+      `/hermes/sessions/${sessionId}/drafts/${draftId}`,
+      body,
+    ),
+  deleteDraft: (sessionId: number, draftId: string, projectId: number) =>
+    http.delete<unknown, void>(`/hermes/sessions/${sessionId}/drafts/${draftId}`, {
+      params: { project_id: projectId },
+    }),
   confirmDraft: (sessionId: number, body: { project_id: number; draft_id: string; confirmation: 'CONFIRM' }) =>
     http.post<unknown, { draft_id: string; status: string; plan_id: number }>(
       `/hermes/sessions/${sessionId}/drafts/confirm`,

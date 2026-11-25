@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.api.deps import assert_project_access, get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.encryption import decrypt_env_vars
 from app.models.case import RunStatus, TestCase, TestRun
@@ -25,6 +26,7 @@ from app.models.project import Module
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.services.audit import write_audit_log
+from app.services.local_artifact_cleanup import delete_run_artifacts
 from app.schemas.case import (
     FailureDiagnosisOut,
     HealingFeedbackRequest,
@@ -287,6 +289,26 @@ async def get_run(
     _: User = Depends(get_current_user),
 ):
     return await _get_run_with_access(db, _, run_id)
+
+
+@router.delete("/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_run(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
+    if run.status in {RunStatus.pending, RunStatus.running}:
+        raise HTTPException(status_code=409, detail="运行中或排队中的记录不能直接删除，请先停止执行")
+    child_rows = (await db.execute(select(TestRun.id, TestRun.status).where(TestRun.parent_run_id == run_id))).all()
+    if any(row[1] in {RunStatus.pending, RunStatus.running} for row in child_rows):
+        raise HTTPException(status_code=409, detail="子执行任务仍在运行或排队中，请先停止执行")
+    local_run_ids = [run.id, *(row[0] for row in child_rows)] if settings.ATP_LOCAL_MODE else []
+    await db.delete(run)
+    await db.commit()
+    if local_run_ids:
+        await asyncio.to_thread(delete_run_artifacts, local_run_ids)
+    await _cases.invalidate_stats_cache()
 
 
 def _stoppable_run_label(case: TestCase | None) -> str | None:

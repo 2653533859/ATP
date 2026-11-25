@@ -26,6 +26,7 @@ from app.models.user_project import ProjectRole
 from app.schemas.dashboard_alert import (
     DashboardAlertEventCreate,
     DashboardAlertEventOut,
+    DashboardAlertEventUpdate,
     DashboardAlertRuleCreate,
     DashboardAlertRuleOut,
     DashboardAlertRuleUpdate,
@@ -204,3 +205,44 @@ async def create_dashboard_alert_event(
     await db.commit()
     await db.refresh(event)
     return event
+
+
+async def _get_owned_alert_event_or_404(db: AsyncSession, user, event_id: int) -> DashboardAlertEvent:
+    event = await db.get(DashboardAlertEvent, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="告警事件不存在")
+    rule = await db.get(DashboardAlertRule, event.rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="告警规则不存在")
+    await assert_project_access(db, user, rule.project_id, ProjectRole.owner)
+    return event
+
+
+@router.patch("/dashboard-alert-events/{event_id}", response_model=DashboardAlertEventOut)
+async def update_dashboard_alert_event(
+    event_id: int,
+    body: DashboardAlertEventUpdate,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_engineer),
+):
+    """更新看板告警事件（例如设置或解除静音 snoozed_until）。"""
+    event = await _get_owned_alert_event_or_404(db, user, event_id)
+    if "actual_value" in body.model_fields_set and body.actual_value is not None:
+        event.actual_value = body.actual_value
+    if "snoozed_until" in body.model_fields_set:
+        event.snoozed_until = body.snoozed_until
+    await db.commit()
+    await db.refresh(event)
+    return event
+
+
+@router.delete("/dashboard-alert-events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_dashboard_alert_event(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_engineer),
+):
+    """删除看板告警事件记录。"""
+    event = await _get_owned_alert_event_or_404(db, user, event_id)
+    await db.delete(event)
+    await db.commit()

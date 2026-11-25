@@ -47,6 +47,7 @@ from app.schemas.android_agent import (
     AgentSessionCreate,
     AgentSessionStatus,
     AgentSessionResponse,
+    AgentSessionUpdateRequest,
     AgentVisionModelOut,
 )
 from app.models.audit import AuditLog
@@ -294,6 +295,90 @@ async def get_agent_session(
     await assert_project_access(db, current_user, project_id, ProjectRole.viewer)
     session = await _get_project_session(db, project_id, session_id)
     return session
+
+
+@router.patch(
+    "/sessions/{session_id}",
+    response_model=AgentSessionResponse,
+    summary="更新 Android Agent 会话名称与探索目标（仅非运行中会话）",
+)
+async def update_agent_session(
+    payload: AgentSessionUpdateRequest,
+    project_id: int = Path(..., ge=1),
+    session_id: int = Path(..., ge=1),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AndroidAgentSession:
+    await assert_project_access(db, current_user, project_id, ProjectRole.editor)
+    session = await _get_project_session(db, project_id, session_id)
+    if session.status in {"prechecking", "running", "pause_requested"}:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="运行中会话不允许修改基础配置")
+    updates = payload.model_dump(exclude_unset=True)
+    changed_fields: list[str] = []
+    for field, value in updates.items():
+        if value is None:
+            continue
+        if getattr(session, field) != value:
+            setattr(session, field, value)
+            changed_fields.append(field)
+    if changed_fields:
+        session.version = int(session.version or 1) + 1
+        await _record_agent_audit(
+            db,
+            action="android_agent_session_update",
+            resource_type="android_agent_session",
+            resource_id=session.id,
+            user=current_user,
+            project_id=project_id,
+            detail=f"更新会话配置: {', '.join(changed_fields)}",
+        )
+        await db.commit()
+        await db.refresh(session)
+    return session
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除 Android Agent 会话及其事件与草稿（运行/暂停占用中不允许删除）",
+)
+async def delete_agent_session(
+    project_id: int = Path(..., ge=1),
+    session_id: int = Path(..., ge=1),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    await assert_project_access(db, current_user, project_id, ProjectRole.editor)
+    session = await _get_project_session(db, project_id, session_id)
+    if session.status in {"prechecking", "running", "pause_requested", "paused"} or session.lease_token:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="会话仍处于运行/暂停或持有设备租约状态，请先取消会话后再删除",
+        )
+    active_session_replay = await db.scalar(
+        select(AndroidAgentReplay.id)
+        .where(
+            AndroidAgentReplay.session_id == session.id,
+            AndroidAgentReplay.status.in_(["queued", "running"]),
+        )
+        .limit(1)
+    )
+    if active_session_replay is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该会话下仍有回放任务在执行中，请等待回放完成后再删除",
+        )
+    await _record_agent_audit(
+        db,
+        action="android_agent_session_delete",
+        resource_type="android_agent_session",
+        resource_id=session.id,
+        user=current_user,
+        project_id=project_id,
+        detail=f"删除 Agent 会话 #{session.id}: {session.title}",
+    )
+    await db.delete(session)
+    await db.commit()
 
 
 @router.post(
@@ -992,6 +1077,45 @@ async def update_agent_draft(
     await db.commit()
     await db.refresh(edited)
     return _serialize_draft(edited)
+
+
+@router.delete(
+    "/drafts/{draft_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除指定的 Android Agent 草稿版本",
+)
+async def delete_agent_draft(
+    project_id: int = Path(..., ge=1),
+    draft_id: int = Path(..., ge=1),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    await assert_project_access(db, current_user, project_id, ProjectRole.editor)
+    draft = await _get_project_draft(db, project_id, draft_id)
+    active_replay = await db.scalar(
+        select(AndroidAgentReplay.id)
+        .where(
+            AndroidAgentReplay.draft_id == draft.id,
+            AndroidAgentReplay.status.in_(["queued", "running"]),
+        )
+        .limit(1)
+    )
+    if active_replay is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该草稿存在正在回放中的任务，请等待回放完成后再删除",
+        )
+    await _record_agent_audit(
+        db,
+        action="android_agent_draft_delete",
+        resource_type="android_agent_draft",
+        resource_id=draft.id,
+        user=current_user,
+        project_id=project_id,
+        detail=f"删除 Agent 草稿 #{draft.id} (v{draft.version})",
+    )
+    await db.delete(draft)
+    await db.commit()
 
 
 @router.get(

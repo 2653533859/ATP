@@ -755,6 +755,27 @@ async def update_defect(
     return _serialize_defect(await _load_defect_after_write(db, defect.id))
 
 
+@router.delete("/defects/{defect_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_defect(
+    defect_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    defect = await _get_defect(db, defect_id, user, ProjectRole.editor)
+    await write_audit_log(
+        db,
+        action="defect_delete",
+        resource_type="defect",
+        resource_id=defect.id,
+        user_id=user.id,
+        username=user.username,
+        project_id=defect.project_id,
+        detail=f"删除内部缺陷: {defect.title}",
+    )
+    await db.delete(defect)
+    await db.commit()
+
+
 @router.post("/defects/{defect_id}/links", response_model=DefectRunLinkOut)
 async def link_defect_run(
     defect_id: int,

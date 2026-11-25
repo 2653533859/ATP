@@ -37,18 +37,26 @@ ChatActionType = Literal[
     "run_suite",
     "create_case",
     "update_case",
+    "delete_case",
     "create_defect",
     "update_defect",
+    "delete_defect",
     "create_knowledge",
+    "update_knowledge",
+    "delete_knowledge",
 ]
 _ALLOWED_ACTIONS: set[str] = {
     "run_case",
     "run_suite",
     "create_case",
     "update_case",
+    "delete_case",
     "create_defect",
     "update_defect",
+    "delete_defect",
     "create_knowledge",
+    "update_knowledge",
+    "delete_knowledge",
 }
 
 _FAILURE_RE = re.compile(r"(失败|报错|异常|挂了|通过率|质量|趋势|任务|运行|run|fail|error|quality)", re.IGNORECASE)
@@ -380,16 +388,20 @@ def build_agent_system_prompt(has_project: bool) -> str:
         "当且仅当用户明确要求你对项目执行某项操作（如运行用例、创建用例、创建缺陷、沉淀知识）时，"
         "在回复最后追加一个待用户确认的 JSON 操作块（格式必须严格如下，且不要放进代码块里）：\n"
         f"{_ACTION_START_TAG}"
-        '{"action":"run_case|run_suite|create_case|update_case|create_defect|update_defect|create_knowledge","title":"简短操作标题","summary":"关键参数说明","params":{...}}'
+        '{"action":"run_case|run_suite|create_case|update_case|delete_case|create_defect|update_defect|delete_defect|create_knowledge|update_knowledge|delete_knowledge","title":"简短操作标题","summary":"关键参数说明","params":{...}}'
         f"{_ACTION_END_TAG}\n"
         "各操作 params 规范：\n"
         '- run_case: {"case_id": 用例ID整数, "env_id": 可选环境ID或null}\n'
         '- run_suite: {"suite_id": 套件ID整数, "env_id": 可选环境ID或null}\n'
         '- create_case: {"name": "用例名称", "case_type": "web|api|android", "module_id": 可选模块ID, "description": "简短说明", "steps": [...]}\n'
         '- update_case: {"case_id": 用例ID整数, "name": 可选新名称, "description": 可选说明, "steps": 可选完整步骤列表}\n'
+        '- delete_case: {"case_id": 用例ID整数}\n'
         '- create_defect: {"title": "缺陷标题", "description": "复现与根因说明", "priority": "P1|P2|P3", "case_id": 可选用例ID}\n'
         '- update_defect: {"defect_id": 缺陷ID整数, "status": "open|in_progress|resolved|closed", "resolution": 可选处理说明}\n'
-        '- create_knowledge: {"title": "知识标题", "content": "Markdown正文", "category": "troubleshooting"}\n'
+        '- delete_defect: {"defect_id": 缺陷ID整数}\n'
+        '- create_knowledge: {"title": "知识标题", "content": "Markdown正文", "source_type": "experience|runbook|solution"}\n'
+        '- update_knowledge: {"knowledge_id": 知识条目ID整数, "title": 可选新标题, "content": 可选新正文, "status": 可选"draft|published|archived"}\n'
+        '- delete_knowledge: {"knowledge_id": 知识条目ID整数}\n'
         "如果用户只是询问、分析或闲聊，不要输出 [[ACTION_PROPOSAL]] 块。"
     )
 

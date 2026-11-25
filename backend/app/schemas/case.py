@@ -156,6 +156,14 @@ class CaseSnapshotManualCreate(BaseModel):
     remark: str | None = Field(default=None, description="可选备注，覆盖 snapshot_data.remark")
 
 
+class CaseSnapshotUpdate(BaseModel):
+    """更新用例快照元数据（名称、描述、备注）。"""
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None)
+    remark: str | None = Field(default=None, max_length=500)
+
+
 class CaseSnapshotImport(BaseModel):
     """从 JSON 导入快照内容（创建一个新版本，作为最高版本号）。"""
 

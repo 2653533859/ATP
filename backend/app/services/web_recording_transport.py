@@ -475,6 +475,13 @@ class RemoteWebRecordingManager:
         )
         return snapshot
 
+    async def delete(self, session_id: str, owner_id: int) -> None:
+        metadata = await self._route(session_id, owner_id)
+        if not isinstance(metadata.get("final_snapshot"), dict):
+            with contextlib.suppress(WebRecordingTransportError):
+                await send_recording_command(str(metadata["worker_id"]), "stop", session_id=session_id)
+        await delete_session_metadata(session_id)
+
 
 def default_worker_id() -> str:
     configured = settings.WEB_RECORDER_WORKER_ID.strip()

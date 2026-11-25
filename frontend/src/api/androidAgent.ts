@@ -199,6 +199,13 @@ export const androidAgentApi = {
     http.post<unknown, AgentSessionItem>(`${base(projectId)}/sessions/${sessionId}/start`),
   getSession: (projectId: number, sessionId: number) =>
     http.get<unknown, AgentSessionItem>(`${base(projectId)}/sessions/${sessionId}`),
+  updateSession: (
+    projectId: number,
+    sessionId: number,
+    payload: { title?: string; package_name?: string; goal?: string; expected_outcome?: string },
+  ) => http.patch<unknown, AgentSessionItem>(`${base(projectId)}/sessions/${sessionId}`, payload),
+  deleteSession: (projectId: number, sessionId: number) =>
+    http.delete<unknown, void>(`${base(projectId)}/sessions/${sessionId}`),
   runSession: (projectId: number, sessionId: number, maxRounds = 30) =>
     http.post<unknown, AgentRunResult>(`${base(projectId)}/sessions/${sessionId}/run`, undefined, {
       params: { max_rounds: maxRounds },
@@ -229,6 +236,8 @@ export const androidAgentApi = {
     http.post<unknown, AgentDraftItem>(`${base(projectId)}/sessions/${sessionId}/drafts`, {}),
   updateDraft: (projectId: number, draftId: number, payload: AgentDraftPatchPayload) =>
     http.patch<unknown, AgentDraftItem>(`${base(projectId)}/drafts/${draftId}`, payload),
+  deleteDraft: (projectId: number, draftId: number) =>
+    http.delete<unknown, void>(`${base(projectId)}/drafts/${draftId}`),
   replayPreview: (projectId: number, draftId: number) =>
     http.get<unknown, AgentReplayPreview>(`${base(projectId)}/drafts/${draftId}/replay-preview`),
   startReplay: (
