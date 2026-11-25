@@ -396,7 +396,7 @@ def test_record_api_scenario_run_updates_and_404(store_root, monkeypatch):
     assert updated["last_run_status"] == "failed"
     assert updated["last_run_duration_ms"] == 88
     assert updated["last_run_at"] is not None
-    assert calls == [(3, ProjectRole.viewer)]
+    assert calls == [(3, ProjectRole.editor)]
 
     orphan = asyncio.run(
         api_scenarios.record_api_scenario_run(
@@ -407,7 +407,7 @@ def test_record_api_scenario_run_updates_and_404(store_root, monkeypatch):
         )
     )
     assert orphan["last_run_status"] == "passed" and orphan["last_run_duration_ms"] == 0
-    assert calls == [(3, ProjectRole.viewer)]
+    assert calls == [(3, ProjectRole.editor)]
 
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
@@ -542,7 +542,7 @@ def test_validate_workflow_dataflow_endpoint_maps_errors(monkeypatch):
 def test_start_workflow_debug_endpoint_success_and_error(monkeypatch):
     recorded = {}
 
-    def fake_create(payload, *, breakpoints, initial_context, watchers):
+    def fake_create(payload, *, breakpoints, initial_context, watchers, **_kw):
         recorded["payload"] = payload
         recorded["breakpoints"] = breakpoints
         recorded["initial_context"] = initial_context
@@ -574,14 +574,14 @@ def test_start_workflow_debug_endpoint_success_and_error(monkeypatch):
 
 
 def test_debug_session_step_resume_get_stop(monkeypatch):
-    async def fake_step(session_id):
+    async def fake_step(session_id, **_kw):
         return {"session_id": session_id, "status": "paused", "cursor": 1}
 
     monkeypatch.setattr(api_scenarios, "step_debug_session", fake_step)
     stepped = asyncio.run(api_scenarios.step_workflow_debug_endpoint(session_id="s1", _user=_user()))
     assert stepped == {"session_id": "s1", "status": "paused", "cursor": 1}
 
-    async def boom_step(_session_id):
+    async def boom_step(_session_id, **_kw):
         raise WorkflowDebuggerError("调试会话不存在")
 
     monkeypatch.setattr(api_scenarios, "step_debug_session", boom_step)
@@ -589,14 +589,14 @@ def test_debug_session_step_resume_get_stop(monkeypatch):
         asyncio.run(api_scenarios.step_workflow_debug_endpoint(session_id="s1", _user=_user()))
     assert step_exc.value.status_code == 404
 
-    async def fake_resume(session_id):
+    async def fake_resume(session_id, **_kw):
         return {"session_id": session_id, "status": "completed"}
 
     monkeypatch.setattr(api_scenarios, "resume_debug_session", fake_resume)
     resumed = asyncio.run(api_scenarios.resume_workflow_debug_endpoint(session_id="s1", _user=_user()))
     assert resumed["status"] == "completed"
 
-    async def boom_resume(_session_id):
+    async def boom_resume(_session_id, **_kw):
         raise WorkflowDebuggerError("调试会话不存在")
 
     monkeypatch.setattr(api_scenarios, "resume_debug_session", boom_resume)
@@ -604,14 +604,14 @@ def test_debug_session_step_resume_get_stop(monkeypatch):
         asyncio.run(api_scenarios.resume_workflow_debug_endpoint(session_id="s1", _user=_user()))
     assert resume_exc.value.status_code == 404
 
-    def fake_get(session_id):
+    def fake_get(session_id, **_kw):
         return {"session_id": session_id, "status": "paused"}
 
     monkeypatch.setattr(api_scenarios, "get_debug_session", fake_get)
     fetched = asyncio.run(api_scenarios.get_workflow_debug_endpoint(session_id="s1", _user=_user()))
     assert fetched["status"] == "paused"
 
-    def boom_get(_session_id):
+    def boom_get(_session_id, **_kw):
         raise WorkflowDebuggerError("调试会话不存在")
 
     monkeypatch.setattr(api_scenarios, "get_debug_session", boom_get)
@@ -619,11 +619,101 @@ def test_debug_session_step_resume_get_stop(monkeypatch):
         asyncio.run(api_scenarios.get_workflow_debug_endpoint(session_id="s1", _user=_user()))
     assert get_exc.value.status_code == 404
 
-    monkeypatch.setattr(api_scenarios, "stop_debug_session", lambda _session_id: True)
+    monkeypatch.setattr(api_scenarios, "stop_debug_session", lambda _session_id, **_kw: True)
     assert asyncio.run(api_scenarios.stop_workflow_debug_endpoint(session_id="s1", _user=_user())) is None
 
-    monkeypatch.setattr(api_scenarios, "stop_debug_session", lambda _session_id: False)
+    monkeypatch.setattr(api_scenarios, "stop_debug_session", lambda _session_id, **_kw: False)
     with pytest.raises(HTTPException) as stop_exc:
         asyncio.run(api_scenarios.stop_workflow_debug_endpoint(session_id="s1", _user=_user()))
     assert stop_exc.value.status_code == 404
     assert stop_exc.value.detail == "调试会话不存在或已释放"
+
+
+def test_require_workflow_editor_rejects_viewer_and_accepts_editor():
+    class _MembershipDB:
+        def __init__(self, membership):
+            self._membership = membership
+
+        async def execute(self, _stmt):
+            class _R:
+                def __init__(self, m):
+                    self._m = m
+
+                def scalars(self):
+                    return self
+
+                def first(self):
+                    return self._m
+
+            return _R(self._membership)
+
+    viewer_only = _user(role=UserRole.tester, user_id=7)
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(api_scenarios._require_workflow_editor(current_user=viewer_only, db=_MembershipDB(None)))
+    assert exc.value.status_code == 403
+
+    editor_user = asyncio.run(
+        api_scenarios._require_workflow_editor(
+            current_user=viewer_only,
+            db=_MembershipDB(SimpleNamespace(project_id=1, role=ProjectRole.editor)),
+        )
+    )
+    assert editor_user is viewer_only
+
+    admin_user = _user(role=UserRole.admin, user_id=99)
+    assert (
+        asyncio.run(api_scenarios._require_workflow_editor(current_user=admin_user, db=_MembershipDB(None)))
+        is admin_user
+    )
+
+
+def test_debug_session_owner_isolation_and_record_run_editor_403(store_root, monkeypatch):
+    started = asyncio.run(
+        api_scenarios.start_workflow_debug_endpoint(
+            body=api_scenarios.WorkflowDebugStartIn(nodes=[{"id": "n1", "type": "script"}], breakpoints=["n1"]),
+            _user=_user(role=UserRole.engineer, user_id=101),
+        )
+    )
+    sid = started["session_id"]
+    try:
+        with pytest.raises(HTTPException) as get_exc:
+            asyncio.run(
+                api_scenarios.get_workflow_debug_endpoint(
+                    session_id=sid,
+                    _user=_user(role=UserRole.engineer, user_id=202),
+                )
+            )
+        assert get_exc.value.status_code == 403
+
+        with pytest.raises(HTTPException) as stop_exc:
+            asyncio.run(
+                api_scenarios.stop_workflow_debug_endpoint(
+                    session_id=sid,
+                    _user=_user(role=UserRole.engineer, user_id=202),
+                )
+            )
+        assert stop_exc.value.status_code == 403
+    finally:
+        asyncio.run(
+            api_scenarios.stop_workflow_debug_endpoint(
+                session_id=sid,
+                _user=_user(role=UserRole.engineer, user_id=101),
+            )
+        )
+
+    api_scenarios._save_all([_scenario(1, project_id=3, name="A")])
+
+    async def deny_editor(_db, _u, _pid, _role):
+        raise HTTPException(status_code=403, detail="需要项目编辑权限")
+
+    monkeypatch.setattr(api_scenarios, "assert_project_access", deny_editor)
+    with pytest.raises(HTTPException) as rec_exc:
+        asyncio.run(
+            api_scenarios.record_api_scenario_run(
+                scenario_id=1,
+                body=api_scenarios.ApiScenarioRunRecordIn(status="passed", duration_ms=10),
+                current_user=_user(role=UserRole.tester, user_id=202),
+                db=_FakeDB(),
+            )
+        )
+    assert rec_exc.value.status_code == 403

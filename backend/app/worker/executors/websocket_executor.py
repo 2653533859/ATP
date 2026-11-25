@@ -12,6 +12,11 @@ from app.core.redis_client import publish_run_event
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.services.step_result_collector import StepResultBatchCollector
+from app.worker.executors._assertion_helpers import (
+    build_basic_auth_header,
+    collect_auth_redact_fields,
+    compare_assertion_operator,
+)
 
 
 async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
@@ -46,6 +51,7 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
         extraction_records: list[dict] = []
         error_msg = None
         step_status = RunStatus.passed
+        step_redact_fields = list(evidence_redact_fields)
 
         try:
             url = _render(step.get("url", ""), context)
@@ -60,13 +66,11 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
             # 认证注入
             auth_cfg = step.get("auth", {})
             auth_type = auth_cfg.get("type")
+            step_redact_fields.extend(collect_auth_redact_fields(auth_cfg, lambda value: _render(str(value), context)))
             if auth_type == "bearer":
                 headers["Authorization"] = f"Bearer {_render(auth_cfg.get('token', ''), context)}"
             elif auth_type == "basic":
-                import base64
-
-                cred = base64.b64encode(f"{auth_cfg.get('username')}:{auth_cfg.get('password')}".encode()).decode()
-                headers["Authorization"] = f"Basic {cred}"
+                headers["Authorization"] = build_basic_auth_header(auth_cfg, lambda value: _render(str(value), context))
             elif auth_type == "apikey":
                 header_name = _render(auth_cfg.get("header", "X-API-Key"), context).strip()
                 header_value = _render(auth_cfg.get("value", ""), context)
@@ -201,8 +205,8 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
 
         step_result.status = step_status
         step_result.duration_ms = int((time.monotonic() - step_start) * 1000)
-        persisted_request_data = redact_execution_evidence(request_data, evidence_redact_fields)
-        persisted_response_data = redact_execution_evidence(response_data, evidence_redact_fields)
+        persisted_request_data = redact_execution_evidence(request_data, step_redact_fields)
+        persisted_response_data = redact_execution_evidence(response_data, step_redact_fields)
         step_result.request_data = persisted_request_data
         step_result.response_data = persisted_response_data
         step_result.error_message = error_msg
@@ -307,21 +311,4 @@ def _assert_ws(assertion: dict, body) -> tuple[bool, str]:
     elif target == "raw":
         actual = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
 
-    if operator == "eq":
-        ok = str(actual) == str(expected)
-    elif operator == "contains":
-        ok = expected in str(actual)
-    elif operator == "gt":
-        ok = float(actual) > float(expected)
-    elif operator == "lt":
-        ok = float(actual) < float(expected)
-    elif operator == "exists":
-        ok = actual is not None
-    elif operator == "not_exists":
-        ok = actual is None
-    else:
-        return False, f"未知断言操作符: {operator}"
-
-    if not ok:
-        return False, f"断言失败 [{target}] 期望: {expected}, 实际: {actual}"
-    return True, ""
+    return compare_assertion_operator(operator, actual, expected, target=str(target or ""))

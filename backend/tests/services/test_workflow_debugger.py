@@ -70,7 +70,10 @@ async def test_debug_session_step_over_and_watchers(sample_dag_workflow):
     mock_resp.json = lambda: {"token": "jwt_token_999", "uid": 12345}
     mock_resp.headers = {"Content-Type": "application/json"}
 
-    with patch("httpx.AsyncClient.request", return_value=mock_resp):
+    with (
+        patch("app.services.workflow_dag_engine.validate_public_http_url", side_effect=lambda u: u),
+        patch("httpx.AsyncClient.request", return_value=mock_resp),
+    ):
         # 1. Start debug session paused at entry node
         snap = create_debug_session(
             sample_dag_workflow,
@@ -119,7 +122,10 @@ async def test_debug_session_resume_hits_breakpoint(sample_dag_workflow):
     mock_resp.json = lambda: {"token": "jwt_token_888", "uid": 777}
     mock_resp.headers = {"Content-Type": "application/json"}
 
-    with patch("httpx.AsyncClient.request", return_value=mock_resp):
+    with (
+        patch("app.services.workflow_dag_engine.validate_public_http_url", side_effect=lambda u: u),
+        patch("httpx.AsyncClient.request", return_value=mock_resp),
+    ):
         # Breakpoint set on node_3_redis
         snap = create_debug_session(
             sample_dag_workflow,
@@ -141,3 +147,33 @@ async def test_debug_session_resume_hits_breakpoint(sample_dag_workflow):
         assert len(final_snap["history"]) == 3
 
         stop_debug_session(sid)
+
+
+def test_workflow_debug_session_serializes_concurrent_step_over(monkeypatch):
+    import asyncio
+    from app.services import workflow_debugger as dbg
+
+    graph = {
+        "nodes": [
+            {"id": "n1", "type": "delay", "name": "D1", "config": {"seconds": 0}},
+            {"id": "n2", "type": "delay", "name": "D2", "config": {"seconds": 0}},
+        ]
+    }
+    created = dbg.create_debug_session(graph)
+    sid = created["session_id"]
+
+    async def slow_exec(node, _ctx):
+        await asyncio.sleep(0.02)
+        return {"success": True, "node": node["id"]}
+
+    monkeypatch.setattr(dbg, "execute_single_node", slow_exec)
+    try:
+
+        async def _run():
+            return await asyncio.gather(dbg.step_debug_session(sid), dbg.step_debug_session(sid))
+
+        res1, res2 = asyncio.run(_run())
+        assert {len(res1["history"]), len(res2["history"])} == {1, 2}
+        assert dbg.get_debug_session(sid)["state"] == "completed"
+    finally:
+        dbg.stop_debug_session(sid)

@@ -437,10 +437,12 @@ def test_minio_update_keeps_old_reference_and_cleans_new_objects_when_commit_fai
     dataset.object_name = "datasets/10/11/current-old.json"
     db = _FakeDB({11: dataset})
 
+    from sqlalchemy.exc import IntegrityError
+
     class _CommitFailDB(_FakeDB):
         async def commit(self):
             self.commits += 1
-            raise RuntimeError("database unavailable")
+            raise IntegrityError("stmt", {}, RuntimeError("database unavailable"))
 
     db = _CommitFailDB({11: dataset})
     uploaded: list[str] = []

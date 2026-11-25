@@ -5,6 +5,7 @@
     :width="880"
     :body-style="{ overflowX: 'hidden' }"
     :destroy-on-close="true"
+    :mask-closable="false"
     @close="emit('close')"
   >
     <a-form :model="form" layout="vertical" ref="formRef">
@@ -1287,6 +1288,7 @@ import {
   resolveRequestBody,
 } from '@/utils/caseFormConfig'
 import { GrpcProtoFileError, readGrpcProtoFile, validateGrpcProtoBundle } from '@/utils/grpcProtoFile'
+import { extractApiError } from '@/utils/apiError'
 import KvEditor from '@/components/common/KvEditor.vue'
 
 const localMode = getRuntimeMode()?.mode === 'local'
@@ -1300,31 +1302,9 @@ function handleImportLibrarySteps(importedSteps: ApiScenarioStep[]) {
   if (!importedSteps.length) return
   if (!apiScenarioSteps.value.length) {
     const first = importedSteps[0]
-    if (first.url) cfg.url = first.url
-    if (first.method) cfg.method = first.method
-    if (first.headers) cfg.headers = { ...first.headers }
-    if (first.params) cfg.params = { ...first.params }
-    if (first.cookies) cfg.cookies = { ...first.cookies }
-    if (first.body_type) cfg.body_type = first.body_type as typeof cfg.body_type
-    if (first.body != null) cfg.body = typeof first.body === 'string' ? first.body : JSON.stringify(first.body, null, 2)
-    if (first.assertions) {
-      cfg.assertions = first.assertions.map((a) => ({
-        target: a.target,
-        operator: a.operator,
-        expected: a.expected,
-        expression: a.expression,
-        schema_asset_id: a.schema_asset_id,
-      }))
-    }
-    if (first.extractions) {
-      cfg.extractions = first.extractions.map((e) => ({
-        variable: e.variable,
-        expression: e.expression,
-        type: e.type,
-      }))
-    }
     if (!form.name && first.name) form.name = first.name
     apiScenarioSteps.value = [...importedSteps]
+    applyStepToCfg(first as CaseConfigStep)
   } else {
     const offset = apiScenarioSteps.value.length
     const withDeps = importedSteps.map((step, idx) => ({
@@ -1430,7 +1410,7 @@ async function fetchAiSuggestions() {
     selectedAssertIndexes.value = res.assertions.map((_, i) => i)
     selectedExtractIndexes.value = res.extractions.map((_, i) => i)
   } catch (err: unknown) {
-    message.error(err instanceof Error ? err.message : '获取 AI 建议失败')
+    message.error(extractApiError(err, '获取 AI 建议失败'))
   } finally {
     aiSuggesting.value = false
   }
@@ -1486,7 +1466,7 @@ function applyAiSuggestions() {
     const s = suggestedExtractions.value[idx]
     return {
       variable: s.variable,
-      type: 'jsonpath' as const,
+      type: (s.type || 'jsonpath') as ExtractionItem['type'],
       expression: s.expression,
     }
   })
@@ -1746,7 +1726,7 @@ async function sendPreview() {
     previewTab.value = 'body'
   } catch (error) {
     if (!controller.signal.aborted) {
-      previewError.value = typeof error === 'string' ? error : error instanceof Error ? error.message : JSON.stringify(error)
+      previewError.value = extractApiError(error, '请求失败')
     }
   } finally {
     if (previewController === controller) {
@@ -1871,8 +1851,8 @@ async function loadGraphqlSchema() {
     })
     gqlSchemaFields.value = result.fields
     message.success(t('case_form.graphql.introspect_success', { count: result.fields.length }))
-  } catch (error: any) {
-    message.error(error?.response?.data?.detail || t('case_form.graphql.introspect_failed'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('case_form.graphql.introspect_failed')))
   } finally {
     gqlIntrospectionLoading.value = false
   }
@@ -1994,7 +1974,7 @@ watch(() => props.open, async (v) => {
       response_type: step.response_type ?? 'auto',
       sse_max_events: step.sse_max_events ?? 100,
       assertions: step.assertions ? [...step.assertions] : [],
-      extractions: step.extractions ? step.extractions.map((item) => ({ type: 'jsonpath', ...item })) : [],
+      extractions: step.extractions ? step.extractions.map((item) => ({ ...item, type: item.type ?? 'jsonpath' })) : [],
       pre_actions_text: JSON.stringify(step.pre_actions ?? [], null, 2),
       post_actions_text: JSON.stringify(step.post_actions ?? [], null, 2),
     })
@@ -2138,6 +2118,7 @@ watch(() => props.open, async (v) => {
       suggestedAssertions.value = []
       suggestedExtractions.value = []
     }
+    apiConfigTab.value = 'request'
     apiScenarioSteps.value = []
     if (props.initialScenarioSteps && props.initialScenarioSteps.length) {
       handleImportLibrarySteps(props.initialScenarioSteps)
@@ -2180,6 +2161,56 @@ function addAssertion() {
   cfg.assertions.push({ target: 'status_code', operator: 'eq', expected: '200', expression: '', expression_type: 'jsonpath' })
 }
 
+
+function applyStepToCfg(step: CaseConfigStep) {
+  const bodyType = step.body_type ?? 'none'
+  formBody.value = bodyType === 'form' ? parseFormBody(step.body) : {}
+  Object.assign(cfg, {
+    url: step.url ?? '',
+    method: step.method ?? 'GET',
+    headers: step.headers ?? {},
+    params: step.params ?? {},
+    cookies: step.cookies ?? {},
+    body_type: bodyType,
+    body: typeof step.body === 'string' ? step.body : JSON.stringify(step.body ?? '', null, 2),
+    multipart: step.multipart ? [...step.multipart] : [],
+    auth: {
+      type: 'none',
+      token: '',
+      username: '',
+      password: '',
+      header: '',
+      value: '',
+      token_url: '',
+      client_id: '',
+      client_secret: '',
+      scope: '',
+      audience: '',
+      token_endpoint_auth_method: 'client_secret_basic',
+      ...step.auth,
+    },
+    timeout: step.timeout ?? 30,
+    response_type: step.response_type ?? 'auto',
+    sse_max_events: step.sse_max_events ?? 100,
+    assertions: step.assertions ? [...step.assertions] : [],
+    extractions: step.extractions ? step.extractions.map((item) => ({ ...item, type: item.type ?? 'jsonpath' })) : [],
+    pre_actions_text: JSON.stringify(step.pre_actions ?? [], null, 2),
+    post_actions_text: JSON.stringify(step.post_actions ?? [], null, 2),
+  })
+}
+
+watch(apiConfigTab, (nextTab, prevTab) => {
+  if (form.case_type !== 'api' || apiScenarioSteps.value.length !== 1) return
+  if (nextTab === 'scenario' && prevTab !== 'scenario') {
+    try {
+      apiScenarioSteps.value[0] = buildCurrentApiStep()
+    } catch {
+      // hooks JSON 暂未合法时不阻断切页，保存时统一校验
+    }
+  } else if (nextTab !== 'scenario' && prevTab === 'scenario') {
+    applyStepToCfg(apiScenarioSteps.value[0] as CaseConfigStep)
+  }
+})
 
 function buildCurrentApiStep(): CaseConfigStep {
   const body = resolveRequestBody(cfg.body_type, cfg.body, formBody.value)
@@ -2243,7 +2274,7 @@ async function saveSchemaAsset(assertion: AssertionItem, index: number) {
     assertion.schema_asset_id = asset.id
     message.success(t('case_form.assertion.schema_asset_saved'))
   } catch (error: unknown) {
-    message.error(error instanceof Error ? error.message : t('case_form.assertion.schema_asset_save_failed'))
+    message.error(extractApiError(error, t('case_form.assertion.schema_asset_save_failed')))
   } finally {
     savingSchemaAssetIndex.value = null
   }
@@ -2446,24 +2477,33 @@ function buildConfig() {
   if (form.case_type === 'ios') {
     return withDatasetStrictFlag(buildIosConfig())
   }
+  const useMultiStepList = apiConfigTab.value === 'scenario' || apiScenarioSteps.value.length > 1
   let steps: CaseConfigStep[]
-  if (apiScenarioSteps.value.length > 0) {
-    steps = apiScenarioSteps.value.map((step) => ({
-      name: step.name || form.name || 'API 步骤',
-      method: (step.method || 'GET').toUpperCase(),
-      url: step.url || '',
-      headers: step.headers ?? {},
-      params: step.params ?? {},
-      cookies: step.cookies ?? {},
-      body_type: step.body_type ?? 'none',
-      body: step.body ?? '',
-      assertions: (step.assertions as any) ?? [],
-      extractions: (step.extractions as any) ?? [],
-      depends_on: step.depends_on ?? [],
-      timeout: step.timeout ?? 30,
-      pre_actions: Array.isArray(step.pre_actions) ? (step.pre_actions as any) : [],
-      post_actions: Array.isArray(step.post_actions) ? (step.post_actions as any) : [],
-    }))
+  if (useMultiStepList && apiScenarioSteps.value.length > 0) {
+    steps = apiScenarioSteps.value.map((rawStep) => {
+      const step = rawStep as CaseConfigStep
+      return {
+        ...step,
+        name: step.name || form.name || 'API 步骤',
+        method: (step.method || 'GET').toUpperCase(),
+        url: step.url || '',
+        headers: step.headers ?? {},
+        params: step.params ?? {},
+        cookies: step.cookies ?? {},
+        body_type: step.body_type ?? 'none',
+        body: step.body ?? '',
+        multipart: step.body_type === 'multipart' ? (step.multipart ?? []) : step.multipart,
+        auth: step.auth,
+        response_type: step.response_type ?? 'auto',
+        sse_max_events: step.sse_max_events ?? 100,
+        assertions: (step.assertions as any) ?? [],
+        extractions: (step.extractions as any) ?? [],
+        depends_on: step.depends_on ?? [],
+        timeout: step.timeout ?? 30,
+        pre_actions: Array.isArray(step.pre_actions) ? (step.pre_actions as any) : [],
+        post_actions: Array.isArray(step.post_actions) ? (step.post_actions as any) : [],
+      }
+    })
   } else {
     steps = [buildCurrentApiStep()]
   }
@@ -2492,7 +2532,8 @@ async function handleSave() {
     return
   }
   if (form.case_type === 'api') {
-    if (apiScenarioSteps.value.length > 0) {
+    const useMultiStepList = apiConfigTab.value === 'scenario' || apiScenarioSteps.value.length > 1
+    if (useMultiStepList && apiScenarioSteps.value.length > 0) {
       const emptyUrlStep = apiScenarioSteps.value.find((s) => !s.url?.trim())
       if (emptyUrlStep) {
         message.warning(`场景步骤【${emptyUrlStep.name || '未命名'}】缺少请求 URL`)
@@ -2577,7 +2618,7 @@ async function handleSave() {
     emit('saved')
     emit('close')
   } catch (err: unknown) {
-    const msg = (err as any)?.response?.data?.detail || (err instanceof Error ? err.message : '')
+    const msg = extractApiError(err, '')
     message.error(msg ? `保存用例失败: ${msg}` : '保存用例失败，请检查填写内容')
   } finally {
     saving.value = false

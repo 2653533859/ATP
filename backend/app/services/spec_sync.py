@@ -151,8 +151,8 @@ def generate_addition_patch(endpoint_meta: dict[str, Any], default_module_id: in
         "headers": headers_dict,
         "assertions": [
             {
-                "type": "status_code",
-                "comparator": "eq",
+                "target": "status_code",
+                "operator": "eq",
                 "expected": 200,
             }
         ],
@@ -173,9 +173,14 @@ def compare_case_with_spec_endpoint(case: TestCase, endpoint_meta: dict[str, Any
     """Identify modifications between existing case config and updated spec."""
     diffs: list[str] = []
     cfg = getattr(case, "config", None) or {}
-    case_params = cfg.get("params") or {}
+    steps = cfg.get("steps")
+    first_step = steps[0] if isinstance(steps, list) and steps and isinstance(steps[0], dict) else {}
+    case_params = first_step.get("params") if isinstance(first_step.get("params"), dict) else cfg.get("params")
     if not isinstance(case_params, dict):
         case_params = {}
+    case_headers = first_step.get("headers") if isinstance(first_step.get("headers"), dict) else cfg.get("headers")
+    if not isinstance(case_headers, dict):
+        case_headers = {}
 
     for p in endpoint_meta.get("parameters", []):
         if not isinstance(p, dict):
@@ -186,7 +191,7 @@ def compare_case_with_spec_endpoint(case: TestCase, endpoint_meta: dict[str, Any
 
         if p_in == "query" and is_required and p_name not in case_params:
             diffs.append(f"新增必填 Query 参数: '{p_name}'")
-        elif p_in == "header" and is_required and p_name not in (cfg.get("headers") or {}):
+        elif p_in == "header" and is_required and p_name not in case_headers:
             diffs.append(f"新增必填 Header 参数: '{p_name}'")
 
     return diffs

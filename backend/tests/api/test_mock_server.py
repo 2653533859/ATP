@@ -359,3 +359,42 @@ def test_mock_endpoint_renders_template_response(monkeypatch):
 
     assert response.status_code == 200
     assert b"bob" in response.body
+
+
+def test_find_matching_rule_and_template_support_mixed_case_headers(monkeypatch):
+    rule = types.SimpleNamespace(
+        id=18,
+        path="/api/header-case",
+        method=MockMethod.GET,
+        is_enabled=True,
+        match_conditions={"headers": {"X-Env": "Staging"}},
+    )
+
+    def fake_session_factory():
+        return _FakeSession(rules=[rule])
+
+    async def fake_get_json_cache(*_args, **_kwargs):
+        return None
+
+    async def fake_set_json_cache(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(mock_server, "AsyncSessionLocal", fake_session_factory)
+    monkeypatch.setattr(mock_server, "get_json_cache", fake_get_json_cache)
+    monkeypatch.setattr(mock_server, "set_json_cache", fake_set_json_cache)
+
+    matched = asyncio.run(
+        mock_server._find_matching_rule(
+            project_id=1,
+            normalized="/api/header-case",
+            candidate_methods=[MockMethod.GET, MockMethod.ANY],
+            request_data={"query": {}, "headers": {"x-env": "Staging"}, "body": {}},
+        )
+    )
+    assert matched is rule
+
+    rendered = mock_server._render_template_text(
+        '{"env": "{{headers.X-Env}}"}',
+        {"query": {}, "headers": {"x-env": "Staging"}, "body": {}},
+    )
+    assert rendered == '{"env": "Staging"}'

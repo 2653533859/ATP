@@ -31,6 +31,8 @@ const {
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+const authState = vi.hoisted(() => ({ user: { role: 'admin' } }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: {} }),
   useRouter: () => ({ push: routerPush }),
@@ -127,6 +129,7 @@ const ASSETS = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  authState.user = { role: 'admin' }
   projectList.mockResolvedValue(PROJECTS)
   assetList.mockResolvedValue(ASSETS)
   assetCreate.mockResolvedValue(ASSETS[0])
@@ -209,5 +212,17 @@ describe('ApiContractAssetsView', () => {
     expect(compareAssets).toHaveBeenCalledWith(1, 11, 12)
     expect(vm.comparison.compatible).toBe(false)
     expect(vm.comparison.breaking_changes).toHaveLength(1)
+  })
+
+  it('disables create button when user only has project viewer role', async () => {
+    authState.user = { role: 'tester' }
+    projectList.mockResolvedValueOnce([{ id: 1, name: 'Core', owner_id: 1, current_user_role: 'viewer' }])
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    expect(vm.canModify).toBe(false)
+
+    const createBtn = wrapper.findAll('button').find((button) => button.text().includes('api_contract_assets.new_asset'))!
+    expect(createBtn.attributes('disabled')).toBeDefined()
   })
 })

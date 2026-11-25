@@ -11,7 +11,7 @@ import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.core.minio_client import ensure_bucket, upload_file
 from app.models.user import User
@@ -65,7 +65,7 @@ async def upload_api_request_file(
     project_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     """上传 API multipart 文件，返回可写入用例 config 的对象引用。"""
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
@@ -110,7 +110,7 @@ async def rename_api_request_file(
     project_id: int,
     body: ProjectFileRenameIn,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ) -> ProjectFileRenameOut:
     """重命名项目下的 API 请求文件（生成新对象名并清理旧对象）。"""
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
@@ -122,7 +122,7 @@ async def remove_api_request_file(
     project_id: int,
     object_name: str = Query(..., min_length=1),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """删除项目下已上传的 API 请求文件资产。"""
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)

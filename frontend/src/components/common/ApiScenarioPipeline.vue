@@ -55,8 +55,8 @@
     <!-- 步骤卡片流转视图 -->
     <div v-else class="pipeline-step-flow">
       <draggable
-        :list="steps"
-        item-key="_id"
+        :list="localSteps"
+        :item-key="getStepKey"
         handle=".step-drag-handle"
         animation="200"
         @change="handleDragChange"
@@ -229,7 +229,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import {
   ClusterOutlined,
   ApiOutlined,
@@ -262,6 +262,50 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const expandedIndexes = ref(new Set<number>())
+const localSteps = ref<ApiScenarioStep[]>([])
+const stepKeyMap = new WeakMap<ApiScenarioStep, string>()
+let stepUidSeed = 0
+
+function getStepKey(step: ApiScenarioStep): string {
+  let key = stepKeyMap.get(step)
+  if (!key) {
+    stepUidSeed += 1
+    key = `pipeline-step-${stepUidSeed}`
+    stepKeyMap.set(step, key)
+  }
+  return key
+}
+
+watch(
+  () => props.steps,
+  (val) => {
+    localSteps.value = Array.isArray(val) ? [...val] : []
+  },
+  { immediate: true, deep: true },
+)
+
+function remapDependsOn(prevOrder: ApiScenarioStep[], nextOrder: ApiScenarioStep[]): ApiScenarioStep[] {
+  const newIndexByRef = new Map<ApiScenarioStep, number>()
+  nextOrder.forEach((step, idx) => {
+    if (!newIndexByRef.has(step)) {
+      newIndexByRef.set(step, idx)
+    }
+  })
+  return nextOrder.map((step, newIdx) => {
+    const oldDeps = Array.isArray(step.depends_on) ? step.depends_on : []
+    const remappedDeps: number[] = []
+    for (const oldDep of oldDeps) {
+      const targetStep = prevOrder[oldDep]
+      if (!targetStep) continue
+      const mappedIdx = newIndexByRef.get(targetStep)
+      if (mappedIdx !== undefined && mappedIdx < newIdx && !remappedDeps.includes(mappedIdx)) {
+        remappedDeps.push(mappedIdx)
+      }
+    }
+    remappedDeps.sort((a, b) => a - b)
+    return { ...step, depends_on: remappedDeps }
+  })
+}
 
 function toggleExpand(index: number) {
   if (expandedIndexes.value.has(index)) {
@@ -272,14 +316,14 @@ function toggleExpand(index: number) {
 }
 
 function getDependencyOptions(currentIndex: number) {
-  return props.steps.slice(0, currentIndex).map((step, idx) => ({
+  return localSteps.value.slice(0, currentIndex).map((step, idx) => ({
     label: `Step ${idx + 1}: ${step.name || `步骤 ${idx + 1}`}`,
     value: idx,
   }))
 }
 
 function addBlankStep() {
-  const newIndex = props.steps.length
+  const newIndex = localSteps.value.length
   const newStep: ApiScenarioStep = {
     name: t('api_scenario.blank_step_default_name', { index: newIndex + 1 }),
     method: 'GET',
@@ -293,36 +337,41 @@ function addBlankStep() {
     extractions: [],
     depends_on: newIndex > 0 ? [newIndex - 1] : [],
   }
-  const next = [...props.steps, newStep]
+  const next = [...localSteps.value, newStep]
+  localSteps.value = next
   emit('update:steps', next)
   expandedIndexes.value.add(newIndex)
 }
 
 function cloneStep(index: number) {
-  const source = props.steps[index]
+  const prev = [...localSteps.value]
+  const source = prev[index]
   const cloned: ApiScenarioStep = JSON.parse(JSON.stringify(source)) as ApiScenarioStep
   cloned.name = `${source.name} (副本)`
-  const next = [...props.steps]
-  next.splice(index + 1, 0, cloned)
+  const inserted = [...prev]
+  inserted.splice(index + 1, 0, cloned)
+  const next = remapDependsOn(prev, inserted)
+  // 克隆步骤默认保留原步骤自身的前置依赖（原步骤索引均 <= index，映射仍有效）
+  if (next[index + 1] && Array.isArray(source.depends_on)) {
+    next[index + 1].depends_on = next[index].depends_on ? [...next[index].depends_on] : []
+  }
+  localSteps.value = next
   emit('update:steps', next)
 }
 
 function removeStep(index: number) {
-  const next = [...props.steps]
-  next.splice(index, 1)
-  // 修正后续步骤的 depends_on 索引
-  next.forEach((step) => {
-    if (Array.isArray(step.depends_on)) {
-      step.depends_on = step.depends_on
-        .filter((d) => d !== index)
-        .map((d) => (d > index ? d - 1 : d))
-    }
-  })
+  const prev = [...localSteps.value]
+  const removed = [...prev]
+  removed.splice(index, 1)
+  const next = remapDependsOn(prev, removed)
+  localSteps.value = next
   emit('update:steps', next)
 }
 
 function handleDragChange() {
-  emit('update:steps', [...props.steps])
+  const next = remapDependsOn(props.steps, [...localSteps.value])
+  localSteps.value = next
+  emit('update:steps', next)
 }
 
 function getExtractions(step: ApiScenarioStep): string[] {

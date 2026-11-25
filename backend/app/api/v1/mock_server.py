@@ -108,7 +108,8 @@ def _match_conditions(rule: MockRule, request_data: dict) -> bool:
     ):
         expected = conditions.get(source_key) or {}
         for key, value in expected.items():
-            if not _condition_matches_value(actual_data, key, value):
+            lookup_key = key.lower() if source_key == "headers" else key
+            if not _condition_matches_value(actual_data, lookup_key, value):
                 return False
     return True
 
@@ -141,7 +142,7 @@ def _render_template_text(template: str | None, request_data: dict) -> str:
 
     def replacer(match: re.Match[str]) -> str:
         source = match.group(1)
-        key = match.group(2)
+        key = match.group(2).lower() if source == "headers" else match.group(2)
         return str((request_data.get(source) or {}).get(key, ""))
 
     return re.sub(r"\{\{\s*(query|headers|body)\.([\w.-]+)\s*\}\}", replacer, template)

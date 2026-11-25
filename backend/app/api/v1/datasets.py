@@ -13,6 +13,7 @@ import json
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 import httpx
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
@@ -593,10 +594,14 @@ async def create_dataset(
         await db.rollback()
         _cleanup_uploaded_objects(dataset, uploaded_object_names)
         raise HTTPException(status_code=503, detail=f"MinIO 数据集存储失败: {exc}") from exc
+    except IntegrityError as exc:
+        await db.rollback()
+        _cleanup_uploaded_objects(dataset, uploaded_object_names)
+        raise HTTPException(status_code=409, detail="数据集名称已被项目内占用") from exc
     except Exception:
         await db.rollback()
         _cleanup_uploaded_objects(dataset, uploaded_object_names)
-        raise HTTPException(status_code=409, detail="数据集名称已被项目内占用")
+        raise
     await db.refresh(dataset)
     return _dataset_output(dataset, body.rows if body.storage_mode == DATASET_STORAGE_MINIO else None)
 
@@ -669,10 +674,14 @@ async def update_dataset(
         await db.rollback()
         _cleanup_uploaded_objects(dataset, uploaded_object_names)
         raise HTTPException(status_code=503, detail=f"MinIO 数据集存储失败: {exc}") from exc
-    except Exception as exc:
+    except IntegrityError as exc:
         await db.rollback()
         _cleanup_uploaded_objects(dataset, uploaded_object_names)
-        raise HTTPException(status_code=409, detail="数据集更新失败，请检查名称或版本写入状态") from exc
+        raise HTTPException(status_code=409, detail="数据集名称或版本冲突，请检查名称是否重复") from exc
+    except Exception:
+        await db.rollback()
+        _cleanup_uploaded_objects(dataset, uploaded_object_names)
+        raise
     await _invalidate_dataset_list_cache(dataset.project_id)
     if previous_object_name and previous_object_name != getattr(dataset, "object_name", None):
         try:
@@ -690,7 +699,7 @@ async def update_dataset(
             try:
                 response_rows = rows_from_source(dataset)
             except DatasetStorageError as exc:
-                raise HTTPException(status_code=503, detail=f"MinIO 鏁版嵁闆嗚鍙栧け璐? {exc}") from exc
+                raise HTTPException(status_code=503, detail=f"MinIO 数据集读取失败: {exc}") from exc
     return _dataset_output(dataset, response_rows)
 
 
@@ -842,10 +851,14 @@ async def rollback_dataset(
         await db.rollback()
         _cleanup_uploaded_objects(dataset, uploaded_object_names)
         raise HTTPException(status_code=503, detail=f"MinIO 数据集回滚失败: {exc}") from exc
-    except Exception as exc:
+    except IntegrityError as exc:
         await db.rollback()
         _cleanup_uploaded_objects(dataset, uploaded_object_names)
-        raise HTTPException(status_code=409, detail="数据集回滚失败，请检查版本写入状态") from exc
+        raise HTTPException(status_code=409, detail="数据集版本回滚冲突，请重试") from exc
+    except Exception:
+        await db.rollback()
+        _cleanup_uploaded_objects(dataset, uploaded_object_names)
+        raise
     await _invalidate_dataset_list_cache(dataset.project_id)
     if previous_object_name and previous_object_name != getattr(dataset, "object_name", None):
         try:
@@ -912,10 +925,14 @@ async def upload_dataset(
         await db.rollback()
         _cleanup_uploaded_objects(dataset, uploaded_object_names)
         raise HTTPException(status_code=503, detail=f"MinIO 数据集存储失败: {exc}") from exc
-    except Exception as exc:
+    except IntegrityError as exc:
         await db.rollback()
         _cleanup_uploaded_objects(dataset, uploaded_object_names)
-        raise HTTPException(status_code=409, detail="数据集上传失败，请检查版本写入状态") from exc
+        raise HTTPException(status_code=409, detail="数据集版本写入冲突，请重试") from exc
+    except Exception:
+        await db.rollback()
+        _cleanup_uploaded_objects(dataset, uploaded_object_names)
+        raise
     await _invalidate_dataset_list_cache(dataset.project_id)
     if previous_object_name and previous_object_name != getattr(dataset, "object_name", None):
         try:

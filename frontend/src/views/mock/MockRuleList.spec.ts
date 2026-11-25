@@ -35,6 +35,8 @@ const {
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => params ? `${key}:${JSON.stringify(params)}` : key }),
 }))
+const authState = vi.hoisted(() => ({ user: { role: 'admin' } }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: {} }),
   useRouter: () => ({ push: vi.fn() }),
@@ -134,6 +136,7 @@ const RULE = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  authState.user = { role: 'admin' }
   projectList.mockResolvedValue(PROJECTS)
   ruleList.mockResolvedValue([RULE])
   ruleCreate.mockResolvedValue({ id: 9 })
@@ -274,5 +277,21 @@ describe('MockRuleList mount', () => {
       path: '/api/users/generated',
     }))
     expect(vm.aiMockPreviewOpen).toBe(false)
+  })
+
+  it('disables write actions when user only has project viewer role', async () => {
+    authState.user = { role: 'tester' }
+    projectList.mockResolvedValueOnce([{ id: 7, name: 'Core', current_user_role: 'viewer' }])
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    expect(vm.canModify).toBe(false)
+
+    const createBtn = wrapper.findAll('button').find((button) => button.text().includes('mock.add_rule'))!
+    const editBtn = wrapper.findAll('button').find((button) => button.text() === 'common.edit')!
+    const deleteBtn = wrapper.findAll('button').find((button) => button.text() === 'common.delete')!
+    expect(createBtn.attributes('disabled')).toBeDefined()
+    expect(editBtn.attributes('disabled')).toBeDefined()
+    expect(deleteBtn.attributes('disabled')).toBeDefined()
   })
 })

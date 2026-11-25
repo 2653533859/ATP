@@ -11,8 +11,8 @@ import httpx
 
 
 def build_digest_auth(auth_config: dict[str, Any], render: Callable[[str], str]) -> httpx.DigestAuth:
-    username = render(str(auth_config.get("username", "")))
-    password = render(str(auth_config.get("password", "")))
+    username = render(str(auth_config.get("username") or ""))
+    password = render(str(auth_config.get("password") or ""))
     if not username:
         raise ValueError("Digest 认证缺少用户名")
     return httpx.DigestAuth(username, password)
@@ -26,15 +26,15 @@ async def resolve_oauth2_client_credentials_token(
 ) -> str:
     """获取并缓存 client_credentials token；不会把 token 返回到执行证据。"""
 
-    token_url = render(str(auth_config.get("token_url", ""))).strip()
-    client_id = render(str(auth_config.get("client_id", "")))
-    client_secret = render(str(auth_config.get("client_secret", "")))
+    token_url = render(str(auth_config.get("token_url") or "")).strip()
+    client_id = render(str(auth_config.get("client_id") or ""))
+    client_secret = render(str(auth_config.get("client_secret") or ""))
     if not token_url or not client_id or not client_secret:
         raise ValueError("OAuth2 Client Credentials 缺少 token URL、Client ID 或 Client Secret")
 
-    scope = render(str(auth_config.get("scope", ""))).strip()
-    audience = render(str(auth_config.get("audience", ""))).strip()
-    auth_method = str(auth_config.get("token_endpoint_auth_method", "client_secret_basic"))
+    scope = render(str(auth_config.get("scope") or "")).strip()
+    audience = render(str(auth_config.get("audience") or "")).strip()
+    auth_method = str(auth_config.get("token_endpoint_auth_method") or "client_secret_basic")
     if auth_method not in {"client_secret_basic", "client_secret_post"}:
         raise ValueError("OAuth2 token endpoint 认证方式不受支持")
     cache_key = "|".join((token_url, client_id, scope, audience, auth_method))

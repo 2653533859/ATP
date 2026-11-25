@@ -6,14 +6,16 @@ from datetime import datetime
 import json
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 ContractRole = Literal["provider", "consumer"]
 ContractFormat = Literal["openapi", "swagger", "json_schema"]
 
 
-def _validate_definition(value: dict) -> dict:
+def _validate_definition(value: dict | None) -> dict | None:
+    if value is None:
+        return None
     if not value:
         raise ValueError("契约定义不能为空")
     if len(json.dumps(value, ensure_ascii=False)) > 2 * 1024 * 1024:
@@ -39,6 +41,13 @@ class ApiContractAssetUpdate(BaseModel):
     definition: dict | None = None
 
     _definition_validator = field_validator("definition")(_validate_definition)
+
+    @model_validator(mode="after")
+    def reject_explicit_null_required_fields(self) -> "ApiContractAssetUpdate":
+        for required_field in ("name", "role", "format", "definition"):
+            if required_field in self.model_fields_set and getattr(self, required_field) is None:
+                raise ValueError(f"字段 {required_field} 不能设为 null")
+        return self
 
 
 class ApiContractAssetOut(BaseModel):

@@ -575,8 +575,10 @@ def test_create_dataset_storage_failure_cleans_up_uploaded_objects(monkeypatch):
 
 def test_create_dataset_commit_failure_returns_conflict():
     """提交失败（如名称唯一约束）映射为 409。"""
+    from sqlalchemy.exc import IntegrityError
+
     db = _FakeDB()
-    db.commit_error = RuntimeError("duplicate name")
+    db.commit_error = IntegrityError("stmt", {}, RuntimeError("duplicate name"))
     body = TestDatasetCreate(name="dup", project_id=10, rows=[{"a": 1}])
     with pytest.raises(HTTPException) as exc:
         asyncio.run(ds_api.create_dataset(body=body, db=db, user=_user()))
@@ -796,10 +798,12 @@ def test_rollback_dataset_storage_failure_returns_503(monkeypatch):
 
 def test_rollback_dataset_commit_failure_returns_409():
     """回滚提交失败映射为 409 并回滚事务。"""
+    from sqlalchemy.exc import IntegrityError
+
     dataset = _dataset(8, rows=[{"age": "old"}])
     snapshot = _version(1, rows=[{"age": 18}])
     db = _FakeDB(objects={TestDataset: dataset}, results=[_Result(scalar=snapshot)])
-    db.commit_error = RuntimeError("db down")
+    db.commit_error = IntegrityError("stmt", {}, RuntimeError("db down"))
     with pytest.raises(HTTPException) as exc:
         asyncio.run(ds_api.rollback_dataset(dataset_id=8, version=1, db=db, user=_user()))
     assert exc.value.status_code == 409
@@ -854,9 +858,11 @@ def test_upload_dataset_missing_dataset_and_storage_failure(monkeypatch):
 
 def test_upload_dataset_commit_failure_returns_409():
     """上传提交失败映射为 409 并回滚事务。"""
+    from sqlalchemy.exc import IntegrityError
+
     dataset = _dataset(6, rows=[])
     db = _FakeDB(objects={TestDataset: dataset})
-    db.commit_error = RuntimeError("db down")
+    db.commit_error = IntegrityError("stmt", {}, RuntimeError("db down"))
     file = UploadFile(filename="x.json", file=io.BytesIO(b'[{"k": 1}]'))
     with pytest.raises(HTTPException) as exc:
         asyncio.run(ds_api.upload_dataset(dataset_id=6, file=file, db=db, user=_user()))
@@ -883,3 +889,14 @@ def test_validate_dataset_rejects_oversize_rows():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(ds_api.validate_dataset(body=body, _=_user()))
     assert exc.value.status_code == 400
+
+
+def test_upload_dataset_non_integrity_error_propagates():
+    """上传提交触发非 IntegrityError 异常时应回滚并直接向上抛出，不伪装成 409。"""
+    dataset = _dataset(6, rows=[])
+    db = _FakeDB(objects={TestDataset: dataset})
+    db.commit_error = RuntimeError("unexpected db down")
+    file = UploadFile(filename="x.json", file=io.BytesIO(b'[{"k": 1}]'))
+    with pytest.raises(RuntimeError, match="unexpected db down"):
+        asyncio.run(ds_api.upload_dataset(dataset_id=6, file=file, db=db, user=_user()))
+    assert db.rollbacks == 1

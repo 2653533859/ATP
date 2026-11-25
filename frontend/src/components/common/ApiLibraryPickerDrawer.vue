@@ -210,6 +210,8 @@ import {
   type ApiScenarioStep,
 } from '@/types/apiScenario'
 
+import { extractApiError } from '@/utils/apiError'
+
 interface PipelineStepItem extends ApiScenarioStep {
   _uid: string
   _sourceCaseId?: number
@@ -297,13 +299,11 @@ async function loadData() {
       caseApi.list({ project_id: props.projectId }),
       projectApi.getModules(props.projectId).catch(() => []),
     ])
-    // 过滤出接口库候选列表：仅限单接口原子请求（过滤掉已编排好的多步场景链路，杜绝混淆）
-    rawCases.value = (caseList || []).filter((c) =>
-      ['api', 'graphql', 'websocket'].includes(c.case_type) && !c.is_scenario,
-    )
+    // 过滤出接口库候选列表：仅限单步 HTTP/API 原子请求（过滤多步场景及非 HTTP 协议，防止导入后丢失协议字段）
+    rawCases.value = (caseList || []).filter((c) => c.case_type === 'api' && !c.is_scenario)
     moduleTree.value = modules || []
   } catch (error) {
-    message.error(t('api_scenario.picker_load_failed'))
+    message.error(extractApiError(error, t('api_scenario.picker_load_failed')))
   } finally {
     loading.value = false
   }

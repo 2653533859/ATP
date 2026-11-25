@@ -99,6 +99,7 @@
           <ModuleTree
             :key="selectedProjectId"
             :project-id="selectedProjectId"
+            :selected-module-id="selectedModuleId"
             show-reset
             :reset-disabled="!selectedModuleId"
             :editable="canModify"
@@ -374,7 +375,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   ApiOutlined,
@@ -410,6 +411,7 @@ import ApiRequestConsole from './components/ApiRequestConsole.vue'
 import ApiScenarioOrchestrator from './components/ApiScenarioOrchestrator.vue'
 import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import { canEditProjectByRole } from '@/utils/permissions'
+import { extractApiError } from '@/utils/apiError'
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -419,7 +421,6 @@ function positiveInt(value: unknown): number | null {
 
 type ApiCaseType = 'api' | 'graphql' | 'websocket' | 'grpc'
 type ProtocolFilter = 'all' | ApiCaseType
-type ErrorLike = { response?: { data?: { detail?: unknown } }; message?: unknown }
 
 const API_CASE_TYPES: CaseType[] = ['api', 'graphql', 'websocket', 'grpc']
 
@@ -504,6 +505,15 @@ const filteredCases = computed(() => {
   })
 })
 
+watch(filteredCases, (visibleList) => {
+  if (!selectedBatchCaseIds.value.length) return
+  const visibleSet = new Set(visibleList.map((item) => item.id))
+  const next = selectedBatchCaseIds.value.filter((id) => visibleSet.has(id))
+  if (next.length !== selectedBatchCaseIds.value.length) {
+    selectedBatchCaseIds.value = next
+  }
+})
+
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const selectedCase = ref<CaseSummaryItem | null>(null)
@@ -549,15 +559,20 @@ const scenarioEditingCase = ref<CaseDetailItem | null>(null)
 const batchRunModalOpen = ref(false)
 const batchRunEnvironmentId = ref<number | undefined>(undefined)
 
+let scenarioSequence = 0
+
 async function loadScenarios() {
+  const sequence = ++scenarioSequence
   if (!selectedProjectId.value || !apiScenarioApi?.list) {
     scenarios.value = []
     return
   }
   try {
-    scenarios.value = await apiScenarioApi.list({ project_id: selectedProjectId.value })
+    const list = await apiScenarioApi.list({ project_id: selectedProjectId.value })
+    if (sequence !== scenarioSequence) return
+    scenarios.value = list
   } catch {
-    scenarios.value = []
+    if (sequence === scenarioSequence) scenarios.value = []
   }
 }
 
@@ -733,7 +748,11 @@ async function confirmBatchRun() {
         // continue running other selected cases
       }
     }
-    message.success(t('api_workbench.batch_run_success', { count: triggered }))
+    if (triggered > 0) {
+      message.success(t('api_workbench.batch_run_success', { count: triggered }))
+    } else {
+      message.error(t('api_workbench.run_failed'))
+    }
     batchRunModalOpen.value = false
     selectedBatchCaseIds.value = []
     if (selectedProjectId.value) {
@@ -749,12 +768,7 @@ let detailSequence = 0
 let environmentSequence = 0
 let projectSequence = 0
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'object' && error !== null) {
-    const typed = error as ErrorLike
-    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
-    if (typeof typed.message === 'string') return typed.message
-  }
-  return error instanceof Error ? error.message : fallback
+  return extractApiError(error, fallback)
 }
 
 function syncRoute() {
@@ -788,12 +802,12 @@ async function loadEnvironments() {
 
 async function loadRecentRuns(caseIds: number[], sequence?: number) {
   if (sequence !== undefined && sequence !== loadSequence) return
-  if (!caseIds.length) {
+  if (!caseIds.length || !selectedProjectId.value) {
     recentRuns.value = []
     return
   }
   try {
-    const result = await runApi.list({ page: 1, page_size: 100 })
+    const result = await runApi.list({ project_id: selectedProjectId.value, page: 1, page_size: 100 })
     if (sequence !== undefined && sequence !== loadSequence) return
     recentRuns.value = result.items
       .filter((run) => caseIds.includes(run.case_id))
@@ -863,6 +877,7 @@ async function handleProjectChange(value: unknown) {
   activeScenarioRecord.value = null
   scenarioEditingCase.value = null
   initialScenarioSteps.value = null
+  scenarios.value = []
   startNewRequest()
   const tasks: Promise<unknown>[] = [loadEnvironments(), loadCases()]
   if (isAutomationMode.value) {
@@ -875,8 +890,10 @@ async function handleProjectChange(value: unknown) {
 async function handleModuleSelect(moduleId: number | null) {
   selectedModuleId.value = moduleId
   if (selectedCase.value && selectedCase.value.module_id !== moduleId) {
+    invalidateDetailRequest()
     selectedCase.value = null
     selectedCaseDetail.value = null
+    consoleResetKey.value += 1
   }
   await loadCases()
   syncRoute()
@@ -891,6 +908,9 @@ async function handleModuleReset() {
 async function refreshWorkbench() {
   // loadProjects 会在确认当前项目后统一刷新环境、用例和 URL，避免刷新按钮触发重复请求。
   await loadProjects()
+  if (isAutomationMode.value) {
+    await loadScenarios()
+  }
 }
 
 function openCreate() {
@@ -905,6 +925,7 @@ function openCreate() {
   invalidateDetailRequest()
   editingCase.value = null
   draftRequest.value = null
+  initialScenarioSteps.value = null
   caseFormOpen.value = true
 }
 
@@ -935,18 +956,13 @@ async function handleRequestItemClick(item: CaseSummaryItem) {
     toggleBatchSelectCase(item.id)
   } else if (item.is_scenario) {
     setAutomationMode(true)
-    const matched = scenarios.value.find((s) => s.id === item.id)
-    if (matched) {
-      selectSavedScenario(matched)
-    } else {
-      try {
-        const detail = await caseApi.get(item.id)
-        activeScenarioRecord.value = null
-        scenarioEditingCase.value = detail
-        initialScenarioSteps.value = null
-      } catch {
-        // ignore
-      }
+    try {
+      const detail = await caseApi.get(item.id)
+      activeScenarioRecord.value = null
+      scenarioEditingCase.value = detail
+      initialScenarioSteps.value = null
+    } catch (error: unknown) {
+      message.error(errorMessage(error, t('api_workbench.detail_failed')))
     }
   } else {
     selectRequest(item)
@@ -1010,6 +1026,7 @@ function saveDraftAsCase(value: ApiRequestPreviewPayload) {
   }
   editingCase.value = null
   draftRequest.value = value
+  initialScenarioSteps.value = null
   caseFormOpen.value = true
 }
 
@@ -1052,6 +1069,10 @@ async function openEdit(item: CaseSummaryItem) {
 
 
 function openImport() {
+  if (!canModify.value) {
+    message.warning(t('api_workbench.readonly_title'))
+    return
+  }
   if (!selectedModuleId.value) {
     message.warning(t('api_workbench.select_module_first'))
     return
@@ -1065,7 +1086,11 @@ function handleSaved() {
   draftRequest.value = null
   initialScenarioSteps.value = null
   importDrawerOpen.value = false
+  const currentSelected = selectedCase.value
   void loadCases()
+  if (currentSelected && currentSelected.case_type === 'api') {
+    void selectRequest(currentSelected)
+  }
 }
 
 function openRun(item: CaseSummaryItem) {

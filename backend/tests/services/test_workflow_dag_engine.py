@@ -143,7 +143,10 @@ async def test_execute_workflow_dag_mixed_nodes():
         ]
     }
 
-    with patch("httpx.AsyncClient.request", return_value=mock_resp):
+    with (
+        patch("app.services.workflow_dag_engine.validate_public_http_url", side_effect=lambda u: u),
+        patch("httpx.AsyncClient.request", return_value=mock_resp),
+    ):
         res = await execute_workflow_dag(workflow, initial_context={"trace_id": "test-trace"})
 
     assert res["status"] == "passed"
@@ -157,3 +160,44 @@ async def test_execute_workflow_dag_mixed_nodes():
     executed_ids = [n["id"] for n in res["node_results"]]
     assert executed_ids[0] == "step_1_http"
     assert executed_ids[-1] == "step_5_delay"
+
+
+@pytest.mark.asyncio
+async def test_execute_workflow_dag_jsonpath_extraction_and_ssrf_block(monkeypatch):
+    from app.services import workflow_dag_engine
+
+    monkeypatch.setattr(workflow_dag_engine.settings, "ATP_LOCAL_MODE", False)
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 200
+    mock_resp.json = lambda: {"data": {"token": "jp-secret"}}
+    mock_resp.headers = {}
+
+    workflow_ok = {
+        "nodes": [
+            {
+                "id": "n1",
+                "type": "http",
+                "config": {"url": "https://example.com/auth", "extractions": {"tok": "$.data.token"}},
+            }
+        ]
+    }
+    with (
+        patch("app.services.workflow_dag_engine.validate_public_http_url", side_effect=lambda u: u),
+        patch("httpx.AsyncClient.request", return_value=mock_resp),
+    ):
+        res_ok = await execute_workflow_dag(workflow_ok)
+    assert res_ok["status"] == "passed"
+    assert res_ok["final_context"]["tok"] == "jp-secret"
+
+    workflow_ssrf = {
+        "nodes": [
+            {
+                "id": "ssrf",
+                "type": "http",
+                "config": {"url": "http://169.254.169.254/latest/meta-data/"},
+            }
+        ]
+    }
+    res_ssrf = await execute_workflow_dag(workflow_ssrf)
+    assert res_ssrf["status"] == "failed"
+    assert "不允许访问" in res_ssrf["node_results"][0]["error"]

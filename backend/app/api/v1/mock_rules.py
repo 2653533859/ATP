@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import (
     assert_project_access,
     get_current_user,
-    require_engineer,
     require_project_access,
 )
 from app.core.database import get_db
@@ -81,7 +80,7 @@ async def _persist_snapshot(
 async def generate_mock_rules_with_ai(
     body: MockAIGenerateIn,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     """Generate editable Mock rule drafts without persisting AI output."""
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
@@ -130,7 +129,7 @@ async def generate_mock_rules_with_ai(
 async def create_mock_rule(
     body: MockRuleCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
@@ -153,7 +152,7 @@ async def create_mock_rule(
 async def import_mock_rules(
     body: MockRulesImportRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
@@ -226,14 +225,14 @@ async def update_mock_rule(
     rule_id: int,
     body: MockRuleUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     rule = await db.get(MockRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Mock 规则不存在")
     await assert_project_access(db, current_user, rule.project_id, ProjectRole.editor)
 
-    payload = body.model_dump(exclude_none=True)
+    payload = body.model_dump(exclude_unset=True)
     if payload:
         await _persist_snapshot(db, rule, changed_by=current_user.id, note="auto on update")
         for key, value in payload.items():
@@ -249,7 +248,7 @@ async def update_mock_rule(
 async def delete_mock_rule(
     rule_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     rule = await db.get(MockRule, rule_id)
     if not rule:
@@ -302,7 +301,7 @@ async def rollback_mock_rule(
     rule_id: int,
     snapshot_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     rule = await db.get(MockRule, rule_id)
     if not rule:
@@ -348,7 +347,7 @@ async def promote_recorded_sample(
     rule_id: int,
     body: MockRulePromoteSampleRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     """将 recorded_samples 中的样本一键转换为新的 Mock 规则（同项目）。"""
     src = await db.get(MockRule, rule_id)

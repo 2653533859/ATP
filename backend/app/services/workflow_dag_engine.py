@@ -14,8 +14,11 @@ import time
 from typing import Any
 
 import httpx
+from jsonpath_ng import parse as jp_parse
 
+from app.core.config import settings
 from app.core.tracing import inject_w3c_trace_headers
+from app.core.url_security import validate_http_url_syntax, validate_public_http_url
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +103,11 @@ def validate_and_toposort_workflow(nodes: list[dict[str, Any]]) -> list[dict[str
 
 
 async def _execute_http_node(config: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-    url = str(render_context_template(config.get("url") or "", context))
+    raw_url = str(render_context_template(config.get("url") or "", context))
+    if settings.ATP_LOCAL_MODE:
+        url = validate_http_url_syntax(raw_url)
+    else:
+        url = await asyncio.to_thread(validate_public_http_url, raw_url)
     method = str(config.get("method") or "GET").upper()
     headers = render_context_template(config.get("headers") or {}, context)
     if not isinstance(headers, dict):
@@ -116,7 +123,7 @@ async def _execute_http_node(config: dict[str, Any], context: dict[str, Any]) ->
         elif body is not None:
             req_kwargs["content"] = str(body)
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
         resp = await client.request(method, url, **req_kwargs)
 
     try:
@@ -192,6 +199,24 @@ async def execute_single_node(node: dict[str, Any], context: dict[str, Any]) -> 
     return {"success": True, "type": ntype, "note": "custom_step_passthrough"}
 
 
+def extract_workflow_variable(result_data: dict[str, Any], expression: Any) -> Any:
+    """Extract workflow node output using JSONPath when $-prefixed, otherwise return raw body/value."""
+    body = result_data.get("body") if "body" in result_data else result_data.get("value")
+    if body is None and "value" in result_data:
+        body = result_data.get("value")
+    if isinstance(expression, str):
+        expr = expression.strip()
+        if expr.startswith("$"):
+            if body is None:
+                return None
+            try:
+                matches = jp_parse(expr).find(body)
+                return matches[0].value if matches else None
+            except Exception:
+                return None
+    return body
+
+
 async def execute_workflow_dag(
     workflow_graph: dict[str, Any],
     initial_context: dict[str, Any] | None = None,
@@ -223,8 +248,8 @@ async def execute_workflow_dag(
             # Extract variable to context if configured
             extractions = config.get("extractions") or {}
             if isinstance(extractions, dict):
-                for var_name, _path in extractions.items():
-                    context[var_name] = result_data.get("body") or result_data.get("value")
+                for var_name, path in extractions.items():
+                    context[var_name] = extract_workflow_variable(result_data, path)
 
             if node_res["status"] == "failed":
                 overall_passed = False

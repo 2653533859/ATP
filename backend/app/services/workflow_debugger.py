@@ -9,6 +9,7 @@ Provides:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
@@ -17,6 +18,7 @@ from typing import Any
 
 from app.services.workflow_dag_engine import (
     execute_single_node,
+    extract_workflow_variable,
     validate_and_toposort_workflow,
 )
 
@@ -40,8 +42,10 @@ class WorkflowDebugSession:
         breakpoints: list[str] | set[str] | None = None,
         initial_context: dict[str, Any] | None = None,
         watchers: list[str] | None = None,
+        owner_id: int | None = None,
     ):
         self.session_id = session_id
+        self.owner_id = owner_id
         self.workflow_graph = workflow_graph
         raw_nodes = workflow_graph.get("nodes") or []
         self.sorted_nodes = validate_and_toposort_workflow(raw_nodes)
@@ -58,6 +62,7 @@ class WorkflowDebugSession:
         self.error: str | None = None
         self.created_at: float = time.time()
         self.updated_at: float = self.created_at
+        self._lock: asyncio.Lock = asyncio.Lock()
 
     def _evaluate_watchers(self) -> list[dict[str, Any]]:
         results = []
@@ -106,7 +111,7 @@ class WorkflowDebugSession:
             "error": self.error,
         }
 
-    async def step_over(self) -> dict[str, Any]:
+    async def _step_over_unlocked(self) -> dict[str, Any]:
         """Execute the node at the current pointer and advance to the next node."""
         if self.current_index >= len(self.sorted_nodes):
             self.state = "completed"
@@ -130,8 +135,8 @@ class WorkflowDebugSession:
             # Apply extractions
             extractions = config.get("extractions") or {}
             if isinstance(extractions, dict):
-                for var_name in extractions:
-                    self.context[var_name] = output.get("body") or output.get("value")
+                for var_name, path in extractions.items():
+                    self.context[var_name] = extract_workflow_variable(output, path)
 
             if node_res["status"] == "failed":
                 self.state = "error"
@@ -157,26 +162,38 @@ class WorkflowDebugSession:
 
         return self.snapshot()
 
+    async def step_over(self) -> dict[str, Any]:
+        """Execute the node at the current pointer and advance to the next node."""
+        async with self._lock:
+            return await self._step_over_unlocked()
+
     async def resume(self) -> dict[str, Any]:
         """Continue execution until the next breakpoint or completion."""
-        # Execute current node if paused
-        if self.state in ("completed", "error"):
+        async with self._lock:
+            if self.state in ("completed", "error"):
+                return self.snapshot()
+
+            # Step over at least once to move off the current breakpoint
+            await self._step_over_unlocked()
+
+            # Keep running until we hit another breakpoint, complete, or error
+            while self.state == "paused" and self.current_index < len(self.sorted_nodes):
+                curr_node = self.sorted_nodes[self.current_index]
+                curr_id = str(curr_node.get("id"))
+                if curr_id in self.breakpoints:
+                    # Pause at breakpoint
+                    self.state = "paused"
+                    break
+                await self._step_over_unlocked()
+
             return self.snapshot()
 
-        # Step over at least once to move off the current breakpoint
-        await self.step_over()
 
-        # Keep running until we hit another breakpoint, complete, or error
-        while self.state == "paused" and self.current_index < len(self.sorted_nodes):
-            curr_node = self.sorted_nodes[self.current_index]
-            curr_id = str(curr_node.get("id"))
-            if curr_id in self.breakpoints:
-                # Pause at breakpoint
-                self.state = "paused"
-                break
-            await self.step_over()
-
-        return self.snapshot()
+def _assert_debug_owner(session: WorkflowDebugSession, actor_id: int | None, is_admin: bool) -> None:
+    if is_admin or session.owner_id is None:
+        return
+    if actor_id is None or session.owner_id != actor_id:
+        raise PermissionError("无权访问或操作其他用户的调试会话")
 
 
 def create_debug_session(
@@ -184,6 +201,7 @@ def create_debug_session(
     breakpoints: list[str] | None = None,
     initial_context: dict[str, Any] | None = None,
     watchers: list[str] | None = None,
+    owner_id: int | None = None,
 ) -> dict[str, Any]:
     """Create a new debug session and pause at the entry point."""
     sid = f"dbg_{uuid.uuid4().hex[:12]}"
@@ -193,40 +211,51 @@ def create_debug_session(
         breakpoints=breakpoints,
         initial_context=initial_context,
         watchers=watchers,
+        owner_id=owner_id,
     )
     with _LOCK:
         _DEBUG_SESSIONS[sid] = session
     return session.snapshot()
 
 
-def get_debug_session(session_id: str) -> dict[str, Any]:
+def get_debug_session(session_id: str, *, actor_id: int | None = None, is_admin: bool = False) -> dict[str, Any]:
     """Inspect active debug session state."""
     with _LOCK:
         session = _DEBUG_SESSIONS.get(session_id)
     if not session:
         raise WorkflowDebuggerError(f"未找到调试会话: {session_id}")
+    _assert_debug_owner(session, actor_id, is_admin)
     return session.snapshot()
 
 
-async def step_debug_session(session_id: str) -> dict[str, Any]:
+async def step_debug_session(session_id: str, *, actor_id: int | None = None, is_admin: bool = False) -> dict[str, Any]:
     """Step over the current node in the debug session."""
     with _LOCK:
         session = _DEBUG_SESSIONS.get(session_id)
     if not session:
         raise WorkflowDebuggerError(f"未找到调试会话: {session_id}")
+    _assert_debug_owner(session, actor_id, is_admin)
     return await session.step_over()
 
 
-async def resume_debug_session(session_id: str) -> dict[str, Any]:
+async def resume_debug_session(
+    session_id: str, *, actor_id: int | None = None, is_admin: bool = False
+) -> dict[str, Any]:
     """Resume execution until next breakpoint or completion."""
     with _LOCK:
         session = _DEBUG_SESSIONS.get(session_id)
     if not session:
         raise WorkflowDebuggerError(f"未找到调试会话: {session_id}")
+    _assert_debug_owner(session, actor_id, is_admin)
     return await session.resume()
 
 
-def stop_debug_session(session_id: str) -> bool:
+def stop_debug_session(session_id: str, *, actor_id: int | None = None, is_admin: bool = False) -> bool:
     """Terminate and delete a debug session."""
     with _LOCK:
-        return _DEBUG_SESSIONS.pop(session_id, None) is not None
+        session = _DEBUG_SESSIONS.get(session_id)
+        if not session:
+            return False
+        _assert_debug_owner(session, actor_id, is_admin)
+        _DEBUG_SESSIONS.pop(session_id, None)
+        return True

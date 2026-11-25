@@ -13,11 +13,23 @@ from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.services.step_result_collector import StepResultBatchCollector
+from app.worker.executors._assertion_helpers import (
+    build_basic_auth_header,
+    collect_auth_redact_fields,
+    compare_assertion_operator,
+)
 from app.core.tracing import inject_w3c_trace_headers
 
 logger = logging.getLogger(__name__)
 _tracer = get_tracer("atp.executor.multiprotocol")
 VAR_PATTERN = re.compile(r"\{\{(\w+)\}\}")
+
+
+async def _safe_publish_run_event(run_id: int, payload: dict[str, Any]) -> None:
+    try:
+        await publish_run_event(run_id, payload)
+    except Exception:
+        return
 
 
 def render_template(text: Any, context: dict[str, Any]) -> Any:
@@ -62,26 +74,15 @@ def extract_json_value(data: Any, expression: str) -> Any:
 
 
 def evaluate_assertion(assertion: dict[str, Any], actual_val: Any) -> tuple[bool, str | None]:
-    operator = assertion.get("operator", "eq")
-    expected = assertion.get("expected")
-
-    if operator == "eq":
-        passed = str(actual_val) == str(expected)
-        msg = None if passed else f"断言失败: 期望 '{expected}', 实际得到 '{actual_val}'"
-    elif operator == "neq":
-        passed = str(actual_val) != str(expected)
-        msg = None if passed else f"断言失败: 期望不等于 '{expected}'"
-    elif operator == "contains":
-        passed = str(expected) in str(actual_val)
-        msg = None if passed else f"断言失败: '{actual_val}' 不包含 '{expected}'"
-    elif operator == "exists":
-        passed = actual_val is not None
-        msg = None if passed else "断言失败: 字段不存在或为 None"
-    else:
-        passed = str(actual_val) == str(expected)
-        msg = None if passed else f"断言失败: '{actual_val}' != '{expected}'"
-
-    return passed, msg
+    raw_op = str(assertion.get("operator", "eq") or "eq").strip().lower()
+    effective_op = raw_op if raw_op in {"eq", "ne", "neq", "contains", "gt", "lt", "exists", "not_exists"} else "eq"
+    passed, msg = compare_assertion_operator(
+        effective_op,
+        actual_val,
+        assertion.get("expected"),
+        target=str(assertion.get("target") or ""),
+    )
+    return passed, (None if passed else msg)
 
 
 async def _apply_http_auth(step: dict[str, Any], headers: dict[str, str], context: dict[str, Any]) -> dict[str, Any]:
@@ -92,10 +93,7 @@ async def _apply_http_auth(step: dict[str, Any], headers: dict[str, str], contex
     if auth_type == "bearer":
         headers["Authorization"] = f"Bearer {render_template(auth_cfg.get('token', ''), context)}"
     elif auth_type == "basic":
-        import base64
-
-        cred = base64.b64encode(f"{auth_cfg.get('username')}:{auth_cfg.get('password')}".encode()).decode()
-        headers["Authorization"] = f"Basic {cred}"
+        headers["Authorization"] = build_basic_auth_header(auth_cfg, lambda value: render_template(value, context))
     elif auth_type == "apikey":
         header_name = render_template(auth_cfg.get("header", "X-API-Key"), context).strip()
         header_value = render_template(auth_cfg.get("value", ""), context)
@@ -202,19 +200,29 @@ async def _execute_http_step(step: dict[str, Any], context: dict[str, Any]) -> d
 async def _execute_websocket_step(step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     url = render_template(step.get("url", ""), context)
     messages_cfg = render_dict(step.get("messages", []), context)
+    headers = render_dict(step.get("headers") or {}, context)
+    if not isinstance(headers, dict):
+        headers = {}
+    await _apply_http_auth(step, headers, context)
     timeout = float(step.get("timeout", 15.0))
 
     start = time.monotonic()
     received_messages: list[Any] = []
     import websockets
 
-    async with websockets.connect(url, open_timeout=timeout) as ws:
+    connect_kwargs: dict[str, Any] = {"open_timeout": timeout}
+    if headers:
+        connect_kwargs["additional_headers"] = headers
+
+    async with websockets.connect(url, **connect_kwargs) as ws:
         for msg in messages_cfg:
             action = msg.get("action", "send")
             if action == "send":
-                payload = msg.get("payload")
+                payload = msg["data"] if "data" in msg else msg.get("payload", "")
                 data_str = (
-                    json.dumps(payload, ensure_ascii=False) if isinstance(payload, (dict, list)) else str(payload)
+                    json.dumps(payload, ensure_ascii=False)
+                    if isinstance(payload, (dict, list))
+                    else ("" if payload is None else str(payload))
                 )
                 await ws.send(data_str)
             elif action == "receive":
@@ -225,6 +233,9 @@ async def _execute_websocket_step(step: dict[str, Any], context: dict[str, Any])
                 except Exception:
                     parsed = raw_recv
                 received_messages.append(parsed)
+            elif action == "disconnect":
+                await ws.close()
+                break
 
     duration = int((time.monotonic() - start) * 1000)
     last_body = received_messages[-1] if received_messages else {}
@@ -233,7 +244,7 @@ async def _execute_websocket_step(step: dict[str, Any], context: dict[str, Any])
         "body": last_body,
         "messages": received_messages,
         "duration_ms": duration,
-        "raw_request": {"url": url, "messages_sent": messages_cfg},
+        "raw_request": {"url": url, "headers": headers, "messages_sent": messages_cfg},
     }
 
 
@@ -351,6 +362,13 @@ async def run_multiprotocol_case(
                 step_span.set_attribute("step.protocol", protocol)
 
                 rendered_step = render_dict(step, context)
+                step_redact_fields = list(evidence_redact_fields)
+                step_redact_fields.extend(
+                    collect_auth_redact_fields(
+                        rendered_step.get("auth") or {},
+                        lambda value: str(render_template(value, context)),
+                    )
+                )
                 try:
                     if protocol == "http":
                         exec_res = await _execute_http_step(rendered_step, context)
@@ -398,13 +416,22 @@ async def run_multiprotocol_case(
                     assertion_records: list[dict[str, Any]] = []
                     for ass in step.get("assertions", []):
                         target = ass.get("target", "status_code")
+                        expr = str(ass.get("expression") or "").strip()
                         if target == "status_code":
                             actual = exec_res.get("status_code")
                         elif target == "body":
-                            actual = resp_body
+                            actual = extract_json_value(resp_body, expr) if expr else resp_body
+                        elif target == "header":
+                            resp_headers = exec_res.get("headers") or {}
+                            actual = next(
+                                (v for k, v in resp_headers.items() if str(k).lower() == expr.lower()),
+                                None,
+                            )
+                        elif target == "duration":
+                            actual = duration_ms
                         else:
                             # 提取 body 字段值
-                            actual = extract_json_value(resp_body, target)
+                            actual = extract_json_value(resp_body, expr or str(target))
 
                         passed, msg = evaluate_assertion(ass, actual)
                         assertion_records.append(assertion_result(ass, passed=passed, message=msg or ""))
@@ -424,8 +451,8 @@ async def run_multiprotocol_case(
 
                 step_result.status = step_status
                 step_result.duration_ms = int((time.monotonic() - step_start) * 1000)
-                persisted_request = redact_execution_evidence(request_data, evidence_redact_fields)
-                persisted_response = redact_execution_evidence(response_data, evidence_redact_fields)
+                persisted_request = redact_execution_evidence(request_data, step_redact_fields)
+                persisted_response = redact_execution_evidence(response_data, step_redact_fields)
                 step_result.request_data = persisted_request
                 step_result.response_data = persisted_response
                 step_result.error_message = error_msg
@@ -433,7 +460,7 @@ async def run_multiprotocol_case(
                 await step_collector.add(step_result)
 
                 # WebSocket 实时广播步骤进度
-                await publish_run_event(
+                await _safe_publish_run_event(
                     run.id,
                     {
                         "type": "step_result",
@@ -462,7 +489,7 @@ async def run_multiprotocol_case(
     run.duration_ms = total_ms
     await db.commit()
 
-    await publish_run_event(
+    await _safe_publish_run_event(
         run.id,
         {
             "type": "completed",

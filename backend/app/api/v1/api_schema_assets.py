@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.core.url_security import validate_public_http_url
 from app.models.api_schema import ApiSchemaAsset
@@ -73,7 +73,7 @@ async def introspect_graphql_schema(
     project_id: int,
     body: GraphqlIntrospectionIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     """读取公开 GraphQL 端点 Schema，返回用例编辑器所需的有限补全信息。"""
     await _ensure_project(db, user, project_id, ProjectRole.editor)
@@ -152,7 +152,7 @@ async def create_api_schema_asset(
     project_id: int,
     body: ApiSchemaAssetCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     await _ensure_project(db, user, project_id, ProjectRole.editor)
     item = ApiSchemaAsset(project_id=project_id, owner_id=user.id, **body.model_dump())
@@ -171,7 +171,7 @@ async def update_api_schema_asset(
     asset_id: int,
     body: ApiSchemaAssetUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(ApiSchemaAsset, asset_id)
     if item is None:
@@ -194,7 +194,7 @@ async def update_api_schema_asset(
 async def delete_api_schema_asset(
     asset_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(ApiSchemaAsset, asset_id)
     if item is None:

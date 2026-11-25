@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.models.api_contract_asset import ApiContractAsset
 from app.models.project import Project
@@ -50,7 +50,7 @@ async def create_api_contract_asset(
     project_id: int,
     body: ApiContractAssetCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     await _ensure_project(db, user, project_id, ProjectRole.editor)
     item = ApiContractAsset(project_id=project_id, owner_id=user.id, **body.model_dump())
@@ -69,7 +69,7 @@ async def update_api_contract_asset(
     asset_id: int,
     body: ApiContractAssetUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(ApiContractAsset, asset_id)
     if item is None:
@@ -93,7 +93,7 @@ async def update_api_contract_asset(
 async def delete_api_contract_asset(
     asset_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(ApiContractAsset, asset_id)
     if item is None:

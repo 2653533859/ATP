@@ -35,7 +35,7 @@
         <a-button
           type="primary"
           size="small"
-          :disabled="!steps.length"
+          :disabled="!steps.length || !canModify"
           :loading="runningScenario"
           @click="handleRunScenario"
         >
@@ -73,7 +73,7 @@
       <aside class="steps-flow-pane">
         <div class="flow-heading">
           <span class="flow-title">步骤 ({{ steps.length }})</span>
-          <a-button type="link" size="small" class="add-step-btn" @click="openAddStepDrawer">
+          <a-button type="link" size="small" class="add-step-btn" :disabled="!canModify" @click="openAddStepDrawer">
             <PlusOutlined /> 添加步骤
           </a-button>
         </div>
@@ -103,11 +103,11 @@
                   <button type="button" class="step-more-btn" @click.stop>···</button>
                   <template #overlay>
                     <a-menu @click="({ key }) => handleStepAction(String(key), index)">
-                      <a-menu-item key="duplicate">复制步骤</a-menu-item>
-                      <a-menu-item key="up" :disabled="index === 0">上移一步</a-menu-item>
-                      <a-menu-item key="down" :disabled="index === steps.length - 1">下移一步</a-menu-item>
+                      <a-menu-item key="duplicate" :disabled="!canModify">复制步骤</a-menu-item>
+                      <a-menu-item key="up" :disabled="index === 0 || !canModify">上移一步</a-menu-item>
+                      <a-menu-item key="down" :disabled="index === steps.length - 1 || !canModify">下移一步</a-menu-item>
                       <a-menu-divider />
-                      <a-menu-item key="remove" danger>删除步骤</a-menu-item>
+                      <a-menu-item key="remove" danger :disabled="!canModify">删除步骤</a-menu-item>
                     </a-menu>
                   </template>
                 </a-dropdown>
@@ -134,10 +134,10 @@
         <div v-if="!steps.length" class="steps-empty">
           <p>按业务操作顺序添加接口步骤</p>
           <a-space direction="vertical" style="width: 100%">
-            <a-button type="primary" size="small" block @click="openAddStepDrawer">
+            <a-button type="primary" size="small" block :disabled="!canModify" @click="openAddStepDrawer">
               <PlusOutlined /> 从接口库选择
             </a-button>
-            <a-button size="small" block @click="addBlankStep">
+            <a-button size="small" block :disabled="!canModify" @click="addBlankStep">
               新建空白请求
             </a-button>
           </a-space>
@@ -209,6 +209,7 @@
 
                 <a-dropdown-button
                   type="primary"
+                  :disabled="!canModify"
                   :loading="debugging"
                   @click="debugCurrentStep('single')"
                 >
@@ -407,8 +408,8 @@
 
                 <a-tab-pane key="advanced" tab="高级">
                   <div class="auth-section">
-                    <label class="field-label">超时时间（秒）</label>
-                    <a-input-number v-model:value="currentStep.timeout" :min="1" :max="120" size="small" @change="markDirty" />
+                    <label class="field-label">超时时间（秒，1-60）</label>
+                    <a-input-number v-model:value="currentStep.timeout" :min="1" :max="60" size="small" @change="markDirty" />
                   </div>
                 </a-tab-pane>
               </a-tabs>
@@ -527,8 +528,8 @@
         <h3>从第一个接口步骤开始</h3>
         <p>从接口库选择已有接口或新建请求，按顺序编排业务链路并串联参数与断言。</p>
         <a-space>
-          <a-button type="primary" @click="openAddStepDrawer">从接口库选择</a-button>
-          <a-button @click="addBlankStep">新建空白请求</a-button>
+          <a-button type="primary" :disabled="!canModify" @click="openAddStepDrawer">从接口库选择</a-button>
+          <a-button :disabled="!canModify" @click="addBlankStep">新建空白请求</a-button>
         </a-space>
       </section>
 
@@ -545,7 +546,7 @@
                 {{ currentDebugResult?.passed ? '校验通过' : '存在失败校验' }}
               </a-tag>
             </div>
-            <a-button size="small" :loading="suggestionLoading" @click="requestSuggestions">
+            <a-button size="small" :disabled="!canModify" :loading="suggestionLoading" @click="requestSuggestions">
               生成校验与取值建议
             </a-button>
           </div>
@@ -737,12 +738,15 @@ import {
 import {
   apiScenarioApi,
   caseApi,
+  environmentApi,
   type ApiScenarioRecord,
   type CaseDetailItem,
   type CaseSummaryItem,
+  type EnvVariableItem,
   type EnvironmentItem,
   type AIAssertionSuggestResult,
 } from '@/api'
+import { extractApiError } from '@/utils/apiError'
 import {
   parseStepFromCase,
   type ApiScenarioStep,
@@ -844,21 +848,55 @@ const envOptions = computed(() =>
 const selectedEnv = computed(() =>
   props.environments.find((env) => env.id === selectedEnvId.value) ?? null,
 )
+const loadedEnvVariables = ref<EnvVariableItem[]>([])
+let envVarsLoadSeq = 0
+let consumedInitialStepIndex = false
+
+watch(
+  selectedEnvId,
+  async (envId) => {
+    const seq = ++envVarsLoadSeq
+    if (!envId || typeof environmentApi?.getVariables !== 'function') {
+      loadedEnvVariables.value = []
+      return
+    }
+    try {
+      const vars = await environmentApi.getVariables(envId)
+      if (seq !== envVarsLoadSeq) return
+      loadedEnvVariables.value = Array.isArray(vars) ? vars : []
+    } catch {
+      if (seq === envVarsLoadSeq) loadedEnvVariables.value = []
+    }
+  },
+  { immediate: true },
+)
 
 const currentEnvName = computed(() => selectedEnv.value?.name ?? '')
 
-const selectedEnvBaseUrl = computed(() => {
-  const raw = (selectedEnv.value as Record<string, unknown> | null)?.base_url
-  return typeof raw === 'string' ? raw : ''
-})
-
 const currentEnvVariables = computed(() => {
+  if (loadedEnvVariables.value.length) {
+    return loadedEnvVariables.value.map((v) => ({
+      key: v.key,
+      value: String(v.value ?? ''),
+    }))
+  }
   const vars = (selectedEnv.value as Record<string, unknown> | null)?.variables
   if (!vars || typeof vars !== 'object') return []
   return Object.entries(vars as Record<string, unknown>).map(([key, value]) => ({
     key,
     value: String(value ?? ''),
   }))
+})
+
+const selectedEnvBaseUrl = computed(() => {
+  const fromVars = currentEnvVariables.value.find(
+    (item) => item.key.trim().toLowerCase() === 'base_url',
+  )?.value
+  if (typeof fromVars === 'string' && fromVars.trim() && !fromVars.includes('*')) {
+    return fromVars.trim()
+  }
+  const raw = (selectedEnv.value as Record<string, unknown> | null)?.base_url
+  return typeof raw === 'string' ? raw : ''
 })
 
 const currentStepIndex = computed(() =>
@@ -962,6 +1000,38 @@ function markDirty() {
   saveDraftToStorage()
 }
 
+function normalizeAssertionForOrchestrator(raw: Record<string, unknown>) {
+  const rawTarget = String(raw.target || 'status_code')
+  const rawOperator = String(raw.operator || 'eq')
+  const expression = String(raw.expression || '')
+  const expected = raw.expected == null ? '' : String(raw.expected)
+
+  let target = rawTarget
+  if (rawTarget === 'body') {
+    if (expression) {
+      target = 'jsonpath'
+    } else {
+      target = 'body_contains'
+    }
+  } else if (rawTarget === 'header') {
+    target = 'response_header'
+  } else if (!['status_code', 'jsonpath', 'body_contains', 'response_header'].includes(rawTarget)) {
+    target = 'body_contains'
+  }
+
+  let operator = rawOperator
+  if (rawOperator === 'exists') operator = 'not_empty'
+  else if (!['eq', 'ne', 'contains', 'not_empty'].includes(rawOperator)) operator = 'eq'
+
+  return {
+    target,
+    operator,
+    expression,
+    expected,
+    description: typeof raw.description === 'string' ? raw.description : undefined,
+  }
+}
+
 function toOrchestratorStep(raw: ApiScenarioStep, sourceCaseId?: number): OrchestratorStep {
   return {
     uid: nextUid(),
@@ -976,10 +1046,28 @@ function toOrchestratorStep(raw: ApiScenarioStep, sourceCaseId?: number): Orches
     body_type: (raw.body_type as any) || 'none',
     body: raw.body ?? '',
     assertions: Array.isArray(raw.assertions) && raw.assertions.length
-      ? raw.assertions.map((a) => ({ ...a }))
+      ? raw.assertions.map((a) => normalizeAssertionForOrchestrator(a as Record<string, unknown>))
       : [{ target: 'status_code', operator: 'eq', expected: '200' }],
     extractions: Array.isArray(raw.extractions) ? raw.extractions.map((e) => ({ ...e })) : [],
-    timeout: raw.timeout || 30,
+    timeout: Math.min(Math.max(Number(raw.timeout || 30), 1), 60),
+  }
+}
+
+function refreshJsonFieldRowsFromStep(step: OrchestratorStep | null) {
+  if (!step || step.body_type !== 'json') {
+    jsonFieldRows.value = []
+    return
+  }
+  const source = typeof step.body === 'string'
+    ? (() => { try { return JSON.parse(step.body) } catch { return null } })()
+    : step.body
+  if (source && typeof source === 'object' && !Array.isArray(source)) {
+    jsonFieldRows.value = Object.entries(source as Record<string, unknown>).map(([key, value]) => ({
+      key,
+      value: typeof value === 'string' ? value : JSON.stringify(value),
+    }))
+  } else {
+    jsonFieldRows.value = []
   }
 }
 
@@ -995,6 +1083,7 @@ function loadStepIntoEditor(step: OrchestratorStep | null) {
   }))
   const bt = step.body_type || 'none'
   currentBodyType.value = bt === 'json' || bt === 'form' || bt === 'raw' ? bt : 'none'
+  jsonEditMode.value = 'raw'
   jsonError.value = ''
 
   if (bt === 'json') {
@@ -1005,15 +1094,19 @@ function loadStepIntoEditor(step: OrchestratorStep | null) {
     } else {
       jsonBodyText.value = '{\n  \n}'
     }
+    refreshJsonFieldRowsFromStep(step)
     requestSubTab.value = 'body'
   } else if (bt === 'form') {
     const obj = typeof step.body === 'object' && step.body ? (step.body as Record<string, unknown>) : {}
     formBodyRows.value = Object.entries(obj).map(([key, value]) => ({ key, value: String(value ?? '') }))
+    jsonFieldRows.value = []
     requestSubTab.value = 'body'
   } else if (bt === 'raw') {
     rawBodyText.value = typeof step.body === 'string' ? step.body : JSON.stringify(step.body ?? '')
+    jsonFieldRows.value = []
     requestSubTab.value = 'body'
   } else {
+    jsonFieldRows.value = []
     requestSubTab.value = queryParamRows.value.length ? 'params' : 'body'
   }
 }
@@ -1023,15 +1116,23 @@ function selectStep(uid: string) {
   loadStepIntoEditor(steps.value.find((s) => s.uid === uid) ?? null)
 }
 
+function resetExecutionState() {
+  runtimeVariables.value = {}
+  stepDebugResults.value = {}
+  pendingSuggestions.value = null
+}
+
 function loadScenarioRecord(sc: ApiScenarioRecord) {
+  resetExecutionState()
   editingCaseId.value = sc.id
   scenarioName.value = sc.name
   scenarioDescription.value = sc.description || ''
   if (sc.env_id) selectedEnvId.value = sc.env_id
   const rawSteps = Array.isArray(sc.steps) ? (sc.steps as unknown as ApiScenarioStep[]) : []
   steps.value = rawSteps.map((s) => toOrchestratorStep(s))
-  const targetIndex = props.initialStepIndex != null && props.initialStepIndex < steps.value.length
-    ? props.initialStepIndex : 0
+  const useInitialStep = !consumedInitialStepIndex && props.initialStepIndex != null && props.initialStepIndex < steps.value.length
+  const targetIndex = useInitialStep ? (props.initialStepIndex as number) : 0
+  consumedInitialStepIndex = true
   selectedStepUid.value = steps.value[targetIndex]?.uid ?? null
   loadStepIntoEditor(steps.value[targetIndex] ?? null)
   isDirty.value = false
@@ -1040,13 +1141,41 @@ function loadScenarioRecord(sc: ApiScenarioRecord) {
 }
 
 watch(
-  () => [props.initialSteps, props.initialScenario, props.initialCase] as const,
-  ([initSteps, initScenario, initCase]) => {
+  () => props.projectId,
+  (nextProjectId, prevProjectId) => {
+    if (nextProjectId === prevProjectId || prevProjectId === undefined) return
+    resetExecutionState()
+    editingCaseId.value = null
+    scenarioName.value = '登录场景回归'
+    scenarioDescription.value = ''
+    selectedEnvId.value = undefined
+    loadedEnvVariables.value = []
+    steps.value = []
+    selectedStepUid.value = null
+    isDirty.value = false
+    consumedInitialStepIndex = false
+  },
+)
+
+watch(
+  () => [props.initialSteps, props.initialScenario, props.initialCase, props.projectId] as const,
+  ([initSteps, initScenario, initCase, nextPid], prev) => {
+    const projectChanged = Boolean(prev && prev[3] !== undefined && prev[3] !== nextPid)
+    const initChanged = Boolean(
+      prev && (initSteps !== prev[0] || initScenario !== prev[1] || initCase !== prev[2]),
+    )
+    if (projectChanged && !initChanged) {
+      if (!steps.value.length) {
+        restoreDraftFromStorage()
+      }
+      return
+    }
     if (initScenario) {
       loadScenarioRecord(initScenario)
       return
     }
     if (initCase) {
+      resetExecutionState()
       editingCaseId.value = null
       scenarioName.value = initCase.name
       scenarioDescription.value = initCase.description || ''
@@ -1061,6 +1190,7 @@ watch(
       return
     }
     if (initSteps && initSteps.length) {
+      resetExecutionState()
       editingCaseId.value = null
       steps.value = initSteps.map((s) => toOrchestratorStep(s))
       const names = steps.value.map((s) => s.name).filter(Boolean)
@@ -1097,7 +1227,11 @@ watch(
 watch(
   () => props.environments,
   (envs) => {
-    if (!selectedEnvId.value && envs.length) {
+    if (!envs.length) {
+      selectedEnvId.value = undefined
+      return
+    }
+    if (!selectedEnvId.value || !envs.some((env) => env.id === selectedEnvId.value)) {
       selectedEnvId.value = envs[0].id
     }
   },
@@ -1298,13 +1432,22 @@ function syncJsonFieldsToStep() {
   if (!currentStep.value) return
   const obj: Record<string, unknown> = {}
   for (const r of jsonFieldRows.value) {
-    if (!r.key.trim()) continue
+    const k = r.key.trim()
+    if (!k) continue
     const raw = r.value.trim()
-    if (raw === 'true') obj[r.key.trim()] = true
-    else if (raw === 'false') obj[r.key.trim()] = false
-    else if (raw === 'null') obj[r.key.trim()] = null
-    else if (/^-?\d+(\.\d+)?$/.test(raw)) obj[r.key.trim()] = Number(raw)
-    else obj[r.key.trim()] = r.value
+    if (raw === 'true') obj[k] = true
+    else if (raw === 'false') obj[k] = false
+    else if (raw === 'null') obj[k] = null
+    else if (/^-?\d+(\.\d+)?$/.test(raw)) obj[k] = Number(raw)
+    else if ((raw.startsWith('{') && raw.endsWith('}')) || (raw.startsWith('[') && raw.endsWith(']'))) {
+      try {
+        obj[k] = JSON.parse(raw)
+      } catch {
+        obj[k] = r.value
+      }
+    } else {
+      obj[k] = r.value
+    }
   }
   jsonBodyText.value = JSON.stringify(obj, null, 2)
   currentStep.value.body = obj
@@ -1408,6 +1551,9 @@ function buildEffectiveVarMap(): Record<string, string> {
   for (const ev of currentEnvVariables.value) {
     map[ev.key] = ev.value
   }
+  if (!map.base_url && selectedEnvBaseUrl.value) {
+    map.base_url = selectedEnvBaseUrl.value
+  }
   Object.assign(map, runtimeVariables.value)
   return map
 }
@@ -1479,17 +1625,29 @@ function evaluateStepAssertions(
 
 function extractStepVariables(
   step: OrchestratorStep,
-  res: { body_json: unknown; headers: Record<string, string> },
+  res: { body: string; body_json: unknown; headers: Record<string, string> },
 ) {
   for (const ext of step.extractions || []) {
     const varName = ext.variable?.trim()
-    if (!varName || !ext.expression?.trim()) continue
+    const expr = ext.expression?.trim()
+    if (!varName || !expr) continue
     if (ext.type === 'header') {
-      const hk = ext.expression.trim().toLowerCase()
+      const hk = expr.toLowerCase()
       const found = Object.entries(res.headers || {}).find(([k]) => k.toLowerCase() === hk)
       if (found) runtimeVariables.value[varName] = String(found[1])
+    } else if (ext.type === 'regex') {
+      try {
+        const reg = new RegExp(expr)
+        const textSource = res.body || (res.body_json ? JSON.stringify(res.body_json) : '')
+        const matched = reg.exec(textSource)
+        if (matched) {
+          runtimeVariables.value[varName] = matched[1] !== undefined ? String(matched[1]) : String(matched[0])
+        }
+      } catch {
+        // 无效正则忽略
+      }
     } else {
-      const val = resolveJsonPathValue(res.body_json, ext.expression.trim())
+      const val = resolveJsonPathValue(res.body_json, expr)
       if (val !== undefined && val !== null) {
         runtimeVariables.value[varName] = typeof val === 'object' ? JSON.stringify(val) : String(val)
       }
@@ -1498,6 +1656,10 @@ function extractStepVariables(
 }
 
 async function executeSingleStepDebug(step: OrchestratorStep): Promise<boolean> {
+  if (!props.projectId) {
+    message.warning('请先选择项目后再执行调试')
+    return false
+  }
   const vars = buildEffectiveVarMap()
   let rawUrl = interpolateString(step.url || '', vars).trim()
   if (!rawUrl) {
@@ -1516,6 +1678,10 @@ async function executeSingleStepDebug(step: OrchestratorStep): Promise<boolean> 
   for (const [k, v] of Object.entries(step.params || {})) {
     params[k] = interpolateString(String(v), vars)
   }
+  const cookies: Record<string, string> = {}
+  for (const [k, v] of Object.entries(step.cookies || {})) {
+    cookies[k] = interpolateString(String(v), vars)
+  }
 
   let bodyPayload: unknown = step.body
   if (typeof step.body === 'string') {
@@ -1529,17 +1695,18 @@ async function executeSingleStepDebug(step: OrchestratorStep): Promise<boolean> 
     }
   }
 
-  const res = await caseApi.previewRequest(props.projectId || 1, {
+  const res = await caseApi.previewRequest(props.projectId, {
     method: (step.method || 'GET').toUpperCase(),
     url: rawUrl,
     headers,
     params,
-    cookies: step.cookies || {},
+    cookies,
     body_type: String(step.body_type || 'none'),
     body: bodyPayload,
     multipart: [],
     auth: { type: 'none' },
-    timeout: step.timeout || 30,
+    timeout: Math.min(Math.max(Number(step.timeout || 30), 1), 60),
+    env_id: selectedEnvId.value ?? null,
   })
 
   let parsedBodyJson: unknown = null
@@ -1560,6 +1727,8 @@ async function executeSingleStepDebug(step: OrchestratorStep): Promise<boolean> 
 
   const { allPassed, details } = evaluateStepAssertions(step, evalPayload)
   extractStepVariables(step, evalPayload)
+  const hasExplicitAssertions = (step.assertions || []).length > 0
+  const passed = hasExplicitAssertions ? allPassed : (res.status_code > 0 && res.status_code < 400)
 
   stepDebugResults.value[step.uid] = {
     status_code: res.status_code,
@@ -1567,17 +1736,19 @@ async function executeSingleStepDebug(step: OrchestratorStep): Promise<boolean> 
     body: res.body,
     body_json: parsedBodyJson,
     headers: res.headers || {},
-    passed: allPassed && res.status_code > 0 && res.status_code < 400,
+    passed,
     assertionDetails: details,
   }
   return stepDebugResults.value[step.uid].passed
 }
 
 async function debugCurrentStep(mode: 'single' | 'through') {
-  if (!currentStep.value) return
+  if (!currentStep.value || !props.canModify) return
   debugging.value = true
   try {
     if (mode === 'through') {
+      runtimeVariables.value = {}
+      pendingSuggestions.value = null
       const targetIdx = currentStepIndex.value
       for (let i = 0; i <= targetIdx; i++) {
         const s = steps.value[i]
@@ -1588,8 +1759,8 @@ async function debugCurrentStep(mode: 'single' | 'through') {
     } else {
       await executeSingleStepDebug(currentStep.value)
     }
-  } catch (err: any) {
-    message.error(`调试请求失败: ${err?.response?.data?.detail || err?.message || '请检查地址或网络'}`)
+  } catch (err: unknown) {
+    message.error(`调试请求失败: ${extractApiError(err, '请检查地址或网络')}`)
   } finally {
     debugging.value = false
   }
@@ -1667,8 +1838,8 @@ async function requestSuggestions() {
     if (currentStep.value?.uid !== step.uid || currentDebugResult.value !== response
       || suggestionSignature(step) !== signature) return
     pendingSuggestions.value = { stepUid: step.uid, response, signature, result }
-  } catch (error: any) {
-    message.error(`生成建议失败: ${error?.response?.data?.detail || error?.message || '请稍后重试'}`)
+  } catch (error: unknown) {
+    message.error(`生成建议失败: ${extractApiError(error, '请稍后重试')}`)
   } finally {
     suggestionLoading.value = false
   }
@@ -1699,7 +1870,7 @@ function applySuggestions() {
     added++
   }
   for (const item of pending.result.extractions) {
-    if (item.type !== 'jsonpath' && item.type !== 'header') continue
+    if (item.type !== 'jsonpath' && item.type !== 'header' && item.type !== 'regex') continue
     if (step.extractions.some((existing) => existing.variable === item.variable
       || (existing.type === item.type && existing.expression === item.expression))) continue
     step.extractions.push({ variable: item.variable, type: item.type, expression: item.expression, description: item.description })
@@ -1712,7 +1883,7 @@ function applySuggestions() {
   }
   const { allPassed, details } = evaluateStepAssertions(step, response)
   response.assertionDetails = details
-  response.passed = allPassed && response.status_code > 0 && response.status_code < 400
+  response.passed = (step.assertions || []).length > 0 ? allPassed : (response.status_code > 0 && response.status_code < 400)
   inspectorMainTab.value = 'assertions'
   markDirty()
   message.success(`已应用 ${added} 条建议，并用当前响应重新校验`)
@@ -1750,6 +1921,10 @@ function quickAddExtractionFromField(field: { path: string; rawValue: unknown })
 }
 
 async function handleSaveScenario(silent = false): Promise<number | null> {
+  if (!props.projectId) {
+    message.warning('请先选择所属项目')
+    return null
+  }
   if (!scenarioName.value.trim()) {
     message.warning('请输入场景名称')
     return null
@@ -1773,13 +1948,13 @@ async function handleSaveScenario(silent = false): Promise<number | null> {
       assertions: s.assertions || [],
       extractions: s.extractions || [],
       depends_on: idx > 0 ? [idx - 1] : [],
-      timeout: s.timeout || 30,
+      timeout: Math.min(Math.max(Number(s.timeout || 30), 1), 60),
       sourceCaseId: s.sourceCaseId,
       sourceCaseFingerprint: s.sourceCaseFingerprint,
     }))
 
     const payload = {
-      project_id: props.projectId || 1,
+      project_id: props.projectId,
       module_id: props.moduleId,
       name: scenarioName.value.trim(),
       description: scenarioDescription.value.trim(),
@@ -1803,8 +1978,8 @@ async function handleSaveScenario(silent = false): Promise<number | null> {
       emit('saved', created.id)
       return created.id
     }
-  } catch (err: any) {
-    message.error(`保存场景失败: ${err?.response?.data?.detail || err?.message || '请检查输入'}`)
+  } catch (err: unknown) {
+    message.error(`保存场景失败: ${extractApiError(err, '请检查输入')}`)
     return null
   } finally {
     saving.value = false
@@ -1812,14 +1987,16 @@ async function handleSaveScenario(silent = false): Promise<number | null> {
 }
 
 async function handleRunScenario() {
-  if (!steps.value.length) return
+  if (!steps.value.length || !props.canModify) return
   runningScenario.value = true
+  let scenarioId = editingCaseId.value
+  const startedAt = performance.now()
   try {
-    let scenarioId = editingCaseId.value
     if (!scenarioId || isDirty.value) {
       scenarioId = await handleSaveScenario(true)
+      if (!scenarioId) return
     }
-    const startedAt = performance.now()
+    resetExecutionState()
     let allPassed = true
     let passedCount = 0
     for (let i = 0; i < steps.value.length; i++) {
@@ -1845,8 +2022,15 @@ async function handleRunScenario() {
     } else {
       message.warning(`场景执行完成：${passedCount}/${steps.value.length} 步通过（耗时 ${durationMs} ms）`)
     }
-  } catch (err: any) {
-    message.error(`运行场景失败: ${err?.response?.data?.detail || err?.message || '请稍后重试'}`)
+  } catch (err: unknown) {
+    const durationMs = Math.round(performance.now() - startedAt)
+    if (scenarioId) {
+      try {
+        await apiScenarioApi.recordRun(scenarioId, { status: 'failed', duration_ms: durationMs })
+        emit('saved', scenarioId)
+      } catch {}
+    }
+    message.error(`运行场景失败: ${extractApiError(err, '请稍后重试')}`)
   } finally {
     runningScenario.value = false
   }

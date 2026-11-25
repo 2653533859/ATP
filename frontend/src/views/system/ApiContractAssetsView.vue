@@ -19,7 +19,7 @@
         <a-button size="small" :loading="loading" :disabled="!projectId" @click="loadAssets">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
-        <a-button type="primary" size="small" :disabled="!projectId" @click="openCreate">
+        <a-button type="primary" size="small" :disabled="!projectId || !canModify" @click="openCreate">
           + {{ t('api_contract_assets.new_asset') }}
         </a-button>
       </div>
@@ -100,11 +100,11 @@
                 </template>
                 <template v-else-if="column.key === 'actions'">
                   <a-space>
-                    <a-button type="link" size="small" @click="openEdit(asAsset(record))">
+                    <a-button type="link" size="small" :disabled="!canModify" @click="openEdit(asAsset(record))">
                       {{ t('common.edit') }}
                     </a-button>
-                    <a-popconfirm :title="t('api_contract_assets.delete_confirm')" @confirm="deleteAsset(asAsset(record).id)">
-                      <a-button type="link" danger size="small">{{ t('common.delete') }}</a-button>
+                    <a-popconfirm :disabled="!canModify" :title="t('api_contract_assets.delete_confirm')" @confirm="deleteAsset(asAsset(record).id)">
+                      <a-button type="link" danger size="small" :disabled="!canModify">{{ t('common.delete') }}</a-button>
                     </a-popconfirm>
                   </a-space>
                 </template>
@@ -227,7 +227,7 @@
       </a-row>
     </template>
 
-    <a-drawer v-model:open="editorOpen" :title="editing ? t('api_contract_assets.edit_title') : t('api_contract_assets.create_title')" :width="720">
+    <a-drawer v-model:open="editorOpen" :mask-closable="false" :title="editing ? t('api_contract_assets.edit_title') : t('api_contract_assets.create_title')" :width="720">
       <a-alert
         type="info"
         show-icon
@@ -297,13 +297,19 @@ import {
   type ProjectItem,
 } from '@/api'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
+import { extractApiError } from '@/utils/apiError'
+import { canEditProjectByRole } from '@/utils/permissions'
+import { useAuthStore } from '@/stores/auth'
 
+const auth = useAuthStore()
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
 const projects = ref<ProjectItem[]>([])
 const projectId = ref<number | undefined>()
+const currentProject = computed(() => projects.value.find((p) => p.id === projectId.value))
+const canModify = computed(() => canEditProjectByRole(auth.user?.role, currentProject.value?.current_user_role))
 const assets = ref<ApiContractAssetItem[]>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -365,12 +371,7 @@ function formatLabel(format: AssetFormat) {
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'string' && error.trim()) return error
-  if (error && typeof error === 'object' && 'message' in error) {
-    const detail = (error as { message?: unknown }).message
-    if (typeof detail === 'string' && detail.trim()) return detail
-  }
-  return fallback
+  return extractApiError(error, fallback)
 }
 
 function syncCompareSelection() {

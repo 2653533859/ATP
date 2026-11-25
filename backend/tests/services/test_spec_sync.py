@@ -318,3 +318,31 @@ def test_sync_api_contracts_endpoint(monkeypatch):
     res = asyncio.run(sync_project_spec_with_cases(project_id=5, body=body, db=db, user=admin_user))
     assert res["total_spec_endpoints"] == 1
     assert res["additions_count"] == 1
+
+
+def test_compare_case_with_spec_endpoint_reads_steps_zero_and_addition_patch_uses_target_operator():
+    from app.services.spec_sync import compare_case_with_spec_endpoint, generate_addition_patch
+
+    case = TestCase(
+        id=201,
+        name="步骤嵌套接口用例",
+        case_type=CaseType.api,
+        config={
+            "params": {"role": "legacy-top"},
+            "steps": [{"method": "GET", "url": "/orders", "params": {}, "headers": {}}],
+        },
+    )
+    endpoint_meta = {
+        "method": "GET",
+        "path": "/orders",
+        "summary": "查询订单",
+        "parameters": [{"name": "role", "in": "query", "required": True}],
+    }
+
+    diffs = compare_case_with_spec_endpoint(case, endpoint_meta)
+    assert any("新增必填 Query 参数: 'role'" in msg for msg in diffs)
+
+    patch = generate_addition_patch(endpoint_meta, default_module_id=10)
+    assertions = patch["config"]["assertions"]
+    assert assertions and assertions[0]["target"] == "status_code"
+    assert assertions[0]["operator"] == "eq"

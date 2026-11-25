@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 import time
 from typing import Any
 from defusedxml import ElementTree as ET
@@ -32,6 +33,11 @@ from app.services.dataset_execution import redact_execution_evidence
 from app.services.safe_expressions import SafeExpressionError, evaluate_safe_expression
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.services.step_result_collector import StepResultBatchCollector
+from app.worker.executors._assertion_helpers import (
+    build_basic_auth_header,
+    collect_auth_redact_fields,
+    compare_assertion_operator,
+)
 from app.core.tracing import inject_w3c_trace_headers
 
 _tracer = get_tracer("atp.executor.api")
@@ -156,121 +162,116 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
     oauth_token_cache: dict[str, tuple[str, float]] = {}
 
     step_collector = StepResultBatchCollector(db)
-    for idx, step in enumerate(steps):
-        step_name = step.get("name", f"Step {idx + 1}")
-        dependencies = step_dependencies(step, idx)
-        failed_dependencies = [
-            dependency
-            for dependency in dependencies
-            if completed_status.get(dependency) in {RunStatus.failed, RunStatus.error, RunStatus.skipped}
-        ]
-        if stop_remaining or failed_dependencies:
-            reason = (
-                "场景失败策略已停止后续步骤"
-                if stop_remaining
-                else f"依赖步骤未通过: {', '.join(str(item + 1) for item in failed_dependencies)}"
-            )
-            await _record_skipped_scenario_step(db, run, idx, step_name, reason, collector=step_collector)
-            completed_status[idx] = RunStatus.skipped
-            all_passed = False
-            continue
-        request_context = context if policy.context_scope == "scenario" else {**extra_vars}
-        with _tracer.start_as_current_span(f"step.{idx}") as step_span:
-            step_span.set_attribute("step.index", idx)
-            step_span.set_attribute("step.name", step_name)
+    try:
+        for idx, step in enumerate(steps):
+            step_name = step.get("name", f"Step {idx + 1}")
+            dependencies = step_dependencies(step, idx)
+            failed_dependencies = [
+                dependency
+                for dependency in dependencies
+                if completed_status.get(dependency) in {RunStatus.failed, RunStatus.error, RunStatus.skipped}
+            ]
+            if stop_remaining or failed_dependencies:
+                reason = (
+                    "场景失败策略已停止后续步骤"
+                    if stop_remaining
+                    else f"依赖步骤未通过: {', '.join(str(item + 1) for item in failed_dependencies)}"
+                )
+                await _record_skipped_scenario_step(db, run, idx, step_name, reason, collector=step_collector)
+                completed_status[idx] = RunStatus.skipped
+                all_passed = False
+                continue
+            request_context = context if policy.context_scope == "scenario" else {**extra_vars}
+            with _tracer.start_as_current_span(f"step.{idx}") as step_span:
+                step_span.set_attribute("step.index", idx)
+                step_span.set_attribute("step.name", step_name)
 
-            step_start = time.monotonic()
-            step_result = StepResult(
-                run_id=run.id,
-                step_index=idx,
-                name=step_name,
-                status=RunStatus.running,
-            )
-
-            request_data = {}
-            response_data = {}
-            assertion_records: list[dict] = []
-            extraction_records: list[dict] = []
-            error_msg = None
-            step_status = RunStatus.passed
-
-            try:
-                hook_summaries = execute_api_hooks(step.get("pre_actions"), request_context)
-                # 变量替换
-                url = _render(step.get("url", ""), request_context)
-                method = step.get("method", "GET").upper()
-                headers = {k: _render(v, request_context) for k, v in step.get("headers", {}).items()}
-                params = {k: _render(v, request_context) for k, v in step.get("params", {}).items()}
-                cookies = {k: _render(v, request_context) for k, v in step.get("cookies", {}).items()}
-                body = step.get("body")
-                timeout = step.get("timeout", 30)
-                step_span.set_attribute("http.request.method", method)
-                step_span.set_attribute("http.url", url)
-
-                # 认证注入
-                auth_cfg = step.get("auth", {})
-                auth_type = auth_cfg.get("type")
-                if auth_type == "bearer":
-                    headers["Authorization"] = f"Bearer {_render(auth_cfg.get('token', ''), context)}"
-                elif auth_type == "basic":
-                    import base64
-
-                    cred = base64.b64encode(f"{auth_cfg.get('username')}:{auth_cfg.get('password')}".encode()).decode()
-                    headers["Authorization"] = f"Basic {cred}"
-                elif auth_type == "apikey":
-                    header_name = _render(auth_cfg.get("header", "X-API-Key"), context).strip()
-                    header_value = _render(auth_cfg.get("value", ""), context)
-                    if header_name:
-                        headers[header_name] = header_value
-                headers = inject_w3c_trace_headers(
-                    headers,
-                    run_id=getattr(run, "id", None),
-                    case_id=getattr(case, "id", None),
-                    trace_id=getattr(run, "trace_id", None),
+                step_start = time.monotonic()
+                step_result = StepResult(
+                    run_id=run.id,
+                    step_index=idx,
+                    name=step_name,
+                    status=RunStatus.running,
                 )
 
-                request_kwargs, request_body_for_record = await _build_request_kwargs(
-                    step,
-                    request_context,
-                    headers=headers,
-                    params=params,
-                    cookies=cookies,
-                    project_id=project_id,
-                )
-                if auth_type == "digest":
-                    request_kwargs["auth"] = build_digest_auth(auth_cfg, lambda value: _render(value, context))
-                elif auth_type == "oauth2_client_credentials":
-                    headers["Authorization"] = await resolve_oauth2_client_credentials_token(
-                        auth_cfg,
-                        lambda value: _render(value, context),
-                        float(timeout),
-                        oauth_token_cache,
+                request_data = {}
+                response_data = {}
+                assertion_records: list[dict] = []
+                extraction_records: list[dict] = []
+                error_msg = None
+                step_status = RunStatus.passed
+                step_redact_fields = list(evidence_redact_fields)
+
+                try:
+                    hook_summaries = execute_api_hooks(step.get("pre_actions"), request_context)
+                    # 变量替换
+                    url = _render(step.get("url", ""), request_context)
+                    method = step.get("method", "GET").upper()
+                    headers = {k: _render(v, request_context) for k, v in step.get("headers", {}).items()}
+                    params = {k: _render(v, request_context) for k, v in step.get("params", {}).items()}
+                    cookies = {k: _render(v, request_context) for k, v in step.get("cookies", {}).items()}
+                    body = step.get("body")
+                    timeout = step.get("timeout", 30)
+                    step_span.set_attribute("http.request.method", method)
+                    step_span.set_attribute("http.url", url)
+
+                    # 认证注入（使用 request_context 确保 step 作用域前置 Hook 变量也可注入认证头）
+                    auth_cfg = step.get("auth", {})
+                    auth_type = auth_cfg.get("type")
+                    step_redact_fields.extend(
+                        collect_auth_redact_fields(auth_cfg, lambda value: _render(str(value), request_context))
                     )
-                request_data = {
-                    "method": method,
-                    "url": url,
-                    "headers": headers,
-                    "params": params,
-                    "cookies": cookies,
-                    "body": request_body_for_record,
-                }
-                if shared_client is not None and cookies:
-                    shared_client.cookies.update(cookies)
-                    request_kwargs.pop("cookies", None)
-                if shared_client is not None:
-                    resp, streamed_body = await _send_request(
-                        shared_client,
-                        method,
-                        url,
-                        timeout,
-                        request_kwargs,
-                        step.get("response_type"),
-                        step.get("sse_max_events", 100),
+                    if auth_type == "bearer":
+                        headers["Authorization"] = f"Bearer {_render(auth_cfg.get('token', ''), request_context)}"
+                    elif auth_type == "basic":
+                        headers["Authorization"] = build_basic_auth_header(
+                            auth_cfg, lambda value: _render(str(value), request_context)
+                        )
+                    elif auth_type == "apikey":
+                        header_name = _render(auth_cfg.get("header", "X-API-Key"), request_context).strip()
+                        header_value = _render(auth_cfg.get("value", ""), request_context)
+                        if header_name:
+                            headers[header_name] = header_value
+                    headers = inject_w3c_trace_headers(
+                        headers,
+                        run_id=getattr(run, "id", None),
+                        case_id=getattr(case, "id", None),
+                        trace_id=getattr(run, "trace_id", None),
                     )
-                else:
-                    async with httpx.AsyncClient(timeout=timeout) as client:
+
+                    request_kwargs, request_body_for_record = await _build_request_kwargs(
+                        step,
+                        request_context,
+                        headers=headers,
+                        params=params,
+                        cookies=cookies,
+                        project_id=project_id,
+                    )
+                    if auth_type == "digest":
+                        request_kwargs["auth"] = build_digest_auth(
+                            auth_cfg, lambda value: _render(value, request_context)
+                        )
+                    elif auth_type == "oauth2_client_credentials":
+                        headers["Authorization"] = await resolve_oauth2_client_credentials_token(
+                            auth_cfg,
+                            lambda value: _render(value, request_context),
+                            float(timeout),
+                            oauth_token_cache,
+                        )
+                    request_data = {
+                        "method": method,
+                        "url": url,
+                        "headers": headers,
+                        "params": params,
+                        "cookies": cookies,
+                        "body": request_body_for_record,
+                    }
+                    if shared_client is not None and cookies:
+                        shared_client.cookies.update(cookies)
+                        request_kwargs.pop("cookies", None)
+                    if shared_client is not None:
                         resp, streamed_body = await _send_request(
-                            client,
+                            shared_client,
                             method,
                             url,
                             timeout,
@@ -278,121 +279,134 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                             step.get("response_type"),
                             step.get("sse_max_events", 100),
                         )
+                    else:
+                        async with httpx.AsyncClient(timeout=timeout) as client:
+                            resp, streamed_body = await _send_request(
+                                client,
+                                method,
+                                url,
+                                timeout,
+                                request_kwargs,
+                                step.get("response_type"),
+                                step.get("sse_max_events", 100),
+                            )
 
-                duration = int((time.monotonic() - step_start) * 1000)
-                resp_body = (
-                    streamed_body
-                    if streamed_body is not None
-                    else _parse_response_body(resp, step.get("response_type"))
-                )
-
-                response_data = response_contract(
-                    "http",
-                    status_code=resp.status_code,
-                    headers=dict(resp.headers),
-                    body=resp_body,
-                    duration_ms=duration,
-                )
-                step_span.set_attribute("http.response.status_code", resp.status_code)
-
-                # 变量提取
-                for extraction in step.get("extractions", []):
-                    val = _extract_value(
-                        resp_body,
-                        extraction.get("expression", ""),
-                        extraction.get("type", "jsonpath"),
+                    duration = int((time.monotonic() - step_start) * 1000)
+                    resp_body = (
+                        streamed_body
+                        if streamed_body is not None
+                        else _parse_response_body(resp, step.get("response_type"))
                     )
-                    if val is not None:
-                        request_context[extraction["variable"]] = val
-                    extraction_records.append(
-                        extraction_result(
-                            extraction,
-                            value=val,
-                            success=val is not None,
-                            error=None if val is not None else "未提取到值",
+
+                    response_data = response_contract(
+                        "http",
+                        status_code=resp.status_code,
+                        headers=dict(resp.headers),
+                        body=resp_body,
+                        duration_ms=duration,
+                    )
+                    step_span.set_attribute("http.response.status_code", resp.status_code)
+
+                    # 变量提取
+                    for extraction in step.get("extractions", []):
+                        val = _extract_value(
+                            resp_body,
+                            extraction.get("expression", ""),
+                            extraction.get("type", "jsonpath"),
+                            response_headers=dict(resp.headers),
+                        )
+                        if val is not None:
+                            request_context[extraction["variable"]] = val
+                        extraction_records.append(
+                            extraction_result(
+                                extraction,
+                                value=val,
+                                success=val is not None,
+                                error=None if val is not None else "未提取到值",
+                            )
+                        )
+                    response_data["extractions"] = extraction_records
+
+                    hook_summaries.extend(
+                        execute_api_hooks(
+                            step.get("post_actions"),
+                            request_context,
+                            response_body=resp_body,
+                            response_headers=dict(resp.headers),
                         )
                     )
-                response_data["extractions"] = extraction_records
+                    if hook_summaries:
+                        response_data["hook_actions"] = hook_summaries
 
-                hook_summaries.extend(
-                    execute_api_hooks(
-                        step.get("post_actions"),
-                        request_context,
-                        response_body=resp_body,
-                        response_headers=dict(resp.headers),
-                    )
-                )
-                if hook_summaries:
-                    response_data["hook_actions"] = hook_summaries
+                    # 断言
+                    assertions = await _resolve_schema_assertions(db, step.get("assertions", []), project_id)
+                    for assertion in assertions:
+                        passed, msg = _assert(assertion, resp, resp_body, duration)
+                        assertion_records.append(assertion_result(assertion, passed=passed, message=msg))
+                        if not passed:
+                            step_status = RunStatus.failed
+                            all_passed = False
+                            error_msg = msg
+                            break
+                    response_data["assertions"] = assertion_records
 
-                # 断言
-                assertions = await _resolve_schema_assertions(db, step.get("assertions", []), project_id)
-                for assertion in assertions:
-                    passed, msg = _assert(assertion, resp, resp_body, duration)
-                    assertion_records.append(assertion_result(assertion, passed=passed, message=msg))
-                    if not passed:
-                        step_status = RunStatus.failed
-                        all_passed = False
-                        error_msg = msg
-                        break
-                response_data["assertions"] = assertion_records
+                except Exception as e:
+                    step_status = RunStatus.error
+                    all_passed = False
+                    error_msg = str(e)
+                    step_span.record_exception(e)
 
-            except Exception as e:
-                step_status = RunStatus.error
-                all_passed = False
-                error_msg = str(e)
-                step_span.record_exception(e)
+                step_result.status = step_status
+                step_result.duration_ms = int((time.monotonic() - step_start) * 1000)
+                persisted_request_data = redact_execution_evidence(request_data, step_redact_fields)
+                persisted_response_data = redact_execution_evidence(response_data, step_redact_fields)
+                step_result.request_data = persisted_request_data
+                step_result.response_data = persisted_response_data
+                step_result.error_message = error_msg
+                needs_healing = apply_healing_hook(step_result)
+                await step_collector.add(step_result, flush=needs_healing)
+                if needs_healing:
+                    enqueue_diagnosis(step_result.id)
 
-            step_result.status = step_status
-            step_result.duration_ms = int((time.monotonic() - step_start) * 1000)
-            persisted_request_data = redact_execution_evidence(request_data, evidence_redact_fields)
-            persisted_response_data = redact_execution_evidence(response_data, evidence_redact_fields)
-            step_result.request_data = persisted_request_data
-            step_result.response_data = persisted_response_data
-            step_result.error_message = error_msg
-            needs_healing = apply_healing_hook(step_result)
-            await step_collector.add(step_result, flush=needs_healing)
-            if needs_healing:
-                enqueue_diagnosis(step_result.id)
+                step_span.set_attribute("step.status", step_status.value)
+                step_span.set_attribute("step.duration_ms", step_result.duration_ms)
+                if step_status in (RunStatus.failed, RunStatus.error):
+                    step_span.set_status(Status(StatusCode.ERROR, error_msg or step_status.value))
 
-            step_span.set_attribute("step.status", step_status.value)
-            step_span.set_attribute("step.duration_ms", step_result.duration_ms)
-            if step_status in (RunStatus.failed, RunStatus.error):
-                step_span.set_status(Status(StatusCode.ERROR, error_msg or step_status.value))
+                completed_status[idx] = step_status
+                if step_status in (RunStatus.failed, RunStatus.error) and policy.failure_strategy == "stop":
+                    stop_remaining = True
 
-            completed_status[idx] = step_status
-            if step_status in (RunStatus.failed, RunStatus.error) and policy.failure_strategy == "stop":
-                stop_remaining = True
-
-            # 推送步骤结果
-            await _safe_publish_run_event(
-                run.id,
-                {
-                    "type": "step_result",
-                    "run_id": run.id,
-                    "step": {
-                        "step_index": idx,
-                        "name": step_result.name,
-                        "status": step_status.value,
-                        "duration_ms": step_result.duration_ms,
-                        "request_data": persisted_request_data,
-                        "response_data": persisted_response_data,
-                        "error_message": error_msg,
+                # 推送步骤结果
+                await _safe_publish_run_event(
+                    run.id,
+                    {
+                        "type": "step_result",
+                        "run_id": run.id,
+                        "step": {
+                            "step_index": idx,
+                            "name": step_result.name,
+                            "status": step_status.value,
+                            "duration_ms": step_result.duration_ms,
+                            "request_data": persisted_request_data,
+                            "response_data": persisted_response_data,
+                            "error_message": error_msg,
+                        },
                     },
-                },
-            )
-
-    await step_collector.flush()
-
-    if shared_client is not None:
+                )
+    finally:
         try:
-            if project_id is not None:
-                await save_project_api_session(project_id, serialize_cookies(shared_client.cookies))
-        except Exception:
-            # Redis is an optional persistence layer for this opt-in feature.
-            pass
+            await step_collector.flush()
         finally:
-            await shared_client.aclose()
+            if shared_client is not None:
+                try:
+                    if project_id is not None:
+                        await save_project_api_session(project_id, serialize_cookies(shared_client.cookies))
+                except Exception:
+                    # Redis is an optional persistence layer for this opt-in feature.
+                    pass
+                finally:
+                    await shared_client.aclose()
 
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
@@ -584,9 +598,39 @@ def _xpath_extract(xml_text: str, expression: str):
         return None
 
 
-def _extract_value(data, expression: str, expression_type: str = "jsonpath"):
-    if expression_type == "xpath":
+def _regex_extract(data: Any, pattern: str):
+    if not pattern:
+        return None
+    text = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False)
+    try:
+        matched = re.search(pattern, text)
+    except re.error:
+        return None
+    if not matched:
+        return None
+    return matched.group(1) if matched.groups() else matched.group(0)
+
+
+def _extract_value(
+    data,
+    expression: str,
+    expression_type: str = "jsonpath",
+    *,
+    response_headers: dict[str, str] | None = None,
+):
+    kind = str(expression_type or "jsonpath").strip().lower()
+    if kind == "xpath":
         return _xpath_extract(data, expression)
+    if kind == "regex":
+        return _regex_extract(data, expression)
+    if kind == "header":
+        if not response_headers:
+            return None
+        target_name = str(expression or "").strip().lower()
+        for k, v in response_headers.items():
+            if str(k).lower() == target_name:
+                return v
+        return None
     return _jsonpath_extract(data, expression)
 
 
@@ -660,21 +704,4 @@ def _assert(assertion: dict, resp: httpx.Response, body, duration_ms: int) -> tu
     elif target == "duration":
         actual = duration_ms
 
-    if operator == "eq":
-        ok = str(actual) == str(expected)
-    elif operator == "contains":
-        ok = expected in str(actual)
-    elif operator == "gt":
-        ok = float(actual) > float(expected)
-    elif operator == "lt":
-        ok = float(actual) < float(expected)
-    elif operator == "exists":
-        ok = actual is not None
-    elif operator == "not_exists":
-        ok = actual is None
-    else:
-        return False, f"未知断言操作符: {operator}"
-
-    if not ok:
-        return False, f"断言失败 [{target}] 期望: {expected}, 实际: {actual}"
-    return True, ""
+    return compare_assertion_operator(operator, actual, expected, target=str(target or ""))

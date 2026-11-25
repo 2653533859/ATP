@@ -125,3 +125,14 @@ def test_compare_saved_contract_assets_rejects_foreign_project(monkeypatch):
 
     assert error.value.status_code == 404
     assert calls
+
+
+def test_contract_asset_update_rejects_explicit_null_required_fields():
+    from pydantic import ValidationError
+
+    for field in ("name", "role", "format", "definition"):
+        with pytest.raises(ValidationError):
+            ApiContractAssetUpdate(**{field: None})
+
+    valid = ApiContractAssetUpdate(description=None)
+    assert valid.model_dump(exclude_unset=True) == {"description": None}

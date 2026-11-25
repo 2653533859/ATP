@@ -18,19 +18,19 @@
         <a-button :disabled="!projectId" @click="handleExportRules">
           {{ t('mock.export_rules') }}
         </a-button>
-        <a-upload :show-upload-list="false" accept="application/json" :before-upload="beforeImportRules">
-          <a-button :disabled="!projectId">{{ t('mock.import_rules') }}</a-button>
+        <a-upload :disabled="!projectId || !canModify" :show-upload-list="false" accept="application/json" :before-upload="beforeImportRules">
+          <a-button :disabled="!projectId || !canModify">{{ t('mock.import_rules') }}</a-button>
         </a-upload>
         <a-button :disabled="!projectId" @click="openLogs">
           <UnorderedListOutlined /> {{ t('mock.request_logs') }}
         </a-button>
-        <a-button :disabled="!projectId || !selectedRuleIds.length" @click="openAIGeneration()">
+        <a-button :disabled="!projectId || !selectedRuleIds.length || !canModify" @click="openAIGeneration()">
           <ThunderboltOutlined /> {{ t('mock.ai_generate_selected') }}
         </a-button>
-        <a-button :disabled="!projectId" @click="openAIMockGeneration()">
+        <a-button :disabled="!projectId || !canModify" @click="openAIMockGeneration()">
           <ThunderboltOutlined /> {{ t('mock.ai_generate_mock') }}
         </a-button>
-        <a-button type="primary" :disabled="!projectId" @click="openCreate">
+        <a-button type="primary" :disabled="!projectId || !canModify" @click="openCreate">
           <PlusOutlined /> {{ t('mock.add_rule') }}
         </a-button>
       </a-space>
@@ -82,16 +82,16 @@
         </template>
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="openAIGeneration(asRule(record))">
+            <a-button type="link" size="small" :disabled="!canModify" @click="openAIGeneration(asRule(record))">
               <ThunderboltOutlined />{{ t('mock.ai_generate') }}
             </a-button>
-            <a-button type="link" size="small" @click="openAIMockGeneration(asRule(record))">
+            <a-button type="link" size="small" :disabled="!canModify" @click="openAIMockGeneration(asRule(record))">
               <ThunderboltOutlined />{{ t('mock.ai_generate_mock_short') }}
             </a-button>
-            <a-button type="link" size="small" @click="openEdit(asRule(record))">{{ t('common.edit') }}</a-button>
-            <a-button type="link" size="small" @click="handleCopy(asRule(record))">{{ t('mock.copy') }}</a-button>
-            <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
+            <a-button type="link" size="small" :disabled="!canModify" @click="openEdit(asRule(record))">{{ t('common.edit') }}</a-button>
+            <a-button type="link" size="small" :disabled="!canModify" @click="handleCopy(asRule(record))">{{ t('mock.copy') }}</a-button>
+            <a-popconfirm :disabled="!canModify" :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger :disabled="!canModify">{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -148,6 +148,7 @@
 
     <a-modal
       v-model:open="formOpen"
+      :mask-closable="false"
       :title="isEdit ? t('mock.edit_rule') : t('mock.add_rule')"
       :confirm-loading="saving"
       width="720px"
@@ -305,6 +306,11 @@ import { mockRuleApi, projectApi, type MockAIGeneratedRule, type MockRuleItem, t
 import { getBackendOrigin } from '@/api/http'
 import { buildCasesQuery } from '@/utils/caseNavigation'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
+import { extractApiError } from '@/utils/apiError'
+import { canEditProjectByRole } from '@/utils/permissions'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asRule = (record: unknown) => record as MockRuleRecord
 
@@ -336,7 +342,10 @@ const router = useRouter()
 const route = useRoute()
 const rules = ref<MockRuleRecord[]>([])
 const loading = ref(false)
+const projects = ref<ProjectItem[]>([])
 const projectId = ref<number | undefined>(undefined)
+const currentProject = computed(() => projects.value.find((p) => p.id === projectId.value))
+const canModify = computed(() => canEditProjectByRole(auth.user?.role, currentProject.value?.current_user_role))
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
 const selectedRuleIds = ref<number[]>([])
 
@@ -399,9 +408,7 @@ const logColumns = computed(() => [
 ])
 
 function getErrorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'string') return error
-  if (error instanceof Error) return error.message
-  return fallback
+  return extractApiError(error, fallback)
 }
 
 function methodColor(m: string) {
@@ -453,9 +460,10 @@ function downloadJson(content: object, filename: string) {
 
 onMounted(async () => {
   try {
-    const projects = await projectApi.list()
-    projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
-    projectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects)
+    const projectList = await projectApi.list()
+    projects.value = projectList
+    projectOptions.value = projectList.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
+    projectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projectList)
     await loadRules()
   } catch { /* ignore */ }
 })
@@ -466,9 +474,9 @@ async function loadRules() {
   loading.value = true
   try {
     rules.value = await mockRuleApi.list({ project_id: projectId.value })
-  } catch {
+  } catch (err: unknown) {
     rules.value = []
-    message.error(getErrorMessage(undefined, t('mock.msg.load_failed')))
+    message.error(getErrorMessage(err, t('mock.msg.load_failed')))
   }
   finally { loading.value = false }
 }
@@ -681,8 +689,8 @@ async function handleSave() {
     message.success(isEdit.value ? t('mock.msg.update_success') : t('mock.msg.create_success'))
     formOpen.value = false
     void loadRules()
-  } catch {
-    message.error(getErrorMessage(undefined, t('mock.msg.save_failed')))
+  } catch (err: unknown) {
+    message.error(getErrorMessage(err, t('mock.msg.save_failed')))
   }
   finally { saving.value = false }
 }
@@ -692,8 +700,8 @@ async function handleDelete(id: number) {
     await mockRuleApi.delete(id)
     message.success(t('mock.msg.delete_success'))
     void loadRules()
-  } catch {
-    message.error(getErrorMessage(undefined, t('mock.msg.delete_failed')))
+  } catch (err: unknown) {
+    message.error(getErrorMessage(err, t('mock.msg.delete_failed')))
   }
 }
 
@@ -703,8 +711,8 @@ async function handleExportRules() {
     const result = await mockRuleApi.exportRules(projectId.value)
     downloadJson(result, `mock-rules-project-${projectId.value}.json`)
     message.success(t('mock.msg.export_success'))
-  } catch {
-    message.error(getErrorMessage(undefined, t('mock.msg.export_failed')))
+  } catch (err: unknown) {
+    message.error(getErrorMessage(err, t('mock.msg.export_failed')))
   }
 }
 
@@ -721,8 +729,8 @@ async function beforeImportRules(file: File) {
     await mockRuleApi.importRules({ project_id: projectId.value, rules })
     message.success(t('mock.msg.import_success'))
     void loadRules()
-  } catch {
-    message.error(getErrorMessage(undefined, t('mock.msg.import_failed')))
+  } catch (err: unknown) {
+    message.error(getErrorMessage(err, t('mock.msg.import_failed')))
   }
   return false
 }
@@ -736,8 +744,8 @@ async function refreshLogs() {
   if (!projectId.value) return
   try {
     logs.value = await mockRuleApi.logs(projectId.value)
-  } catch {
-    message.error(getErrorMessage(undefined, t('mock.msg.load_logs_failed')))
+  } catch (err: unknown) {
+    message.error(getErrorMessage(err, t('mock.msg.load_logs_failed')))
   }
 }
 </script>

@@ -15,6 +15,12 @@ from app.services.dataset_execution import redact_execution_evidence
 from app.services.api_auth import build_digest_auth, resolve_oauth2_client_credentials_token
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.services.step_result_collector import StepResultBatchCollector
+from app.worker.executors._assertion_helpers import (
+    build_basic_auth_header,
+    collect_auth_redact_fields,
+    compare_assertion_operator,
+    render_recursive,
+)
 from app.core.tracing import inject_w3c_trace_headers
 
 
@@ -51,15 +57,14 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
         extraction_records: list[dict] = []
         error_msg = None
         step_status = RunStatus.passed
+        step_redact_fields = list(evidence_redact_fields)
 
         try:
             endpoint = _render(step.get("endpoint", ""), context)
             query = _render(step.get("query", ""), context)
             variables = step.get("variables") or {}
-            # 变量值也做模板替换
-            rendered_vars = {}
-            for k, v in variables.items():
-                rendered_vars[k] = _render(str(v), context) if isinstance(v, str) else v
+            # 变量值递归模板替换（保留非字符串基本类型）
+            rendered_vars = render_recursive(variables, lambda text: _render(text, context))
             operation_name = step.get("operation_name") or None
             timeout = step.get("timeout", 30)
 
@@ -70,13 +75,11 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
             # 认证注入
             auth_cfg = step.get("auth", {})
             auth_type = auth_cfg.get("type")
+            step_redact_fields.extend(collect_auth_redact_fields(auth_cfg, lambda value: _render(str(value), context)))
             if auth_type == "bearer":
                 headers["Authorization"] = f"Bearer {_render(auth_cfg.get('token', ''), context)}"
             elif auth_type == "basic":
-                import base64
-
-                cred = base64.b64encode(f"{auth_cfg.get('username')}:{auth_cfg.get('password')}".encode()).decode()
-                headers["Authorization"] = f"Basic {cred}"
+                headers["Authorization"] = build_basic_auth_header(auth_cfg, lambda value: _render(str(value), context))
             elif auth_type == "apikey":
                 header_name = _render(auth_cfg.get("header", "X-API-Key"), context).strip()
                 header_value = _render(auth_cfg.get("value", ""), context)
@@ -119,9 +122,18 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
             if is_subscription:
                 if request_auth is not None:
                     raise ValueError("GraphQL Subscription 暂不支持 Digest 认证")
-                subscription_url = _subscription_url(step.get("subscription_url") or endpoint)
+                raw_sub_url = _render(str(step.get("subscription_url") or endpoint), context)
+                subscription_url = _subscription_url(raw_sub_url)
                 request_data["url"] = subscription_url
-                messages = await _run_subscription(subscription_url, headers, gql_body, step, float(timeout))
+                rendered_sub_step = {
+                    **step,
+                    "connection_payload": render_recursive(
+                        step.get("connection_payload") or {}, lambda text: _render(text, context)
+                    ),
+                }
+                messages = await _run_subscription(
+                    subscription_url, headers, gql_body, rendered_sub_step, float(timeout)
+                )
                 resp_body = messages[-1]["payload"] if messages else None
                 duration = int((time.monotonic() - step_start) * 1000)
                 resp = httpx.Response(status_code=101)
@@ -185,8 +197,8 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
 
         step_result.status = step_status
         step_result.duration_ms = int((time.monotonic() - step_start) * 1000)
-        persisted_request_data = redact_execution_evidence(request_data, evidence_redact_fields)
-        persisted_response_data = redact_execution_evidence(response_data, evidence_redact_fields)
+        persisted_request_data = redact_execution_evidence(request_data, step_redact_fields)
+        persisted_response_data = redact_execution_evidence(response_data, step_redact_fields)
         step_result.request_data = persisted_request_data
         step_result.response_data = persisted_response_data
         step_result.error_message = error_msg
@@ -337,21 +349,4 @@ def _assert(assertion: dict, resp: httpx.Response, body, duration_ms: int) -> tu
             # 对 errors 数组整体做断言
             actual = errors
 
-    if operator == "eq":
-        ok = str(actual) == str(expected)
-    elif operator == "contains":
-        ok = expected in str(actual)
-    elif operator == "gt":
-        ok = float(actual) > float(expected)
-    elif operator == "lt":
-        ok = float(actual) < float(expected)
-    elif operator == "exists":
-        ok = actual is not None
-    elif operator == "not_exists":
-        ok = actual is None
-    else:
-        return False, f"未知断言操作符: {operator}"
-
-    if not ok:
-        return False, f"断言失败 [{target}] 期望: {expected}, 实际: {actual}"
-    return True, ""
+    return compare_assertion_operator(operator, actual, expected, target=str(target or ""))

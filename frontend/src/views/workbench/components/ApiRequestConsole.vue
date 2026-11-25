@@ -395,6 +395,8 @@ watch(bodyText, clearResult)
 watch(formBody, clearResult, { deep: true })
 onBeforeUnmount(cancelRequest)
 
+import { extractApiError } from '@/utils/apiError'
+
 function payload(): ApiRequestPreviewPayload {
   let body: unknown = null
   if (draft.body_type === 'form') body = { ...formBody.value }
@@ -446,13 +448,7 @@ async function sendRequest() {
     responseTab.value = 'body'
   } catch (error) {
     if (!activeController.signal.aborted) {
-      const responseError = error as { response?: { data?: { detail?: unknown } }; message?: unknown }
-      const detail = responseError?.response?.data?.detail
-      errorText.value = typeof detail === 'string'
-        ? detail
-        : typeof responseError?.message === 'string'
-          ? responseError.message
-          : t('common.failed')
+      errorText.value = extractApiError(error, t('common.failed'))
     }
   } finally {
     if (controller === activeController) {

@@ -24,6 +24,7 @@ from app.services.dataset_execution import redact_execution_evidence
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.services.step_result_collector import StepResultBatchCollector
+from app.worker.executors._assertion_helpers import compare_assertion_operator
 from app.core.tracing import inject_w3c_trace_headers
 
 
@@ -526,21 +527,4 @@ def _assert_grpc(assertion: dict, body, grpc_status: str, duration_ms: int) -> t
     elif target == "duration":
         actual = duration_ms
 
-    if operator == "eq":
-        ok = str(actual) == str(expected)
-    elif operator == "contains":
-        ok = expected in str(actual)
-    elif operator == "gt":
-        ok = float(actual) > float(expected)
-    elif operator == "lt":
-        ok = float(actual) < float(expected)
-    elif operator == "exists":
-        ok = actual is not None
-    elif operator == "not_exists":
-        ok = actual is None
-    else:
-        return False, f"未知断言操作符: {operator}"
-
-    if not ok:
-        return False, f"断言失败 [{target}] 期望: {expected}, 实际: {actual}"
-    return True, ""
+    return compare_assertion_operator(operator, actual, expected, target=str(target or ""))

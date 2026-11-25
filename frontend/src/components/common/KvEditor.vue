@@ -102,11 +102,27 @@ interface Row {
   value: string
 }
 const rows = ref<Row[]>([])
+let internalSync = false
+
+function recordsEqual(a: Record<string, string>, b: Record<string, string>): boolean {
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
+  if (keysA.length !== keysB.length) return false
+  return keysA.every((k) => Object.prototype.hasOwnProperty.call(b, k) && a[k] === b[k])
+}
 
 watch(
   () => props.value,
   (v) => {
-    rows.value = Object.entries(v ?? {}).map(([key, value]) => ({ key, value }))
+    if (internalSync) {
+      internalSync = false
+      return
+    }
+    const incoming = v ?? {}
+    if (rows.value.length > 0 && recordsEqual(toObject(), incoming)) {
+      return
+    }
+    rows.value = Object.entries(incoming).map(([key, value]) => ({ key, value }))
     if (!rows.value.length) rows.value.push({ key: '', value: '' })
   },
   { immediate: true },
@@ -292,8 +308,16 @@ function getValueOptions(key: string): Array<{ value: string }> {
   return []
 }
 
+function emitCurrentValue(nextValue = toObject()) {
+  internalSync = true
+  emit('update:value', nextValue)
+  queueMicrotask(() => {
+    internalSync = false
+  })
+}
+
 function handleRowChange() {
-  emit('update:value', toObject())
+  emitCurrentValue()
 }
 
 function addRow() {
@@ -303,7 +327,7 @@ function addRow() {
 function removeRow(i: number) {
   rows.value.splice(i, 1)
   if (!rows.value.length) rows.value.push({ key: '', value: '' })
-  emit('update:value', toObject())
+  emitCurrentValue()
 }
 
 function handleApplyPreset({ key }: { key: string | number }) {
@@ -326,12 +350,12 @@ function handleApplyPreset({ key }: { key: string | number }) {
     }
   })
 
-  emit('update:value', toObject())
+  emitCurrentValue()
 }
 
 function clearAllRows() {
   rows.value = [{ key: '', value: '' }]
-  emit('update:value', {})
+  emitCurrentValue({})
 }
 
 function toObject(): Record<string, string> {

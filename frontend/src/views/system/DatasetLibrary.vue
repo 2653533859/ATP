@@ -13,10 +13,10 @@
           allow-clear
           @change="loadList"
         />
-        <a-button type="primary" @click="openCreate">
+        <a-button type="primary" :disabled="!projectId || !canModify" @click="openCreate">
           + {{ t('dataset.create') }}
         </a-button>
-        <a-button :disabled="!projectId" @click="openAIDatasetGeneration()">
+        <a-button :disabled="!projectId || !canModify" @click="openAIDatasetGeneration()">
           <ThunderboltOutlined />{{ t('dataset.ai_generate_data') }}
         </a-button>
         <a-button :disabled="!projectId" :loading="loading" @click="loadList">
@@ -75,23 +75,24 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button size="small" type="primary" ghost @click="openAIGeneration(asDataset(record))">
+            <a-button size="small" type="primary" ghost :disabled="!canModify" @click="openAIGeneration(asDataset(record))">
               <ThunderboltOutlined />{{ t('dataset.ai_generate') }}
             </a-button>
-            <a-button size="small" @click="openAIDatasetGeneration(asDataset(record))">
+            <a-button size="small" :disabled="!canModify" @click="openAIDatasetGeneration(asDataset(record))">
               <ThunderboltOutlined />{{ t('dataset.ai_generate_data') }}
             </a-button>
-            <a-button size="small" @click="openEdit(asDataset(record))">{{ t('common.edit') }}</a-button>
+            <a-button size="small" :disabled="!canModify" @click="openEdit(asDataset(record))">{{ t('common.edit') }}</a-button>
             <a-button size="small" @click="openImpact(asDataset(record))">{{ t('dataset.impact') }}</a-button>
             <a-button size="small" @click="openVersions(asDataset(record))">{{ t('dataset.versions') }}</a-button>
             <a-upload
+              :disabled="!canModify"
               :show-upload-list="false"
               :before-upload="(f: File) => onUpload(record.id, f)"
             >
-              <a-button size="small">{{ t('dataset.upload') }}</a-button>
+              <a-button size="small" :disabled="!canModify">{{ t('dataset.upload') }}</a-button>
             </a-upload>
-            <a-popconfirm :title="t('dataset.delete_confirm')" @confirm="onDelete(record.id)">
-              <a-button size="small" danger>{{ t('common.delete') }}</a-button>
+            <a-popconfirm :disabled="!canModify" :title="t('dataset.delete_confirm')" @confirm="onDelete(record.id)">
+              <a-button size="small" danger :disabled="!canModify">{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -100,6 +101,7 @@
 
     <a-drawer
       v-model:open="editorOpen"
+      :mask-closable="false"
       :title="editing ? t('dataset.edit_title') : t('dataset.create_title')"
       :width="860"
     >
@@ -291,8 +293,8 @@
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'action'">
-            <a-popconfirm :title="t('dataset.rollback_confirm', { version: record.version })" @confirm="rollbackVersion(record.version)">
-              <a-button size="small">{{ t('dataset.rollback') }}</a-button>
+            <a-popconfirm :disabled="!canModify" :title="t('dataset.rollback_confirm', { version: record.version })" @confirm="rollbackVersion(record.version)">
+              <a-button size="small" :disabled="!canModify">{{ t('dataset.rollback') }}</a-button>
             </a-popconfirm>
           </template>
         </template>
@@ -399,6 +401,11 @@ import { ThunderboltOutlined } from '@ant-design/icons-vue'
 import { datasetApi, projectApi, type DatasetDetail, type DatasetImpact, type DatasetImpactItem, type DatasetListItem, type DatasetFormat, type DatasetSchemaField, type DatasetSchemaFieldType, type DatasetStorageMode, type DatasetValidationPolicy, type DatasetValidationResult, type DatasetVersionItem, type ProjectItem } from '@/api'
 import { buildCasesQuery } from '@/utils/caseNavigation'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
+import { canEditProjectByRole } from '@/utils/permissions'
+import { extractApiError } from '@/utils/apiError'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asDataset = (record: unknown) => record as DatasetListItem
 const asImpact = (record: unknown) => record as ImpactRow
@@ -411,7 +418,10 @@ function t(key: string, params?: Record<string, string | number>) {
   return translate(key.startsWith('dataset.') ? `system_pages.${key}` : key, params ?? {})
 }
 
+const projects = ref<ProjectItem[]>([])
 const projectId = ref<number | null>(null)
+const currentProject = computed(() => projects.value.find((p) => p.id === projectId.value))
+const canModify = computed(() => canEditProjectByRole(auth.user?.role, currentProject.value?.current_user_role))
 const projectOptions = ref<{ label: string; value: number }[]>([])
 const projectLoading = ref(false)
 const projectLoadError = ref(false)
@@ -563,6 +573,7 @@ async function loadProjects() {
   projectLoadError.value = false
   try {
     const items = await projectApi.list()
+    projects.value = items
     projectOptions.value = items.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
     if (!projectId.value && projectOptions.value.length) {
       projectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), items) ?? null
@@ -826,12 +837,7 @@ async function onSave() {
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'string' && error.trim()) return error
-  if (error && typeof error === 'object' && 'message' in error) {
-    const detail = (error as { message?: unknown }).message
-    if (typeof detail === 'string' && detail.trim()) return detail
-  }
-  return fallback
+  return extractApiError(error, fallback)
 }
 
 async function validateCurrentRows() {

@@ -22,7 +22,7 @@ from app.api.deps import assert_project_access, get_current_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User, UserRole
-from app.models.user_project import ProjectRole
+from app.models.user_project import ProjectRole, UserProject
 from app.models.case import CaseType, TestCase
 from app.models.project import Module
 from app.services.spec_sync import case_request_fingerprint
@@ -182,13 +182,13 @@ async def get_api_scenario(
 ):
     with _LOCK:
         items = _load_all()
-        for item in items:
-            if item.get("id") == scenario_id:
-                target_project_id = item.get("project_id")
-                if target_project_id:
-                    await assert_project_access(db, current_user, target_project_id, ProjectRole.viewer)
-                return item
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+        found = next((dict(item) for item in items if item.get("id") == scenario_id), None)
+    if found is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+    target_project_id = found.get("project_id")
+    if target_project_id:
+        await assert_project_access(db, current_user, target_project_id, ProjectRole.viewer)
+    return found
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -232,15 +232,22 @@ async def update_api_scenario(
     db: AsyncSession = Depends(get_db),
 ):
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    with _LOCK:
+        existing_items = _load_all()
+        old_item = next((dict(item) for item in existing_items if item.get("id") == scenario_id), None)
+    if old_item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+
+    old_project_id = old_item.get("project_id")
+    if old_project_id and old_project_id != body.project_id:
+        await assert_project_access(db, current_user, old_project_id, ProjectRole.editor)
+
     bound_steps = await _bind_source_cases(db, body.project_id, body.steps, preserve_existing=True)
     now = datetime.now(timezone.utc).isoformat()
     with _LOCK:
         items = _load_all()
         for idx, item in enumerate(items):
             if item.get("id") == scenario_id:
-                old_project_id = item.get("project_id")
-                if old_project_id and old_project_id != body.project_id:
-                    await assert_project_access(db, current_user, old_project_id, ProjectRole.editor)
                 updated = {
                     **item,
                     "project_id": body.project_id,
@@ -265,14 +272,21 @@ async def record_api_scenario_run(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    with _LOCK:
+        existing_items = _load_all()
+        target_item = next((dict(item) for item in existing_items if item.get("id") == scenario_id), None)
+    if target_item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+
+    target_project_id = target_item.get("project_id")
+    if target_project_id:
+        await assert_project_access(db, current_user, target_project_id, ProjectRole.editor)
+
     now = datetime.now(timezone.utc).isoformat()
     with _LOCK:
         items = _load_all()
         for idx, item in enumerate(items):
             if item.get("id") == scenario_id:
-                target_project_id = item.get("project_id")
-                if target_project_id:
-                    await assert_project_access(db, current_user, target_project_id, ProjectRole.viewer)
                 updated = {
                     **item,
                     "last_run_status": body.status,
@@ -293,15 +307,19 @@ async def delete_api_scenario(
     db: AsyncSession = Depends(get_db),
 ):
     with _LOCK:
+        existing_items = _load_all()
+        target_item = next((dict(item) for item in existing_items if item.get("id") == scenario_id), None)
+    if not target_item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+
+    target_project_id = target_item.get("project_id")
+    if target_project_id:
+        await assert_project_access(db, current_user, target_project_id, ProjectRole.editor)
+
+    with _LOCK:
         items = _load_all()
-        target_item = next((item for item in items if item.get("id") == scenario_id), None)
-        if not target_item:
+        if not any(item.get("id") == scenario_id for item in items):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
-
-        target_project_id = target_item.get("project_id")
-        if target_project_id:
-            await assert_project_access(db, current_user, target_project_id, ProjectRole.editor)
-
         filtered = [item for item in items if item.get("id") != scenario_id]
         _save_all(filtered)
     return None
@@ -315,6 +333,37 @@ class WorkflowDagExecuteIn(BaseModel):
     nodes: list[dict[str, Any]] = Field(default_factory=list)
     initial_context: dict[str, Any] = Field(default_factory=dict)
     failure_strategy: str = "stop"
+
+
+async def _require_workflow_editor(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """工作流 DAG 执行与调试至少要求是系统管理员或任一项目的 editor（拦截全站只读 viewer）。"""
+    if getattr(current_user, "role", None) == UserRole.admin:
+        return current_user
+    membership = (
+        (
+            await db.execute(
+                select(UserProject).where(
+                    UserProject.user_id == current_user.id,
+                    UserProject.role.in_([ProjectRole.owner, ProjectRole.editor]),
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要项目编辑者（editor）及以上权限才能执行或调试工作流",
+        )
+    return current_user
+
+
+def _workflow_actor(user: User) -> tuple[int | None, bool]:
+    return getattr(user, "id", None), getattr(user, "role", None) == UserRole.admin
 
 
 @router.post("/validate-dag")
@@ -338,7 +387,7 @@ async def validate_workflow_dag_endpoint(
 @router.post("/execute-dag")
 async def execute_workflow_dag_endpoint(
     body: WorkflowDagExecuteIn,
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(_require_workflow_editor),
 ):
     """执行多协议混合工作流有向无环图（DAG），支持 HTTP -> SQL -> Redis -> 移动端节点调度。"""
     try:
@@ -347,7 +396,7 @@ async def execute_workflow_dag_endpoint(
             initial_context=body.initial_context,
             failure_strategy=body.failure_strategy,
         )
-    except WorkflowDagError as exc:
+    except (WorkflowDagError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -383,16 +432,19 @@ class WorkflowDebugStartIn(BaseModel):
 @router.post("/debug/start")
 async def start_workflow_debug_endpoint(
     body: WorkflowDebugStartIn,
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(_require_workflow_editor),
 ):
     """启动工作流画布断点调试会话，在入口处暂停并初始化变量观察器。"""
+    owner_id, _ = _workflow_actor(_user)
     try:
-        return create_debug_session(
-            {"nodes": body.nodes},
-            breakpoints=body.breakpoints,
-            initial_context=body.initial_context,
-            watchers=body.watchers,
-        )
+        kwargs: dict[str, Any] = {
+            "breakpoints": body.breakpoints,
+            "initial_context": body.initial_context,
+            "watchers": body.watchers,
+        }
+        if owner_id is not None:
+            kwargs["owner_id"] = owner_id
+        return create_debug_session({"nodes": body.nodes}, **kwargs)
     except (WorkflowDebuggerError, WorkflowDagError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -400,11 +452,17 @@ async def start_workflow_debug_endpoint(
 @router.post("/debug/{session_id}/step")
 async def step_workflow_debug_endpoint(
     session_id: str,
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(_require_workflow_editor),
 ):
     """单步步过（Step Over）执行当前节点，并在下一个节点前暂停，返回最新的变量差分快照。"""
+    actor_id, is_admin = _workflow_actor(_user)
     try:
-        return await step_debug_session(session_id)
+        kwargs: dict[str, Any] = {}
+        if actor_id is not None or is_admin:
+            kwargs = {"actor_id": actor_id, "is_admin": is_admin}
+        return await step_debug_session(session_id, **kwargs)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except WorkflowDebuggerError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -412,11 +470,17 @@ async def step_workflow_debug_endpoint(
 @router.post("/debug/{session_id}/resume")
 async def resume_workflow_debug_endpoint(
     session_id: str,
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(_require_workflow_editor),
 ):
     """继续执行（Resume）调试会话，直到命中下一个断点或执行完毕。"""
+    actor_id, is_admin = _workflow_actor(_user)
     try:
-        return await resume_debug_session(session_id)
+        kwargs: dict[str, Any] = {}
+        if actor_id is not None or is_admin:
+            kwargs = {"actor_id": actor_id, "is_admin": is_admin}
+        return await resume_debug_session(session_id, **kwargs)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except WorkflowDebuggerError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -424,11 +488,17 @@ async def resume_workflow_debug_endpoint(
 @router.get("/debug/{session_id}")
 async def get_workflow_debug_endpoint(
     session_id: str,
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(_require_workflow_editor),
 ):
     """获取指定调试会话当前运行状态、上下文变量快照与变量观察器数据。"""
+    actor_id, is_admin = _workflow_actor(_user)
     try:
-        return get_debug_session(session_id)
+        kwargs: dict[str, Any] = {}
+        if actor_id is not None or is_admin:
+            kwargs = {"actor_id": actor_id, "is_admin": is_admin}
+        return get_debug_session(session_id, **kwargs)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except WorkflowDebuggerError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -436,10 +506,17 @@ async def get_workflow_debug_endpoint(
 @router.delete("/debug/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def stop_workflow_debug_endpoint(
     session_id: str,
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(_require_workflow_editor),
 ):
     """终止并释放工作流调试会话。"""
-    stopped = stop_debug_session(session_id)
+    actor_id, is_admin = _workflow_actor(_user)
+    try:
+        kwargs: dict[str, Any] = {}
+        if actor_id is not None or is_admin:
+            kwargs = {"actor_id": actor_id, "is_admin": is_admin}
+        stopped = stop_debug_session(session_id, **kwargs)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     if not stopped:
         raise HTTPException(status_code=404, detail="调试会话不存在或已释放")
     return None

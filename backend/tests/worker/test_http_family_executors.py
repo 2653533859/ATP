@@ -1608,3 +1608,55 @@ def test_executor_safe_publish_swallows_redis_failures(monkeypatch, module):
 
     monkeypatch.setattr(module, "publish_run_event", broken_publish)
     asyncio.run(module._safe_publish_run_event(1, {"type": "step_result"}))
+
+
+def test_api_executor_step_scope_pre_action_token_regex_extract_ne_assert_and_redacts_auth(
+    fake_http, monkeypatch, healing_recorder
+):
+    from app.services.dataset_execution import DEFAULT_REDACTED_VALUE
+
+    _events_recorder(monkeypatch, api_executor)
+    fake_http.script = [
+        _FakeResponse(
+            200,
+            text="user id=42 ok",
+            headers={"content-type": "text/plain"},
+        )
+    ]
+    run = _run_stub()
+    case = _Obj(
+        config={
+            "policy": {"context_scope": "step"},
+            "steps": [
+                {
+                    "name": "secured-step",
+                    "url": "https://api.example.com/profile",
+                    "method": "GET",
+                    "pre_actions": [{"action": "set_variable", "variable": "step_tok", "value": "secret-step-tok"}],
+                    "auth": {"type": "bearer", "token": "{{step_tok}}"},
+                    "extractions": [{"variable": "extracted_id", "type": "regex", "expression": r"id=(\d+)"}],
+                    "assertions": [
+                        {"target": "status_code", "operator": "ne", "expected": 500},
+                        {
+                            "target": "body",
+                            "expression": r"id=(\d+)",
+                            "expression_type": "regex",
+                            "operator": "eq",
+                            "expected": "42",
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+    db = _FakeDB()
+
+    asyncio.run(api_executor.run_api_case(db, run, case, {}))
+
+    assert fake_http.requests[0]["headers"]["Authorization"] == "Bearer secret-step-tok"
+    assert run.status is RunStatus.passed
+    step_record = db.added[0]
+    assert step_record.request_data["headers"]["Authorization"] == DEFAULT_REDACTED_VALUE
+    assert step_record.response_data["extractions"][0]["variable"] == "extracted_id"
+    assert step_record.response_data["extractions"][0]["value"] == "42"
+    assert step_record.response_data["extractions"][0]["success"] is True
