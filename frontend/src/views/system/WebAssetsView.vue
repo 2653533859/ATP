@@ -5,88 +5,117 @@
         <h2>{{ t('web_assets.title') }}</h2>
       </div>
       <a-space>
-        <a-select v-model:value="selectedProjectId" :options="projectOptions" :placeholder="t('web_assets.select_project')" style="width: 220px" @change="loadAll" />
+        <a-select v-model:value="selectedProjectId" :options="projectOptions" :placeholder="t('web_assets.select_project')" style="width: 220px" @change="handleProjectChange" />
         <a-button :loading="loading" @click="loadAll">{{ t('common.refresh') }}</a-button>
       </a-space>
     </div>
 
     <a-alert v-if="!selectedProjectId" type="info" show-icon :message="t('web_assets.select_project_hint')" />
-    <a-tabs v-else v-model:active-key="activeTab">
-      <a-tab-pane key="elements" :tab="t('web_assets.elements_tab')">
-        <div class="toolbar">
-          <a-space>
-            <a-button type="primary" @click="openRecorder('elements')">{{ t('web_assets.record_elements') }}</a-button>
-            <a-button @click="openElementCreate">{{ t('web_assets.new_element') }}</a-button>
-          </a-space>
-          <span class="toolbar-hint">{{ t('web_assets.record_elements_hint') }}</span>
-        </div>
-        <a-table :data-source="elements" :columns="elementColumns" :loading="loading" row-key="id" :pagination="{ pageSize: 10 }">
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'locator'">
-              <span class="mono">{{ locatorLabel(record.locator) }}</span>
-              <a-tag v-if="record.fallback_locators?.length" color="blue">+{{ record.fallback_locators.length }}</a-tag>
+    <template v-else>
+      <a-alert
+        v-if="!canModify"
+        type="info"
+        show-icon
+        :message="t('ui_workbench.readonly_title')"
+        :description="t('ui_workbench.readonly_description')"
+        style="margin-bottom: 12px"
+      />
+      <a-tabs v-model:active-key="activeTab">
+        <a-tab-pane key="elements" :tab="t('web_assets.elements_tab')">
+          <div class="toolbar">
+            <a-space>
+              <a-button type="primary" :disabled="!canModify" @click="openRecorder('elements')">{{ t('web_assets.record_elements') }}</a-button>
+              <a-button :disabled="!canModify" @click="openElementCreate">{{ t('web_assets.new_element') }}</a-button>
+            </a-space>
+            <span class="toolbar-hint">{{ t('web_assets.record_elements_hint') }}</span>
+          </div>
+          <a-table :data-source="elements" :columns="elementColumns" :loading="loading" row-key="id" :pagination="{ pageSize: 10 }">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'locator'">
+                <span class="mono">{{ locatorLabel(record.locator) }}</span>
+                <a-tag v-if="record.fallback_locators?.length" color="blue">+{{ record.fallback_locators.length }}</a-tag>
+              </template>
+              <template v-else-if="column.key === 'status'">
+                <a-tag :color="record.last_failed_at ? 'orange' : 'green'">{{ record.last_failed_at ? t('web_assets.has_failure') : t('web_assets.healthy') }}</a-tag>
+              </template>
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-button v-if="record.last_failed_at" type="link" size="small" :disabled="!canModify" @click="openRepair(asElement(record))">{{ t('web_assets.repair') }}</a-button>
+                  <a-button type="link" size="small" :disabled="!canModify" @click="openElementEdit(asElement(record))">{{ t('common.edit') }}</a-button>
+                  <a-popconfirm :title="t('common.confirm_delete')" :disabled="!canModify" @confirm="deleteElement(record.id)">
+                    <a-button type="link" danger size="small" :disabled="!canModify">{{ t('common.delete') }}</a-button>
+                  </a-popconfirm>
+                </a-space>
+              </template>
             </template>
-            <template v-else-if="column.key === 'status'">
-              <a-tag :color="record.last_failed_at ? 'orange' : 'green'">{{ record.last_failed_at ? t('web_assets.has_failure') : t('web_assets.healthy') }}</a-tag>
+          </a-table>
+        </a-tab-pane>
+        <a-tab-pane key="page_objects" :tab="t('web_assets.page_objects_tab')">
+          <div class="toolbar">
+            <a-space>
+              <a-button type="primary" :disabled="!canModify" @click="openRecorder('page_object')">{{ t('web_assets.record_page_object') }}</a-button>
+              <a-button :disabled="!canModify" @click="openPageObjectCreate">{{ t('web_assets.new_page_object') }}</a-button>
+            </a-space>
+            <span class="toolbar-hint">{{ t('web_assets.record_page_object_hint') }}</span>
+          </div>
+          <a-table :data-source="pageObjects" :columns="pageObjectColumns" :loading="loading" row-key="id" :pagination="{ pageSize: 10 }">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'counts'">
+                {{ t('web_assets.page_object_counts', { elements: record.element_refs?.length || 0, actions: record.actions?.length || 0 }) }}
+              </template>
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-button type="link" size="small" :disabled="!canModify" @click="openPageObjectEdit(asPageObject(record))">{{ t('common.edit') }}</a-button>
+                  <a-popconfirm :title="t('common.confirm_delete')" :disabled="!canModify" @confirm="deletePageObject(record.id)">
+                    <a-button type="link" danger size="small" :disabled="!canModify">{{ t('common.delete') }}</a-button>
+                  </a-popconfirm>
+                </a-space>
+              </template>
             </template>
-            <template v-else-if="column.key === 'actions'">
-              <a-space>
-                <a-button v-if="record.last_failed_at" type="link" size="small" @click="openRepair(asElement(record))">{{ t('web_assets.repair') }}</a-button>
-                <a-button type="link" size="small" @click="openElementEdit(asElement(record))">{{ t('common.edit') }}</a-button>
-                <a-popconfirm :title="t('common.confirm_delete')" @confirm="deleteElement(record.id)">
-                  <a-button type="link" danger size="small">{{ t('common.delete') }}</a-button>
-                </a-popconfirm>
-              </a-space>
+          </a-table>
+        </a-tab-pane>
+        <a-tab-pane key="visual_baselines" :tab="t('web_assets.visual_baselines_tab')">
+          <div class="toolbar">
+            <a-space>
+              <a-button type="primary" :disabled="!canModify" @click="openRecorder('visual_baseline')">{{ t('web_assets.capture_visual_baseline') }}</a-button>
+              <a-button :disabled="!canModify" @click="openVisualBaselineCreate">{{ t('web_assets.new_visual_baseline') }}</a-button>
+            </a-space>
+            <span class="toolbar-hint">{{ t('web_assets.capture_visual_baseline_hint') }}</span>
+          </div>
+          <a-table :data-source="visualBaselines" :columns="visualBaselineColumns" :loading="loading" row-key="id" :pagination="{ pageSize: 10 }">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'preview'">
+                <a-image
+                  v-if="record.object_name"
+                  :src="visualMediaUrl(record.object_name)"
+                  :width="64"
+                  :preview="{ src: visualMediaUrl(record.object_name) }"
+                />
+                <span v-else>-</span>
+              </template>
+              <template v-else-if="column.key === 'size'">{{ record.width || '-' }} × {{ record.height || '-' }}</template>
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-button type="link" size="small" :disabled="!canModify" @click="openVisualBaselineEdit(asVisualBaseline(record))">{{ t('common.edit') }}</a-button>
+                  <a-popconfirm :title="t('common.confirm_delete')" :disabled="!canModify" @confirm="deleteVisualBaseline(record.id)">
+                    <a-button type="link" danger size="small" :disabled="!canModify">{{ t('common.delete') }}</a-button>
+                  </a-popconfirm>
+                </a-space>
+              </template>
             </template>
-          </template>
-        </a-table>
-      </a-tab-pane>
-      <a-tab-pane key="page_objects" :tab="t('web_assets.page_objects_tab')">
-        <div class="toolbar">
-          <a-space>
-            <a-button type="primary" @click="openRecorder('page_object')">{{ t('web_assets.record_page_object') }}</a-button>
-            <a-button @click="openPageObjectCreate">{{ t('web_assets.new_page_object') }}</a-button>
-          </a-space>
-          <span class="toolbar-hint">{{ t('web_assets.record_page_object_hint') }}</span>
-        </div>
-        <a-table :data-source="pageObjects" :columns="pageObjectColumns" :loading="loading" row-key="id" :pagination="{ pageSize: 10 }">
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'counts'">
-              {{ t('web_assets.page_object_counts', { elements: record.element_refs?.length || 0, actions: record.actions?.length || 0 }) }}
-            </template>
-            <template v-else-if="column.key === 'actions'">
-              <a-space>
-                <a-button type="link" size="small" @click="openPageObjectEdit(asPageObject(record))">{{ t('common.edit') }}</a-button>
-                <a-popconfirm :title="t('common.confirm_delete')" @confirm="deletePageObject(record.id)">
-                  <a-button type="link" danger size="small">{{ t('common.delete') }}</a-button>
-                </a-popconfirm>
-              </a-space>
-            </template>
-          </template>
-        </a-table>
-      </a-tab-pane>
-      <a-tab-pane key="visual_baselines" :tab="t('web_assets.visual_baselines_tab')">
-        <div class="toolbar">
-          <a-space>
-            <a-button type="primary" @click="openRecorder('visual_baseline')">{{ t('web_assets.capture_visual_baseline') }}</a-button>
-            <a-button @click="openVisualBaselineCreate">{{ t('web_assets.new_visual_baseline') }}</a-button>
-          </a-space>
-          <span class="toolbar-hint">{{ t('web_assets.capture_visual_baseline_hint') }}</span>
-        </div>
-        <a-table :data-source="visualBaselines" :columns="visualBaselineColumns" :loading="loading" row-key="id" :pagination="{ pageSize: 10 }">
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'size'">{{ record.width || '-' }} × {{ record.height || '-' }}</template>
-            <template v-else-if="column.key === 'actions'">
-              <a-popconfirm :title="t('common.confirm_delete')" @confirm="deleteVisualBaseline(record.id)">
-                <a-button type="link" danger size="small">{{ t('common.delete') }}</a-button>
-              </a-popconfirm>
-            </template>
-          </template>
-        </a-table>
-      </a-tab-pane>
-    </a-tabs>
+          </a-table>
+        </a-tab-pane>
+      </a-tabs>
+    </template>
 
-    <a-modal v-model:open="elementModalOpen" :title="editingElement ? t('web_assets.edit_element') : t('web_assets.new_element')" :confirm-loading="saving" @ok="saveElement">
+    <a-modal
+      v-model:open="elementModalOpen"
+      :title="editingElement ? t('web_assets.edit_element') : t('web_assets.new_element')"
+      :confirm-loading="saving"
+      :mask-closable="false"
+      @ok="saveElement"
+      @cancel="resetElementModal"
+    >
       <a-form layout="vertical">
         <a-form-item :label="t('web_assets.name')" required><a-input v-model:value="elementForm.name" /></a-form-item>
         <a-form-item :label="t('web_assets.page_url')"><a-input v-model:value="elementForm.page_url" /></a-form-item>
@@ -96,7 +125,14 @@
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="pageObjectModalOpen" :title="editingPageObject ? t('web_assets.edit_page_object') : t('web_assets.new_page_object')" :confirm-loading="saving" @ok="savePageObject">
+    <a-modal
+      v-model:open="pageObjectModalOpen"
+      :title="editingPageObject ? t('web_assets.edit_page_object') : t('web_assets.new_page_object')"
+      :confirm-loading="saving"
+      :mask-closable="false"
+      @ok="savePageObject"
+      @cancel="resetPageObjectModal"
+    >
       <a-form layout="vertical">
         <a-form-item :label="webAssetsLabel('name')" required><a-input v-model:value="pageObjectForm.name" /></a-form-item>
         <a-form-item :label="t('web_assets.url_pattern')"><a-input v-model:value="pageObjectForm.url_pattern" /></a-form-item>
@@ -106,17 +142,32 @@
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="visualBaselineModalOpen" :title="visualBaselineFromRecorder ? t('web_assets.capture_baseline_title') : t('web_assets.new_visual_baseline')" :confirm-loading="saving" @ok="saveVisualBaseline">
+    <a-modal
+      v-model:open="visualBaselineModalOpen"
+      :title="editingVisualBaseline ? t('web_assets.edit_visual_baseline') : (visualBaselineFromRecorder ? t('web_assets.capture_baseline_title') : t('web_assets.new_visual_baseline'))"
+      :confirm-loading="saving"
+      :mask-closable="false"
+      @ok="saveVisualBaseline"
+      @cancel="resetVisualBaselineModal"
+    >
       <a-form layout="vertical">
-        <a-form-item :label="t('web_assets.name')" required><a-input v-model:value="visualBaselineForm.name" /></a-form-item>
-        <a-form-item :label="t('web_assets.page_url')"><a-input v-model:value="visualBaselineForm.page_url" /></a-form-item>
+        <a-form-item :label="t('web_assets.name')" required><a-input v-model:value="visualBaselineForm.name" :disabled="Boolean(editingVisualBaseline)" /></a-form-item>
+        <a-form-item :label="t('web_assets.page_url')"><a-input v-model:value="visualBaselineForm.page_url" :disabled="Boolean(editingVisualBaseline)" /></a-form-item>
         <a-form-item :label="t('web_assets.visual_threshold')"><a-input-number v-model:value="visualBaselineForm.threshold" :min="0" :max="1" :step="0.001" /></a-form-item>
         <a-form-item :label="t('web_assets.pixel_threshold')"><a-input-number v-model:value="visualBaselineForm.pixel_threshold" :min="0" :max="255" /></a-form-item>
         <a-form-item :label="t('web_assets.ignore_regions')"><a-textarea v-model:value="visualBaselineForm.ignoreText" class="mono" :rows="3" placeholder="[]" /></a-form-item>
-        <a-upload :before-upload="selectVisualBaselineFile" :show-upload-list="true" :max-count="1" accept=".png">
+        <a-upload
+          v-if="!editingVisualBaseline"
+          :file-list="visualBaselineFileList"
+          :before-upload="selectVisualBaselineFile"
+          :show-upload-list="true"
+          :max-count="1"
+          accept=".png"
+          @remove="clearVisualBaselineFile"
+        >
           <a-button>{{ t('web_assets.choose_visual_baseline') }}</a-button>
         </a-upload>
-        <a-alert v-if="visualBaselineFromRecorder" type="info" show-icon :message="t('web_assets.capture_visual_baseline_hint')" style="margin-top: 12px" />
+        <a-alert v-if="visualBaselineFromRecorder && !editingVisualBaseline" type="info" show-icon :message="t('web_assets.capture_visual_baseline_hint')" style="margin-top: 12px" />
       </a-form>
     </a-modal>
 
@@ -125,12 +176,21 @@
       :project-id="selectedProjectId"
       :show-capture="recorderMode === 'visual_baseline'"
       :auto-apply="recorderMode !== 'visual_baseline'"
+      source="assets"
       @close="handleRecorderClose"
       @recorded="handleRecorded"
       @captured="handleScreenshotCaptured"
     />
 
-    <a-modal v-model:open="repairModalOpen" :title="t('web_assets.repair_title')" :confirm-loading="repairLoading" :ok-button-props="{ disabled: selectedRepairIndex == null }" @ok="applyRepair">
+    <a-modal
+      v-model:open="repairModalOpen"
+      :title="t('web_assets.repair_title')"
+      :confirm-loading="repairLoading"
+      :mask-closable="false"
+      :ok-button-props="{ disabled: selectedRepairIndex == null || !canModify }"
+      @ok="applyRepair"
+      @cancel="resetRepairModal"
+    >
       <a-alert type="info" show-icon :message="t('web_assets.repair_hint')" />
       <a-radio-group v-model:value="selectedRepairIndex" style="width: 100%; margin-top: 12px">
         <a-space direction="vertical" style="width: 100%">
@@ -153,10 +213,14 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { projectApi, webAssetsApi, webVisualApi, type ProjectItem, type WebElementAssetItem, type WebLocatorRepairCandidate, type WebPageObjectItem, type WebRecordingStep, type WebVisualBaselineItem } from '@/api'
 import WebRecorderModal from '@/components/common/WebRecorderModal.vue'
+import { useAuthStore } from '@/stores/auth'
+import { extractApiError } from '@/utils/apiError'
+import { canEditProjectByRole } from '@/utils/permissions'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 
 const { t } = useI18n()
 const route = useRoute()
+const auth = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
 const activeTab = ref('elements')
@@ -167,6 +231,7 @@ const pageObjects = ref<WebPageObjectItem[]>([])
 const visualBaselines = ref<WebVisualBaselineItem[]>([])
 const editingElement = ref<WebElementAssetItem | null>(null)
 const editingPageObject = ref<WebPageObjectItem | null>(null)
+const editingVisualBaseline = ref<WebVisualBaselineItem | null>(null)
 const elementModalOpen = ref(false)
 const pageObjectModalOpen = ref(false)
 const visualBaselineModalOpen = ref(false)
@@ -180,15 +245,24 @@ const repairLoading = ref(false)
 const repairAsset = ref<WebElementAssetItem | null>(null)
 const repairCandidates = ref<WebLocatorRepairCandidate[]>([])
 const selectedRepairIndex = ref<number | null>(null)
+let loadSeq = 0
+let repairSeq = 0
 
 const projectOptions = computed(() => projects.value.map((project) => ({ label: project.name, value: project.id })))
+const currentProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
+const canModify = computed(() => canEditProjectByRole(auth.user?.role, currentProject.value?.current_user_role))
+const visualBaselineFileList = computed(() =>
+  visualBaselineFile.value
+    ? [{ uid: 'visual-baseline', name: visualBaselineFile.value.name, status: 'done' as const }]
+    : [],
+)
 const elementColumns = computed(() => [
   { title: t('web_assets.name'), key: 'name', dataIndex: 'name' },
   { title: t('web_assets.page_url'), key: 'page_url', dataIndex: 'page_url', ellipsis: true },
   { title: t('web_assets.locator'), key: 'locator' },
   { title: t('web_assets.version'), key: 'version', dataIndex: 'version', width: 80 },
   { title: t('web_assets.status'), key: 'status', width: 100 },
-  { title: t('common.actions'), key: 'actions', width: 120 },
+  { title: t('common.actions'), key: 'actions', width: 150 },
 ])
 const pageObjectColumns = computed(() => [
   { title: t('web_assets.name'), key: 'name', dataIndex: 'name' },
@@ -198,12 +272,13 @@ const pageObjectColumns = computed(() => [
   { title: t('common.actions'), key: 'actions', width: 120 },
 ])
 const visualBaselineColumns = computed(() => [
+  { title: t('web_assets.preview'), key: 'preview', width: 96 },
   { title: t('web_assets.name'), key: 'name', dataIndex: 'name' },
   { title: t('web_assets.page_url'), key: 'page_url', dataIndex: 'page_url', ellipsis: true },
   { title: t('web_assets.size'), key: 'size', width: 120 },
   { title: t('web_assets.visual_threshold'), key: 'threshold', dataIndex: 'threshold', width: 100 },
   { title: t('web_assets.version'), key: 'version', dataIndex: 'version', width: 80 },
-  { title: t('common.actions'), key: 'actions', width: 100 },
+  { title: t('common.actions'), key: 'actions', width: 130 },
 ])
 
 const elementForm = ref({ name: '', page_url: '', locatorText: '{}', fallbackText: '[]', description: '' })
@@ -212,9 +287,14 @@ const visualBaselineForm = ref({ name: '', page_url: '', threshold: 0.01, pixel_
 
 const asElement = (record: unknown) => record as WebElementAssetItem
 const asPageObject = (record: unknown) => record as WebPageObjectItem
+const asVisualBaseline = (record: unknown) => record as WebVisualBaselineItem
 
 function webAssetsLabel(key: 'name') {
   return t(`web_assets.${key}`)
+}
+
+function visualMediaUrl(objectName: string) {
+  return `/api/v1/storage/media/${objectName.replace(/^\/+/, '')}`
 }
 
 function locatorLabel(locator: Record<string, unknown>) {
@@ -230,21 +310,49 @@ function parseJson<T>(text: string, label: string): T | null {
   }
 }
 
+function clearAssets() {
+  elements.value = []
+  pageObjects.value = []
+  visualBaselines.value = []
+}
+
+async function handleProjectChange() {
+  loadSeq += 1
+  repairSeq += 1
+  clearAssets()
+  resetElementModal()
+  resetPageObjectModal()
+  resetVisualBaselineModal()
+  resetRepairModal()
+  await loadAll()
+}
+
 async function loadAll() {
-  if (!selectedProjectId.value) return
+  const projectId = selectedProjectId.value
+  if (!projectId) {
+    loadSeq += 1
+    clearAssets()
+    return
+  }
+  const seq = ++loadSeq
   loading.value = true
   try {
-    const [elementItems, pageItems] = await Promise.all([
-      webAssetsApi.listElements(selectedProjectId.value),
-      webAssetsApi.listPageObjects(selectedProjectId.value),
+    const [elementItems, pageItems, baselineItems] = await Promise.all([
+      webAssetsApi.listElements(projectId),
+      webAssetsApi.listPageObjects(projectId),
+      webVisualApi.listBaselines(projectId),
     ])
-    visualBaselines.value = await webVisualApi.listBaselines(selectedProjectId.value)
+    if (seq !== loadSeq || selectedProjectId.value !== projectId) return
     elements.value = elementItems
     pageObjects.value = pageItems
-  } catch {
-    message.error(t('web_assets.load_failed'))
+    visualBaselines.value = baselineItems
+  } catch (error: unknown) {
+    if (seq !== loadSeq || selectedProjectId.value !== projectId) return
+    message.error(extractApiError(error, t('web_assets.load_failed')))
   } finally {
-    loading.value = false
+    if (seq === loadSeq) {
+      loading.value = false
+    }
   }
 }
 
@@ -255,10 +363,31 @@ function applyRequestedTab(value: unknown) {
   }
 }
 
-function openVisualBaselineCreate() {
+function resetVisualBaselineModal() {
+  visualBaselineModalOpen.value = false
+  editingVisualBaseline.value = null
   visualBaselineForm.value = { name: '', page_url: '', threshold: 0.01, pixel_threshold: 10, ignoreText: '[]' }
   visualBaselineFile.value = null
   visualBaselineFromRecorder.value = false
+}
+
+function openVisualBaselineCreate() {
+  if (!canModify.value) return
+  resetVisualBaselineModal()
+  visualBaselineModalOpen.value = true
+}
+
+function openVisualBaselineEdit(item: WebVisualBaselineItem) {
+  if (!canModify.value) return
+  resetVisualBaselineModal()
+  editingVisualBaseline.value = item
+  visualBaselineForm.value = {
+    name: item.name,
+    page_url: item.page_url || '',
+    threshold: item.threshold,
+    pixel_threshold: item.pixel_threshold,
+    ignoreText: JSON.stringify(item.ignore_regions || [], null, 2),
+  }
   visualBaselineModalOpen.value = true
 }
 
@@ -268,10 +397,44 @@ function selectVisualBaselineFile(file: File) {
   return false
 }
 
+function clearVisualBaselineFile() {
+  visualBaselineFile.value = null
+}
+
 async function saveVisualBaseline() {
-  if (!selectedProjectId.value || !visualBaselineForm.value.name.trim() || !visualBaselineFile.value) return
+  if (!canModify.value || !selectedProjectId.value) return
+  if (visualBaselineForm.value.threshold == null || visualBaselineForm.value.pixel_threshold == null) {
+    message.warning(t('web_assets.save_failed'))
+    return
+  }
   const ignoreRegions = parseJson<Array<Record<string, unknown>>>(visualBaselineForm.value.ignoreText, t('web_assets.ignore_regions'))
   if (!ignoreRegions || !Array.isArray(ignoreRegions)) return
+  if (editingVisualBaseline.value) {
+    saving.value = true
+    try {
+      await webVisualApi.updateBaseline(editingVisualBaseline.value.id, {
+        threshold: visualBaselineForm.value.threshold,
+        pixel_threshold: visualBaselineForm.value.pixel_threshold,
+        ignore_regions: ignoreRegions,
+      })
+      resetVisualBaselineModal()
+      message.success(t('common.success'))
+      await loadAll()
+    } catch (error: unknown) {
+      message.error(extractApiError(error, t('web_assets.save_failed')))
+    } finally {
+      saving.value = false
+    }
+    return
+  }
+  if (!visualBaselineForm.value.name.trim()) {
+    message.warning(t('web_assets.name_required', t('web_assets.name')))
+    return
+  }
+  if (!visualBaselineFile.value) {
+    message.warning(t('web_assets.save_failed'))
+    return
+  }
   saving.value = true
   try {
     await webVisualApi.uploadBaseline(selectedProjectId.value, {
@@ -282,22 +445,23 @@ async function saveVisualBaseline() {
       ignore_regions: ignoreRegions,
       file: visualBaselineFile.value,
     })
-    visualBaselineModalOpen.value = false
-    visualBaselineFromRecorder.value = false
+    resetVisualBaselineModal()
+    message.success(t('common.success'))
     await loadAll()
-  } catch {
-    message.error(t('web_assets.save_failed'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.save_failed')))
   } finally {
     saving.value = false
   }
 }
 
 async function deleteVisualBaseline(id: number) {
+  if (!canModify.value) return
   try {
     await webVisualApi.deleteBaseline(id)
     await loadAll()
-  } catch {
-    message.error(t('web_assets.delete_failed'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.delete_failed')))
   }
 }
 
@@ -308,7 +472,7 @@ function nextGeneratedName(prefix: string, names: string[]) {
 }
 
 function openRecorder(mode: 'elements' | 'page_object' | 'visual_baseline') {
-  if (!selectedProjectId.value) return
+  if (!selectedProjectId.value || !canModify.value) return
   recorderMode.value = mode
   recorderOpen.value = true
 }
@@ -361,7 +525,7 @@ async function handleRecorded(steps: WebRecordingStep[], assetIds: number[]) {
     message.success(t('web_assets.recorded_elements', { count: assetIds.length }))
     return
   }
-  if (recorderMode.value !== 'page_object') return
+  if (recorderMode.value !== 'page_object' || !canModify.value) return
 
   const generated = buildRecordedPageObject(steps, assetIds)
   if (!generated.actions.length) {
@@ -381,6 +545,8 @@ async function handleRecorded(steps: WebRecordingStep[], assetIds: number[]) {
 }
 
 function handleScreenshotCaptured(file: File, pageUrl: string) {
+  if (!canModify.value) return
+  editingVisualBaseline.value = null
   visualBaselineFile.value = file
   visualBaselineFromRecorder.value = true
   visualBaselineForm.value = {
@@ -393,13 +559,20 @@ function handleScreenshotCaptured(file: File, pageUrl: string) {
   visualBaselineModalOpen.value = true
 }
 
-function openElementCreate() {
+function resetElementModal() {
+  elementModalOpen.value = false
   editingElement.value = null
   elementForm.value = { name: '', page_url: '', locatorText: '{}', fallbackText: '[]', description: '' }
+}
+
+function openElementCreate() {
+  if (!canModify.value) return
+  resetElementModal()
   elementModalOpen.value = true
 }
 
 function openElementEdit(item: WebElementAssetItem) {
+  if (!canModify.value) return
   editingElement.value = item
   elementForm.value = {
     name: item.name,
@@ -412,7 +585,11 @@ function openElementEdit(item: WebElementAssetItem) {
 }
 
 async function saveElement() {
-  if (!selectedProjectId.value || !elementForm.value.name.trim()) return
+  if (!canModify.value || !selectedProjectId.value) return
+  if (!elementForm.value.name.trim()) {
+    message.warning(t('web_assets.name_required', t('web_assets.name')))
+    return
+  }
   const locator = parseJson<Record<string, unknown>>(elementForm.value.locatorText, t('web_assets.locator'))
   const fallback = parseJson<Array<Record<string, unknown>>>(elementForm.value.fallbackText, t('web_assets.fallback_locators'))
   if (!locator || !fallback || !Array.isArray(fallback)) return
@@ -423,29 +600,40 @@ async function saveElement() {
       page_url: elementForm.value.page_url.trim() || null,
       locator,
       fallback_locators: fallback,
-      description: elementForm.value.description.trim() || undefined,
+      description: elementForm.value.description.trim() || null,
     }
     if (editingElement.value) await webAssetsApi.updateElement(editingElement.value.id, body)
     else await webAssetsApi.createElement(selectedProjectId.value, body)
-    elementModalOpen.value = false
+    resetElementModal()
     await loadAll()
-  } catch {
-    message.error(t('web_assets.save_failed'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.save_failed')))
   } finally {
     saving.value = false
   }
 }
 
 async function deleteElement(id: number) {
+  if (!canModify.value) return
   try {
     await webAssetsApi.deleteElement(id)
     await loadAll()
-  } catch {
-    message.error(t('web_assets.delete_failed'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.delete_failed')))
   }
 }
 
+function resetRepairModal() {
+  repairModalOpen.value = false
+  repairLoading.value = false
+  repairAsset.value = null
+  repairCandidates.value = []
+  selectedRepairIndex.value = null
+}
+
 async function openRepair(item: WebElementAssetItem) {
+  if (!canModify.value) return
+  const seq = ++repairSeq
   repairAsset.value = item
   repairCandidates.value = []
   selectedRepairIndex.value = null
@@ -453,17 +641,21 @@ async function openRepair(item: WebElementAssetItem) {
   repairLoading.value = true
   try {
     const result = await webAssetsApi.previewElementRepair(item.id)
+    if (seq !== repairSeq || !repairModalOpen.value) return
     repairCandidates.value = result.candidates
     selectedRepairIndex.value = result.candidates.length ? 0 : null
-  } catch {
-    message.error(t('web_assets.repair_failed'))
+  } catch (error: unknown) {
+    if (seq !== repairSeq) return
+    message.error(extractApiError(error, t('web_assets.repair_failed')))
   } finally {
-    repairLoading.value = false
+    if (seq === repairSeq) {
+      repairLoading.value = false
+    }
   }
 }
 
 async function applyRepair() {
-  if (!repairAsset.value || selectedRepairIndex.value == null) return
+  if (!canModify.value || !repairAsset.value || selectedRepairIndex.value == null) return
   const candidate = repairCandidates.value[selectedRepairIndex.value]
   if (!candidate) return
   repairLoading.value = true
@@ -472,23 +664,30 @@ async function applyRepair() {
       locator: candidate.locator,
       fallback_locators: repairAsset.value.fallback_locators,
     })
-    repairModalOpen.value = false
+    resetRepairModal()
     await loadAll()
-  } catch {
-    message.error(t('web_assets.repair_failed'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.repair_failed')))
   } finally {
     repairLoading.value = false
   }
 }
 
-function openPageObjectCreate() {
+function resetPageObjectModal() {
+  pageObjectModalOpen.value = false
   editingPageObject.value = null
   pageObjectFromRecorder.value = false
   pageObjectForm.value = { name: '', url_pattern: '', elementRefsText: '[]', actionsText: '[]', description: '' }
+}
+
+function openPageObjectCreate() {
+  if (!canModify.value) return
+  resetPageObjectModal()
   pageObjectModalOpen.value = true
 }
 
 function openPageObjectEdit(item: WebPageObjectItem) {
+  if (!canModify.value) return
   editingPageObject.value = item
   pageObjectFromRecorder.value = false
   pageObjectForm.value = {
@@ -502,7 +701,11 @@ function openPageObjectEdit(item: WebPageObjectItem) {
 }
 
 async function savePageObject() {
-  if (!selectedProjectId.value || !pageObjectForm.value.name.trim()) return
+  if (!canModify.value || !selectedProjectId.value) return
+  if (!pageObjectForm.value.name.trim()) {
+    message.warning(t('web_assets.name_required', t('web_assets.name')))
+    return
+  }
   const refs = parseJson<Array<Record<string, unknown>>>(pageObjectForm.value.elementRefsText, t('web_assets.element_refs'))
   const actions = parseJson<Array<Record<string, unknown>>>(pageObjectForm.value.actionsText, t('web_assets.actions'))
   if (!refs || !actions || !Array.isArray(refs) || !Array.isArray(actions)) return
@@ -513,27 +716,27 @@ async function savePageObject() {
       url_pattern: pageObjectForm.value.url_pattern.trim() || null,
       element_refs: refs,
       actions,
-      description: pageObjectForm.value.description.trim() || undefined,
+      description: pageObjectForm.value.description.trim() || null,
     }
     if (editingPageObject.value) await webAssetsApi.updatePageObject(editingPageObject.value.id, body)
     else await webAssetsApi.createPageObject(selectedProjectId.value, body)
-    pageObjectModalOpen.value = false
     message.success(pageObjectFromRecorder.value ? t('web_assets.recorded_page_object') : t('common.success'))
-    pageObjectFromRecorder.value = false
+    resetPageObjectModal()
     await loadAll()
-  } catch {
-    message.error(t('web_assets.save_failed'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.save_failed')))
   } finally {
     saving.value = false
   }
 }
 
 async function deletePageObject(id: number) {
+  if (!canModify.value) return
   try {
     await webAssetsApi.deletePageObject(id)
     await loadAll()
-  } catch {
-    message.error(t('web_assets.delete_failed'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.delete_failed')))
   }
 }
 
@@ -543,8 +746,8 @@ onMounted(async () => {
     selectedProjectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects.value)
     applyRequestedTab(route.query.tab)
     await loadAll()
-  } catch {
-    message.error(t('web_assets.load_failed'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.load_failed')))
   }
 })
 

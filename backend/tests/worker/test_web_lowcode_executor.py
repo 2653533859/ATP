@@ -670,8 +670,8 @@ def test_await_with_cancel_detects_browser_disconnect_during_step(monkeypatch):
 
 
 def test_take_screenshot_failure_returns_none(wired):
-    url = asyncio.run(wlc._take_screenshot(_RunPage(screenshot_fails=True), 7, 0))
-    assert url is None and wired["uploads"]["bytes"] == []
+    url, img_bytes = asyncio.run(wlc._take_screenshot(_RunPage(screenshot_fails=True), 7, 0))
+    assert url is None and img_bytes is None and wired["uploads"]["bytes"] == []
 
 
 def test_safe_publish_swallows_publish_errors(monkeypatch):

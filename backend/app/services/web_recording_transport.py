@@ -451,7 +451,12 @@ class RemoteWebRecordingManager:
                 await delete_session_metadata(session_id)
             raise _transport_error(response, fallback="交互动作执行失败")
         snapshot = response.get("snapshot")
-        return snapshot if isinstance(snapshot, dict) else {"ok": True}
+        result = response.get("result")
+        return {
+            "ok": True,
+            "result": result if isinstance(result, dict) else {"ok": True},
+            "snapshot": snapshot if isinstance(snapshot, dict) else None,
+        }
 
     async def stop(self, session_id: str, owner_id: int) -> dict[str, Any]:
         metadata = await self._route(session_id, owner_id)

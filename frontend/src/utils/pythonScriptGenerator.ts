@@ -287,6 +287,15 @@ function webStepLines(step: ScriptStep, index: number) {
         `    baseline_path = os.getenv("ATP_VISUAL_BASELINE_${index + 1}", "baseline_${index + 1}.png")`,
         `    assert_visual(page, baseline_path, ${pythonNumber(params.threshold, 0.01)}, ${pythonNumber(params.pixel_threshold, 10)}, "visual-diffs/step_${index + 1}.png")`,
       ]
+    case 'save_storage_state': {
+      const stateName = stringValue(params.name, 'default').trim() || 'default'
+      const envFile = stateName.replace(/[^A-Za-z0-9._-]+/g, '_') || 'default'
+      return [
+        `    storage_state_path = Path(os.getenv("ATP_WEB_STORAGE_STATE_PATH", "storage-states/${envFile}.json"))`,
+        '    storage_state_path.parent.mkdir(parents=True, exist_ok=True)',
+        '    page.context.storage_state(path=str(storage_state_path))',
+      ]
+    }
     case '__unsupported__':
       return [`    pytest.fail(${pythonString(params.message || '当前步骤无法生成独立 Python 脚本')})`]
     default:

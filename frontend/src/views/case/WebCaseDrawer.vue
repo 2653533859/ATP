@@ -4,6 +4,7 @@
     :title="isEdit ? t('case.drawer.web.edit_title') : t('case.drawer.web.new_title')"
     width="960"
     :destroy-on-close="true"
+    :mask-closable="false"
     @close="handleClose"
   >
     <a-form :model="form" layout="vertical" ref="formRef">
@@ -331,6 +332,7 @@ import {
   type WebPageObjectItem,
   type WebRecordingItem,
 } from '@/api'
+import { extractApiError } from '@/utils/apiError'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
 import LowcodeStepEditor from '@/components/common/LowcodeStepEditor.vue'
 import RecordingHistoryDrawer from '@/components/common/RecordingHistoryDrawer.vue'
@@ -361,6 +363,7 @@ type WebCaseConfig = Record<string, unknown> & {
     device?: string
   }>
   script_path?: string
+  requirements_path?: string
   steps?: LowcodeStep[]
 }
 
@@ -376,7 +379,7 @@ const props = defineProps<{
   recordingRecordId?: number | null
   initialResumeStepIndex?: number | null
 }>()
-const emit = defineEmits<{ close: []; saved: [caseId?: number] }>()
+const emit = defineEmits<{ close: []; saved: [caseId?: number, keepOpen?: boolean] }>()
 const { t } = useI18n()
 
 const isEdit = ref(false)
@@ -436,6 +439,7 @@ const scriptPageObjects = ref<WebPageObjectItem[]>([])
 // Script
 const scriptContent = ref('')
 const scriptPath = ref<string | null>(null)
+const requirementsPath = ref<string | null>(null)
 const uploading = ref(false)
 const savingScript = ref(false)
 const loadingScript = ref(false)
@@ -448,9 +452,7 @@ function hasOwn(obj: object | null | undefined, key: string) {
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'string') return error
-  if (error instanceof Error) return error.message
-  return fallback
+  return extractApiError(error, fallback)
 }
 
 function resetDrawerState() {
@@ -476,6 +478,12 @@ function resetDrawerState() {
   autoApproveChecked.value = true
   scriptContent.value = ''
   scriptPath.value = null
+  requirementsPath.value = null
+  requirementsContent.value = ''
+  uploading.value = false
+  savingScript.value = false
+  loadingScript.value = false
+  savingRequirements.value = false
   lowcodeSteps.value = []
   editMode.value = 'lowcode'
   recorderOpen.value = false
@@ -492,6 +500,9 @@ function resetDrawerState() {
   savingGeneratedScript.value = false
   scriptElementAssets.value = []
   scriptPageObjects.value = []
+  resumeTargetIndex.value = null
+  resumeReplaySteps.value = []
+  resumeStartUrl.value = ''
 }
 
 function applyInitialDraft() {
@@ -598,6 +609,7 @@ watch(() => props.open, async (v) => {
         }))
       }
       scriptPath.value = c.script_path ?? null
+      requirementsPath.value = typeof c.requirements_path === 'string' && c.requirements_path.trim() ? c.requirements_path.trim() : null
       lowcodeSteps.value = Array.isArray(c.steps) ? c.steps : []
       initialStepSignature.value = JSON.stringify(lowcodeSteps.value)
       editMode.value = resolveEditMode(c)
@@ -616,11 +628,18 @@ watch(() => props.open, async (v) => {
   }
 })
 
+watch(matrixEnabled, (enabled) => {
+  if (enabled && matrixVariants.value.length === 0) {
+    addMatrixVariant()
+  }
+})
+
 watch(editMode, async (mode) => {
   if (!props.open) return
   if (mode === 'script') {
     if (!localCaseId.value) {
       scriptContent.value = ''
+      requirementsContent.value = ''
       return
     }
     await loadScript()
@@ -629,18 +648,40 @@ watch(editMode, async (mode) => {
   scriptContent.value = ''
 })
 
-async function loadScript() {
-  if (!localCaseId.value) return
+let loadScriptSeq = 0
+
+async function loadScript(options: { includeRequirements?: boolean } = {}) {
+  const { includeRequirements = true } = options
+  const targetCaseId = localCaseId.value
+  if (!targetCaseId) return
+  const seq = ++loadScriptSeq
   scriptContent.value = ''
+  if (includeRequirements) {
+    requirementsContent.value = ''
+  }
   loadingScript.value = true
   try {
-    const res = await scriptApi.get(localCaseId.value)
+    const res = await scriptApi.get(targetCaseId)
+    if (seq !== loadScriptSeq || localCaseId.value !== targetCaseId) return
     scriptContent.value = res.exists ? res.content : ''
-    const requirements = await scriptApi.getRequirements(localCaseId.value)
-    requirementsContent.value = requirements.exists ? requirements.content : ''
   } catch {
+    if (seq !== loadScriptSeq || localCaseId.value !== targetCaseId) return
     scriptContent.value = ''
-  } finally {
+  }
+  if (includeRequirements) {
+    try {
+      const requirements = await scriptApi.getRequirements(targetCaseId)
+      if (seq !== loadScriptSeq || localCaseId.value !== targetCaseId) return
+      requirementsContent.value = requirements.exists ? requirements.content : ''
+      if (requirements.requirements_path) {
+        requirementsPath.value = requirements.requirements_path
+      }
+    } catch {
+      if (seq !== loadScriptSeq || localCaseId.value !== targetCaseId) return
+      requirementsContent.value = ''
+    }
+  }
+  if (seq === loadScriptSeq) {
     loadingScript.value = false
   }
 }
@@ -651,6 +692,7 @@ async function handleSaveRequirements() {
   try {
     const result = await scriptApi.saveRequirements(localCaseId.value, requirementsContent.value)
     requirementsContent.value = result.content
+    requirementsPath.value = result.requirements_path || requirementsPath.value
     message.success(t('case.drawer.msg.requirements_saved'))
   } catch (error: unknown) {
     message.error(errorMessage(error, t('case.drawer.msg.save_failed')))
@@ -666,7 +708,7 @@ async function handleUpload(file: File) {
     const res = await scriptApi.upload(localCaseId.value, file)
     scriptPath.value = res.script_path
     message.success(t('case.drawer.msg.script_uploaded'))
-    await loadScript()
+    await loadScript({ includeRequirements: false })
   } catch (e: unknown) {
     message.error(errorMessage(e, t('case.drawer.msg.upload_failed')))
   } finally {
@@ -732,13 +774,14 @@ function buildConfig() {
     headless: cfg.headless,
     timeout: cfg.timeout,
     viewport: { width: cfg.viewportWidth, height: cfg.viewportHeight },
-    ...(matrixEnabled.value ? {
+    ...(matrixEnabled.value && matrixVariants.value.length > 0 ? {
       browser_matrix: matrixVariants.value.map((variant) => ({
         browser: variant.browser,
         viewport: variant.viewport,
         ...(variant.device ? { device: variant.device } : {}),
       })),
     } : {}),
+    ...(requirementsPath.value ? { requirements_path: requirementsPath.value } : {}),
     ...(saveStorageStateEnabled.value ? { save_storage_state: saveStorageStateName.value.trim() || 'default' } : {}),
     ...(useStorageStateEnabled.value ? { use_storage_state: useStorageStateName.value.trim() || 'default' } : {}),
   }
@@ -777,8 +820,12 @@ function handleResumeRecording(index: number) {
     name: s.name,
     params: { ...s.params },
   }))
-  const firstGoto = beforeSteps.find((s) => s.action === 'goto' || (s.params as Record<string, unknown> | undefined)?.url)
-  resumeStartUrl.value = firstGoto ? String((firstGoto.params as Record<string, unknown> | undefined)?.url || '') : 'https://example.com'
+  const firstGoto =
+    beforeSteps.find((s) => s.action === 'goto' || (s.params as Record<string, unknown> | undefined)?.url) ||
+    lowcodeSteps.value.find((s) => s.action === 'goto' || (s.params as Record<string, unknown> | undefined)?.url)
+  resumeStartUrl.value = firstGoto
+    ? String((firstGoto.params as Record<string, unknown> | undefined)?.url || '')
+    : lastRecordedTargetUrl.value || ''
   recorderOpen.value = true
 }
 
@@ -1021,6 +1068,11 @@ async function markLinkedRecordingSaved(savedCaseId: number) {
 async function handleSave() {
   try { await formRef.value?.validate() } catch { return }
 
+  if (matrixEnabled.value && matrixVariants.value.length === 0) {
+    message.warning(t('case.drawer.web.matrix_hint'))
+    return
+  }
+
   if (editMode.value === 'lowcode' && lowcodeSteps.value.length === 0) {
     message.warning(t('case.drawer.web.msg.add_step_required'))
     return
@@ -1044,7 +1096,7 @@ async function handleSave() {
       const savedCaseId = localCaseId.value
       await markLinkedRecordingSaved(savedCaseId)
       message.success(t('common.success'))
-      emit('saved', savedCaseId)
+      emit('saved', savedCaseId, false)
       emit('close')
     } else {
       const newCase = await caseApi.create({
@@ -1075,8 +1127,9 @@ async function handleSave() {
       }
       await markLinkedRecordingSaved(newCase.id)
       message.success(t('case.drawer.msg.case_created'))
-      emit('saved', newCase.id)
-      if (editMode.value === 'lowcode') {
+      const keepOpen = editMode.value !== 'lowcode'
+      emit('saved', newCase.id, keepOpen)
+      if (!keepOpen) {
         emit('close')
       }
     }

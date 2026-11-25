@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -13,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.models.project import Project
 from app.models.user import User
@@ -35,9 +36,17 @@ from app.services.web_locator_repair import build_locator_repair_suggestions
 
 router = APIRouter(tags=["Web 资产"])
 logger = logging.getLogger(__name__)
+_STORAGE_STATE_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 
-async def _commit_created_asset(db: AsyncSession, *, duplicate_detail: str, failure_detail: str) -> None:
+def _validate_storage_state_name(raw_name: str) -> str:
+    name = raw_name.strip()
+    if not _STORAGE_STATE_NAME_RE.match(name) or ".." in name:
+        raise HTTPException(status_code=400, detail="登录态凭证名称格式非法")
+    return name
+
+
+async def _commit_asset(db: AsyncSession, *, duplicate_detail: str, failure_detail: str) -> None:
     try:
         await db.commit()
     except IntegrityError as exc:
@@ -79,12 +88,12 @@ async def create_web_element(
     project_id: int,
     body: WebElementAssetCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     await _ensure_project(db, user, project_id, ProjectRole.editor)
     item = WebElementAsset(project_id=project_id, owner_id=user.id, **body.model_dump())
     db.add(item)
-    await _commit_created_asset(db, duplicate_detail="元素名称已存在", failure_detail="元素资产保存失败")
+    await _commit_asset(db, duplicate_detail="元素名称已存在", failure_detail="元素资产保存失败")
     await db.refresh(item)
     return item
 
@@ -94,7 +103,7 @@ async def update_web_element(
     element_id: int,
     body: WebElementAssetUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(WebElementAsset, element_id)
     if item is None:
@@ -104,8 +113,11 @@ async def update_web_element(
     if payload:
         for key, value in payload.items():
             setattr(item, key, value)
+        if "locator" in payload or "fallback_locators" in payload:
+            item.last_failed_at = None
+            item.last_failure_reason = None
         item.version += 1
-    await db.commit()
+    await _commit_asset(db, duplicate_detail="元素名称已存在", failure_detail="元素资产更新失败")
     await db.refresh(item)
     return item
 
@@ -115,7 +127,7 @@ async def record_web_element_failure(
     element_id: int,
     body: WebElementFailureIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(WebElementAsset, element_id)
     if item is None:
@@ -133,7 +145,7 @@ async def preview_web_element_repair(
     element_id: int,
     body: WebLocatorRepairIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(WebElementAsset, element_id)
     if item is None:
@@ -152,7 +164,7 @@ async def preview_web_element_repair(
 async def delete_web_element(
     element_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(WebElementAsset, element_id)
     if item is None:
@@ -186,12 +198,12 @@ async def create_web_page_object(
     project_id: int,
     body: WebPageObjectCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     await _ensure_project(db, user, project_id, ProjectRole.editor)
     item = WebPageObject(project_id=project_id, owner_id=user.id, **body.model_dump())
     db.add(item)
-    await _commit_created_asset(db, duplicate_detail="页面对象名称已存在", failure_detail="页面对象保存失败")
+    await _commit_asset(db, duplicate_detail="页面对象名称已存在", failure_detail="页面对象保存失败")
     await db.refresh(item)
     return item
 
@@ -201,7 +213,7 @@ async def update_web_page_object(
     object_id: int,
     body: WebPageObjectUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(WebPageObject, object_id)
     if item is None:
@@ -212,7 +224,7 @@ async def update_web_page_object(
         for key, value in payload.items():
             setattr(item, key, value)
         item.version += 1
-    await db.commit()
+    await _commit_asset(db, duplicate_detail="页面对象名称已存在", failure_detail="页面对象更新失败")
     await db.refresh(item)
     return item
 
@@ -221,7 +233,7 @@ async def update_web_page_object(
 async def delete_web_page_object(
     object_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(WebPageObject, object_id)
     if item is None:
@@ -270,8 +282,9 @@ async def delete_web_storage_state(
     project_id: int,
     name: str,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     await _ensure_project(db, user, project_id, ProjectRole.editor)
-    obj_name = f"storage-states/projects/{project_id}/{name}.json"
+    safe_name = _validate_storage_state_name(name)
+    obj_name = f"storage-states/projects/{project_id}/{safe_name}.json"
     await asyncio.to_thread(delete_file, obj_name)

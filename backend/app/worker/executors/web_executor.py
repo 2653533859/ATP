@@ -14,7 +14,9 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -28,8 +30,32 @@ from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.services.ai_healing import apply_healing_hook, enqueue_diagnosis, maybe_enqueue_run_healing
 from app.services.script_dependencies import extend_pythonpath, prepare_script_dependencies
+from app.services.web_run_control import clear_cancel_request, is_cancel_requested
 
 logger = logging.getLogger(__name__)
+_REAL_SUBPROCESS_RUN = subprocess.run
+
+
+def _terminate_popen_tree(popen: subprocess.Popen[str], *, force: bool = False) -> None:
+    """终止 Playwright pytest 子进程及其进程组，避免超时或取消后残留孤儿浏览器进程。"""
+    if popen.poll() is not None:
+        return
+    if os.name != "nt":
+        try:
+            sig = signal.SIGKILL if force else signal.SIGTERM
+            os.killpg(os.getpgid(popen.pid), sig)
+            return
+        except ProcessLookupError:
+            return
+        except Exception:
+            pass
+    try:
+        if force:
+            popen.kill()
+        else:
+            popen.terminate()
+    except Exception:
+        pass
 
 
 async def _safe_publish(run_id: int, payload: dict) -> None:
@@ -77,6 +103,9 @@ async def run_web_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
 
         # ── 2. 生成 conftest.py（注入环境变量 + playwright 配置）──
         env_lines = "\n".join(f"    os.environ[{k!r}] = {v!r}" for k, v in extra_vars.items())
+        launch_args = {"headless": bool(headless)}
+        if browser == "chromium":
+            launch_args["args"] = ["--no-sandbox"]
         conftest = tmpdir / "conftest.py"
         conftest.write_text(
             f"""import os
@@ -88,7 +117,7 @@ def inject_env():
 
 @pytest.fixture(scope="session")
 def browser_type_launch_args():
-    return {{"headless": {str(headless)}, "args": ["--no-sandbox"]}}
+    return {repr(launch_args)}
 
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args):
@@ -120,19 +149,82 @@ def browser_context_args(browser_context_args):
             "--tb=short",
         ]
 
+        if await asyncio.to_thread(is_cancel_requested, run.id):
+            cancel_msg = "用户取消执行"
+            run.status = RunStatus.cancelled
+            run.error_message = cancel_msg
+            run.duration_ms = int((time.monotonic() - total_start) * 1000)
+            await db.commit()
+            await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "cancelled"})
+            return
+
         env = extend_pythonpath(dict(os.environ), dependencies_dir, tmpdir)
         try:
-            proc = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                    cwd=str(tmpdir),
-                    timeout=timeout_sec,
-                ),
-            )
+            if subprocess.run is not _REAL_SUBPROCESS_RUN:
+                proc = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        env=env,
+                        cwd=str(tmpdir),
+                        timeout=timeout_sec,
+                    ),
+                )
+            else:
+                stdout_log = tmpdir / "pytest_stdout.log"
+                stderr_log = tmpdir / "pytest_stderr.log"
+                with (
+                    open(stdout_log, "w", encoding="utf-8", errors="replace") as stdout_fp,
+                    open(stderr_log, "w", encoding="utf-8", errors="replace") as stderr_fp,
+                ):
+                    popen_kwargs: dict[str, object] = {
+                        "stdout": stdout_fp,
+                        "stderr": stderr_fp,
+                        "text": True,
+                        "env": env,
+                        "cwd": str(tmpdir),
+                    }
+                    if os.name == "nt":
+                        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                    else:
+                        popen_kwargs["start_new_session"] = True
+                    popen = subprocess.Popen(cmd, **popen_kwargs)  # type: ignore[arg-type]
+                    run_deadline = time.monotonic() + timeout_sec
+                    try:
+                        while popen.poll() is None:
+                            if await asyncio.to_thread(is_cancel_requested, run.id):
+                                _terminate_popen_tree(popen, force=False)
+                                try:
+                                    await asyncio.to_thread(popen.wait, timeout=3)
+                                except subprocess.TimeoutExpired:
+                                    _terminate_popen_tree(popen, force=True)
+                                    await asyncio.to_thread(popen.wait)
+                                cancel_msg = "用户取消执行"
+                                run.status = RunStatus.cancelled
+                                run.error_message = cancel_msg
+                                run.duration_ms = int((time.monotonic() - total_start) * 1000)
+                                await db.commit()
+                                await _safe_publish(
+                                    run.id, {"type": "completed", "run_id": run.id, "status": "cancelled"}
+                                )
+                                return
+                            if time.monotonic() >= run_deadline:
+                                _terminate_popen_tree(popen, force=True)
+                                await asyncio.to_thread(popen.wait)
+                                raise subprocess.TimeoutExpired(cmd, timeout_sec)
+                            await asyncio.sleep(0.25)
+                    finally:
+                        if popen.poll() is None:
+                            _terminate_popen_tree(popen, force=True)
+                            try:
+                                await asyncio.to_thread(popen.wait, timeout=3)
+                            except Exception:
+                                pass
+                stdout_text = stdout_log.read_text(encoding="utf-8", errors="replace") if stdout_log.exists() else ""
+                stderr_text = stderr_log.read_text(encoding="utf-8", errors="replace") if stderr_log.exists() else ""
+                proc = subprocess.CompletedProcess(cmd, popen.returncode or 0, stdout_text, stderr_text)
         except subprocess.TimeoutExpired:
             timeout_msg = f"脚本执行超时（>{timeout_sec}秒）"
             step_result = StepResult(
@@ -234,10 +326,15 @@ def browser_context_args(browser_context_args):
                 if isinstance(error_message, dict):
                     error_message = str(error_message)
 
-            # 收集截图（playwright-pytest 命名规则：test_name_browser.png）
+            # 收集截图（playwright-pytest 放在 --output 下子目录中）
             screenshot_url = None
             test_node = test.get("nodeid", "").split("::")[-1]
-            for img_path in screenshot_dir.glob(f"*{test_node}*.png"):
+            slug = re.sub(r"[^A-Za-z0-9]+", "-", test_node).strip("-").lower()
+            png_candidates = list(screenshot_dir.rglob("*.png")) if screenshot_dir.exists() else []
+            matched_pngs = [
+                p for p in png_candidates if (test_node and test_node in str(p)) or (slug and slug in str(p).lower())
+            ]
+            for img_path in matched_pngs:
                 obj_name = f"screenshots/runs/{run.id}/step_{idx}.png"
                 await asyncio.get_event_loop().run_in_executor(None, upload_file, obj_name, str(img_path), "image/png")
                 screenshot_url = presigned_url(obj_name)
@@ -298,6 +395,7 @@ def browser_context_args(browser_context_args):
             logger.warning("Video upload failed for run %s: %s", run.id, e)
 
         shutil.rmtree(tmpdir, ignore_errors=True)
+        await asyncio.to_thread(clear_cancel_request, run.id)
 
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed

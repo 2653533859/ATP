@@ -244,7 +244,7 @@
               </a-space>
             </div>
             <div class="detail-meta">
-              <span>{{ selectedModuleName || t('ui_workbench.module_fallback', { id: selectedCase.module_id }) }}</span>
+              <span>{{ moduleNameMap[selectedCase.module_id] || selectedModuleName || t('ui_workbench.module_fallback', { id: selectedCase.module_id }) }}</span>
               <span>{{ t(`case.levels.${selectedCase.case_level}`) }}</span>
               <span>{{ selectedConfig.browser || 'chromium' }}</span>
               <span>{{ selectedConfig.headless === false ? t('ui_workbench.headed') : t('ui_workbench.headless') }}</span>
@@ -344,7 +344,13 @@
       @deleted="handleRecordDeleted"
       @loaded="syncRecordingRecords"
     />
-    <a-modal v-model:open="baselineModalOpen" :title="t('ui_workbench.baseline_modal_title')" :confirm-loading="baselineSaving" @ok="saveBaseline">
+    <a-modal
+      v-model:open="baselineModalOpen"
+      :title="t('ui_workbench.baseline_modal_title')"
+      :confirm-loading="baselineSaving"
+      :mask-closable="false"
+      @ok="saveBaseline"
+    >
       <a-form layout="vertical">
         <a-form-item :label="t('ui_workbench.baseline_name')" required><a-input v-model:value="baselineName" /></a-form-item>
         <a-form-item :label="t('ui_workbench.baseline_url')"><a-input v-model:value="baselinePageUrl" /></a-form-item>
@@ -409,9 +415,9 @@ import {
   type LocalRecordingDraft,
 } from '@/utils/recordingDraft'
 import { canEditProjectByRole } from '@/utils/permissions'
+import { extractApiError } from '@/utils/apiError'
 import { useAuthStore } from '@/stores/auth'
 
-type ErrorLike = { response?: { data?: { detail?: unknown } }; message?: unknown }
 type SelectOption<T extends string | number> = { label: string; value: T }
 type RecorderMode = 'case' | 'baseline'
 
@@ -457,6 +463,8 @@ const baselineThreshold = ref(0.01)
 const baselinePixelThreshold = ref(10)
 let loadSequence = 0
 let detailSequence = 0
+let moduleSequence = 0
+let projectDataSequence = 0
 
 const projectSelectId = computed<number | undefined>({
   get: () => selectedProjectId.value ?? undefined,
@@ -510,12 +518,7 @@ function flattenModules(items: ModuleTreeItem[], result: Record<number, string> 
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'object' && error !== null) {
-    const typed = error as ErrorLike
-    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
-    if (typeof typed.message === 'string') return typed.message
-  }
-  return error instanceof Error ? error.message : fallback
+  return extractApiError(error, fallback)
 }
 
 function formatTime(value?: string | null) {
@@ -752,14 +755,14 @@ async function loadModules(projectId: number) {
   }
 }
 
-async function loadRuns(caseIds: number[], sequence?: number) {
+async function loadRuns(projectId: number, caseIds: number[], sequence?: number) {
   if (sequence !== undefined && sequence !== loadSequence) return
   if (!caseIds.length) {
     recentRuns.value = []
     return
   }
   try {
-    const result = await runApi.list({ page: 1, page_size: 100 })
+    const result = await runApi.list({ project_id: projectId, page: 1, page_size: 100 })
     if (sequence !== undefined && sequence !== loadSequence) return
     recentRuns.value = result.items
       .filter((run) => caseIds.includes(run.case_id))
@@ -775,12 +778,15 @@ async function loadCases(projectId: number) {
     const result = await caseApi.list({ project_id: projectId, module_id: selectedModuleId.value ?? undefined, case_type: 'web' as CaseType, keyword: keyword.value.trim() || undefined })
     if (sequence !== loadSequence) return
     webCases.value = result.filter((item) => item.case_type === 'web')
-    await loadRuns(webCases.value.map((item) => item.id), sequence)
+    await loadRuns(projectId, webCases.value.map((item) => item.id), sequence)
     if (sequence !== loadSequence) return
     const nextId = selectedCaseId.value && webCases.value.some((item) => item.id === selectedCaseId.value) ? selectedCaseId.value : webCases.value[0]?.id ?? null
     selectedCaseId.value = nextId
     if (nextId) await loadCaseDetail(nextId, sequence)
-    else selectedCaseDetail.value = null
+    else {
+      detailSequence += 1
+      selectedCaseDetail.value = null
+    }
   } catch (error: unknown) {
     if (sequence === loadSequence) message.error(errorMessage(error, t('ui_workbench.load_failed')))
   }
@@ -809,6 +815,7 @@ function clearProjectData() {
   loadSequence += 1
   detailSequence += 1
   recordLoadSequence += 1
+  projectDataSequence += 1
   moduleNameMap.value = {}
   webCases.value = []
   recentRuns.value = []
@@ -835,18 +842,22 @@ async function loadProjectData() {
     clearProjectData()
     return
   }
+  const sequence = ++projectDataSequence
   loading.value = true
   hydrateRecoverableWebDraft(projectId)
   try {
+    await loadModules(projectId)
+    if (sequence !== projectDataSequence) return
     await Promise.all([
-      loadModules(projectId),
       loadCases(projectId),
       loadAssets(projectId),
       loadWorkerStatus(),
       loadRecordingRecords(projectId),
     ])
   } finally {
-    loading.value = false
+    if (sequence === projectDataSequence) {
+      loading.value = false
+    }
   }
 }
 
@@ -872,18 +883,22 @@ async function handleProjectChange(value: unknown) {
 }
 
 async function handleModuleSelect(moduleId: number | null) {
+  const seq = ++moduleSequence
   selectedModuleId.value = moduleId
   const projectId = selectedProjectId.value
   if (!projectId) return
   await loadCases(projectId)
+  if (seq !== moduleSequence || selectedProjectId.value !== projectId) return
   syncRoute()
 }
 
 async function handleModuleReset() {
+  const seq = ++moduleSequence
   selectedModuleId.value = null
   const projectId = selectedProjectId.value
   if (!projectId) return
   await loadCases(projectId)
+  if (seq !== moduleSequence || selectedProjectId.value !== projectId) return
   syncRoute()
 }
 
@@ -1063,8 +1078,10 @@ function handleCaseDrawerClose() {
   }
 }
 
-function handleCaseSaved() {
-  caseDrawerOpen.value = false
+function handleCaseSaved(_caseId?: number, keepOpen = false) {
+  if (!keepOpen) {
+    caseDrawerOpen.value = false
+  }
   recordedAssetCount.value = 0
   recordedAssetIds.value = []
   initialCaseAssetIds.value = []

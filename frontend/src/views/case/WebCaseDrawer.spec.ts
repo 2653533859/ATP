@@ -15,6 +15,9 @@ const {
   datasetList,
   recordingRecordCreate,
   recordingRecordUpdate,
+  scriptGet,
+  scriptGetRequirements,
+  scriptSaveRequirements,
   versionList,
   warning,
   success,
@@ -27,6 +30,9 @@ const {
   datasetList: vi.fn(),
   recordingRecordCreate: vi.fn(),
   recordingRecordUpdate: vi.fn(),
+  scriptGet: vi.fn(),
+  scriptGetRequirements: vi.fn(),
+  scriptSaveRequirements: vi.fn(),
   versionList: vi.fn(),
   warning: vi.fn(),
   success: vi.fn(),
@@ -46,7 +52,13 @@ vi.mock('@/api', () => ({
   caseApi: { create: caseCreate, get: caseGet, update: caseUpdate },
   datasetApi: { list: datasetList, listVersions: versionList },
   recordingRecordApi: { create: recordingRecordCreate, update: recordingRecordUpdate },
-  scriptApi: { get: vi.fn(), upload: vi.fn(), saveContent: vi.fn() },
+  scriptApi: {
+    get: scriptGet,
+    upload: vi.fn(),
+    saveContent: vi.fn(),
+    getRequirements: scriptGetRequirements,
+    saveRequirements: scriptSaveRequirements,
+  },
   webAssetsApi: { listElements: assetList, listPageObjects: pageObjectList },
 }))
 
@@ -434,5 +446,58 @@ describe('WebCaseDrawer low-code flow', () => {
     expect(caseCreate).toHaveBeenCalled()
     expect(recordingRecordUpdate).not.toHaveBeenCalled()
     wrapper2.unmount()
+  })
+
+  it('preserves requirements_path, isolates requirements load errors, and falls back to step 1 goto URL on resume', async () => {
+    caseGet.mockResolvedValueOnce({
+      id: 201,
+      name: '带依赖用例',
+      description: '',
+      tags: [],
+      priority: 'P1',
+      case_level: 'core',
+      config: {
+        browser: 'chromium',
+        script_path: 'scripts/cases/201/test_case.py',
+        requirements_path: 'scripts/cases/201/requirements.txt',
+      },
+    })
+    scriptGet.mockResolvedValueOnce({ exists: true, content: 'def test_ok(page): pass' })
+    scriptGetRequirements.mockRejectedValueOnce(new Error('requirements timeout'))
+
+    const wrapper = mountDrawer({ id: 201 })
+    await wrapper.setProps({ open: false })
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    expect(vm.scriptContent).toBe('def test_ok(page): pass')
+    expect(vm.requirementsContent).toBe('')
+
+    await wrapper.findAll('button').find((b) => b.text() === 'case.drawer.save_config')?.trigger('click')
+    await flushPromises()
+    expect(caseUpdate).toHaveBeenCalledWith(
+      201,
+      expect.objectContaining({
+        config: expect.objectContaining({
+          requirements_path: 'scripts/cases/201/requirements.txt',
+        }),
+      }),
+    )
+
+    // Empty browser_matrix must be rejected
+    vm.editMode = 'lowcode'
+    vm.lowcodeSteps = [{ action: 'goto', name: '首步导航', params: { url: 'https://portal.example.test' } }]
+    vm.matrixEnabled = true
+    await wrapper.vm.$nextTick()
+    expect(vm.matrixVariants).toHaveLength(1)
+    vm.matrixVariants = []
+    await vm.handleSave()
+    expect(warning).toHaveBeenCalledWith('case.drawer.web.matrix_hint')
+
+    // Step 1 resume (index=0) falls back to step 0 URL rather than example.com
+    vm.handleResumeRecording(0)
+    expect(vm.resumeStartUrl).toBe('https://portal.example.test')
+    wrapper.unmount()
   })
 })

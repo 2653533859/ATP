@@ -462,3 +462,28 @@ def test_send_recording_command_uses_reply_queue(monkeypatch):
     response = asyncio.run(transport.send_recording_command("worker-a", "snapshot", session_id="s1"))
     assert response == {"ok": True, "value": 1}
     assert captured["socket_timeout"] == settings.WEB_RECORDER_COMMAND_TIMEOUT_SECONDS + 1
+
+
+def test_remote_manager_interact_returns_wrapped_result_and_snapshot(monkeypatch):
+    manager = transport.RemoteWebRecordingManager()
+    monkeypatch.setattr(
+        manager,
+        "_route",
+        lambda sid, oid: asyncio.sleep(0, result={"session_id": sid, "owner_id": oid, "worker_id": "worker-a"}),
+    )
+
+    async def fake_send(_worker_id, action, session_id=None, payload=None):
+        assert action == "interact"
+        assert session_id == "s1"
+        assert payload == {"action": "click", "params": {"x": 10, "y": 20}}
+        return {
+            "ok": True,
+            "result": {"ok": True},
+            "snapshot": {"id": "s1", "status": "recording", "steps": [{"action": "click"}]},
+        }
+
+    monkeypatch.setattr(transport, "send_recording_command", fake_send)
+    res = asyncio.run(manager.interact("s1", 2, "click", {"x": 10, "y": 20}))
+    assert res["ok"] is True
+    assert res["result"] == {"ok": True}
+    assert res["snapshot"]["steps"] == [{"action": "click"}]

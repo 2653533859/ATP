@@ -9,8 +9,6 @@ import tempfile
 import types
 from pathlib import Path
 
-import pytest
-
 from app.models.bootstrap import load_all_models
 
 load_all_models()
@@ -1272,7 +1270,7 @@ def test_take_screenshot_handles_failure():
         async def screenshot(self, type="png"):
             raise RuntimeError("no screenshot")
 
-    assert asyncio.run(wlc._take_screenshot(_Page(), 5, 0)) is None
+    assert asyncio.run(wlc._take_screenshot(_Page(), 5, 0)) == (None, None)
 
 
 def test_execute_step_fill_and_assert_text_fallback():
@@ -1480,3 +1478,149 @@ def test_run_web_lowcode_save_storage_state_without_project(monkeypatch):
     asyncio.run(wlc.run_web_lowcode(db, run, case, {}))
     assert run.status == RunStatus.passed
     assert not any(name.startswith("storage-states/") for name, _data, _ct in events.uploaded)
+
+
+def test_execute_visual_assert_falls_back_when_threshold_or_regions_are_none(monkeypatch):
+    captured: dict = {}
+    baseline = types.SimpleNamespace(
+        id=1,
+        project_id=5,
+        object_name="visual-baselines/projects/5/home.png",
+        threshold=0.02,
+        pixel_threshold=15,
+        ignore_regions=[{"x": 1, "y": 2, "width": 10, "height": 10}],
+    )
+
+    class _DB:
+        async def get(self, _model, _pk):
+            return baseline
+
+    monkeypatch.setattr(wlc, "read_bytes", lambda _obj: b"BASELINE")
+
+    def _compare(base, curr, *, threshold, pixel_threshold, ignore_regions):
+        captured.update(threshold=threshold, pixel_threshold=pixel_threshold, ignore_regions=ignore_regions)
+        return {"match": True, "diff_ratio": 0.0}
+
+    monkeypatch.setattr(wlc, "compare_png_bytes", _compare)
+    res = asyncio.run(
+        wlc._execute_visual_assert(
+            _DB(),
+            _FakePage(screenshot_bytes=b"CUR"),
+            {"baseline_id": 1, "threshold": None, "pixel_threshold": None, "ignore_regions": None},
+            5,
+            99,
+            0,
+        )
+    )
+    assert res["success"] is True
+    assert captured == {
+        "threshold": 0.02,
+        "pixel_threshold": 15,
+        "ignore_regions": [{"x": 1, "y": 2, "width": 10, "height": 10}],
+    }
+
+
+def test_clean_primary_hit_clears_element_asset_failure_and_invalid_storage_name_rejected(monkeypatch):
+    events, _page, _ctx = _install_web_env(monkeypatch)
+    asset = types.SimpleNamespace(
+        id=15,
+        project_id=5,
+        locator={"strategy": "css", "value": "#btn"},
+        fallback_locators=[],
+        last_failed_at="2026-01-01T00:00:00Z",
+        last_failure_reason="stale failure",
+    )
+    db, run, case = _run_entities(
+        [{"action": "click", "params": {"element_asset_id": 15}}],
+    )
+    db.element_asset = asset
+    asyncio.run(wlc.run_web_lowcode(db, run, case, {}))
+    assert run.status == RunStatus.passed
+    assert asset.last_failed_at is None
+    assert asset.last_failure_reason is None
+
+    db2, run2, case2 = _run_entities(
+        [{"action": "save_storage_state", "params": {"name": "../escape"}}],
+    )
+    asyncio.run(wlc.run_web_lowcode(db2, run2, case2, {}))
+    assert run2.status == RunStatus.failed
+    assert "非法" in (db2.added[0].error_message or "")
+
+    db3, run3, case3 = _run_entities(
+        [{"action": "goto", "params": {"url": "https://demo"}}],
+        cfg={"use_storage_state": "../escape"},
+    )
+    asyncio.run(wlc.run_web_lowcode(db3, run3, case3, {}))
+    assert run3.status == RunStatus.error
+    assert "非法" in (run3.error_message or "")
+
+
+def test_run_web_matrix_records_duration_ms_and_handles_cancel(monkeypatch):
+    published: list[dict] = []
+
+    async def _publish(run_id, payload):
+        published.append(payload)
+
+    monkeypatch.setattr(wlc, "_safe_publish", _publish)
+    monkeypatch.setattr(wlc, "is_cancel_requested", lambda rid: rid == 200)
+    monkeypatch.setattr(wlc, "clear_cancel_request", lambda _rid: None)
+    import app.services.web_run_control as web_run_control
+
+    cancelled_children: list[int] = []
+    monkeypatch.setattr(web_run_control, "request_cancel", cancelled_children.append)
+
+    async def _fake_variant(*, child_id, index, variant, **_kw):
+        await asyncio.sleep(0.01)
+        return {
+            "run_id": child_id,
+            "index": index,
+            "label": variant.get("label"),
+            "browser": variant.get("browser"),
+            "viewport": variant.get("viewport"),
+            "status": RunStatus.cancelled.value,
+            "duration_ms": 12,
+        }
+
+    monkeypatch.setattr(wlc, "_run_web_matrix_variant", _fake_variant)
+
+    class _MatrixDB:
+        def __init__(self):
+            self._next_id = 300
+
+        def add(self, obj):
+            obj.id = self._next_id
+            self._next_id += 1
+
+        async def flush(self):
+            return None
+
+        async def commit(self):
+            return None
+
+    parent_run = types.SimpleNamespace(
+        id=200,
+        triggered_by=1,
+        trace_id="t1",
+        environment="prod",
+        status=RunStatus.pending,
+        duration_ms=None,
+        error_message=None,
+        result_summary=None,
+    )
+    case = types.SimpleNamespace(
+        id=7, module_id=22, config={"steps": [{"action": "goto", "params": {"url": "https://demo"}}]}
+    )
+    asyncio.run(
+        wlc._run_web_matrix(
+            _MatrixDB(),
+            parent_run,
+            case,
+            {},
+            [{"browser": "chromium", "viewport": {"width": 1280, "height": 720}, "label": "c1"}],
+        )
+    )
+    assert parent_run.status == RunStatus.cancelled
+    assert isinstance(parent_run.duration_ms, int)
+    assert 300 in cancelled_children
+    assert published[-1]["status"] == "cancelled"
+    assert isinstance(published[-1]["duration_ms"], int)

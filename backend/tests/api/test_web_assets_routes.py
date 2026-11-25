@@ -186,3 +186,44 @@ def test_create_element_distinguishes_duplicate_from_database_failure(
 
     assert caught.value.status_code == expected_status
     assert caught.value.detail == expected_detail
+
+
+def test_update_element_clears_failure_and_handles_conflict_and_project_editor(monkeypatch):
+    import inspect
+    from datetime import datetime, timezone
+
+    _allow_access(monkeypatch)
+    element = WebElementAsset(
+        id=9,
+        project_id=1,
+        name="btn",
+        locator={"strategy": "css", "value": "#old"},
+        fallback_locators=[],
+        version=1,
+        last_failed_at=datetime.now(timezone.utc),
+        last_failure_reason="not found",
+    )
+    db = _DB(objects={("WebElementAsset", 9): element, ("Project", 1): SimpleNamespace(id=1)})
+    user = SimpleNamespace(id=8)
+
+    asyncio.run(
+        web_assets.update_web_element(9, WebElementAssetUpdate(locator={"strategy": "css", "value": "#new"}), db, user)
+    )
+    assert element.last_failed_at is None
+    assert element.last_failure_reason is None
+
+    async def fail_integrity():
+        raise IntegrityError("update", {}, Exception("duplicate"))
+
+    db.commit = fail_integrity
+    with pytest.raises(HTTPException) as conflict_exc:
+        asyncio.run(web_assets.update_web_element(9, WebElementAssetUpdate(name="dup"), db, user))
+    assert conflict_exc.value.status_code == 409
+
+    for fn in (web_assets.create_web_element, web_assets.update_web_element, web_assets.delete_web_storage_state):
+        dep = inspect.signature(fn).parameters["user"].default.dependency
+        assert dep is web_assets.get_current_user
+
+    with pytest.raises(HTTPException) as bad_name_exc:
+        asyncio.run(web_assets.delete_web_storage_state(1, "../escape", db, user))
+    assert bad_name_exc.value.status_code == 400

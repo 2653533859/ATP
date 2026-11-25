@@ -204,3 +204,91 @@ def test_web_executor_safe_publish_swallows_redis_failure(monkeypatch):
 
     monkeypatch.setattr(web_executor, "publish_run_event", broken)
     asyncio.run(web_executor._safe_publish(1, {"type": "completed"}))
+
+
+def test_web_executor_firefox_no_sandbox_and_nested_screenshots(monkeypatch, events, fake_minio, healing):
+    captured_conftest: list[str] = []
+
+    def fake_run(cmd, **kwargs):
+        tmpdir = Path(kwargs["cwd"])
+        captured_conftest.append((tmpdir / "conftest.py").read_text(encoding="utf-8"))
+        out_dir = Path(next(a.split("=", 1)[1] for a in cmd if a.startswith("--output=")))
+        nested = out_dir / "test-case-py-test-nested-firefox"
+        nested.mkdir(parents=True, exist_ok=True)
+        (nested / "test-finished-1.png").write_bytes(b"png")
+        report_path = next(a.split("=", 1)[1] for a in cmd if a.startswith("--json-report-file="))
+        Path(report_path).write_text(
+            json.dumps({"tests": [{"nodeid": "test_case.py::test_nested", "outcome": "passed", "duration": 0.2}]}),
+            encoding="utf-8",
+        )
+        return _Obj(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(web_executor.subprocess, "run", fake_run)
+    db = _FakeDB()
+    run = _run_stub()
+    asyncio.run(web_executor.run_web_case(db, run, _Obj(config={"script_path": "s.py", "browser": "firefox"}), {}))
+
+    assert run.status is RunStatus.passed
+    assert "--no-sandbox" not in captured_conftest[0]
+    assert db.added[0].screenshot_url == "https://minio/screenshots/runs/1/step_0.png"
+
+
+def test_web_executor_cancels_when_cancel_requested(monkeypatch, events, fake_minio, healing):
+    called: list[bool] = []
+    monkeypatch.setattr(web_executor.subprocess, "run", lambda *a, **kw: called.append(True))
+    monkeypatch.setattr(web_executor, "is_cancel_requested", lambda _rid: True)
+    cleared: list[int] = []
+    monkeypatch.setattr(web_executor, "clear_cancel_request", cleared.append)
+
+    db = _FakeDB()
+    run = _run_stub()
+    asyncio.run(web_executor.run_web_case(db, run, _Obj(config={"script_path": "s.py"}), {}))
+
+    assert not called
+    assert run.status is RunStatus.cancelled
+    assert cleared == [1]
+    assert events[-1]["status"] == "cancelled"
+
+
+def test_web_executor_popen_redirects_logs_to_files_and_kills_tree_on_cancel(monkeypatch, events, fake_minio, healing):
+    cancel_checks = iter([False, True])
+    monkeypatch.setattr(web_executor, "is_cancel_requested", lambda _rid: next(cancel_checks, True))
+    monkeypatch.setattr(web_executor, "clear_cancel_request", lambda _rid: None)
+
+    captured_popen_kwargs = {}
+
+    class _FakePopen:
+        def __init__(self, cmd, **kwargs):
+            self.pid = 4242
+            self.returncode = None
+            captured_popen_kwargs.update(kwargs)
+            self._polls = 0
+            kwargs["stdout"].write("popen stdout ok\n")
+            kwargs["stderr"].write("")
+
+        def poll(self):
+            self._polls += 1
+            return self.returncode
+
+        def terminate(self):
+            self.returncode = -15
+
+        def kill(self):
+            self.returncode = -9
+
+        def wait(self, timeout=None):
+            if self.returncode is None:
+                self.returncode = 0
+            return self.returncode
+
+    monkeypatch.setattr(web_executor.subprocess, "run", web_executor._REAL_SUBPROCESS_RUN)
+    monkeypatch.setattr(web_executor.subprocess, "Popen", _FakePopen)
+
+    db = _FakeDB()
+    run = _run_stub()
+    asyncio.run(web_executor.run_web_case(db, run, _Obj(config={"script_path": "s.py", "timeout": 10}), {}))
+
+    assert run.status is RunStatus.cancelled
+    assert captured_popen_kwargs["stdout"] is not web_executor.subprocess.PIPE
+    assert captured_popen_kwargs["stderr"] is not web_executor.subprocess.PIPE
+    assert events[-1] == {"type": "completed", "run_id": 1, "status": "cancelled"}

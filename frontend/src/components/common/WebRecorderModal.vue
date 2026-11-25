@@ -4,6 +4,7 @@
     :title="t('case.drawer.web.recorder.title')"
     :width="active ? 1160 : 680"
     :footer="null"
+    :mask-closable="false"
     class="web-recorder-modal"
     @cancel="handleClose"
   >
@@ -65,10 +66,13 @@
       </a-button>
     </div>
 
-    <!-- 录制中的云端交互双栏控制台 -->
-    <div v-if="active" class="cloud-recorder-layout">
-      <!-- 左侧：云端虚拟浏览器视窗 -->
-      <div class="cloud-viewport-pane">
+    <!-- 录制中及录制结束后的双栏/步骤结果展示 -->
+    <div
+      v-if="active || steps.length || evidenceArtifacts.length || evidence?.artifact_error"
+      :class="active ? 'cloud-recorder-layout' : 'post-recorder-results'"
+    >
+      <!-- 左侧：云端虚拟浏览器视窗（仅会话活跃时显示） -->
+      <div v-if="active" class="cloud-viewport-pane">
         <!-- 浏览器地址栏导航 -->
         <div class="browser-navbar">
           <a-button-group size="small">
@@ -84,6 +88,8 @@
             size="small"
             class="browser-url-bar"
             placeholder="http://..."
+            @focus="navInputFocused = true"
+            @blur="navInputFocused = false"
             @press-enter="handleNavigate"
           >
             <template #prefix>
@@ -93,7 +99,7 @@
               <span class="live-dot" :title="t('case.drawer.web.recorder.click_hint')"></span>
             </template>
           </a-input>
-          <a-button size="small" type="primary" @click="handleNavigate">前往</a-button>
+          <a-button size="small" type="primary" @click="handleNavigate">{{ t('case.drawer.web.recorder.navigate_go') }}</a-button>
         </div>
 
         <!-- 交互视口画布 -->
@@ -117,7 +123,7 @@
             draggable="false"
           />
           <div v-else class="viewport-loading-state">
-            <a-spin :tip="t('common.loading')" />
+            <a-spin :tip="t('case.drawer.web.recorder.starting')" />
           </div>
           <div class="viewport-crosshair-badge">
             <DesktopOutlined /> {{ t('case.drawer.web.recorder.cloud_viewport_title') }}
@@ -149,11 +155,13 @@
         </div>
       </div>
 
-      <!-- 右侧：捕获步骤列表 -->
+      <!-- 右侧（停止后全宽展示）：捕获步骤列表与录制证据 -->
       <div class="cloud-steps-pane">
         <div class="steps-pane-header">
-          <span class="steps-pane-title">录制捕获步骤 ({{ steps.length }})</span>
-          <span class="cloud-status-badge">实时捕获中</span>
+          <span class="steps-pane-title">{{ t('case.drawer.web.recorder.captured_steps_title', { count: steps.length }) }}</span>
+          <span class="cloud-status-badge" :class="{ done: !active }">
+            {{ active ? t('case.drawer.web.recorder.capturing_badge') : t('case.drawer.web.recorder.captured_done_badge') }}
+          </span>
         </div>
 
         <a-empty v-if="!steps.length" :description="t('case.drawer.web.recorder.no_steps')" style="margin: 40px 0" />
@@ -173,7 +181,7 @@
             <a
               v-for="artifact in evidenceArtifacts"
               :key="artifact.kind"
-              :href="artifact.url"
+              :href="safeArtifactUrl(artifact.url) ?? undefined"
               target="_blank"
               rel="noreferrer"
             >
@@ -249,6 +257,8 @@ import {
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import WebAssertionSuggestModal from './WebAssertionSuggestModal.vue'
+import { extractApiError } from '@/utils/apiError'
+import { safeArtifactUrl } from '@/utils/recordingDraft'
 import { normalizeRecordingUrl, recordingErrorMessage } from '@/utils/webRecording'
 import {
   caseApi,
@@ -297,24 +307,46 @@ const workerStatus = ref<WebRecordingWorkersResponse | null>(null)
 const workerStatusError = ref('')
 const workerStatusLoading = ref(false)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
+let frameTimer: ReturnType<typeof setTimeout> | null = null
+let sessionEpoch = 0
+let unmounted = false
 
 const frameUrl = ref('')
 const frameLoading = ref(false)
 const navInputUrl = ref('')
+const navInputFocused = ref(false)
 const inputText = ref('')
 const viewportRef = ref<HTMLElement | null>(null)
 const frameImgRef = ref<HTMLImageElement | null>(null)
 let lastFrameBlobUrl = ''
 
+function scheduleFrame(delayMs = 220) {
+  if (frameTimer) {
+    clearTimeout(frameTimer)
+    frameTimer = null
+  }
+  if (unmounted || !recordingId.value || !active.value) return
+  frameTimer = setTimeout(() => {
+    frameTimer = null
+    void refreshFrame()
+  }, delayMs)
+}
+
 async function refreshFrame() {
-  if (!recordingId.value || !active.value || frameLoading.value) return
+  if (unmounted || !recordingId.value || !active.value || frameLoading.value) return
+  const epoch = sessionEpoch
+  const targetRecordingId = recordingId.value
   frameLoading.value = true
   try {
-    const blob = await webRecordingApi.screenshot(recordingId.value)
+    const blob = await webRecordingApi.screenshot(targetRecordingId)
+    const newUrl = URL.createObjectURL(blob)
+    if (unmounted || epoch !== sessionEpoch || !active.value) {
+      URL.revokeObjectURL(newUrl)
+      return
+    }
     if (lastFrameBlobUrl) {
       URL.revokeObjectURL(lastFrameBlobUrl)
     }
-    const newUrl = URL.createObjectURL(blob)
     lastFrameBlobUrl = newUrl
     frameUrl.value = newUrl
   } catch {
@@ -325,15 +357,18 @@ async function refreshFrame() {
 }
 
 async function handleInteract(action: string, params: Record<string, unknown> = {}) {
-  if (!recordingId.value || !active.value) return
+  if (unmounted || !recordingId.value || !active.value) return
+  const epoch = sessionEpoch
   try {
     const res = await webRecordingApi.interact(recordingId.value, action, params)
+    if (unmounted || epoch !== sessionEpoch) return
     if (res?.snapshot) {
       applyRecordingResult(res.snapshot)
     }
-    setTimeout(() => void refreshFrame(), 220)
-  } catch (err: any) {
-    message.warning(err?.response?.data?.detail || err?.message || '交互动作执行失败')
+    scheduleFrame(220)
+  } catch (err: unknown) {
+    if (unmounted || epoch !== sessionEpoch) return
+    message.warning(extractApiError(err, t('case.drawer.web.recorder.interact_failed')))
   }
 }
 
@@ -415,8 +450,16 @@ function handleSendKey(key: string) {
 }
 
 function handleNavigate() {
-  const url = navInputUrl.value.trim()
-  if (!url) return
+  const raw = navInputUrl.value.trim()
+  if (!raw) return
+  let url = raw
+  try {
+    url = normalizeRecordingUrl(raw)
+  } catch {
+    message.warning(t('case.drawer.web.recorder.start_url_invalid'))
+    return
+  }
+  navInputUrl.value = url
   void handleInteract('goto', { url })
 }
 
@@ -455,7 +498,9 @@ const evidenceEventCount = computed(() =>
 )
 
 function reset() {
+  sessionEpoch += 1
   clearPoll()
+  navInputFocused.value = false
   let initial = props.initialUrl ?? ''
   if (!initial && props.replaySteps && props.replaySteps.length) {
     const firstGoto = props.replaySteps.find((s) => s.action === 'goto' || (s.params as Record<string, unknown> | undefined)?.url)
@@ -542,6 +587,10 @@ function clearPoll() {
     clearTimeout(pollTimer)
     pollTimer = null
   }
+  if (frameTimer) {
+    clearTimeout(frameTimer)
+    frameTimer = null
+  }
 }
 
 function actionLabel(action: string) {
@@ -566,7 +615,9 @@ function applyRecordingResult(result: WebRecordingItem) {
   steps.value = result.steps ?? []
   assetIds.value = result.asset_ids ?? assetIds.value
   currentUrl.value = result.current_url ?? currentUrl.value
-  if (currentUrl.value && !navInputUrl.value) {
+  if (result.current_url && !navInputFocused.value) {
+    navInputUrl.value = result.current_url
+  } else if (currentUrl.value && !navInputUrl.value) {
     navInputUrl.value = currentUrl.value
   }
   if (result.recording_record_id !== undefined) {
@@ -583,15 +634,21 @@ function applyRecordingResult(result: WebRecordingItem) {
 }
 
 async function loadWorkerStatus() {
+  const epoch = sessionEpoch
   workerStatusLoading.value = true
   workerStatusError.value = ''
   try {
-    workerStatus.value = await webRecordingApi.workers()
+    const res = await webRecordingApi.workers()
+    if (unmounted || epoch !== sessionEpoch) return
+    workerStatus.value = res
   } catch (e: unknown) {
+    if (unmounted || epoch !== sessionEpoch) return
     workerStatus.value = null
     workerStatusError.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
   } finally {
-    workerStatusLoading.value = false
+    if (!unmounted) {
+      workerStatusLoading.value = false
+    }
   }
 }
 
@@ -608,6 +665,7 @@ async function startRecording() {
     message.warning(t('case.drawer.web.recorder.worker_unavailable'))
     return
   }
+  const epoch = ++sessionEpoch
   starting.value = true
   error.value = ''
   steps.value = []
@@ -625,35 +683,47 @@ async function startRecording() {
       ...(props.showCapture ? {} : { auto_assert: autoAssert.value }),
       ...(recordingSource.value ? { source: recordingSource.value } : {}),
     })
+    if (unmounted || epoch !== sessionEpoch) {
+      void webRecordingApi.delete(result.id).catch(() => {})
+      return
+    }
     recordingId.value = result.id
     assetIds.value = []
     applyRecordingResult(result)
     currentUrl.value = result.current_url ?? result.start_url
     navInputUrl.value = currentUrl.value
     schedulePoll()
-    setTimeout(() => void refreshFrame(), 400)
+    scheduleFrame(400)
   } catch (e: unknown) {
+    if (unmounted || epoch !== sessionEpoch) return
     error.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
     status.value = 'error'
   } finally {
-    starting.value = false
+    if (!unmounted) {
+      starting.value = false
+    }
   }
 }
 
 function schedulePoll() {
   clearPoll()
-  if (!recordingId.value || !active.value) return
+  if (unmounted || !recordingId.value || !active.value) return
   pollTimer = setTimeout(() => void pollRecording(), 800)
 }
 
 async function pollRecording() {
-  if (!recordingId.value) return
+  if (unmounted || !recordingId.value || !active.value) return
+  const epoch = sessionEpoch
   try {
     const result = await webRecordingApi.get(recordingId.value)
+    if (unmounted || epoch !== sessionEpoch) return
     applyRecordingResult(result)
-    void refreshFrame()
-    schedulePoll()
+    if (active.value) {
+      void refreshFrame()
+      schedulePoll()
+    }
   } catch (e: unknown) {
+    if (unmounted || epoch !== sessionEpoch) return
     error.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
     status.value = 'error'
   }
@@ -664,47 +734,58 @@ async function stopRecording(closeAfter = false) {
     if (closeAfter) emit('close')
     return
   }
+  const epoch = ++sessionEpoch
   clearPoll()
   stopping.value = true
   let stopSucceeded = false
   try {
     const result = await webRecordingApi.stop(recordingId.value)
+    if (unmounted || epoch !== sessionEpoch) return
     stopSucceeded = true
     applyRecordingResult(result)
   } catch (e: unknown) {
+    if (unmounted || epoch !== sessionEpoch) return
     error.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
     status.value = 'error'
   } finally {
-    stopping.value = false
-    if (props.autoApply && !closeAfter) {
-      if (!stopSucceeded) return
-      if (steps.value.length) applySteps()
-      else {
+    if (!unmounted) {
+      stopping.value = false
+    }
+    if (!unmounted && epoch === sessionEpoch) {
+      if (props.autoApply && !closeAfter) {
+        if (stopSucceeded) {
+          if (steps.value.length) applySteps()
+          else {
+            reset()
+            emit('close')
+          }
+        }
+      } else if (closeAfter && stopSucceeded) {
         reset()
         emit('close')
       }
-      return
-    }
-    if (closeAfter && stopSucceeded) {
-      reset()
-      emit('close')
     }
   }
 }
 
 async function captureScreenshot() {
-  if (!recordingId.value) return
+  if (unmounted || !recordingId.value) return
+  const epoch = sessionEpoch
   capturing.value = true
   error.value = ''
   try {
     const blob = await webRecordingApi.screenshot(recordingId.value)
+    if (unmounted || epoch !== sessionEpoch) return
     const file = new File([blob], `web-baseline-${Date.now()}.png`, { type: 'image/png' })
     emit('captured', file, currentUrl.value || startUrl.value)
     await stopRecording(true)
   } catch (e: unknown) {
+    if (unmounted || epoch !== sessionEpoch) return
     error.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
   } finally {
-    capturing.value = false
+    if (!unmounted) {
+      capturing.value = false
+    }
   }
 }
 
@@ -729,15 +810,29 @@ async function handleClose() {
   emit('close')
 }
 
-watch(() => props.open, (open) => {
+watch(() => props.open, (open, wasOpen) => {
   if (open) {
     reset()
     void loadWorkerStatus()
+    return
+  }
+  if (wasOpen || recordingId.value) {
+    sessionEpoch += 1
+    clearPoll()
+    if (recordingId.value && status.value !== 'stopped') {
+      void webRecordingApi.delete(recordingId.value).catch(() => {})
+    }
+    reset()
   }
 }, { immediate: true })
 
 onBeforeUnmount(() => {
+  unmounted = true
+  sessionEpoch += 1
   clearPoll()
+  if (recordingId.value && status.value !== 'stopped') {
+    void webRecordingApi.delete(recordingId.value).catch(() => {})
+  }
   if (lastFrameBlobUrl) {
     URL.revokeObjectURL(lastFrameBlobUrl)
     lastFrameBlobUrl = ''
@@ -980,5 +1075,19 @@ onBeforeUnmount(() => {
 .recorder-actions.in-session {
   border-top: 1px solid var(--c-border-subtle);
   padding-top: 12px;
+}
+
+.post-recorder-results {
+  margin-top: 12px;
+}
+
+.post-recorder-results .cloud-steps-pane {
+  width: 100%;
+}
+
+.cloud-status-badge.done {
+  color: #389e0d;
+  background: #f6ffed;
+  border-color: #b7eb8f;
 }
 </style>

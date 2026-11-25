@@ -546,3 +546,38 @@ def test_worker_start_propagates_auto_assert_flag(monkeypatch):
     assert result["ok"] is True
     assert created[0]["auto_assert"] is False
     assert result["snapshot"]["auto_assert"] is False
+
+
+def test_worker_reaps_terminal_and_idle_sessions_and_rejects_failed_interact(monkeypatch):
+    import time
+
+    worker = worker_module.WebRecordingWorker(worker_id="w-reap")
+    monkeypatch.setattr(worker_module.settings, "WEB_RECORDER_SESSION_TTL_SECONDS", 60)
+
+    stopped_sess = _FakeSession("s-stopped")
+    stopped_sess.status = "stopped"
+    idle_sess = _FakeSession("s-idle")
+    idle_sess.status = "recording"
+    active_sess = _FakeSession("s-active")
+    active_sess.status = "recording"
+
+    async def bad_interact(action="", params=None):
+        return {"ok": False, "error": "坐标超出范围"}
+
+    active_sess.interact = bad_interact
+
+    worker.sessions = {"s-stopped": stopped_sess, "s-idle": idle_sess, "s-active": active_sess}
+    now = time.monotonic()
+    worker.session_last_seen = {"s-stopped": now, "s-idle": now - 120, "s-active": now}
+
+    res = asyncio.run(
+        worker._dispatch({"action": "interact", "session_id": "s-active", "payload": {"action": "click"}})
+    )
+    assert res["ok"] is False
+    assert res["code"] == "invalid"
+    assert "坐标超出范围" in res["error"]
+
+    asyncio.run(worker._reap_expired_sessions())
+    assert set(worker.sessions.keys()) == {"s-active"}
+    assert idle_sess.stopped is True
+    assert worker._active_count() == 1

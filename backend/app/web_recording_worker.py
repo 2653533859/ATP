@@ -14,6 +14,7 @@ import logging
 import os
 from pathlib import Path
 import signal
+import time
 from typing import Any
 
 from app.api.v1.web_recordings import WebRecordingSession, WebRecordingStart
@@ -37,10 +38,51 @@ class WebRecordingWorker:
         self.worker_id = worker_id or default_worker_id()
         self.capacity = max(1, int(settings.WEB_RECORDER_WORKER_MAX_SESSIONS))
         self.sessions: dict[str, WebRecordingSession] = {}
+        self.session_last_seen: dict[str, float] = {}
         self.pending_sessions: set[str] = set()
+        self._sessions_lock = asyncio.Lock()
+        self._bg_stop_tasks: set[asyncio.Task[Any]] = set()
         self.stop_event = asyncio.Event()
 
+    def _prune_terminal_sessions(self) -> None:
+        for sid in list(self.sessions):
+            session = self.sessions.get(sid)
+            if session is None or getattr(session, "status", None) in {"stopped", "error"}:
+                self.sessions.pop(sid, None)
+                self.session_last_seen.pop(sid, None)
+
+    async def _stop_session_safely(self, sid: str, session: WebRecordingSession) -> None:
+        try:
+            await session.stop()
+        except Exception:
+            logger.exception("Failed to stop expired Web recording session %s", sid)
+
+    def _schedule_expired_stop(self, sid: str, session: WebRecordingSession) -> None:
+        task = asyncio.create_task(self._stop_session_safely(sid, session))
+        self._bg_stop_tasks.add(task)
+        task.add_done_callback(self._bg_stop_tasks.discard)
+
+    async def _reap_expired_sessions(self) -> None:
+        ttl = max(60, int(settings.WEB_RECORDER_SESSION_TTL_SECONDS))
+        cutoff = time.monotonic() - ttl
+        expired: list[tuple[str, WebRecordingSession]] = []
+        async with self._sessions_lock:
+            self._prune_terminal_sessions()
+            for sid, session in list(self.sessions.items()):
+                last_seen = self.session_last_seen.get(sid)
+                if last_seen is None:
+                    self.session_last_seen[sid] = time.monotonic()
+                    continue
+                if last_seen < cutoff:
+                    logger.warning("Reaping idle Web recording session %s after %ss inactivity", sid, ttl)
+                    self.sessions.pop(sid, None)
+                    self.session_last_seen.pop(sid, None)
+                    expired.append((sid, session))
+        for sid, session in expired:
+            self._schedule_expired_stop(sid, session)
+
     def _active_count(self) -> int:
+        self._prune_terminal_sessions()
         return len(self.sessions) + len(self.pending_sessions)
 
     @staticmethod
@@ -78,8 +120,10 @@ class WebRecordingWorker:
         return {"ok": False, "code": "not_found", "error": "录制会话不存在或已结束"}
 
     async def _start(self, command: dict[str, Any]) -> dict[str, Any]:
-        if self._active_count() >= self.capacity:
-            return {"ok": False, "code": "busy", "error": "录制 Worker 已达到并发上限"}
+        await self._reap_expired_sessions()
+        async with self._sessions_lock:
+            if self._active_count() >= self.capacity:
+                return {"ok": False, "code": "busy", "error": "录制 Worker 已达到并发上限"}
         raw_payload = command.get("payload")
         if not isinstance(raw_payload, dict):
             return {"ok": False, "code": "invalid", "error": "录制启动参数无效"}
@@ -91,6 +135,13 @@ class WebRecordingWorker:
                 raise ValueError("session_id 或 owner_id 无效")
         except (TypeError, ValueError) as exc:
             return {"ok": False, "code": "invalid", "error": f"录制启动参数无效: {exc}"}
+
+        async with self._sessions_lock:
+            if self._active_count() >= self.capacity:
+                return {"ok": False, "code": "busy", "error": "录制 Worker 已达到并发上限"}
+            if session_id in self.sessions or session_id in self.pending_sessions:
+                return {"ok": False, "code": "invalid", "error": "录制会话已存在"}
+            self.pending_sessions.add(session_id)
 
         session = WebRecordingSession(
             session_id=session_id,
@@ -104,15 +155,18 @@ class WebRecordingWorker:
             auto_assert=payload.auto_assert,
             source=payload.source,
         )
-        self.pending_sessions.add(session_id)
         try:
             await session.start()
         except Exception as exc:
+            async with self._sessions_lock:
+                self.pending_sessions.discard(session_id)
             logger.warning("Web recording session %s failed to start: %s", session_id, exc)
             return {"ok": False, "code": "start_failed", "error": str(exc)[:500], "snapshot": session.snapshot()}
-        finally:
+
+        async with self._sessions_lock:
             self.pending_sessions.discard(session_id)
-        self.sessions[session_id] = session
+            self.sessions[session_id] = session
+            self.session_last_seen[session_id] = time.monotonic()
         return {"ok": True, "snapshot": session.snapshot()}
 
     async def _dispatch(self, command: dict[str, Any]) -> dict[str, Any]:
@@ -120,9 +174,12 @@ class WebRecordingWorker:
         session_id = str(command.get("session_id") or "").strip()
         if action == "start":
             return await self._start(command)
-        session = self.sessions.get(session_id)
-        if session is None:
-            return self._missing()
+        async with self._sessions_lock:
+            session = self.sessions.get(session_id)
+            if session is None:
+                self.session_last_seen.pop(session_id, None)
+                return self._missing()
+            self.session_last_seen[session_id] = time.monotonic()
         if action == "snapshot":
             return {"ok": True, "snapshot": session.snapshot()}
         if action == "screenshot":
@@ -140,11 +197,21 @@ class WebRecordingWorker:
                 )
             except RuntimeError as exc:
                 return {"ok": False, "code": "not_ready", "error": str(exc)}
+            if isinstance(res, dict) and res.get("ok") is False:
+                return {
+                    "ok": False,
+                    "code": "invalid",
+                    "error": str(res.get("error") or "交互动作执行失败"),
+                    "result": res,
+                    "snapshot": session.snapshot(),
+                }
             return {"ok": True, "result": res, "snapshot": session.snapshot()}
         if action == "stop":
             await session.stop()
             snapshot = session.snapshot()
-            self.sessions.pop(session_id, None)
+            async with self._sessions_lock:
+                self.sessions.pop(session_id, None)
+                self.session_last_seen.pop(session_id, None)
             return {"ok": True, "snapshot": snapshot}
         return {"ok": False, "code": "invalid", "error": f"不支持的录制 Worker 操作: {action}"}
 
@@ -167,13 +234,18 @@ class WebRecordingWorker:
             logger.exception("Unable to reply to Web recording command")
 
     async def close(self) -> None:
-        await asyncio.gather(*(session.stop() for session in self.sessions.values()), return_exceptions=True)
-        self.sessions.clear()
+        async with self._sessions_lock:
+            sessions = list(self.sessions.values())
+            self.sessions.clear()
+            self.session_last_seen.clear()
+            bg_tasks = list(self._bg_stop_tasks)
+        await asyncio.gather(*(session.stop() for session in sessions), *bg_tasks, return_exceptions=True)
 
     async def _heartbeat_loop(self, client: Any) -> None:
         heartbeat_seconds = max(1, int(settings.WEB_RECORDER_WORKER_HEARTBEAT_SECONDS))
         while not self.stop_event.is_set():
             try:
+                await self._reap_expired_sessions()
                 await register_recording_worker(
                     self.worker_id,
                     active_sessions=self._active_count(),

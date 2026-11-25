@@ -804,3 +804,54 @@ def test_stop_tracing_without_tracing_object():
 
     assert session.trace_started is False
     assert session.artifact_error is None
+
+
+def test_session_from_snapshot_and_stop_preserve_context_and_asset_bindings(monkeypatch):
+    rebuilt = web_recordings._session_from_snapshot(
+        {
+            "id": "rec-worker-1",
+            "start_url": "https://example.com",
+            "status": "stopped",
+            "project_id": 2,
+            "steps": [{"action": "click", "name": "点击", "params": {"selector": "#btn"}}],
+            "page_title": "控制台首页",
+            "dom_summary": "登录\n提交",
+        },
+        owner_id=5,
+    )
+    snap = rebuilt.snapshot()
+    assert snap["page_title"] == "控制台首页"
+    assert snap["dom_summary"] == "登录\n提交"
+
+    existing_record = SimpleNamespace(
+        id=41,
+        asset_ids=[12],
+        steps=[{"action": "click", "name": "点击", "params": {"selector": "#btn", "element_asset_id": 12}}],
+    )
+    captured = {}
+
+    async def fake_get_record(_db, _kind, _sid, project_id=None):
+        return existing_record
+
+    async def fake_upsert(_db, snapshot, owner_id=None):
+        captured["snapshot"] = snapshot
+        return existing_record
+
+    class _MinAsyncDB:
+        async def execute(self, _q):
+            return None
+
+        def add(self, _o):
+            return None
+
+        async def commit(self):
+            return None
+
+    monkeypatch.setattr(web_recordings, "get_recording_record_by_session", fake_get_record)
+    monkeypatch.setattr(web_recordings, "upsert_web_recording_record", fake_upsert)
+
+    res = asyncio.run(
+        web_recordings._persist_terminal_recording(_MinAsyncDB(), rebuilt, owner_id=5, force_record_upsert=True)
+    )
+    assert res["steps"][0]["params"]["element_asset_id"] == 12
+    assert captured["snapshot"]["steps"][0]["params"]["element_asset_id"] == 12

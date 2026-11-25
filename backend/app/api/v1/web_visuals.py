@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.core.minio_client import delete_file, ensure_bucket, upload_bytes
 from app.models.project import Project
@@ -76,9 +76,12 @@ async def upload_web_visual_baseline(
     ignore_regions: str = Form(default="[]"),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     await _ensure_project(db, user, project_id, ProjectRole.editor)
+    clean_name = (name or "").strip()
+    if not clean_name:
+        raise HTTPException(status_code=422, detail="视觉基线名称不能为空")
     data = await file.read(_MAX_VISUAL_FILE_SIZE + 1)
     await file.close()
     if len(data) > _MAX_VISUAL_FILE_SIZE:
@@ -91,13 +94,13 @@ async def upload_web_visual_baseline(
     if image.format != "PNG":
         raise HTTPException(status_code=422, detail="视觉基线仅支持 PNG")
     regions = _parse_regions(ignore_regions)
-    safe_name = _SAFE_NAME.sub("_", name).strip("._") or "baseline"
+    safe_name = _SAFE_NAME.sub("_", clean_name).strip("._") or "baseline"
     object_name = f"visual-baselines/projects/{project_id}/{uuid.uuid4().hex}_{safe_name}.png"
     await asyncio.to_thread(ensure_bucket)
     await asyncio.to_thread(upload_bytes, object_name, data, content_type="image/png")
     item = WebVisualBaseline(
         project_id=project_id,
-        name=name.strip(),
+        name=clean_name,
         page_url=page_url,
         object_name=object_name,
         content_type="image/png",
@@ -130,7 +133,7 @@ async def update_web_visual_baseline(
     baseline_id: int,
     body: WebVisualBaselineSettings,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(WebVisualBaseline, baseline_id)
     if item is None:
@@ -140,7 +143,15 @@ async def update_web_visual_baseline(
     item.pixel_threshold = body.pixel_threshold
     item.ignore_regions = body.ignore_regions
     item.version += 1
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="视觉基线名称已存在") from exc
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        logger.exception("Web visual baseline update failed")
+        raise HTTPException(status_code=500, detail="视觉基线更新失败") from exc
     await db.refresh(item)
     return item
 
@@ -149,7 +160,7 @@ async def update_web_visual_baseline(
 async def delete_web_visual_baseline(
     baseline_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     item = await db.get(WebVisualBaseline, baseline_id)
     if item is None:

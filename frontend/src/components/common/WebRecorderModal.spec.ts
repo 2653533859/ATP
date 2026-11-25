@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import WebRecorderModal from './WebRecorderModal.vue'
 
-const { recordingStart, recordingStop, recordingWorkers, messageWarning } = vi.hoisted(() => ({
+const { recordingStart, recordingStop, recordingWorkers, recordingInteract, recordingDelete, messageWarning } = vi.hoisted(() => ({
   recordingStart: vi.fn(),
   recordingStop: vi.fn(),
   recordingWorkers: vi.fn().mockResolvedValue({
@@ -13,6 +13,8 @@ const { recordingStart, recordingStop, recordingWorkers, messageWarning } = vi.h
     registered_count: 0,
     available_count: 0,
   }),
+  recordingInteract: vi.fn().mockResolvedValue({ ok: true }),
+  recordingDelete: vi.fn().mockResolvedValue(undefined),
   messageWarning: vi.fn(),
 }))
 
@@ -22,7 +24,9 @@ vi.mock('@/api', () => ({
     start: recordingStart,
     get: vi.fn(),
     screenshot: vi.fn(),
+    interact: recordingInteract,
     stop: recordingStop,
+    delete: recordingDelete,
   },
 }))
 
@@ -210,6 +214,77 @@ describe('WebRecorderModal', () => {
       [15],
       88,
     ])
+    wrapper.unmount()
+  })
+
+  it('keeps captured steps and evidence visible after stopping and stops active session on unmount', async () => {
+    recordingStart.mockResolvedValue({
+      id: 'recording-4',
+      status: 'recording',
+      start_url: 'https://example.com/',
+      current_url: 'https://example.com/',
+      steps: [{ action: 'goto', name: '打开首页', params: { url: 'https://example.com/' } }],
+    })
+    recordingStop.mockResolvedValue({
+      id: 'recording-4',
+      status: 'stopped',
+      start_url: 'https://example.com/',
+      current_url: 'https://example.com/done',
+      steps: [{ action: 'click', name: '点击提交', params: { selector: '#submit' } }],
+      artifacts: {
+        trace: { kind: 'trace', filename: 'trace.zip', content_type: 'application/zip', size: 12, url: '/api/v1/storage/media/traces/recordings/1/trace.zip' },
+      },
+      network_events: [{ type: 'request', method: 'GET', url: 'https://example.com/done' }],
+    })
+
+    const wrapper = mount(WebRecorderModal, {
+      props: { open: true, projectId: 1, autoApply: false },
+      global: {
+        stubs: Object.fromEntries([
+          'AModal', 'AForm', 'AFormItem', 'AInput', 'ASelect', 'ASelectOption', 'ASwitch', 'AAlert', 'AEmpty', 'AList', 'AListItem', 'ATag', 'AButton', 'ACollapse', 'ACollapsePanel',
+        ].map((name) => [name, Passthrough])),
+      },
+    })
+    const vm = wrapper.vm as any
+    vm.startUrl = 'https://example.com'
+    await vm.startRecording()
+    await flushPromises()
+
+    vm.navInputUrl = 'docs.example.com'
+    await vm.handleNavigate()
+    await flushPromises()
+    expect(recordingInteract).toHaveBeenCalledWith('recording-4', 'goto', { url: 'https://docs.example.com/' })
+
+    await vm.stopRecording()
+    await flushPromises()
+    expect(vm.active).toBe(false)
+    expect(wrapper.find('.cloud-steps-pane').exists()).toBe(true)
+    expect(wrapper.find('.recording-evidence').exists()).toBe(true)
+    expect(wrapper.html()).toContain('点击提交')
+
+    // Unmounting while an active session exists should clean up via delete API
+    vm.status = 'recording'
+    vm.recordingId = 'recording-live'
+    wrapper.unmount()
+    expect(recordingDelete).toHaveBeenCalledWith('recording-live')
+  })
+
+  it('cleans up errored recording session when modal closes', async () => {
+    const wrapper = mount(WebRecorderModal, {
+      props: { open: true, projectId: 1, autoApply: false },
+      global: {
+        stubs: Object.fromEntries([
+          'AModal', 'AForm', 'AFormItem', 'AInput', 'ASelect', 'ASelectOption', 'ASwitch', 'AAlert', 'AEmpty', 'AList', 'AListItem', 'ATag', 'AButton', 'ACollapse', 'ACollapsePanel',
+        ].map((name) => [name, Passthrough])),
+      },
+    })
+    const vm = wrapper.vm as any
+    vm.status = 'error'
+    vm.recordingId = 'recording-err-1'
+
+    await wrapper.setProps({ open: false })
+    await flushPromises()
+    expect(recordingDelete).toHaveBeenCalledWith('recording-err-1')
     wrapper.unmount()
   })
 })

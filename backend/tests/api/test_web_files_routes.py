@@ -82,3 +82,11 @@ def test_upload_rejects_files_over_20mb(monkeypatch):
 
     assert excinfo.value.status_code == 413
     assert file.closed is True
+
+
+def test_web_file_write_routes_require_authenticated_user_and_project_editor():
+    import inspect
+
+    for fn in (module.upload_web_file, module.rename_web_file, module.remove_web_file):
+        dep = inspect.signature(fn).parameters["current_user"].default.dependency
+        assert dep is module.get_current_user

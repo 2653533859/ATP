@@ -134,4 +134,14 @@ describe('python script generators', () => {
 
     expect(script).toContain('pytest.fail("未支持的低代码动作：unknown_action")')
   })
+
+  it('generates storage_state persistence for save_storage_state steps', () => {
+    const script = generateWebPythonScript([
+      { action: 'save_storage_state', name: '保存登录态', params: { name: 'admin_session' } },
+    ])
+
+    expect(script).toContain('ATP_WEB_STORAGE_STATE_PATH')
+    expect(script).toContain('storage-states/admin_session.json')
+    expect(script).toContain('page.context.storage_state(path=str(storage_state_path))')
+  })
 })

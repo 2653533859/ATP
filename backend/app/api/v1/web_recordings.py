@@ -413,6 +413,7 @@ class WebRecordingSession:
     _replaying_prefix: bool = False
     _pending_assert_tasks: set[asyncio.Task[Any]] = field(default_factory=set, repr=False)
     _assert_lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
+    _lifecycle_lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
     steps: list[dict[str, Any]] = field(default_factory=list)
     blocked_requests: list[dict[str, Any]] = field(default_factory=list)
     console_messages: list[dict[str, Any]] = field(default_factory=list)
@@ -598,17 +599,18 @@ class WebRecordingSession:
         await asyncio.sleep(0.2)
 
     async def stop(self) -> None:
-        if self.status not in {"stopped", "error"}:
-            self.status = "stopping"
-            await self._flush_pending_assertions()
-            if self.auto_assert:
-                await self._capture_page_assertions()
-            await self._capture_page_context()
-            await self.close()
-            self.status = "stopped"
-            self.finished_at = time.monotonic()
+        async with self._lifecycle_lock:
+            if self.status not in {"stopped", "error"}:
+                self.status = "stopping"
+                await self._flush_pending_assertions()
+                if self.auto_assert:
+                    await self._capture_page_assertions()
+                await self._capture_page_context()
+                await self._close_unlocked()
+                self.status = "stopped"
+                self.finished_at = time.monotonic()
 
-    async def close(self) -> None:
+    async def _close_unlocked(self) -> None:
         await self._stop_tracing()
         if self.context:
             with contextlib.suppress(Exception):
@@ -626,6 +628,10 @@ class WebRecordingSession:
         if self.status == "stopping":
             await self._persist_artifacts()
         self._cleanup_artifacts()
+
+    async def close(self) -> None:
+        async with self._lifecycle_lock:
+            await self._close_unlocked()
 
     async def screenshot(self) -> bytes:
         if (
@@ -1194,6 +1200,8 @@ def _session_from_snapshot(snapshot: dict[str, Any], owner_id: int) -> WebRecord
             int(snapshot["recording_record_id"]) if snapshot.get("recording_record_id") is not None else None
         ),
         assets_persisted=bool(snapshot.get("assets_persisted")),
+        last_page_title=str(snapshot.get("page_title") or "")[:120],
+        last_dom_summary=str(snapshot.get("dom_summary") or "")[:1200],
     )
 
 
@@ -1374,6 +1382,17 @@ async def _persist_terminal_recording(
                 session.recording_record_id = existing.id
                 if existing.asset_ids and not session.asset_ids:
                     session.asset_ids = list(existing.asset_ids)
+                if isinstance(existing.steps, list) and len(existing.steps) == len(session.steps):
+                    for cur_step, prev_step in zip(session.steps, existing.steps):
+                        cur_params = cur_step.get("params") if isinstance(cur_step.get("params"), dict) else None
+                        prev_params = prev_step.get("params") if isinstance(prev_step.get("params"), dict) else None
+                        if (
+                            cur_params is not None
+                            and prev_params is not None
+                            and "element_asset_id" in prev_params
+                            and "element_asset_id" not in cur_params
+                        ):
+                            cur_params["element_asset_id"] = prev_params["element_asset_id"]
                 if existing.asset_ids or not any(
                     isinstance(step.get("params"), dict) and str(step["params"].get("selector") or "").strip()
                     for step in session.steps
@@ -1454,6 +1473,8 @@ async def interact_recording_page(
         res = await session.interact(body.action, body.params)
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if isinstance(res, dict) and res.get("ok") is False:
+        raise HTTPException(status_code=400, detail=str(res.get("error") or "交互动作执行失败"))
     return {"ok": True, "result": res, "snapshot": session.snapshot()}
 
 

@@ -162,3 +162,50 @@ def test_browser_pool_recycles_after_max_tasks():
             settings.WEB_BROWSER_POOL_MAX_CONTEXTS = original_max
 
     asyncio.run(_run())
+
+
+def test_browser_pool_does_not_close_retired_browser_while_sibling_context_active():
+    pool = BrowserContextPool()
+    pw_instance = _FakePlaywright()
+    original_max = settings.WEB_BROWSER_POOL_MAX_CONTEXTS
+    settings.WEB_BROWSER_POOL_MAX_CONTEXTS = 1
+
+    async def _run():
+        ctx1, b1, pw1, _ = await pool.acquire_context("chromium", True, {}, async_playwright_fn=lambda: pw_instance)
+        # Do NOT release ctx1 yet; b1 reached max_acquisitions=1 and is retired when ctx2 acquires
+        ctx2, b2, pw2, _ = await pool.acquire_context("chromium", True, {}, async_playwright_fn=lambda: pw_instance)
+        assert b2 is not b1
+        assert not b1.closed
+
+        await pool.release_context(ctx1, b1, pw1, True)
+        assert b1.closed
+        assert not b2.closed
+
+        await pool.release_context(ctx2, b2, pw2, True)
+        await pool.close_all()
+
+    try:
+        asyncio.run(_run())
+    finally:
+        settings.WEB_BROWSER_POOL_MAX_CONTEXTS = original_max
+
+
+def test_browser_pool_defers_crashed_browser_close_until_sibling_contexts_release():
+    pool = BrowserContextPool()
+    pw_instance = _FakePlaywright()
+
+    async def _run():
+        ctx1, b1, pw1, _ = await pool.acquire_context("chromium", True, {}, async_playwright_fn=lambda: pw_instance)
+        ctx2, b2, pw2, _ = await pool.acquire_context("chromium", True, {}, async_playwright_fn=lambda: pw_instance)
+        assert b1 is b2
+
+        b1.connected = False
+        await pool.release_context(ctx1, b1, pw1, True)
+        # Sibling ctx2 is still active; browser must wait to close until ctx2 releases.
+        assert not b1.closed
+
+        await pool.release_context(ctx2, b2, pw2, True)
+        assert b1.closed
+        await pool.close_all()
+
+    asyncio.run(_run())

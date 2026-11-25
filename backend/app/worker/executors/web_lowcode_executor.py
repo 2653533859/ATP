@@ -180,11 +180,31 @@ async def _resolve_element_asset(
     return resolved, asset, None
 
 
+_STORAGE_STATE_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+def _sanitize_storage_state_name(raw_name: Any) -> str:
+    name = str(raw_name or "").strip()
+    if name.lower() in {"true", "1", ""}:
+        return "default"
+    if not _STORAGE_STATE_NAME_RE.match(name) or ".." in name:
+        raise ValueError("登录态凭证名称格式非法")
+    return name
+
+
 async def _mark_element_asset_failed(db: AsyncSession, asset: WebElementAsset | None, reason: str | None) -> None:
     if asset is None or not reason:
         return
     asset.last_failed_at = datetime.now(timezone.utc)
     asset.last_failure_reason = reason[:2000]
+    await db.commit()
+
+
+async def _clear_element_asset_failure(db: AsyncSession, asset: WebElementAsset | None) -> None:
+    if asset is None or (asset.last_failed_at is None and asset.last_failure_reason is None):
+        return
+    asset.last_failed_at = None
+    asset.last_failure_reason = None
     await db.commit()
 
 
@@ -316,7 +336,10 @@ async def _execute_step(
         return {"success": True}
 
     elif action == "save_storage_state":
-        name = str(params.get("name") or "default").strip()
+        try:
+            name = _sanitize_storage_state_name(params.get("name"))
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
         project_id = params.get("_project_id")
         if project_id and page.context:
             try:
@@ -439,14 +462,17 @@ async def _execute_visual_assert(
     try:
         current_bytes = await page.screenshot(type="png")
         baseline_bytes = await asyncio.to_thread(read_bytes, baseline.object_name)
+        raw_threshold = params.get("threshold")
+        raw_pixel_threshold = params.get("pixel_threshold")
+        raw_ignore_regions = params.get("ignore_regions")
         result = compare_png_bytes(
             baseline_bytes,
             current_bytes,
-            threshold=float(params.get("threshold", baseline.threshold)),
-            pixel_threshold=int(params.get("pixel_threshold", baseline.pixel_threshold)),
-            ignore_regions=params.get("ignore_regions", baseline.ignore_regions or []),
+            threshold=float(baseline.threshold if raw_threshold is None else raw_threshold),
+            pixel_threshold=int(baseline.pixel_threshold if raw_pixel_threshold is None else raw_pixel_threshold),
+            ignore_regions=baseline.ignore_regions or [] if raw_ignore_regions is None else raw_ignore_regions,
         )
-    except (VisualCompareError, OSError, ValueError) as exc:
+    except (VisualCompareError, OSError, ValueError, TypeError) as exc:
         return {"success": False, "error": str(exc)}
     diff_png = result.pop("diff_png", None)
     if diff_png and not result.get("match"):
@@ -519,7 +545,9 @@ async def _run_web_matrix(
     matrix: list[dict[str, Any]],
 ) -> None:
     """Run each validated matrix variant in an isolated session and browser context."""
+    from app.services.web_run_control import request_cancel
 
+    matrix_start = time.monotonic()
     parent_run.status = RunStatus.running
     parent_run.result_summary = {
         **(parent_run.result_summary or {}),
@@ -544,21 +572,49 @@ async def _run_web_matrix(
         child_specs.append((child.id, index, variant))
     await db.commit()
 
-    matrix_results = await asyncio.gather(
-        *(
-            _run_web_matrix_variant(
-                child_id=child_id,
-                case_id=case.id,
-                module_id=case.module_id,
-                base_config=case.config or {},
-                extra_vars=extra_vars,
-                index=index,
-                variant=variant,
-            )
-            for child_id, index, variant in child_specs
-        )
-    )
+    cancel_propagated = False
+    monitor_stop = asyncio.Event()
 
+    async def _propagate_parent_cancel() -> None:
+        nonlocal cancel_propagated
+        cancel_propagated = True
+        for cid, _, _ in child_specs:
+            await asyncio.to_thread(request_cancel, cid)
+
+    async def _watch_parent_cancel() -> None:
+        while not monitor_stop.is_set():
+            if await asyncio.to_thread(is_cancel_requested, parent_run.id):
+                await _propagate_parent_cancel()
+                return
+            await asyncio.sleep(0.25)
+
+    if await asyncio.to_thread(is_cancel_requested, parent_run.id):
+        await _propagate_parent_cancel()
+
+    watcher = asyncio.create_task(_watch_parent_cancel())
+    try:
+        matrix_results = await asyncio.gather(
+            *(
+                _run_web_matrix_variant(
+                    child_id=child_id,
+                    case_id=case.id,
+                    module_id=case.module_id,
+                    base_config=case.config or {},
+                    extra_vars=extra_vars,
+                    index=index,
+                    variant=variant,
+                )
+                for child_id, index, variant in child_specs
+            )
+        )
+    finally:
+        monitor_stop.set()
+        watcher.cancel()
+        await asyncio.gather(watcher, return_exceptions=True)
+        await asyncio.to_thread(clear_cancel_request, parent_run.id)
+
+    total_ms = int((time.monotonic() - matrix_start) * 1000)
+    parent_run.duration_ms = total_ms
     parent_run.result_summary = {
         **(parent_run.result_summary or {}),
         "matrix_variants": matrix_results,
@@ -566,11 +622,13 @@ async def _run_web_matrix(
         "matrix_failed": sum(item["status"] == RunStatus.failed.value for item in matrix_results),
         "matrix_error": sum(item["status"] == RunStatus.error.value for item in matrix_results),
     }
-    parent_run.status = (
-        RunStatus.passed
-        if all(item["status"] == RunStatus.passed.value for item in matrix_results)
-        else RunStatus.failed
-    )
+    if cancel_propagated or all(item["status"] == RunStatus.cancelled.value for item in matrix_results):
+        parent_run.status = RunStatus.cancelled
+        parent_run.error_message = "用户取消执行"
+    elif all(item["status"] == RunStatus.passed.value for item in matrix_results):
+        parent_run.status = RunStatus.passed
+    else:
+        parent_run.status = RunStatus.failed
     await db.commit()
     await _safe_publish(
         parent_run.id,
@@ -578,6 +636,7 @@ async def _run_web_matrix(
             "type": "completed",
             "run_id": parent_run.id,
             "status": parent_run.status.value,
+            "duration_ms": total_ms,
             "matrix": matrix_results,
         },
     )
@@ -724,6 +783,7 @@ async def run_web_lowcode(
     network_events: list[dict] = []
     console_events: list[dict] = []
     blocked_requests: list[dict] = []
+    gif_frames: list[tuple[bytes, str | None]] = []
     browser_context: Any | None = None
     browser: Any | None = None
     pw: Any | None = None
@@ -742,9 +802,14 @@ async def run_web_lowcode(
         if cfg.get("user_agent"):
             context_options["user_agent"] = str(cfg["user_agent"])
         if cfg.get("use_storage_state"):
-            storage_name = str(cfg["use_storage_state"]).strip()
-            if storage_name.lower() in ("true", "1"):
-                storage_name = "default"
+            try:
+                storage_name = _sanitize_storage_state_name(cfg["use_storage_state"])
+            except ValueError as exc:
+                run.status = RunStatus.error
+                run.error_message = str(exc)
+                await db.commit()
+                await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+                return
             if case_project_id:
                 obj_name = f"storage-states/projects/{case_project_id}/{storage_name}.json"
                 try:
@@ -807,7 +872,6 @@ async def run_web_lowcode(
             )
 
         step_collector = StepResultBatchCollector(db)
-        gif_frames: list[tuple[bytes, str | None]] = []
         for idx, step_def in enumerate(steps):
             step_start = time.monotonic()
             action = step_def.get("action", "")
@@ -867,6 +931,8 @@ async def run_web_lowcode(
                         error_message = result.get("error")
                         all_passed = False
                         await _mark_element_asset_failed(db, asset, error_message)
+                elif asset is not None and "fallback_locator_index" not in (result.get("data") or {}):
+                    await _clear_element_asset_failure(db, asset)
                 response_data = result.get("data")
             except WebRunCancelled:
                 raise
@@ -947,11 +1013,9 @@ async def run_web_lowcode(
                 logger.warning("Trace export failed for run %s: %s", run.id, e)
         # 如果用例执行成功且配置了保存登录态，在 release_browser_context 前提取并保存 storage_state
         if all_passed and browser_context and cfg.get("save_storage_state"):
-            storage_name = str(cfg["save_storage_state"]).strip()
-            if storage_name.lower() in ("true", "1"):
-                storage_name = "default"
             if case_project_id:
                 try:
+                    storage_name = _sanitize_storage_state_name(cfg["save_storage_state"])
                     state_dict = await browser_context.storage_state()
                     obj_name = f"storage-states/projects/{case_project_id}/{storage_name}.json"
                     data = json.dumps(state_dict, ensure_ascii=False).encode("utf-8")
@@ -965,7 +1029,7 @@ async def run_web_lowcode(
                         len(data),
                     )
                 except Exception as exc:
-                    logger.warning("Failed to save Web storage state '%s': %s", storage_name, exc)
+                    logger.warning("Failed to save Web storage state '%s': %s", cfg.get("save_storage_state"), exc)
         # 释放 BrowserContext，池化状态下复用 Browser 进程
         await release_browser_context(browser_context, browser, pw, is_pooled)
         # 运行结束即释放该 run 的自愈配额计数，避免长生命周期 worker 里字典无界增长

@@ -503,4 +503,22 @@ describe('UiWorkbenchView', () => {
     expect(vm.activeRecordingRecordId).toBeNull()
     wrapper.unmount()
   })
+
+  it('passes project_id to runApi.list and keeps drawer open when handleCaseSaved receives keepOpen=true', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    expect(runList).toHaveBeenCalledWith({ project_id: 1, page: 1, page_size: 100 })
+    const vm = wrapper.vm as unknown as {
+      caseDrawerOpen: boolean
+      handleCaseSaved: (id?: number, keepOpen?: boolean) => void
+    }
+    vm.caseDrawerOpen = true
+    vm.handleCaseSaved(101, true)
+    expect(vm.caseDrawerOpen).toBe(true)
+
+    vm.handleCaseSaved(101, false)
+    expect(vm.caseDrawerOpen).toBe(false)
+    wrapper.unmount()
+  })
 })
