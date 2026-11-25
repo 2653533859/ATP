@@ -2386,6 +2386,8 @@ export const workbenchApi = {
     http.post<unknown, WorkbenchTodoSnoozeOut>(`/workbench/todos/${encodeURIComponent(todoId)}/snooze`, data),
   unsnoozeTodo: (todoId: string) =>
     http.post<unknown, { status: string; unsnoozed: boolean }>(`/workbench/todos/${encodeURIComponent(todoId)}/unsnooze`),
+  deleteTodo: (todoId: string) =>
+    http.delete<unknown, { status: string; todo_id: string; deleted: boolean }>(`/workbench/todos/${encodeURIComponent(todoId)}`),
   archiveTasks: (tasks: Array<{ task_type: WorkbenchTaskType; run_id: number }>) =>
     http.post<unknown, WorkbenchTaskArchiveOut>('/workbench/tasks/archive', { tasks }),
   unarchiveTasks: (tasks: Array<{ task_type: WorkbenchTaskType; run_id: number }>) =>

@@ -198,6 +198,7 @@ def test_scan_devices_dispatches_to_worker_queue(monkeypatch):
     calls = {}
 
     monkeypatch.setattr(devices.settings, "ADB_SCAN_MODE", "worker")
+    monkeypatch.setattr(devices.settings, "ANDROID_MULTI_NODE_ENABLED", False)
     monkeypatch.setitem(
         sys.modules,
         "app.worker.tasks_device",
@@ -579,3 +580,109 @@ def test_force_takeover_lease_maps_offline_conflict_to_409(monkeypatch):
         )
 
     assert exc.value.status_code == 409
+
+
+def test_scan_devices_rejects_worker_queue_mismatch_immediately(monkeypatch):
+    monkeypatch.setattr(devices.settings, "ADB_SCAN_MODE", "worker")
+    monkeypatch.setattr(devices.settings, "ANDROID_MULTI_NODE_ENABLED", True)
+
+    async def fake_worker(_worker_id):
+        return {
+            "worker_id": "worker-local",
+            "status": "online",
+            "queues": ["android", "mobile_special"],
+            "instance_generation": 100,
+        }
+
+    dispatched = []
+    monkeypatch.setattr(devices, "get_android_worker", fake_worker)
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_device",
+        SimpleNamespace(
+            scan_adb_devices=SimpleNamespace(apply_async=lambda **kwargs: dispatched.append(kwargs)),
+        ),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(devices.scan_devices(worker_id="worker-local", db=_DB(), _=None))
+
+    assert exc.value.status_code == 503
+    assert "worker_queue_mismatch" in str(exc.value.detail)
+    assert "android.worker-local" in str(exc.value.detail)
+    assert dispatched == []
+
+
+def test_scan_devices_aggregate_marks_queue_mismatch_without_hanging(monkeypatch):
+    latest = _device(9)
+    monkeypatch.setattr(devices.settings, "ADB_SCAN_MODE", "worker")
+    monkeypatch.setattr(devices.settings, "ANDROID_MULTI_NODE_ENABLED", True)
+
+    async def fake_list_mismatched():
+        return [
+            {
+                "worker_id": "worker-local",
+                "status": "online",
+                "queues": ["android", "mobile_special"],
+                "instance_generation": 100,
+            }
+        ]
+
+    monkeypatch.setattr(devices, "list_android_workers", fake_list_mismatched)
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_device",
+        SimpleNamespace(scan_adb_devices=SimpleNamespace(apply_async=lambda **_kw: None)),
+    )
+
+    failed_res = asyncio.run(devices.scan_devices(db=_DB(rows=[[latest]]), _=None))
+    assert failed_res.status == "failed"
+    assert "worker_queue_mismatch" in (failed_res.error or "")
+    assert failed_res.failed_workers == 1
+
+    # Mixed scenario: win-bad mismatched, win-ok aligned
+    async def fake_list_mixed():
+        return [
+            {"worker_id": "win-bad", "queues": ["android", "mobile_special"], "instance_generation": 1},
+            {"worker_id": "win-ok", "queues": ["android.win-ok", "mobile_special.win-ok"], "instance_generation": 2},
+        ]
+
+    saved: list[tuple] = []
+    dispatched: list[str] = []
+
+    async def fake_save_agg(parent_id, items):
+        saved.append((parent_id, items))
+
+    monkeypatch.setattr(devices, "list_android_workers", fake_list_mixed)
+    monkeypatch.setattr(devices, "_save_aggregate_scan", fake_save_agg)
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_device",
+        SimpleNamespace(
+            scan_adb_devices=SimpleNamespace(
+                apply_async=lambda **kwargs: (
+                    dispatched.append(kwargs["queue"]) or SimpleNamespace(id="550e8400-e29b-41d4-a716-446655440001")
+                )
+            )
+        ),
+    )
+
+    queued_res = asyncio.run(devices.scan_devices(db=_DB(rows=[[latest]]), _=None))
+    assert queued_res.status == "queued"
+    assert dispatched == ["android.win-ok"]
+    assert len(saved) == 1
+
+    async def fake_load_agg(_scan_id):
+        return {"items": saved[0][1], "created_at": 9999999999.0}
+
+    monkeypatch.setattr(devices, "_load_aggregate_scan", fake_load_agg)
+    monkeypatch.setattr(
+        devices,
+        "_read_scan_result",
+        lambda _sub_id: ("SUCCESS", {"status": "completed", "count": 1}),
+    )
+
+    status_res = asyncio.run(devices.get_scan_status(scan_id=queued_res.scan_id, db=_DB(rows=[[latest]]), _=None))
+    assert status_res.status == "partial_failed"
+    assert status_res.completed_workers == 1
+    assert status_res.failed_workers == 1

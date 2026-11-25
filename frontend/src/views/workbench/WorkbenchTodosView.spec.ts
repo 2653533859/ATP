@@ -19,6 +19,7 @@ const {
   modalConfirm,
   snoozeTodo,
   unsnoozeTodo,
+  deleteTodo,
 } = vi.hoisted(() => ({
   overview: vi.fn(),
   tasks: vi.fn(),
@@ -33,6 +34,7 @@ const {
   modalConfirm: vi.fn(),
   snoozeTodo: vi.fn(),
   unsnoozeTodo: vi.fn(),
+  deleteTodo: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -59,6 +61,7 @@ vi.mock('@/api', () => ({
     failureDiagnosis,
     snoozeTodo,
     unsnoozeTodo,
+    deleteTodo,
   },
 }))
 
@@ -96,7 +99,12 @@ const globalStubs = {
   AAlert: passthrough('AAlert'),
   AButton: buttonStub,
   AModal: passthrough('AModal'),
-  ACard: passthrough('ACard'),
+  ACard: defineComponent({
+    name: 'ACard',
+    setup(_props, { slots }) {
+      return () => h('div', [slots.title?.(), slots.default?.()])
+    },
+  }),
   ASelect: passthrough('ASelect'),
   ASelectOption: passthrough('ASelectOption'),
   AStatistic: passthrough('AStatistic'),
@@ -106,7 +114,25 @@ const globalStubs = {
   ATag: passthrough('ATag'),
   AEmpty: passthrough('AEmpty'),
   APagination: passthrough('APagination'),
-  ARadioGroup: passthrough('ARadioGroup'),
+  ARadioGroup: defineComponent({
+    name: 'ARadioGroup',
+    props: { value: String },
+    emits: ['update:value', 'change'],
+    setup(_props, { slots, emit }) {
+      return () =>
+        h(
+          'div',
+          {
+            class: 'a-radio-group-stub',
+            onClick: () => {
+              emit('update:value', 'only')
+              emit('change')
+            },
+          },
+          slots.default?.(),
+        )
+    },
+  }),
   ARadioButton: passthrough('ARadioButton'),
   ARadio: passthrough('ARadio'),
   ADrawer: passthrough('ADrawer'),
@@ -277,6 +303,101 @@ describe('WorkbenchTodosView', () => {
     expect(wrapper.text()).toContain('workbench.ignored_badge')
     expect(wrapper.text()).toContain('workbench.snooze_duration_forever_hint')
     expect(wrapper.text()).toContain('workbench.unsnooze')
+
+    wrapper.unmount()
+  })
+
+  it('displays active_todos count separately from snoozed_todos and deletes failed_run or case_review todos', async () => {
+    deleteTodo.mockResolvedValue({ status: 'ok', todo_id: 'failed-run:case:88', deleted: true })
+    overview
+      .mockResolvedValueOnce({
+        generated_at: '2026-11-25T02:35:43Z',
+        project_id: null,
+        counts: {
+          pending_reviews: 1,
+          failed_runs: 1,
+          overdue_plans: 0,
+          device_anomalies: 0,
+          total_todos: 2,
+          active_todos: 3,
+          snoozed_todos: 2,
+        },
+        todos: [
+          {
+            id: 'failed-run:case:88',
+            kind: 'failed_run',
+            priority: 'high',
+            title: '失败运行待处理：Web 录制',
+            description: '失败',
+            status: 'failed',
+            is_snoozed: true,
+            snoozed_until: null,
+            created_at: '2026-11-24T09:59:45Z',
+            path: '/runs/88',
+            metadata: { run_id: 88, task_type: 'case' },
+          },
+          {
+            id: 'review:19',
+            kind: 'case_review',
+            priority: 'medium',
+            title: '用例待评审：API 测试',
+            description: '请完成用例评审',
+            status: 'pending',
+            is_snoozed: true,
+            snoozed_until: null,
+            created_at: '2026-11-25T01:14:38Z',
+            path: '/cases/19',
+            metadata: { case_id: 19 },
+          },
+        ],
+        tasks: [],
+        has_more_todos: false,
+        has_more_tasks: false,
+      })
+      .mockResolvedValueOnce({
+        generated_at: '2026-11-25T02:36:00Z',
+        project_id: null,
+        counts: { total_todos: 2, active_todos: 3, snoozed_todos: 1 },
+        todos: [],
+        tasks: [],
+        has_more_todos: false,
+        has_more_tasks: false,
+      })
+      .mockResolvedValueOnce({
+        generated_at: '2026-11-25T02:36:05Z',
+        project_id: null,
+        counts: { total_todos: 1, active_todos: 3, snoozed_todos: 1 },
+        todos: [],
+        tasks: [],
+        has_more_todos: false,
+        has_more_tasks: false,
+      })
+
+    const wrapper = mount(WorkbenchTodosView, { global: { stubs: globalStubs } })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('workbench.filter_active (3)')
+    expect(wrapper.text()).toContain('workbench.filter_snoozed (2)')
+    expect(wrapper.text()).toContain('workbench.quick_review')
+    expect(wrapper.text()).toContain('workbench.delete')
+
+    const confirmButtons = wrapper.findAll('.popconfirm-confirm-btn')
+    expect(confirmButtons.length).toBe(2)
+    await confirmButtons[0].trigger('click')
+    await flushPromises()
+    expect(deleteTodo).toHaveBeenCalledWith('failed-run:case:88')
+
+    await wrapper.find('.a-radio-group-stub').trigger('click')
+    await flushPromises()
+    expect(overview).toHaveBeenLastCalledWith({
+      project_id: undefined,
+      todo_limit: 50,
+      todo_offset: 0,
+      task_limit: 100,
+      snooze_filter: 'only',
+    })
+    expect(wrapper.text()).toContain('workbench.filter_active (3)')
+    expect(wrapper.text()).toContain('workbench.filter_snoozed (1)')
 
     wrapper.unmount()
   })

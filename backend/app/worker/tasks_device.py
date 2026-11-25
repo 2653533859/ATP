@@ -22,6 +22,8 @@ from app.services.android_worker_registry import (
     _prefix as _registry_prefix,
     _sync_redis_client,
     acquire_worker_scan_lock_sync,
+    get_current_worker_id,
+    get_current_worker_token,
     list_android_workers,
     register_android_worker,
     release_worker_scan_lock_sync,
@@ -43,6 +45,10 @@ def heartbeat_android_worker(self):
     worker_id = settings.ANDROID_WORKER_ID.strip()
     if not worker_id:
         return {"status": "disabled"}
+    if get_current_worker_id() == worker_id and get_current_worker_token():
+        # Dedicated AndroidWorkerHeartbeatThread already maintains Redis heartbeats
+        # without occupying the solo worker slot; stop legacy recursive Celery chains.
+        return {"status": "superseded_by_heartbeat_thread", "worker_id": worker_id}
     execution_queue = settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special"
     target_queues = (
         [worker_android_queue(worker_id), f"{execution_queue}.{worker_id}"]

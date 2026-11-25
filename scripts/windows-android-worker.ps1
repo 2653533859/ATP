@@ -300,7 +300,26 @@ function Show-Doctor {
   }
 
   if ($failed -eq 0) {
-    Write-Host 'Doctor passed. The Windows Worker can consume android,mobile_special.'
+    $multiNode = $false
+    if ($values.ContainsKey('ANDROID_MULTI_NODE_ENABLED')) {
+      $multiNode = $values['ANDROID_MULTI_NODE_ENABLED'].Trim().ToLowerInvariant() -in @('1', 'true', 'yes')
+    }
+    $wid = if ($values.ContainsKey('ANDROID_WORKER_ID') -and -not [string]::IsNullOrWhiteSpace($values['ANDROID_WORKER_ID'])) {
+      $values['ANDROID_WORKER_ID'].Trim()
+    } else {
+      $workerIdFile = Join-Path $RunDir 'android-worker-id'
+      if (Test-Path -LiteralPath $workerIdFile) { (Get-Content -Raw -Path $workerIdFile -ErrorAction SilentlyContinue).Trim() } else { '' }
+    }
+    $execBase = if ($values.ContainsKey('ANDROID_WORKER_QUEUE') -and -not [string]::IsNullOrWhiteSpace($values['ANDROID_WORKER_QUEUE'])) {
+      $values['ANDROID_WORKER_QUEUE'].Trim()
+    } else {
+      'mobile_special'
+    }
+    $expectedQueues = if ($multiNode -and $wid) { "android.$wid,$execBase.$wid" } else { $QueueList }
+    Write-Host "Doctor passed. The Windows Worker can consume $expectedQueues."
+    if (-not $multiNode) {
+      Write-Host '[info] ANDROID_MULTI_NODE_ENABLED is not enabled; if your server uses multi-node mode, set ANDROID_MULTI_NODE_ENABLED=true in .env.'
+    }
   } else {
     Write-Host "Doctor found $failed blocking issue(s)."
   }

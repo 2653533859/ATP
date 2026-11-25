@@ -64,6 +64,7 @@ def test_android_worker_heartbeat_registers_and_reschedules(monkeypatch):
 
     monkeypatch.setattr(config_module.settings, "ANDROID_WORKER_ID", "win-a")
     monkeypatch.setattr(config_module.settings, "ANDROID_WORKER_QUEUE", "mobile_special")
+    monkeypatch.setattr(config_module.settings, "ANDROID_MULTI_NODE_ENABLED", False)
     monkeypatch.setattr(config_module.settings, "ANDROID_WORKER_HEARTBEAT_SECONDS", 15)
     monkeypatch.setattr(tasks_device, "register_android_worker", fake_register)
     monkeypatch.setattr(tasks_device, "run_async", lambda coroutine: __import__("asyncio").run(coroutine))
@@ -75,6 +76,31 @@ def test_android_worker_heartbeat_registers_and_reschedules(monkeypatch):
 
     assert result == {"worker_id": "win-a", "status": "online", "queues": ["android", "mobile_special"]}
     assert task.calls == [{"countdown": 15, "queue": "android"}]
+
+
+def test_android_worker_heartbeat_task_stops_recursion_when_thread_active(monkeypatch):
+    from app.core import config as config_module
+    from app.services import android_worker_registry as reg
+    from app.worker import tasks_device
+
+    class FakeTask:
+        def __init__(self):
+            self.calls = []
+
+        def apply_async(self, **kwargs):
+            self.calls.append(kwargs)
+
+    reg.set_current_worker_runtime("win-a", 123, "tok-1")
+    try:
+        monkeypatch.setattr(config_module.settings, "ANDROID_WORKER_ID", "win-a")
+        task = FakeTask()
+        hb_task = tasks_device.heartbeat_android_worker
+        runner = getattr(getattr(hb_task, "run", None), "__func__", hb_task)
+        result = runner(task)
+        assert result == {"status": "superseded_by_heartbeat_thread", "worker_id": "win-a"}
+        assert task.calls == []
+    finally:
+        reg.clear_current_worker_runtime()
 
 
 def test_periodic_scan_is_not_queued_without_remote_worker(monkeypatch):
@@ -112,6 +138,7 @@ def test_periodic_scan_uses_expiring_android_control_queue(monkeypatch):
     calls = []
     monkeypatch.setattr(config_module.settings, "ADB_SCAN_ENABLED", True)
     monkeypatch.setattr(config_module.settings, "ADB_SCAN_MODE", "worker")
+    monkeypatch.setattr(config_module.settings, "ANDROID_MULTI_NODE_ENABLED", False)
     monkeypatch.setattr(config_module.settings, "ADB_SCAN_INTERVAL", 15)
     monkeypatch.setattr(tasks_device, "list_android_workers", online_workers)
     monkeypatch.setattr(tasks_device, "run_async", lambda coroutine: __import__("asyncio").run(coroutine))

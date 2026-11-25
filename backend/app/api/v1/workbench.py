@@ -8,14 +8,16 @@ endpoints, so their project-role and executor checks remain authoritative.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from sqlalchemy import and_, false, func, or_, select
+from sqlalchemy import and_, delete as sql_delete, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.case import RunStatus, TestCase, TestRun
 from app.models.device import Device, DeviceStatus
@@ -61,6 +63,8 @@ from app.services.execution_commands import (
     mark_execution_command_indeterminate,
     normalize_execution_command_id,
 )
+from app.services.audit import write_audit_log
+from app.services.local_artifact_cleanup import case_run_ids, delete_run_artifacts
 from app.services.project_scope import scope_to_visible_projects
 from app.services.workbench_diagnosis import generate_workbench_failure_diagnosis
 
@@ -957,6 +961,19 @@ async def get_workbench_overview(
     except TypeError:
         tasks, has_more_tasks = await _collect_tasks(db, current_user, project_id, None, None, task_limit)
     counts = await _count_todos(db, current_user, project_id, snooze_filter)
+    if snooze_filter == "exclude":
+        active_todos = counts["total_todos"]
+        snoozed_counts = await _count_todos(db, current_user, project_id, "only")
+        snoozed_todos = snoozed_counts["total_todos"]
+    elif snooze_filter == "only":
+        snoozed_todos = counts["total_todos"]
+        active_counts = await _count_todos(db, current_user, project_id, "exclude")
+        active_todos = active_counts["total_todos"]
+    else:
+        active_todos = (await _count_todos(db, current_user, project_id, "exclude"))["total_todos"]
+        snoozed_todos = (await _count_todos(db, current_user, project_id, "only"))["total_todos"]
+    counts["active_todos"] = active_todos
+    counts["snoozed_todos"] = snoozed_todos
     counts["returned_tasks"] = len(tasks)
     return WorkbenchOverviewOut(
         generated_at=generated_at,
@@ -1504,6 +1521,181 @@ async def unsnooze_workbench_todo(
         await db.delete(existing)
         await db.commit()
     return {"status": "ok", "todo_id": todo_id, "unsnoozed": True}
+
+
+async def _cleanup_orphaned_snooze(db: AsyncSession, user: User, todo_id: str) -> dict[str, Any]:
+    stmt = select(WorkbenchTodoSnooze).where(
+        WorkbenchTodoSnooze.user_id == user.id,
+        WorkbenchTodoSnooze.todo_id == todo_id,
+    )
+    existing = (await db.execute(stmt)).scalar_one_or_none()
+    if existing is None:
+        raise HTTPException(status_code=404, detail="待办关联记录不存在")
+    await db.delete(existing)
+    await db.commit()
+    return {"status": "ok", "todo_id": todo_id, "deleted": True}
+
+
+async def _delete_failed_run_todo(
+    db: AsyncSession,
+    user: User,
+    todo_id: str,
+    task_type_str: str,
+    run_id: int,
+) -> dict[str, Any]:
+    if task_type_str not in _TASK_TYPES:
+        raise HTTPException(status_code=400, detail="任务类型不支持")
+    task_type = cast(WorkbenchTaskType, task_type_str)
+    run_model: Any = {
+        "case": TestRun,
+        "suite": SuiteRun,
+        "plan": PlanRun,
+        "android": MobileSpecialRun,
+        "performance": PerformanceRun,
+    }[task_type]
+    run: Any = await db.get(run_model, run_id)
+    if run is None:
+        return await _cleanup_orphaned_snooze(db, user, todo_id)
+
+    project_id = await _workbench_task_project_id(db, task_type, run_id)
+    if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.editor)
+    elif user.role != UserRole.admin:
+        raise HTTPException(status_code=403, detail="无权删除该待办任务")
+    if task_type in {"android", "performance"} and user.role not in {UserRole.admin, UserRole.engineer}:
+        raise HTTPException(status_code=403, detail="专项任务操作需要工程师权限")
+
+    if _enum_value(run.status) in _ACTIVE_STATUSES:
+        raise HTTPException(status_code=409, detail="运行中或排队中的任务不能直接删除，请先停止执行")
+
+    local_run_ids: list[int] = []
+    if task_type == "case":
+        child_rows = (await db.execute(select(TestRun.id, TestRun.status).where(TestRun.parent_run_id == run_id))).all()
+        if any(_enum_value(row[1]) in _ACTIVE_STATUSES for row in child_rows):
+            raise HTTPException(status_code=409, detail="子执行任务仍在运行或排队中，请先停止执行")
+        if settings.ATP_LOCAL_MODE:
+            local_run_ids = [run.id, *(int(row[0]) for row in child_rows)]
+    elif task_type == "performance":
+        shard_rows = (
+            await db.execute(
+                select(PerformanceRun.id, PerformanceRun.status).where(PerformanceRun.parent_run_id == run_id)
+            )
+        ).all()
+        if any(_enum_value(row[1]) in _ACTIVE_STATUSES for row in shard_rows):
+            raise HTTPException(status_code=409, detail="压测任务下仍有分片在执行中，请先停止执行")
+        test = await db.get(PerformanceTest, run.performance_test_id)
+        if test is not None and test.baseline_run_id == run.id:
+            test.baseline_run_id = None
+            await db.flush()
+
+    await db.delete(run)
+    await db.execute(sql_delete(WorkbenchTodoSnooze).where(WorkbenchTodoSnooze.todo_id == todo_id))
+    await db.execute(
+        sql_delete(WorkbenchArchivedTask).where(
+            WorkbenchArchivedTask.task_type == task_type,
+            WorkbenchArchivedTask.run_id == run_id,
+        )
+    )
+    await write_audit_log(
+        db,
+        action="workbench_todo_delete",
+        resource_type=f"{task_type}_run",
+        resource_id=run_id,
+        user_id=user.id,
+        username=user.username,
+        project_id=project_id,
+        detail=f"通过工作台待办删除失败运行记录 {todo_id}",
+    )
+    await db.commit()
+    if local_run_ids:
+        await asyncio.to_thread(delete_run_artifacts, local_run_ids)
+    if task_type == "case":
+        from app.api.v1.statistics import invalidate_stats_cache
+
+        await invalidate_stats_cache()
+    return {"status": "ok", "todo_id": todo_id, "deleted": True}
+
+
+async def _delete_review_todo(db: AsyncSession, user: User, todo_id: str, case_id: int) -> dict[str, Any]:
+    case = await db.get(TestCase, case_id)
+    if case is None:
+        return await _cleanup_orphaned_snooze(db, user, todo_id)
+    module = await db.get(Module, case.module_id) if case.module_id else None
+    if module is None:
+        raise HTTPException(status_code=404, detail="用例模块不存在")
+    await assert_project_access(db, user, module.project_id, ProjectRole.editor)
+    if case.review_status != "pending":
+        raise HTTPException(status_code=409, detail="该用例已不在待评审状态，无法通过待办直接删除")
+    active_run = (
+        await db.execute(
+            select(TestRun.id)
+            .where(TestRun.case_id == case_id, TestRun.status.in_([RunStatus.pending, RunStatus.running]))
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if active_run is not None:
+        raise HTTPException(status_code=409, detail="该用例存在运行中或排队中的任务，无法删除")
+
+    case_name = case.name
+    run_ids = await case_run_ids(db, [case_id])
+    await db.delete(case)
+    await db.execute(sql_delete(WorkbenchTodoSnooze).where(WorkbenchTodoSnooze.todo_id == todo_id))
+    if run_ids:
+        await db.execute(
+            sql_delete(WorkbenchArchivedTask).where(
+                WorkbenchArchivedTask.task_type == "case",
+                WorkbenchArchivedTask.run_id.in_(run_ids),
+            )
+        )
+    await write_audit_log(
+        db,
+        action="workbench_todo_delete",
+        resource_type="test_case",
+        resource_id=case_id,
+        user_id=user.id,
+        username=user.username,
+        project_id=module.project_id,
+        detail=f"通过工作台待办删除待评审用例 #{case_id}：{case_name}",
+    )
+    await db.commit()
+    if settings.ATP_LOCAL_MODE and run_ids:
+        await asyncio.to_thread(delete_run_artifacts, run_ids)
+    from app.api.v1.statistics import invalidate_stats_cache
+
+    await invalidate_stats_cache()
+    return {"status": "ok", "todo_id": todo_id, "deleted": True}
+
+
+@router.delete("/workbench/todos/{todo_id:path}")
+async def delete_workbench_todo(
+    todo_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """删除可清理的待办实体（失败运行记录 / 待评审用例）或孤立的已失效暂缓记录。"""
+    parts = todo_id.split(":")
+    prefix = parts[0]
+    if prefix == "failed-run" and len(parts) == 3 and parts[2].isdigit():
+        return await _delete_failed_run_todo(db, current_user, todo_id, parts[1], int(parts[2]))
+    if prefix == "review" and len(parts) == 2 and parts[1].isdigit():
+        return await _delete_review_todo(db, current_user, todo_id, int(parts[1]))
+    if prefix == "overdue-plan" and len(parts) == 2 and parts[1].isdigit():
+        plan = await db.get(TestPlan, int(parts[1]))
+        if plan is None:
+            return await _cleanup_orphaned_snooze(db, current_user, todo_id)
+        raise HTTPException(
+            status_code=409,
+            detail="定时计划不支持从待办列表直接删除，请使用忽略或前往测试计划页管理",
+        )
+    if prefix == "device" and len(parts) == 2 and parts[1].isdigit():
+        device = await db.get(Device, int(parts[1]))
+        if device is None:
+            return await _cleanup_orphaned_snooze(db, current_user, todo_id)
+        raise HTTPException(
+            status_code=409,
+            detail="物理设备不支持从待办列表直接删除，请使用忽略或前往设备管理页处理",
+        )
+    raise HTTPException(status_code=400, detail="待办 ID 格式无效")
 
 
 @router.post("/workbench/tasks/archive", response_model=WorkbenchTaskArchiveOut)

@@ -49,8 +49,8 @@
           </div>
           <div class="card-title-actions">
             <a-radio-group v-model:value="snoozeFilter" size="small" @change="handleSnoozeFilterChange">
-              <a-radio-button value="exclude">{{ t('workbench.filter_active') }} ({{ count('total_todos') }})</a-radio-button>
-              <a-radio-button value="only">{{ t('workbench.filter_snoozed') }} ({{ count('snoozed_todos') }})</a-radio-button>
+              <a-radio-button value="exclude">{{ t('workbench.filter_active') }} ({{ activeTodosCount }})</a-radio-button>
+              <a-radio-button value="only">{{ t('workbench.filter_snoozed') }} ({{ snoozedTodosCount }})</a-radio-button>
             </a-radio-group>
           </div>
         </div>
@@ -96,7 +96,7 @@
           <template v-else-if="column.key === 'action'">
             <a-space size="small">
               <a-button
-                v-if="record.kind === 'case_review' && !record.is_snoozed"
+                v-if="record.kind === 'case_review'"
                 type="link"
                 size="small"
                 @click="openQuickReview(asTodo(record))"
@@ -135,6 +135,22 @@
               >
                 {{ t('workbench.unsnooze') }}
               </a-button>
+              <a-popconfirm
+                v-if="canDeleteTodo(asTodo(record))"
+                :title="deleteConfirmText(asTodo(record))"
+                :ok-text="t('common.confirm', '确定')"
+                :cancel-text="t('common.cancel', '取消')"
+                @confirm="handleDeleteTodo(asTodo(record))"
+              >
+                <a-button
+                  type="link"
+                  size="small"
+                  danger
+                  :loading="deletingTodoId === asTodo(record).id"
+                >
+                  {{ t('workbench.delete') }}
+                </a-button>
+              </a-popconfirm>
             </a-space>
           </template>
         </template>
@@ -273,12 +289,15 @@ const maxTodoOffset = 1000
 const maxTodoPage = Math.floor(maxTodoOffset / todoPageSize) + 1
 const todoPage = ref(toPage(route.query.todo_page, maxTodoPage))
 const overview = ref<WorkbenchOverviewItem | null>(null)
+const activeTodosCount = computed(() => overview.value?.counts.active_todos ?? count('total_todos'))
+const snoozedTodosCount = computed(() => count('snoozed_todos'))
 const currentTotalTodos = computed(() => {
-  if (snoozeFilter.value === 'only') return count('snoozed_todos')
-  return count('total_todos')
+  if (snoozeFilter.value === 'only') return snoozedTodosCount.value
+  return activeTodosCount.value
 })
 const todoPaginationTotal = computed(() => Math.min(currentTotalTodos.value, maxTodoOffset + todoPageSize))
 const loading = ref(false)
+const deletingTodoId = ref<string | null>(null)
 // 标签页隐藏时暂停，上一轮未结束时不叠加请求
 const overviewPolling = useVisiblePolling(() => loadOverview(), 30_000)
 let loadSequence = 0
@@ -314,7 +333,7 @@ const columns = computed(() => [
   { title: t('workbench.columns.item'), key: 'item', width: 420 },
   { title: t('workbench.columns.project'), key: 'project', width: 180 },
   { title: t('workbench.columns.created_at'), key: 'created_at', width: 180 },
-  { title: t('workbench.columns.action'), key: 'action', width: 220 },
+  { title: t('workbench.columns.action'), key: 'action', width: 280 },
 ])
 
 function toProjectId(value: unknown) {
@@ -512,6 +531,34 @@ async function handleUnsnooze(todo: WorkbenchTodoItem) {
     await loadOverview()
   } catch {
     message.error(t('workbench.action_failed', '操作失败'))
+  }
+}
+
+function canDeleteTodo(todo: WorkbenchTodoItem): boolean {
+  return todo.kind === 'failed_run' || todo.kind === 'case_review'
+}
+
+function deleteConfirmText(todo: WorkbenchTodoItem): string {
+  if (todo.kind === 'case_review') {
+    return t('workbench.delete_review_confirm', { title: todo.title })
+  }
+  return t('workbench.delete_run_confirm')
+}
+
+async function handleDeleteTodo(todo: WorkbenchTodoItem) {
+  deletingTodoId.value = todo.id
+  try {
+    await workbenchApi.deleteTodo(todo.id)
+    message.success(t('workbench.delete_success'))
+    await loadOverview()
+    if ((overview.value?.todos.length ?? 0) === 0 && todoPage.value > 1) {
+      todoPage.value -= 1
+      await loadOverview()
+    }
+  } catch {
+    message.error(t('workbench.action_failed', '操作失败'))
+  } finally {
+    deletingTodoId.value = null
   }
 }
 

@@ -228,6 +228,22 @@ async def _sync_with_optional_worker(db: AsyncSession, scanned: list, worker_id:
         await sync_devices_to_db_async(db, scanned)
 
 
+def _worker_queue_mismatch_detail(worker_id: str, queue: str, worker_info: dict | None) -> str | None:
+    if not isinstance(worker_info, dict):
+        return None
+    queues = worker_info.get("queues")
+    if not isinstance(queues, list) or not queues:
+        return None
+    normalized = {str(q).strip() for q in queues if str(q).strip()}
+    if not normalized or queue in normalized:
+        return None
+    return (
+        f"worker_queue_mismatch: Android Worker '{worker_id}' 当前仅监听队列 "
+        f"{', '.join(sorted(normalized))}，未监听 '{queue}'。"
+        "请在 Worker 端 .env 开启 ANDROID_MULTI_NODE_ENABLED=true 并重启 Worker"
+    )
+
+
 @router.post("/devices/scan", response_model=DeviceScanOut)
 async def scan_devices(
     worker_id: Annotated[str | None, Query(description="指定要扫描的 Android Worker 节点 ID")] = None,
@@ -250,6 +266,9 @@ async def scan_devices(
                     detail=f"worker_offline: Android Worker '{normalized_worker}' 当前离线",
                 )
             queue = worker_android_queue(normalized_worker) if settings.ANDROID_MULTI_NODE_ENABLED else "android"
+            mismatch = _worker_queue_mismatch_detail(normalized_worker, queue, worker_info)
+            if mismatch:
+                raise HTTPException(status_code=503, detail=mismatch)
             task = scan_adb_devices.apply_async(
                 kwargs={
                     "worker_id": normalized_worker,
@@ -280,20 +299,38 @@ async def scan_devices(
             parent_scan_id = f"agg-{uuid4()}"
             items: list[DeviceScanItemOut] = []
             stored_items: list[dict[str, object]] = []
+            has_dispatched = False
             expires = max(15, int(settings.ADB_SCAN_INTERVAL))
             for item in workers:
                 wid = str(item.get("worker_id") or "").strip()
                 if not wid:
                     continue
+                target_queue = worker_android_queue(wid)
+                mismatch = _worker_queue_mismatch_detail(wid, target_queue, item)
+                if mismatch:
+                    fail_id = f"mismatch-{uuid4()}"
+                    items.append(DeviceScanItemOut(worker_id=wid, scan_id=fail_id, status="failed", error=mismatch))
+                    stored_items.append({"worker_id": wid, "scan_id": fail_id, "status": "failed", "error": mismatch})
+                    continue
                 task = scan_adb_devices.apply_async(
                     kwargs={"worker_id": wid, "expected_generation": item.get("instance_generation")},
-                    queue=worker_android_queue(wid),
+                    queue=target_queue,
                     ignore_result=False,
                     expires=expires,
                 )
                 sub_id = str(getattr(task, "id", "") or uuid4())
+                has_dispatched = True
                 items.append(DeviceScanItemOut(worker_id=wid, scan_id=sub_id, status="queued"))
                 stored_items.append({"worker_id": wid, "scan_id": sub_id})
+            if not has_dispatched:
+                return DeviceScanOut(
+                    status="failed",
+                    total_workers=len(items),
+                    failed_workers=len(items),
+                    items=items,
+                    error=items[0].error if items else "no_online_android_worker: 当前没有可用 Android Worker",
+                    devices=await _list_device_rows(db),
+                )
             await _save_aggregate_scan(parent_scan_id, stored_items)
             return DeviceScanOut(
                 status="queued",
@@ -629,6 +666,17 @@ async def get_scan_status(
                 continue
             wid = str(entry.get("worker_id") or "")
             sub_id = str(entry.get("scan_id") or "")
+            if entry.get("status") == "failed":
+                failed_count += 1
+                items.append(
+                    DeviceScanItemOut(
+                        worker_id=wid,
+                        scan_id=sub_id,
+                        status="failed",
+                        error=str(entry.get("error") or "失败"),
+                    )
+                )
+                continue
             state, payload = await asyncio.to_thread(_read_scan_result, sub_id)
             if state in {"PENDING", "RECEIVED", "STARTED", "RETRY"}:
                 if timed_out_window:

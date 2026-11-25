@@ -430,3 +430,187 @@ def test_count_todos_with_device_anomaly_snooze_excluded(monkeypatch):
     # Check that device_stmt added not_in constraint
     device_stmt_str = str(db.statements[-1])
     assert "devices.id NOT IN" in device_stmt_str
+
+
+def test_workbench_overview_snooze_count_excludes_stale_and_deletes_todos(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from httpx import ASGITransport, AsyncClient
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.api.deps import get_current_user
+    from app.core.database import get_db
+    from app.models.base import Base
+    from app.models.bootstrap import load_all_models
+    from app.models.case import CaseStatus, CaseType, RunStatus, TestCase, TestRun
+    from app.models.project import Module, Project
+    from app.models.workbench import WorkbenchArchivedTask, WorkbenchTodoSnooze
+
+    load_all_models()
+
+    async def _run():
+        engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'wb.sqlite3'}")
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        try:
+            async with sessions() as db:
+                from app.models.user import User
+
+                admin = User(username="wb_admin", email="wb@t.local", hashed_password="x", role=UserRole.admin)
+                db.add(admin)
+                await db.flush()
+                proj = Project(name="WB", owner_id=admin.id)
+                db.add(proj)
+                await db.flush()
+                mod = Module(name="M1", project_id=proj.id)
+                db.add(mod)
+                await db.flush()
+
+                pending_snoozed_case = TestCase(
+                    module_id=mod.id,
+                    name="SnoozedReview",
+                    case_code="TC-WB-1",
+                    summary="s",
+                    case_type=CaseType.api,
+                    status=CaseStatus.draft,
+                    review_status="pending",
+                    creator_id=admin.id,
+                )
+                approved_stale_case = TestCase(
+                    module_id=mod.id,
+                    name="ApprovedStale",
+                    case_code="TC-WB-2",
+                    summary="s",
+                    case_type=CaseType.api,
+                    status=CaseStatus.active,
+                    review_status="approved",
+                    creator_id=admin.id,
+                )
+                active_case = TestCase(
+                    module_id=mod.id,
+                    name="ActiveReview",
+                    case_code="TC-WB-3",
+                    summary="s",
+                    case_type=CaseType.api,
+                    status=CaseStatus.draft,
+                    review_status="pending",
+                    creator_id=admin.id,
+                )
+                db.add_all([pending_snoozed_case, approved_stale_case, active_case])
+                await db.flush()
+
+                failed_snoozed_run = TestRun(
+                    case_id=approved_stale_case.id,
+                    triggered_by=admin.id,
+                    status=RunStatus.failed,
+                )
+                db.add(failed_snoozed_run)
+                await db.flush()
+
+                db.add_all(
+                    [
+                        WorkbenchTodoSnooze(
+                            todo_id=f"review:{pending_snoozed_case.id}",
+                            user_id=admin.id,
+                            project_id=proj.id,
+                            reason="已忽略",
+                        ),
+                        WorkbenchTodoSnooze(
+                            todo_id=f"failed-run:case:{failed_snoozed_run.id}",
+                            user_id=admin.id,
+                            project_id=proj.id,
+                            reason="已忽略",
+                        ),
+                        # 2 stale snooze rows (one approved case, one nonexistent run)
+                        WorkbenchTodoSnooze(
+                            todo_id=f"review:{approved_stale_case.id}",
+                            user_id=admin.id,
+                            project_id=proj.id,
+                            reason="stale-approved",
+                        ),
+                        WorkbenchTodoSnooze(
+                            todo_id="failed-run:case:999999",
+                            user_id=admin.id,
+                            project_id=proj.id,
+                            reason="stale-missing",
+                        ),
+                    ]
+                )
+                await db.commit()
+                pending_cid = pending_snoozed_case.id
+                approved_cid = approved_stale_case.id
+                failed_rid = failed_snoozed_run.id
+                actor = admin
+
+            app = FastAPI()
+            app.include_router(workbench.router, prefix="/api/v1")
+
+            async def _override_db():
+                async with sessions() as session:
+                    yield session
+
+            app.dependency_overrides[get_db] = _override_db
+            app.dependency_overrides[get_current_user] = lambda: actor
+            for r in workbench.router.routes:
+                dependant = getattr(r, "dependant", None)
+                if dependant is None:
+                    continue
+                for dep in getattr(dependant, "dependencies", []) or []:
+                    if dep.call is not None:
+                        if dep.name == "db":
+                            app.dependency_overrides[dep.call] = _override_db
+                        elif dep.name in {"current_user", "user", "_user"}:
+                            app.dependency_overrides[dep.call] = lambda: actor
+
+            monkeypatch.setattr("app.core.config.settings.ATP_LOCAL_MODE", False)
+
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                only_res = await client.get("/api/v1/workbench/overview", params={"snooze_filter": "only"})
+                assert only_res.status_code == 200
+                only_data = only_res.json()
+                assert len(only_data["todos"]) == 2
+                assert only_data["counts"]["snoozed_todos"] == 2
+                assert only_data["counts"]["total_todos"] == 2
+                assert only_data["counts"]["active_todos"] == 1
+
+                excl_res = await client.get("/api/v1/workbench/overview", params={"snooze_filter": "exclude"})
+                assert excl_res.status_code == 200
+                excl_data = excl_res.json()
+                assert len(excl_data["todos"]) == 1
+                assert excl_data["counts"]["active_todos"] == 1
+                assert excl_data["counts"]["snoozed_todos"] == 2
+
+                # Deleting an approved case todo is rejected (409)
+                bad_rev = await client.delete(f"/api/v1/workbench/todos/review:{approved_cid}")
+                assert bad_rev.status_code == 409
+
+                # Deleting the snoozed failed run removes run + snooze
+                del_run = await client.delete(f"/api/v1/workbench/todos/failed-run:case:{failed_rid}")
+                assert del_run.status_code == 200
+                assert del_run.json()["deleted"] is True
+
+                # Deleting the orphaned stale snooze removes it cleanly
+                del_orphan = await client.delete("/api/v1/workbench/todos/failed-run:case:999999")
+                assert del_orphan.status_code == 200
+
+                # Deleting the pending-review case removes case + snooze
+                del_rev = await client.delete(f"/api/v1/workbench/todos/review:{pending_cid}")
+                assert del_rev.status_code == 200
+
+                after_only = await client.get("/api/v1/workbench/overview", params={"snooze_filter": "only"})
+                assert after_only.status_code == 200
+                assert after_only.json()["todos"] == []
+                assert after_only.json()["counts"]["snoozed_todos"] == 0
+
+            async with sessions() as db:
+                assert await db.get(TestRun, failed_rid) is None
+                assert await db.get(TestCase, pending_cid) is None
+                remaining = (await db.scalars(select(WorkbenchTodoSnooze.todo_id))).all()
+                assert remaining == [f"review:{approved_cid}"]
+                assert (await db.scalars(select(WorkbenchArchivedTask))).all() == []
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
