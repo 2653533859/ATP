@@ -9,7 +9,7 @@
           size="small"
           class="tree-reset-btn"
           :disabled="resetDisabled"
-          @click="emit('reset')"
+          @click="handleReset"
         >
           {{ t('common.view_all') }}
         </a-button>
@@ -85,11 +85,13 @@ const props = withDefaults(defineProps<{
   showReset?: boolean
   resetDisabled?: boolean
   editable?: boolean
+  selectedModuleId?: number | null
 }>(), {
   title: undefined,
   showReset: false,
   resetDisabled: true,
   editable: true,
+  selectedModuleId: undefined,
 })
 const emit = defineEmits<{ select: [moduleId: number | null]; reset: [] }>()
 const { t } = useI18n()
@@ -120,6 +122,20 @@ function onSelect(keys: (string | number)[]) {
   selectedKeys.value = keys.map(Number)
   emit('select', keys.length ? Number(keys[0]) : null)
 }
+
+function handleReset() {
+  selectedKeys.value = []
+  emit('reset')
+}
+
+watch(
+  () => props.selectedModuleId,
+  (val) => {
+    if (val === undefined) return
+    selectedKeys.value = val != null ? [Number(val)] : []
+  },
+  { immediate: true },
+)
 
 function showAddModal(parent: ModuleTreeItem | null) {
   addParent.value = parent

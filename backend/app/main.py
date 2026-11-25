@@ -200,6 +200,9 @@ async def lifespan(app: FastAPI):
             from app.services.local_jobs import stop_local_runner
 
             stop_local_runner()
+        from app.api.v1.android_agent import shutdown_active_agent_tasks
+
+        await shutdown_active_agent_tasks()
         from app.api.v1.web_recordings import close_all_recordings
 
         await close_all_recordings()

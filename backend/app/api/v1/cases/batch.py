@@ -16,6 +16,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+import contextlib
+
 from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.core.config import settings
@@ -466,46 +468,50 @@ async def batch_import_cases_zip(
         try:
             case_type = CaseType(entry.get("case_type"))
             name = (entry.get("name") or "").strip()
+            config_payload = entry.get("config") or {}
+            _cases._validate_protocol_config(case_type, config_payload)
             steps_payload = entry.get("steps") or []
-            new_case = TestCase(
-                name=name,
-                description=entry.get("description"),
-                case_code=await _cases._generate_case_code(db, target_module, case_type),
-                summary=entry.get("summary") or entry.get("description") or name,
-                case_type=case_type,
-                status=CaseStatus.draft,
-                priority=entry.get("priority") or "P2",
-                case_level=entry.get("case_level") or "regression",
-                review_status="pending",
-                automation_status=entry.get("automation_status") or "auto",
-                tags=list(entry.get("tags") or []),
-                module_id=target_module_id,
-                creator_id=current_user.id,
-                owner_id=current_user.id,
-                preconditions=list(entry.get("preconditions") or []),
-                postconditions=list(entry.get("postconditions") or []),
-                config=entry.get("config") or {},
-            )
-            db.add(new_case)
-            await db.flush()
-            for step_no, step in enumerate(steps_payload, start=1):
-                if not isinstance(step, dict):
-                    continue
-                db.add(
-                    CaseStep(
-                        case_id=new_case.id,
-                        step_no=int(step.get("step_no") or step_no),
-                        action=str(step.get("action") or ""),
-                        test_data=step.get("test_data"),
-                        expected_result=step.get("expected_result"),
-                        is_key_step=bool(step.get("is_key_step", False)),
-                        remarks=step.get("remarks"),
-                    )
+            nested_ctx = db.begin_nested() if callable(getattr(db, "begin_nested", None)) else contextlib.nullcontext()
+            async with nested_ctx:
+                new_case = TestCase(
+                    name=name,
+                    description=entry.get("description"),
+                    case_code=await _cases._generate_case_code(db, target_module, case_type),
+                    summary=entry.get("summary") or entry.get("description") or name,
+                    case_type=case_type,
+                    status=CaseStatus.draft,
+                    priority=entry.get("priority") or "P2",
+                    case_level=entry.get("case_level") or "regression",
+                    review_status="pending",
+                    automation_status=entry.get("automation_status") or "auto",
+                    tags=list(entry.get("tags") or []),
+                    module_id=target_module_id,
+                    creator_id=current_user.id,
+                    owner_id=current_user.id,
+                    preconditions=list(entry.get("preconditions") or []),
+                    postconditions=list(entry.get("postconditions") or []),
+                    config=config_payload,
                 )
+                db.add(new_case)
+                await db.flush()
+                for step_no, step in enumerate(steps_payload, start=1):
+                    if not isinstance(step, dict):
+                        continue
+                    db.add(
+                        CaseStep(
+                            case_id=new_case.id,
+                            step_no=int(step.get("step_no") or step_no),
+                            action=str(step.get("action") or ""),
+                            test_data=step.get("test_data"),
+                            expected_result=step.get("expected_result"),
+                            is_key_step=bool(step.get("is_key_step", False)),
+                            remarks=step.get("remarks"),
+                        )
+                    )
             created_ids.append(new_case.id)
         except Exception as exc:
             skipped += 1
-            errors.append(str(exc))
+            errors.append(getattr(exc, "detail", None) or str(exc))
             continue
 
     await db.commit()

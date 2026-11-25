@@ -76,7 +76,11 @@ def test_heuristic_suggestions_extracts_tokens_ids_and_codes():
     assert vars_extracted["user_id"] == "$.data.user_id"
 
 
-def test_suggest_assertions_endpoint_returns_heuristic():
+def test_suggest_assertions_endpoint_returns_heuristic(monkeypatch):
+    async def _allow(*_a, **_kw):
+        return None
+
+    monkeypatch.setattr(ai_case_generation, "_assert_any_project_editor", _allow)
     db = cast(AsyncSession, _DB(llm_config=None))
     req = AIAssertionSuggestIn(
         method="POST",
@@ -100,7 +104,7 @@ def test_suggest_assertions_checks_project_access(monkeypatch):
     monkeypatch.setattr(ai_case_generation, "assert_project_access", check)
     body = AIAssertionSuggestIn(project_id=7, status_code=200, response_body={"code": 0})
     asyncio.run(ai_case_generation.suggest_assertions_endpoint(body, cast(AsyncSession, _DB()), _engineer()))
-    assert access == [(7, ai_case_generation.ProjectRole.viewer)]
+    assert access == [(7, ai_case_generation.ProjectRole.editor)]
 
 
 def test_llm_suggestions_are_redacted_and_checked_against_current_response(monkeypatch):

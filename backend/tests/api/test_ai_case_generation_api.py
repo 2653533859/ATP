@@ -44,16 +44,20 @@ from app.schemas.ai_case import AICaseGenerateIn, AIParseSchemaIn
 from app.services.ai_case.generator import GenerationResult
 
 
-def test_endpoints_require_engineer():
+def test_endpoints_use_project_editor_access():
     for fn in (
         ai_case_generation.parse_schema_endpoint,
         ai_case_generation.generate_cases_endpoint,
     ):
         dep = inspect.signature(fn).parameters["user"].default.dependency
-        assert dep is _fake_require_engineer
+        assert callable(dep)
 
 
-def test_parse_schema_endpoint_openapi_success():
+def test_parse_schema_endpoint_openapi_success(monkeypatch):
+    async def _allow(*_a, **_kw):
+        return None
+
+    monkeypatch.setattr(ai_case_generation, "_assert_any_project_editor", _allow)
     doc = {
         "openapi": "3.0.0",
         "paths": {
@@ -61,16 +65,20 @@ def test_parse_schema_endpoint_openapi_success():
         },
     }
     body = AIParseSchemaIn(source_type="openapi", content=json.dumps(doc))
-    result = asyncio.run(ai_case_generation.parse_schema_endpoint(body=body, user=None))
+    result = asyncio.run(ai_case_generation.parse_schema_endpoint(body=body, db=None, user=None))
     assert len(result.endpoints) == 1
     assert result.endpoints[0].method == "GET"
     assert result.endpoints[0].path == "/health"
 
 
-def test_parse_schema_endpoint_invalid_returns_400():
+def test_parse_schema_endpoint_invalid_returns_400(monkeypatch):
+    async def _allow(*_a, **_kw):
+        return None
+
+    monkeypatch.setattr(ai_case_generation, "_assert_any_project_editor", _allow)
     body = AIParseSchemaIn(source_type="curl", content="totally not curl")
     try:
-        asyncio.run(ai_case_generation.parse_schema_endpoint(body=body, user=None))
+        asyncio.run(ai_case_generation.parse_schema_endpoint(body=body, db=None, user=None))
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 400
     else:

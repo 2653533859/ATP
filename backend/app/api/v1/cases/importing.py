@@ -119,6 +119,7 @@ async def import_cases(
                 db, item.dataset_id, item.dataset_version, project_id
             )
             steps_payload = _cases._normalize_steps(item.steps, item.case_type, item.config, item.name)
+            _cases._validate_protocol_config(item.case_type, item.config)
             if target is not None and body.conflict_policy == "replace":
                 target.description = item.description
                 target.summary = item.summary or item.description or item.name

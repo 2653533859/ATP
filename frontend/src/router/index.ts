@@ -57,7 +57,6 @@ const router = createRouter({
           name: 'mobile-special-workbench',
           component: () => import('@/views/workbench/AppWorkbenchView.vue'),
           meta: {
-            roles: ENGINEER_ONLY,
             menuTitleKey: 'menu.capabilities.app',
             descriptionKey: 'navigation.placeholder.description.app',
           },
@@ -246,19 +245,19 @@ const router = createRouter({
           path: 'devices',
           name: 'devices',
           component: () => import('@/views/device/DeviceList.vue'),
-          meta: { roles: ENGINEER_ONLY },
+          meta: { roles: ENGINEER_ONLY, menuTitleKey: 'device.title' },
         },
         {
           path: 'apks',
           name: 'apks',
           component: () => import('@/views/apk/ApkList.vue'),
-          meta: { roles: ENGINEER_ONLY },
+          meta: { menuTitleKey: 'apk.title' },
         },
         {
           path: 'ios-assets',
           name: 'ios-assets',
           component: () => import('@/views/device/IosAssetsView.vue'),
-          meta: { roles: ENGINEER_ONLY },
+          meta: { menuTitleKey: 'menu.ios_assets' },
         },
         {
           path: 'suites',

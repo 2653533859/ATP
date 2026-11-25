@@ -199,3 +199,86 @@ def test_trigger_run_accepts_ready_case_and_dispatches_worker(monkeypatch):
     assert result.id == 21
     assert result.trace_id == "trace-case-21"
     assert delayed == {"run_id": 21, "extra_vars": {"base_url": "http://backend:8000"}, "trace_id": "trace-case-21"}
+
+
+def test_trigger_run_merges_global_project_env_and_extra_vars(monkeypatch):
+    from app.api.v1.cases import runs as case_runs
+    from app.core.encryption import encrypt
+    from app.models.environment import Environment
+    from app.models.global_variable import GlobalVariable, ScopeType
+    from app.models.project import Module
+
+    load_all_models()
+    loaded_run = types.SimpleNamespace(
+        id=22,
+        case_id=5,
+        triggered_by=9,
+        trace_id="trace-case-22",
+        status=RunStatus.pending,
+        environment="staging",
+        duration_ms=None,
+        error_message=None,
+        result_summary={},
+        created_at=datetime.now(timezone.utc),
+        steps=[],
+    )
+
+    class _VarTriggerDB(_TriggerRunDB):
+        async def get(self, model, pk):
+            name = getattr(model, "__name__", "")
+            if name == "TestCase":
+                return self.case_obj
+            if name == "Module":
+                return Module(id=pk, project_id=7, name="M")
+            if name == "Environment":
+                return Environment(id=pk, project_id=7, name="staging")
+            return None
+
+        async def execute(self, stmt):
+            sql_text = str(stmt)
+            if "global_variables" in sql_text:
+                rows = [
+                    GlobalVariable(
+                        scope_type=ScopeType.global_scope, project_id=None, key="g", value_encrypted=encrypt("1")
+                    ),
+                    GlobalVariable(
+                        scope_type=ScopeType.global_scope,
+                        project_id=None,
+                        key="shared",
+                        value_encrypted=encrypt("global"),
+                    ),
+                    GlobalVariable(
+                        scope_type=ScopeType.project, project_id=7, key="shared", value_encrypted=encrypt("project")
+                    ),
+                ]
+                return types.SimpleNamespace(scalars=lambda: types.SimpleNamespace(all=lambda: rows))
+            return await super().execute(stmt)
+
+    async def fake_env_vars(_db, env_id):
+        assert env_id == 3
+        return {"shared": "env", "env_only": "yes"}
+
+    db = _VarTriggerDB(case_obj=_case(CaseStatus.active, "approved", "auto"), loaded_run=loaded_run)
+    delayed = {}
+    monkeypatch.setattr(case_runs, "load_environment_variables_map", fake_env_vars)
+    monkeypatch.setattr(cases, "get_trace_id", lambda: "trace-case-22")
+    monkeypatch.setattr(
+        cases,
+        "run_test_case",
+        types.SimpleNamespace(
+            delay=lambda run_id, extra_vars, trace_id: delayed.update(
+                run_id=run_id, extra_vars=extra_vars, trace_id=trace_id
+            )
+        ),
+    )
+
+    asyncio.run(
+        cases.trigger_run(
+            case_id=5,
+            body=RunTriggerRequest(env_id=3, extra_vars={"shared": "extra", "override": "1"}),
+            db=db,
+            current_user=types.SimpleNamespace(id=9),
+        )
+    )
+
+    assert delayed["extra_vars"] == {"g": "1", "shared": "extra", "env_only": "yes", "override": "1"}

@@ -160,15 +160,15 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
                     )
                     return
 
-                # ── P3.B 参数化分支 ──────────────────────────
-                if case is not None and case.dataset_id is not None and run.parent_run_id is None:
-                    await _execute_parameterized(db, run, case, extra_vars)
-                    return
-
-                run.status = RunStatus.running
-                await db.commit()
-
                 try:
+                    # ── P3.B 参数化分支 ──────────────────────────
+                    if case is not None and case.dataset_id is not None and run.parent_run_id is None:
+                        await _execute_parameterized(db, run, case, extra_vars)
+                        return
+
+                    run.status = RunStatus.running
+                    await db.commit()
+
                     # 通知前端开始执行（发布失败不影响执行状态）
                     await _safe_publish_run_event(run_id, {"type": "run_status", "run_id": run_id, "status": "running"})
 

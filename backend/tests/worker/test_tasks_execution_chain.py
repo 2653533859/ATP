@@ -476,6 +476,28 @@ def test_run_test_case_routes_dataset_bound_parent_to_parameterized(monkeypatch)
     assert run.status is RunStatus.pending  # 主流程未接管状态
 
 
+def test_run_test_case_marks_error_and_completes_when_parameterized_raises(monkeypatch):
+    from app.models.case import RunStatus
+
+    run = _Obj(id=40, case_id=10, trace_id="t-param", parent_run_id=None, status=RunStatus.pending)
+    case = _Obj(id=10, dataset_id=77)
+    db = _FakeDB({("TestRun", 40): run, ("TestCase", 10): case})
+    _install_session(monkeypatch, db)
+    events = _publish_recorder(monkeypatch)
+
+    async def boom_parameterized(_db, _parent_run, _case_obj, _extra):
+        raise RuntimeError("dataset read boom")
+
+    monkeypatch.setattr(tasks, "_execute_parameterized", boom_parameterized)
+
+    tasks.run_test_case(None, 40, {})
+
+    assert run.status is RunStatus.error
+    assert run.error_message == "dataset read boom"
+    assert events[-1]["type"] == "completed"
+    assert events[-1]["status"] == "error"
+
+
 # ── run_test_suite ──────────────────────────────────────────
 
 

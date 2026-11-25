@@ -15,8 +15,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import assert_project_access, require_admin, require_engineer
-from app.models.user_project import ProjectRole
+from app.api.deps import assert_project_access, get_current_user, require_admin
+from app.models.user_project import ProjectRole, UserProject
 from app.core.database import get_db
 from app.core.encryption import decrypt
 from app.models.ai_llm_config import AILLMConfig
@@ -24,7 +24,7 @@ from app.models.audit import AuditLog
 from app.models.dataset import TestDataset, TestDatasetVersion
 from app.models.mock import MockRule
 from app.models.project import Module, Project
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.ai_case import (
     AIAssertionSuggestIn,
     AIAssertionSuggestOut,
@@ -70,11 +70,35 @@ async def get_ai_case_funnel_stats(
     return AICaseFunnelStatsOut(**build_funnel_stats(events))
 
 
+async def _assert_any_project_editor(db: AsyncSession, user: User) -> None:
+    if getattr(user, "role", None) == UserRole.admin:
+        return
+    membership = (
+        (
+            await db.execute(
+                select(UserProject).where(
+                    UserProject.user_id == user.id,
+                    UserProject.role.in_([ProjectRole.owner, ProjectRole.editor]),
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="需要项目编辑者（editor）及以上权限才能使用 AI 用例分析",
+        )
+
+
 @router.post("/parse-schema", response_model=AIParseSchemaOut)
 async def parse_schema_endpoint(
     body: AIParseSchemaIn,
-    user: User = Depends(require_engineer),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
+    await _assert_any_project_editor(db, user)
     try:
         result = parse_schema(
             body.source_type,
@@ -95,7 +119,7 @@ async def parse_schema_endpoint(
 async def generate_cases_endpoint(
     body: AICaseGenerateIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     await assert_project_access(db, user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
@@ -290,11 +314,13 @@ async def _resolve_llm_config(db: AsyncSession, project_id: int | None) -> tuple
 async def suggest_assertions_endpoint(
     body: AIAssertionSuggestIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     """AI / 规则混合智能推荐测试断言与变量提取。"""
     if body.project_id is not None:
-        await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+        await assert_project_access(db, user, body.project_id, ProjectRole.editor)
+    else:
+        await _assert_any_project_editor(db, user)
     config, api_key = await _resolve_llm_config(db, body.project_id)
     return await suggest_assertions_and_extractions(body, config, api_key)
 
@@ -303,10 +329,12 @@ async def suggest_assertions_endpoint(
 async def suggest_web_assertions_endpoint(
     body: AIWebAssertionSuggestIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     """AI / 规则混合推荐 Web UI 自动化断言步骤。"""
     if body.project_id is not None:
-        await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+        await assert_project_access(db, user, body.project_id, ProjectRole.editor)
+    else:
+        await _assert_any_project_editor(db, user)
     config, api_key = await _resolve_llm_config(db, body.project_id)
     return await suggest_web_assertions(body, config, api_key)

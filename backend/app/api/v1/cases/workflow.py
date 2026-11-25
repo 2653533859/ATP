@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.models.case import CaseSnapshot, CaseStatus, CaseType
 from app.models.project import Module
@@ -33,6 +33,21 @@ from app.services.case_review import build_review_audit_detail
 router = APIRouter(tags=["用例管理"])
 
 
+async def _assert_case_access(
+    db: AsyncSession,
+    current_user: User,
+    case_obj: object,
+    min_role: ProjectRole,
+) -> Module:
+    """Resolve owning project via TestCase.module_id and enforce ProjectRole permission."""
+    module_id = getattr(case_obj, "module_id", None)
+    module = await db.get(Module, module_id) if module_id else None
+    if module is None:
+        raise HTTPException(status_code=404, detail="所属模块不存在")
+    await assert_project_access(db, current_user, module.project_id, min_role)
+    return module
+
+
 @router.post("/cases/{case_id}/submit-review", response_model=TestCaseDetailOut)
 async def submit_review(
     case_id: int,
@@ -41,9 +56,7 @@ async def submit_review(
     _current_user: User = Depends(get_current_user),
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
-    module = await db.get(Module, case.module_id)
-    if module:
-        await assert_project_access(db, _current_user, module.project_id, ProjectRole.editor)
+    module = await _assert_case_access(db, _current_user, case, ProjectRole.editor)
     if case.status == CaseStatus.deprecated:
         raise HTTPException(status_code=409, detail="废弃用例不能提交审核")
     case.review_status = "pending"
@@ -58,7 +71,7 @@ async def submit_review(
         resource_id=case.id,
         user_id=_current_user.id,
         username=getattr(_current_user, "username", ""),
-        project_id=module.project_id if module else None,
+        project_id=module.project_id,
         detail=build_review_audit_detail(action="submit", status="pending", comment=body.comment),
     )
     await db.commit()
@@ -73,9 +86,7 @@ async def approve_case(
     current_user: User = Depends(get_current_user),
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
-    module = await db.get(Module, case.module_id)
-    if module:
-        await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
+    module = await _assert_case_access(db, current_user, case, ProjectRole.editor)
     if case.review_status != "pending":
         raise HTTPException(status_code=409, detail="只有待审核用例可批准")
     if case.status == CaseStatus.deprecated:
@@ -92,7 +103,7 @@ async def approve_case(
         resource_id=case.id,
         user_id=current_user.id,
         username=getattr(current_user, "username", ""),
-        project_id=module.project_id if module else None,
+        project_id=module.project_id,
         detail=build_review_audit_detail(action="approve", status="approved", comment=body.comment),
     )
     await db.commit()
@@ -107,9 +118,7 @@ async def reject_case(
     current_user: User = Depends(get_current_user),
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
-    module = await db.get(Module, case.module_id)
-    if module:
-        await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
+    module = await _assert_case_access(db, current_user, case, ProjectRole.editor)
     if case.review_status != "pending":
         raise HTTPException(status_code=409, detail="只有待审核用例可驳回")
     case.review_status = "rejected"
@@ -139,6 +148,7 @@ async def deprecate_case(
     _current_user: User = Depends(get_current_user),
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
+    await _assert_case_access(db, _current_user, case, ProjectRole.editor)
     if case.status == CaseStatus.deprecated:
         raise HTTPException(status_code=409, detail="用例已经废弃")
     case.status = CaseStatus.deprecated
@@ -155,6 +165,7 @@ async def reactivate_case(
     _current_user: User = Depends(get_current_user),
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
+    await _assert_case_access(db, _current_user, case, ProjectRole.editor)
     if case.status != CaseStatus.deprecated:
         raise HTTPException(status_code=409, detail="只有废弃用例可重新激活")
     if case.review_status != "approved":
@@ -172,9 +183,10 @@ async def list_snapshots(
     page_size: int = Query(20, ge=1, le=100),
     q: str | None = Query(None, description="按版本号或快照 name 模糊匹配"),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    await _cases._get_case_detail_or_404(db, case_id)
+    case = await _cases._get_case_detail_or_404(db, case_id)
+    await _assert_case_access(db, current_user, case, ProjectRole.viewer)
 
     base_where = [CaseSnapshot.case_id == case_id]
     if q:
@@ -202,13 +214,57 @@ async def list_snapshots(
     return PaginatedSnapshotsOut(items=items, total=total or 0, page=page, page_size=page_size)
 
 
+@router.get("/cases/{case_id}/snapshots/diff", response_model=CaseSnapshotDiffOut)
+async def diff_snapshots(
+    case_id: int,
+    from_version: int = Query(..., alias="from", ge=1),
+    to_version: int = Query(0, alias="to", ge=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """比较两个版本，返回字段级 diff。to_version=0 时与当前用例对比。"""
+    case = await _cases._get_case_detail_or_404(db, case_id)
+    await _assert_case_access(db, current_user, case, ProjectRole.viewer)
+
+    from_snap = (
+        await db.execute(
+            select(CaseSnapshot).where(CaseSnapshot.case_id == case_id, CaseSnapshot.version == from_version)
+        )
+    ).scalar_one_or_none()
+    if not from_snap:
+        raise HTTPException(status_code=404, detail=f"快照版本 {from_version} 不存在")
+
+    if to_version == 0:
+        current_snap = _cases._build_snapshot(case, 0, getattr(current_user, "id", None))
+        dst = current_snap.snapshot_data or {}
+    else:
+        to_snap = (
+            await db.execute(
+                select(CaseSnapshot).where(CaseSnapshot.case_id == case_id, CaseSnapshot.version == to_version)
+            )
+        ).scalar_one_or_none()
+        if not to_snap:
+            raise HTTPException(status_code=404, detail=f"快照版本 {to_version} 不存在")
+        dst = to_snap.snapshot_data or {}
+
+    src = from_snap.snapshot_data or {}
+    changes: dict = {}
+    keys = set(src.keys()) | set(dst.keys())
+    for key in sorted(keys):
+        if src.get(key) != dst.get(key):
+            changes[key] = {"from": src.get(key), "to": dst.get(key)}
+    return CaseSnapshotDiffOut(from_version=from_version, to_version=to_version, changes=changes)
+
+
 @router.get("/cases/{case_id}/snapshots/{snapshot_id}", response_model=CaseSnapshotOut)
 async def get_snapshot(
     case_id: int,
     snapshot_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
+    case = await _cases._get_case_detail_or_404(db, case_id)
+    await _assert_case_access(db, current_user, case, ProjectRole.viewer)
     snapshot = await db.get(CaseSnapshot, snapshot_id)
     if not snapshot or snapshot.case_id != case_id:
         raise HTTPException(status_code=404, detail="快照不存在")
@@ -223,6 +279,7 @@ async def rollback_case(
     current_user: User = Depends(get_current_user),
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
+    module = await _assert_case_access(db, current_user, case, ProjectRole.editor)
     snapshot = await db.get(CaseSnapshot, snapshot_id)
     if not snapshot or snapshot.case_id != case_id:
         raise HTTPException(status_code=404, detail="快照不存在")
@@ -252,7 +309,6 @@ async def rollback_case(
     )
     await db.commit()
 
-    module = await db.get(Module, case.module_id)
     await _cases.write_audit_log(
         db,
         action="case.rollback",
@@ -282,6 +338,7 @@ async def create_snapshot_manual(
 ):
     """手动创建当前用例的版本快照（不依赖编辑触发）。"""
     case = await _cases._get_case_detail_or_404(db, case_id)
+    await _assert_case_access(db, current_user, case, ProjectRole.editor)
     snapshot = _cases._build_snapshot(case, await _cases._next_snapshot_version(db, case_id), current_user.id)
     if body and body.remark:
         sd = dict(snapshot.snapshot_data or {})
@@ -321,7 +378,7 @@ async def update_case_snapshot(
     snapshot_id: int,
     body: CaseSnapshotUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ) -> CaseSnapshotOut:
     """更新指定用例快照的名称、描述或备注。"""
     _case, snapshot, _project_id = await _get_editable_case_snapshot(db, current_user, case_id, snapshot_id)
@@ -354,7 +411,7 @@ async def delete_case_snapshot(
     case_id: int,
     snapshot_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """删除指定的用例历史快照。"""
     case, snapshot, project_id = await _get_editable_case_snapshot(db, current_user, case_id, snapshot_id)
@@ -372,50 +429,16 @@ async def delete_case_snapshot(
     await db.commit()
 
 
-@router.get("/cases/{case_id}/snapshots/diff", response_model=CaseSnapshotDiffOut)
-async def diff_snapshots(
-    case_id: int,
-    from_version: int = Query(..., alias="from", ge=1),
-    to_version: int = Query(..., alias="to", ge=1),
-    db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
-):
-    """比较两个版本，返回字段级 diff。to_version=0 时与当前用例对比。"""
-    await _cases._get_case_detail_or_404(db, case_id)
-
-    from_snap = (
-        await db.execute(
-            select(CaseSnapshot).where(CaseSnapshot.case_id == case_id, CaseSnapshot.version == from_version)
-        )
-    ).scalar_one_or_none()
-    if not from_snap:
-        raise HTTPException(status_code=404, detail=f"快照版本 {from_version} 不存在")
-    to_snap = (
-        await db.execute(
-            select(CaseSnapshot).where(CaseSnapshot.case_id == case_id, CaseSnapshot.version == to_version)
-        )
-    ).scalar_one_or_none()
-    if not to_snap:
-        raise HTTPException(status_code=404, detail=f"快照版本 {to_version} 不存在")
-
-    src = from_snap.snapshot_data or {}
-    dst = to_snap.snapshot_data or {}
-    changes: dict = {}
-    keys = set(src.keys()) | set(dst.keys())
-    for key in sorted(keys):
-        if src.get(key) != dst.get(key):
-            changes[key] = {"from": src.get(key), "to": dst.get(key)}
-    return CaseSnapshotDiffOut(from_version=from_version, to_version=to_version, changes=changes)
-
-
 @router.get("/cases/{case_id}/snapshots/{snapshot_id}/export")
 async def export_snapshot(
     case_id: int,
     snapshot_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """导出单个快照为 JSON 附件。"""
+    case = await _cases._get_case_detail_or_404(db, case_id)
+    await _assert_case_access(db, current_user, case, ProjectRole.viewer)
     snapshot = await db.get(CaseSnapshot, snapshot_id)
     if not snapshot or snapshot.case_id != case_id:
         raise HTTPException(status_code=404, detail="快照不存在")
@@ -445,6 +468,7 @@ async def import_snapshot(
 ):
     """从 JSON 内容导入为新版本（不改变当前用例数据）。"""
     case = await _cases._get_case_detail_or_404(db, case_id)
+    await _assert_case_access(db, current_user, case, ProjectRole.editor)
     version = await _cases._next_snapshot_version(db, case_id)
     snap_data = body.snapshot_data or {}
     snapshot = CaseSnapshot(
@@ -478,14 +502,17 @@ async def clone_case_from_snapshot(
     """从历史快照创建新用例（不修改原用例）。"""
     from app.models.case import TestCase
 
+    source = await _cases._get_case_detail_or_404(db, case_id)
+    await _assert_case_access(db, current_user, source, ProjectRole.editor)
     snapshot = await db.get(CaseSnapshot, snapshot_id)
     if not snapshot or snapshot.case_id != case_id:
         raise HTTPException(status_code=404, detail="快照不存在")
-    source = await _cases._get_case_detail_or_404(db, case_id)
 
     data = snapshot.snapshot_data or {}
     module_id = (body.module_id if body else None) or source.module_id
     module = await _cases._get_module_for_case_code(db, module_id)
+    if getattr(module, "project_id", None) is not None:
+        await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
     case_type = CaseType(data.get("case_type", source.case_type.value))
     new_code = await _cases._generate_case_code(db, module, case_type)
     new_name = (body.name if body else None) or f"{data.get('name', source.name)} (clone v{snapshot.version})"

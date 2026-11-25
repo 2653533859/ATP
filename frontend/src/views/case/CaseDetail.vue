@@ -23,7 +23,7 @@
           <a-space wrap>
             <a-button @click="goBack">{{ t('case.detail.back') }}</a-button>
             <a-button @click="loadCase">{{ t('common.refresh') }}</a-button>
-            <a-button :loading="copying" @click="handleCopy">{{ t('case.actions.copy') }}</a-button>
+            <a-button :loading="copying" :disabled="!canModify" @click="handleCopy">{{ t('case.actions.copy') }}</a-button>
             <a-button :disabled="!caseDetail" @click="openHistory">{{ t('case.actions.history') }}</a-button>
             <a-button v-if="canSubmitReview" @click="handleWorkflow('submitReview')">{{ t('case.actions.submit_review') }}</a-button>
             <a-button v-if="canApprove" type="primary" ghost @click="handleWorkflow('approve')">{{ t('case.actions.approve') }}</a-button>
@@ -44,7 +44,7 @@
               </template>
             </a-dropdown>
             <a-tooltip :title="caseDetail?.is_ready_for_execution ? t('case.detail.run_tooltip') : t('case.detail.run_disabled_tooltip')">
-              <a-button type="primary" :disabled="!caseDetail?.is_ready_for_execution" @click="openRunModal">
+              <a-button type="primary" :disabled="!canModify || !caseDetail?.is_ready_for_execution" @click="openRunModal">
                 {{ t('case.actions.run') }}
               </a-button>
             </a-tooltip>
@@ -287,7 +287,9 @@ import type {
   ReviewStatus,
 } from '@/api'
 import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
+import { useAuthStore } from '@/stores/auth'
 import { buildEnvironmentOptions, buildRunDetailLocation, buildRunPayload } from '@/utils/caseExecution'
+import { canEditProjectByRole } from '@/utils/permissions'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
 type ErrorLike = {
@@ -301,6 +303,7 @@ type ErrorLike = {
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const { t } = useI18n()
 
 const loading = ref(false)
@@ -326,6 +329,9 @@ const stepColumns = computed(() => [
 
 const caseId = computed(() => parsePositiveInt(route.params.caseId))
 const projectQueryId = computed(() => parsePositiveInt(route.query.project_id))
+const resolvedProjectId = computed(() => (caseDetail.value as { project_id?: number | null } | null)?.project_id ?? projectQueryId.value)
+const currentProject = computed(() => projects.value.find((item) => item.id === resolvedProjectId.value))
+const canModify = computed(() => canEditProjectByRole(auth.user?.role, currentProject.value?.current_user_role))
 const moduleQueryId = computed(() => parsePositiveInt(route.query.module_id))
 const backQuery = computed<Record<string, string>>(() => {
   const query: Record<string, string> = {}
@@ -339,10 +345,10 @@ const backQuery = computed<Record<string, string>>(() => {
 })
 
 const projectName = computed(() => {
-  if (!projectQueryId.value) {
+  if (!resolvedProjectId.value) {
     return '-'
   }
-  return projects.value.find((item) => item.id === projectQueryId.value)?.name ?? t('case.project_fallback', { id: projectQueryId.value })
+  return currentProject.value?.name ?? t('case.project_fallback', { id: resolvedProjectId.value })
 })
 
 const moduleName = computed(() => {
@@ -374,6 +380,7 @@ const executionStatusHint = computed(() => caseDetail.value?.is_ready_for_execut
   : t('case.detail.run_disabled_tooltip')
 )
 const apiScenarioSteps = computed<Array<Record<string, unknown>>>(() => {
+  if (caseDetail.value?.case_type !== 'api') return []
   const steps = caseDetail.value?.config?.steps
   return Array.isArray(steps) ? steps as Array<Record<string, unknown>> : []
 })
@@ -396,11 +403,11 @@ const aiSourceSummary = computed(() => {
   if (source.generated_at) parts.push(formatDateTime(String(source.generated_at)))
   return parts.join(' · ')
 })
-const canSubmitReview = computed(() => !!caseDetail.value && caseDetail.value.status !== 'deprecated' && caseDetail.value.review_status !== 'pending')
-const canApprove = computed(() => !!caseDetail.value && caseDetail.value.status !== 'deprecated' && caseDetail.value.review_status === 'pending')
-const canReject = computed(() => !!caseDetail.value && caseDetail.value.review_status === 'pending')
-const canDeprecate = computed(() => !!caseDetail.value && caseDetail.value.status !== 'deprecated')
-const canReactivate = computed(() => !!caseDetail.value && caseDetail.value.status === 'deprecated' && caseDetail.value.review_status === 'approved')
+const canSubmitReview = computed(() => canModify.value && !!caseDetail.value && caseDetail.value.status !== 'deprecated' && caseDetail.value.review_status !== 'pending')
+const canApprove = computed(() => canModify.value && !!caseDetail.value && caseDetail.value.status !== 'deprecated' && caseDetail.value.review_status === 'pending')
+const canReject = computed(() => canModify.value && !!caseDetail.value && caseDetail.value.review_status === 'pending')
+const canDeprecate = computed(() => canModify.value && !!caseDetail.value && caseDetail.value.status !== 'deprecated')
+const canReactivate = computed(() => canModify.value && !!caseDetail.value && caseDetail.value.status === 'deprecated' && caseDetail.value.review_status === 'approved')
 
 function parsePositiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -528,16 +535,11 @@ function scriptStatusColor(status: CaseDetailItem['script_status']) {
 }
 
 async function loadMeta() {
-  if (!projectQueryId.value) {
-    projects.value = []
-    moduleNameMap.value = {}
-    return
-  }
-
+  const targetProjectId = projectQueryId.value ?? (caseDetail.value as { project_id?: number | null } | null)?.project_id ?? null
   try {
     const [projectList, modules] = await Promise.all([
       projectApi.list(),
-      projectApi.getModules(projectQueryId.value),
+      targetProjectId ? projectApi.getModules(targetProjectId) : Promise.resolve([]),
     ])
     projects.value = projectList
     moduleNameMap.value = flattenModules(modules)
@@ -556,6 +558,10 @@ async function loadCase() {
   loading.value = true
   try {
     caseDetail.value = await caseApi.get(caseId.value)
+    const cidProjectId = (caseDetail.value as { project_id?: number | null } | null)?.project_id ?? null
+    if (cidProjectId && (!projects.value.length || !Object.keys(moduleNameMap.value).length)) {
+      await loadMeta()
+    }
   } catch (error: unknown) {
     caseDetail.value = null
     message.error(errorMessage(error, t('case.detail.msg.load_failed')))
@@ -569,7 +575,7 @@ function goBack() {
 }
 
 async function handleCopy() {
-  if (!caseId.value) {
+  if (!caseId.value || !canModify.value) {
     return
   }
 
@@ -587,7 +593,7 @@ async function handleCopy() {
 }
 
 async function handleWorkflow(action: WorkflowAction) {
-  if (!caseId.value) {
+  if (!caseId.value || !canModify.value) {
     return
   }
 
@@ -624,17 +630,21 @@ function openHistory() {
 }
 
 async function openRunModal() {
+  if (!canModify.value) {
+    return
+  }
   runEnvId.value = null
   runEnvOptions.value = []
   runModalOpen.value = true
 
-  if (!projectQueryId.value) {
+  const envProjectId = resolvedProjectId.value
+  if (!envProjectId) {
     return
   }
 
   runEnvLoading.value = true
   try {
-    const environments = await environmentApi.list(projectQueryId.value)
+    const environments = await environmentApi.list(envProjectId)
     runEnvOptions.value = buildEnvironmentOptions(environments)
   } catch {
     runEnvOptions.value = []
@@ -645,7 +655,7 @@ async function openRunModal() {
 }
 
 async function confirmRun() {
-  if (!caseId.value) {
+  if (!caseId.value || !canModify.value) {
     return
   }
 

@@ -51,6 +51,7 @@ from app.services.execution_routing import (
 from app.services.device_resolution import DeviceResolutionError
 from app.services.failure_diagnosis import generate_failure_diagnosis
 from app.services.project_scope import visible_project_ids
+from app.services.variable_loader import load_environment_variables_map, load_global_variables_map
 from app.services.web_run_control import request_cancel
 
 router = APIRouter(tags=["用例管理"])
@@ -126,7 +127,8 @@ async def trigger_run(
     _cases._assert_can_trigger_run(case)
 
     env_name: str | None = None
-    merged_vars = dict(body.extra_vars)
+    global_vars = await load_global_variables_map(db, module.project_id if module else None)
+    env_vars: dict[str, str] = {}
     if body.env_id is not None:
         env = await db.get(Environment, body.env_id)
         if not env:
@@ -134,9 +136,8 @@ async def trigger_run(
         if not module or env.project_id != module.project_id:
             raise HTTPException(status_code=400, detail="环境不属于用例所在项目")
         env_name = env.name
-        result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == env.id))
-        env_vars = decrypt_env_vars(result.scalars().all())
-        merged_vars = {**env_vars, **body.extra_vars}
+        env_vars = await load_environment_variables_map(db, env.id)
+    merged_vars = {**global_vars, **env_vars, **body.extra_vars}
 
     queue_override: str | None = None
     try:
@@ -191,6 +192,8 @@ async def precheck_android_draft(
         extra_vars=body.extra_vars,
         env_id=body.env_id,
         project_id=body.project_id,
+        ignore_lease_owner_id=current_user.id,
+        ignore_lease_token=body.lease_token,
         api_layer=True,
     )
 
@@ -220,6 +223,8 @@ async def precheck_case(
         extra_vars=body.extra_vars,
         env_id=body.env_id,
         project_id=module.project_id,
+        ignore_lease_owner_id=current_user.id,
+        ignore_lease_token=body.lease_token,
         api_layer=True,
     )
 
@@ -339,9 +344,27 @@ async def stop_web_run(
         await asyncio.to_thread(request_cancel, run.id)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"无法发送{label}运行停止信号") from exc
+    child_runs = (
+        (await db.execute(select(TestRun).where(TestRun.parent_run_id == run.id))).scalars().all()
+        if hasattr(db, "execute")
+        else []
+    )
+    needs_commit = False
+    for child in child_runs:
+        if child.status in {RunStatus.pending, RunStatus.running}:
+            try:
+                await asyncio.to_thread(request_cancel, child.id)
+            except Exception as exc:
+                raise HTTPException(status_code=503, detail=f"无法发送{label}子任务停止信号") from exc
+            if child.status == RunStatus.pending:
+                child.status = RunStatus.cancelled
+                child.error_message = "用户在执行开始前取消"
+                needs_commit = True
     if run.status == RunStatus.pending:
         run.status = RunStatus.cancelled
         run.error_message = "用户在执行开始前取消"
+        needs_commit = True
+    if needs_commit:
         await db.commit()
     await db.refresh(run)
     if run.status not in {RunStatus.pending, RunStatus.running, RunStatus.cancelled}:
@@ -379,7 +402,7 @@ async def diagnose_run_failure(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _get_run_with_access(db, current_user, run_id)
+    await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
 
     diagnosis = await generate_failure_diagnosis(db, run_id)
     if diagnosis is None:
@@ -406,7 +429,7 @@ async def submit_healing_feedback(
 
     from app.models.case import StepResult
 
-    await _get_run_with_access(db, _, run_id)
+    await _get_run_with_access(db, _, run_id, ProjectRole.editor)
     result = await db.execute(select(StepResult).where(StepResult.id == step_id, StepResult.run_id == run_id))
     step = result.scalar_one_or_none()
     if step is None:

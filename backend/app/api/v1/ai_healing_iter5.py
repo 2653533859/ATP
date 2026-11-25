@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.api.v1.cases as _cases
-from app.api.deps import assert_project_access, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.encryption import decrypt_env_vars
@@ -47,7 +47,7 @@ REASON_LABELS: dict[str, str] = {
 async def preview_healing_patch(
     body: HealingPatchPreviewRequest,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     """Validate a structured healing patch and return a preview config.
 
@@ -87,7 +87,7 @@ async def preview_healing_patch(
 async def apply_healing_patch(
     body: HealingPatchApplyRequest,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     """Apply a human-approved structured healing patch.
 

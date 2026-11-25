@@ -2024,6 +2024,7 @@ export interface ApiRequestPreviewPayload {
   multipart: Array<Record<string, unknown>>
   auth: Record<string, unknown>
   timeout: number
+  env_id?: number | null
   status_code?: number
   response_body?: unknown
   response_headers?: Record<string, string>
@@ -2142,9 +2143,9 @@ export const caseApi = {
   reactivate: (id: number, data?: { comment?: string }) => http.post<unknown, CaseDetailItem>(`/cases/${id}/reactivate`, data ?? {}),
   run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
     http.post<unknown, CaseRunStartResponse>(`/cases/${id}/run`, data ?? {}),
-  precheck: (id: number, data?: { device_id?: number; device_serial?: string; env_id?: number; extra_vars?: object; steps?: unknown[]; config?: object }) =>
+  precheck: (id: number, data?: { device_id?: number; device_serial?: string; lease_token?: string | null; env_id?: number; extra_vars?: object; steps?: unknown[]; config?: object }) =>
     http.post<unknown, AndroidPrecheckResponse>(`/cases/${id}/precheck`, data ?? {}),
-  precheckAndroidDraft: (data: { project_id: number; device_id?: number; device_serial?: string; env_id?: number; extra_vars?: object; steps?: unknown[]; config?: object }) =>
+  precheckAndroidDraft: (data: { project_id: number; device_id?: number; device_serial?: string; lease_token?: string | null; env_id?: number; extra_vars?: object; steps?: unknown[]; config?: object }) =>
     http.post<unknown, AndroidPrecheckResponse>('/cases/android/precheck', data),
   listSnapshots: (caseId: number, params?: { page?: number; page_size?: number }) =>
     http.get<unknown, { items: CaseSnapshotItem[]; total: number; page: number; page_size: number }>(
@@ -3596,14 +3597,14 @@ export interface WebPageObjectItem {
 
 export const webAssetsApi = {
   listElements: (projectId: number) => http.get<unknown, WebElementAssetItem[]>(`/projects/${projectId}/web-elements`),
-  createElement: (projectId: number, body: { name: string; page_url?: string | null; locator: Record<string, unknown>; fallback_locators?: Array<Record<string, unknown>>; description?: string }) =>
+  createElement: (projectId: number, body: { name: string; page_url?: string | null; locator: Record<string, unknown>; fallback_locators?: Array<Record<string, unknown>>; description?: string | null }) =>
     http.post<unknown, WebElementAssetItem>(`/projects/${projectId}/web-elements`, body),
   updateElement: (id: number, body: Record<string, unknown>) => http.patch<unknown, WebElementAssetItem>(`/web-elements/${id}`, body),
   previewElementRepair: (id: number, observed_locators: Array<Record<string, unknown>> = []) =>
     http.post<unknown, { element_id: number; candidates: WebLocatorRepairCandidate[] }>(`/web-elements/${id}/repair-preview`, { observed_locators }),
   deleteElement: (id: number) => http.delete<unknown, void>(`/web-elements/${id}`),
   listPageObjects: (projectId: number) => http.get<unknown, WebPageObjectItem[]>(`/projects/${projectId}/web-page-objects`),
-  createPageObject: (projectId: number, body: { name: string; url_pattern?: string | null; description?: string; element_refs?: Array<Record<string, unknown>>; actions?: Array<Record<string, unknown>> }) =>
+  createPageObject: (projectId: number, body: { name: string; url_pattern?: string | null; description?: string | null; element_refs?: Array<Record<string, unknown>>; actions?: Array<Record<string, unknown>> }) =>
     http.post<unknown, WebPageObjectItem>(`/projects/${projectId}/web-page-objects`, body),
   updatePageObject: (id: number, body: Record<string, unknown>) => http.patch<unknown, WebPageObjectItem>(`/web-page-objects/${id}`, body),
   deletePageObject: (id: number) => http.delete<unknown, void>(`/web-page-objects/${id}`),
@@ -3670,6 +3671,10 @@ export const webVisualApi = {
     form.append('file', body.file)
     return http.post<unknown, WebVisualBaselineItem>(`/projects/${projectId}/web-visual-baselines`, form)
   },
+  updateBaseline: (
+    id: number,
+    body: { threshold: number; pixel_threshold: number; ignore_regions: Array<Record<string, unknown>> },
+  ) => http.patch<unknown, WebVisualBaselineItem>(`/web-visual-baselines/${id}`, body),
   deleteBaseline: (id: number) => http.delete<unknown, void>(`/web-visual-baselines/${id}`),
 }
 

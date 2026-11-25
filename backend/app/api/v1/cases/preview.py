@@ -16,11 +16,14 @@ from app.api.deps import assert_project_access, get_current_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.url_security import validate_public_http_url
+from app.models.environment import Environment
 from app.models.project import Project
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.services.api_auth import build_digest_auth, resolve_oauth2_client_credentials_token
-from app.worker.executors.api_executor import _build_request_kwargs
+from app.services.variable_loader import load_environment_variables_map, load_global_variables_map
+from app.worker.executors._assertion_helpers import render_recursive
+from app.worker.executors.api_executor import _build_request_kwargs, _render
 
 router = APIRouter(tags=["用例管理"])
 MAX_PREVIEW_BYTES = 1024 * 1024
@@ -37,6 +40,7 @@ class ApiRequestPreviewIn(BaseModel):
     multipart: list[dict[str, Any]] = Field(default_factory=list)
     auth: dict[str, Any] = Field(default_factory=dict)
     timeout: int = Field(default=30, ge=1, le=60)
+    env_id: int | None = None
 
 
 class ApiRequestPreviewOut(BaseModel):
@@ -82,41 +86,57 @@ async def preview_api_request(
         raise HTTPException(status_code=404, detail="项目不存在")
     try:
         _validate_fields(body)
-        url = await asyncio.to_thread(_validate_preview_url, body.url)
+        effective_vars = await load_global_variables_map(db, project_id)
+        if body.env_id is not None:
+            env = await db.get(Environment, body.env_id)
+            if env is None:
+                raise HTTPException(status_code=404, detail="环境不存在")
+            if env.project_id != project_id:
+                raise HTTPException(status_code=400, detail="环境不属于当前项目")
+            effective_vars = {**effective_vars, **(await load_environment_variables_map(db, env.id))}
+
+        rendered_url = _render(body.url, effective_vars)
+        url = await asyncio.to_thread(_validate_preview_url, rendered_url)
         auth_config = body.auth
         auth_type = str(auth_config.get("type") or "none")
         if auth_type not in {"none", "bearer", "basic", "apikey", "digest", "oauth2_client_credentials"}:
             raise ValueError("不支持的认证方式")
-        headers = dict(body.headers)
+        headers = render_recursive(dict(body.headers), lambda text: _render(text, effective_vars))
+        params = render_recursive(dict(body.params), lambda text: _render(text, effective_vars))
+        cookies = render_recursive(dict(body.cookies), lambda text: _render(text, effective_vars))
+        render_auth_value = (lambda value: _render(str(value), effective_vars)) if effective_vars else str
         request_auth: httpx.Auth | tuple[str, str] | None = None
         if auth_type == "bearer":
-            headers["Authorization"] = f"Bearer {auth_config.get('token', '')}"
+            headers["Authorization"] = f"Bearer {_render(str(auth_config.get('token') or ''), effective_vars)}"
         elif auth_type == "basic":
             request_auth = (
-                str(auth_config.get("username", "")),
-                str(auth_config.get("password", "")),
+                render_auth_value("" if auth_config.get("username") is None else str(auth_config.get("username"))),
+                render_auth_value("" if auth_config.get("password") is None else str(auth_config.get("password"))),
             )
         elif auth_type == "apikey":
-            header_name = str(auth_config.get("header") or "X-API-Key").strip()
+            header_name = _render(str(auth_config.get("header") or "X-API-Key"), effective_vars).strip()
             if not header_name:
                 raise ValueError("API Key 请求头不能为空")
-            headers[header_name] = str(auth_config.get("value") or "")
+            headers[header_name] = _render(str(auth_config.get("value") or ""), effective_vars)
         if auth_type == "digest":
-            request_auth = build_digest_auth(auth_config, str)
+            request_auth = build_digest_auth(auth_config, render_auth_value)
         if auth_type == "oauth2_client_credentials":
-            token_url = str(auth_config.get("token_url") or "")
+            token_url = render_auth_value(str(auth_config.get("token_url") or ""))
             await asyncio.to_thread(_validate_preview_url, token_url)
             headers["Authorization"] = await resolve_oauth2_client_credentials_token(
-                auth_config, str, float(body.timeout), {}
+                auth_config,
+                render_auth_value,
+                float(body.timeout),
+                {},
             )
 
         step = body.model_dump()
         request_kwargs, _ = await _build_request_kwargs(
             step,
-            {},
+            effective_vars,
             headers=headers,
-            params=body.params,
-            cookies=body.cookies,
+            params=params,
+            cookies=cookies,
             project_id=project_id,
         )
         if auth_type in {"basic", "digest"}:

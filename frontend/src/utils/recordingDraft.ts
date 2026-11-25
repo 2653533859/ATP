@@ -105,7 +105,7 @@ export function saveLocalRecordingDraft(
   if (!draft.projectId || draft.projectId <= 0) return null
   const steps = sanitizeStepsForLocalDraft(draft.steps)
   if (steps.length === 0) {
-    clearLocalRecordingDraft(draft.projectId, draft.kind)
+    clearLocalRecordingDraft(draft.projectId, draft.kind, userId)
     return null
   }
   const normalized: LocalRecordingDraft = {
@@ -146,7 +146,7 @@ export function loadLocalRecordingDraft(
     const parsed = JSON.parse(raw) as Partial<LocalRecordingDraft>
     const steps = sanitizeStepsForLocalDraft(parsed.steps)
     if (steps.length === 0) {
-      clearLocalRecordingDraft(projectId, kind)
+      clearLocalRecordingDraft(projectId, kind, userId)
       return null
     }
     return {

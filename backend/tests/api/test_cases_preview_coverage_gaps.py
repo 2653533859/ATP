@@ -525,3 +525,61 @@ def test_preview_connection_error_maps_to_502(monkeypatch):
 
     assert exc_info.value.status_code == 502
     assert exc_info.value.detail == "请求失败：ConnectError"
+
+
+def test_preview_injects_global_project_and_env_variables_and_decodes_secrets(monkeypatch):
+    from app.core.encryption import encrypt
+    from app.models.environment import Environment
+    from app.models.global_variable import GlobalVariable, ScopeType
+    from app.services.variable_loader import load_global_variables_map
+
+    class _VarDB:
+        async def execute(self, _stmt):
+            rows = [
+                GlobalVariable(
+                    scope_type=ScopeType.global_scope,
+                    project_id=None,
+                    key="host",
+                    value_encrypted=encrypt("global.example"),
+                ),
+                GlobalVariable(
+                    scope_type=ScopeType.project, project_id=1, key="host", value_encrypted=encrypt("project.example")
+                ),
+            ]
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: rows))
+
+    loaded_globals = asyncio.run(load_global_variables_map(_VarDB(), project_id=1))
+    assert loaded_globals == {"host": "project.example"}
+
+    class _EnvPreviewDB:
+        async def get(self, model, ident):
+            if model is Project:
+                return SimpleNamespace(id=ident)
+            if model is Environment and ident == 9:
+                return SimpleNamespace(id=9, project_id=1)
+            return None
+
+    async def fake_globals(_db, _pid):
+        return {"host": "project.example", "tk": "global-tk"}
+
+    async def fake_env_vars(_db, _eid):
+        return {"env_tag": "staging", "tk": "env-tk"}
+
+    _patch_access(monkeypatch)
+    monkeypatch.setattr(pv, "load_global_variables_map", fake_globals)
+    monkeypatch.setattr(pv, "load_environment_variables_map", fake_env_vars)
+    build_calls = _patch_build_kwargs(monkeypatch, extra={"headers": {}})
+    client_cls = _install_client(monkeypatch, response=_FakeResponse(chunks=[b"ok"]))
+
+    body = _preview_body(
+        url="https://{{host}}/items",
+        env_id=9,
+        headers={"X-Env": "{{env_tag}}"},
+        auth={"type": "bearer", "token": "{{tk}}"},
+    )
+    out = _call(body, _EnvPreviewDB())
+
+    assert out.status_code == 200
+    assert build_calls[0]["headers"] == {"X-Env": "staging", "Authorization": "Bearer env-tk"}
+    _, called_url, _ = client_cls.stream_calls[0]
+    assert called_url == "https://project.example/items"

@@ -145,6 +145,8 @@ def test_manual_snapshot_create_writes_remark(monkeypatch):
         return 0
 
     async def fake_get(model, pk):
+        if getattr(model, "__name__", "") == "Module":
+            return types.SimpleNamespace(id=pk, project_id=1)
         for obj in db.added:
             if type(obj).__name__ == getattr(model, "__name__", "") and obj.id == pk:
                 return obj
@@ -246,6 +248,11 @@ def test_diff_snapshots_emits_field_changes(monkeypatch):
     queue = [from_snap, to_snap]
 
     class _DiffDB2:
+        async def get(self, model, pk):
+            if getattr(model, "__name__", "") == "Module":
+                return types.SimpleNamespace(id=pk, project_id=1)
+            return None
+
         async def execute(self, _stmt):
             obj = queue.pop(0)
 
@@ -260,7 +267,15 @@ def test_diff_snapshots_emits_field_changes(monkeypatch):
 
     monkeypatch.setattr(cases, "_get_case_detail_or_404", fake_detail)
     db = _DiffDB2()
-    result = asyncio.run(diff_snapshots(case_id=5, from_version=1, to_version=2, db=db))
+    result = asyncio.run(
+        diff_snapshots(
+            case_id=5,
+            from_version=1,
+            to_version=2,
+            db=db,
+            current_user=types.SimpleNamespace(id=9),
+        )
+    )
     assert result.from_version == 1
     assert result.to_version == 2
     assert "name" in result.changes
@@ -269,7 +284,9 @@ def test_diff_snapshots_emits_field_changes(monkeypatch):
     assert "priority" not in result.changes  # 未变化字段不出现
 
 
-def test_export_snapshot_returns_attachment_payload():
+def test_export_snapshot_returns_attachment_payload(monkeypatch):
+    case_obj = _case()
+    monkeypatch.setattr(cases, "_get_case_detail_or_404", lambda *_a, **_kw: asyncio.sleep(0, result=case_obj))
     snap = types.SimpleNamespace(
         id=42,
         case_id=5,
@@ -283,9 +300,18 @@ def test_export_snapshot_returns_attachment_payload():
 
     class _DB:
         async def get(self, model, pk):
+            if getattr(model, "__name__", "") == "Module":
+                return types.SimpleNamespace(id=pk, project_id=1)
             return snap
 
-    response = asyncio.run(export_snapshot(case_id=5, snapshot_id=42, db=_DB()))
+    response = asyncio.run(
+        export_snapshot(
+            case_id=5,
+            snapshot_id=42,
+            db=_DB(),
+            current_user=types.SimpleNamespace(id=9),
+        )
+    )
     assert "attachment" in response.headers["content-disposition"]
     assert "case-5-snapshot-v3" in response.headers["content-disposition"]
 
@@ -305,6 +331,8 @@ def test_import_snapshot_creates_new_version(monkeypatch):
         return 0
 
     async def fake_get(model, pk):
+        if getattr(model, "__name__", "") == "Module":
+            return types.SimpleNamespace(id=pk, project_id=1)
         for obj in db.added:
             if type(obj).__name__ == getattr(model, "__name__", "") and obj.id == pk:
                 return obj
@@ -358,6 +386,8 @@ def test_clone_case_from_snapshot_creates_new_case(monkeypatch):
 
     async def fake_get(model, pk):
         name = getattr(model, "__name__", "")
+        if name == "Module":
+            return types.SimpleNamespace(id=pk, project_id=1)
         if name == "CaseSnapshot" and pk == 77:
             return snap
         for obj in db.added:
@@ -415,3 +445,104 @@ def test_clone_case_from_snapshot_creates_new_case(monkeypatch):
     assert new_case.status == CaseStatus.draft
     assert new_case.creator_id == 9
     assert result.name == "clone-name"
+
+
+def test_snapshots_diff_route_precedes_detail_and_supports_live_to_version_zero(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.v1.cases import workflow as cases_workflow
+
+    load_all_models()
+    case_obj = _case()
+    case_obj.name = "live-name"
+    case_obj.tags = ["live"]
+    snap_v1 = types.SimpleNamespace(
+        id=11,
+        case_id=5,
+        version=1,
+        name="snap-v1",
+        description="desc",
+        priority="P1",
+        case_level="core",
+        automation_status="auto",
+        tags=["v1"],
+        preconditions=[],
+        postconditions=[],
+        config={"steps": []},
+        snapshot_data={
+            "name": "snap-v1",
+            "description": "desc",
+            "priority": "P1",
+            "case_level": "core",
+            "automation_status": "auto",
+            "tags": ["v1"],
+            "preconditions": [],
+            "postconditions": [],
+            "config": {"steps": []},
+        },
+    )
+
+    class _DiffLiveDB:
+        async def get(self, model, pk):
+            if getattr(model, "__name__", "") == "Module":
+                return types.SimpleNamespace(id=pk, project_id=1)
+            return None
+
+        async def execute(self, _stmt):
+            class _R:
+                def scalar_one_or_none(self_inner):
+                    return snap_v1
+
+            return _R()
+
+    async def fake_detail(_db, _cid):
+        return case_obj
+
+    async def allow_access(*_a, **_kw):
+        return None
+
+    monkeypatch.setattr(cases, "_get_case_detail_or_404", fake_detail)
+    monkeypatch.setattr(cases_workflow, "assert_project_access", allow_access)
+
+    test_app = FastAPI()
+    test_app.include_router(cases_workflow.router)
+    test_app.dependency_overrides[cases_workflow.get_db] = lambda: _DiffLiveDB()
+    test_app.dependency_overrides[cases_workflow.get_current_user] = lambda: types.SimpleNamespace(id=9)
+
+    resp = TestClient(test_app).get("/cases/5/snapshots/diff", params={"from": 1, "to": 0})
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["from_version"] == 1
+    assert payload["to_version"] == 0
+    assert payload["changes"]["name"] == {"from": "snap-v1", "to": "live-name"}
+
+
+def test_snapshot_and_workflow_endpoints_reject_when_project_access_denied(monkeypatch):
+    from fastapi import FastAPI, HTTPException
+    from fastapi.testclient import TestClient
+
+    from app.api.v1.cases import workflow as cases_workflow
+
+    case_obj = _case()
+    monkeypatch.setattr(cases, "_get_case_detail_or_404", lambda *_a, **_kw: asyncio.sleep(0, result=case_obj))
+
+    async def deny(*_a, **_kw):
+        raise HTTPException(status_code=403, detail="无权访问")
+
+    monkeypatch.setattr(cases_workflow, "assert_project_access", deny)
+
+    class _ModDB:
+        async def get(self, model, pk):
+            if getattr(model, "__name__", "") == "Module":
+                return types.SimpleNamespace(id=pk, project_id=1)
+            return None
+
+    test_app = FastAPI()
+    test_app.include_router(cases_workflow.router)
+    test_app.dependency_overrides[cases_workflow.get_db] = lambda: _ModDB()
+    test_app.dependency_overrides[cases_workflow.get_current_user] = lambda: types.SimpleNamespace(id=9)
+    client = TestClient(test_app)
+
+    assert client.post("/cases/5/deprecate", json={}).status_code == 403
+    assert client.get("/cases/5/snapshots").status_code == 403

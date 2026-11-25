@@ -69,7 +69,9 @@ class _WorkflowDB:
     def __init__(self, case_obj: TestCase):
         self.case_obj = case_obj
 
-    async def get(self, _model, _pk):
+    async def get(self, model, pk):
+        if getattr(model, "__name__", "") == "Module":
+            return types.SimpleNamespace(id=pk, project_id=1)
         return None
 
     async def commit(self):

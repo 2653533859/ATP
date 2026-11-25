@@ -26,6 +26,8 @@ vi.mock('@/utils/websocket', () => ({ createRunWebSocket }))
 vi.mock('@/api', () => ({
   aiHealingPatchApi: { apply: vi.fn(), preview: vi.fn() },
   bugTrackerApi: { createBug: vi.fn(), list: vi.fn().mockResolvedValue([]), linkBug: vi.fn(), refreshStatus: vi.fn() },
+  caseApi: { get: vi.fn().mockResolvedValue(null) },
+  projectApi: { list: vi.fn().mockResolvedValue([{ id: 1, name: 'Demo', current_user_role: 'editor' }]), getModules: vi.fn().mockResolvedValue([]) },
   runApi: { exportHtml: runExportHtml, exportPdf: vi.fn(), exportJunit: runExportJunit, get: runGet, stop: runStop, generateGif: vi.fn() },
   tracingApi: { getConfig: tracingGetConfig },
 }))
@@ -309,5 +311,35 @@ describe('RunDetail mount', () => {
     const img = wrapper.find('img.gif-player-img')
     expect(img.exists()).toBe(true)
     expect(img.attributes('src')).toBe('https://minio/gifs/runs/42/recording.gif')
+  })
+
+  it('hides resume-recording on script-mode Web steps and previews visual diff_url when present', async () => {
+    runGet.mockResolvedValueOnce({
+      id: 42,
+      case_id: 100,
+      case_type: 'web',
+      status: 'failed',
+      trace_id: null,
+      environment: 'staging',
+      duration_ms: 210,
+      created_at: '2026-07-11T01:00:00Z',
+      error_message: 'mismatch',
+      result_summary: {},
+      steps: [
+        {
+          step_index: 0,
+          name: 'test_script_case',
+          status: 'failed',
+          request_data: null,
+          response_data: { diff_url: 'http://127.0.0.1:29000/atp/visual-diffs/runs/42/step_0.png' },
+        },
+      ],
+    })
+
+    const wrapper = mountRunDetail()
+    await flushPromises()
+
+    expect(wrapper.find('.repair-record-btn').exists()).toBe(false)
+    expect(wrapper.html()).toContain('/api/v1/storage/media/visual-diffs/runs/42/step_0.png')
   })
 })

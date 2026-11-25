@@ -38,7 +38,7 @@
             <BugOutlined /> {{ t('run.create_internal_defect') }}
           </a-button>
           <a-button
-            v-if="run"
+            v-if="run && canEditProject"
             size="small"
             @click="openTriageModal"
           >
@@ -155,7 +155,7 @@
             <span style="margin-left: 8px; font-size: 12px; color: #8c8c8c">
               ({{ triageInfo.triaged_by_name }} · {{ formatTime(triageInfo.triaged_at) }})
             </span>
-            <a-button size="small" type="link" @click="openTriageModal" style="margin-left: 4px">
+            <a-button v-if="canEditProject" size="small" type="link" @click="openTriageModal" style="margin-left: 4px">
               {{ t('common.edit', '编辑') }}
             </a-button>
           </a-descriptions-item>
@@ -512,7 +512,7 @@
             </template>
             <template #extra>
               <a-space>
-                <a-tooltip v-if="(step.status === 'failed' || step.status === 'error') && run?.case_id && run?.case_type === 'web'" :title="t('case.drawer.web.recorder.resume_from_here_tip')">
+                <a-tooltip v-if="isResumableWebStep(step)" :title="t('case.drawer.web.recorder.resume_from_here_tip')">
                   <a-button
                     size="small"
                     type="primary"
@@ -596,7 +596,7 @@
                     </a-tag>
                     <span class="feedback-thanks">{{ t('run.healing.feedback_thanks') }}</span>
                   </template>
-                  <template v-else>
+                  <template v-else-if="canEditProject">
                     <a-button
                       size="small"
                       type="primary"
@@ -637,7 +637,7 @@
               </a-collapse-panel>
             </a-collapse>
 
-            <!-- 截图展示 -->
+            <!-- 截图与视觉差异展示 -->
             <div v-if="step.screenshot_url" class="screenshot-section">
               <div class="panel-label">
                 <CameraOutlined /> {{ t('run.labels.screenshot') }}
@@ -646,6 +646,19 @@
                 :src="resolveMediaUrl(step.screenshot_url)"
                 :width="480"
                 :preview="{ src: resolveMediaUrl(step.screenshot_url) }"
+                class="step-screenshot"
+                :fallback="fallbackImage"
+              />
+            </div>
+
+            <div v-if="stepVisualDiffUrl(step)" class="screenshot-section">
+              <div class="panel-label">
+                <CameraOutlined /> {{ t('case.lowcode_editor.actions.visual_assert') }} Diff
+              </div>
+              <a-image
+                :src="resolveMediaUrl(stepVisualDiffUrl(step) || '')"
+                :width="480"
+                :preview="{ src: resolveMediaUrl(stepVisualDiffUrl(step) || '') }"
                 class="step-screenshot"
                 :fallback="fallbackImage"
               />
@@ -874,6 +887,7 @@ import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHe
 import { getRuntimeMode } from '@/runtimeMode'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
+import { canEditProjectByRole, type ProjectRole } from '@/utils/permissions'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 import { renderMarkdown } from '@/utils/markdown'
 import {
@@ -1008,12 +1022,51 @@ let wsHandle: ReturnType<typeof createRunWebSocket> | null = null
 
 const fallbackImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE0Ij7miKrlm77liqDovb3lpLHotKU8L3RleHQ+PC9zdmc+'
 
+const projectRole = ref<ProjectRole | undefined>(undefined)
+const canEditProject = computed(() => canEditProjectByRole(auth.user?.role, projectRole.value))
 const isRunning = computed(() => run.value?.status === 'running' || run.value?.status === 'pending')
-const canCreateBug = computed(() => ['admin', 'engineer'].includes(auth.user?.role ?? ''))
+const canCreateBug = computed(() => canEditProject.value)
 // 仅 Web 与 Android 低代码执行器会轮询停止信号；项目权限与 Android 脚本用例由后端校验并返回原因。
-const canStopRun = computed(() => isRunning.value && ['web', 'android'].includes(run.value?.case_type ?? ''))
+const canStopRun = computed(() => canEditProject.value && isRunning.value && ['web', 'android'].includes(run.value?.case_type ?? ''))
 const stoppingRun = ref(false)
-const canApplyHealingPatch = computed(() => ['admin', 'engineer'].includes(auth.user?.role ?? ''))
+const canApplyHealingPatch = computed(() => canEditProject.value)
+
+async function loadProjectRole(runData: RunDetailItem) {
+  try {
+    if (typeof projectApi?.list !== 'function') return
+    let targetProjectId = (runData as { project_id?: number | null }).project_id ?? null
+    if (!targetProjectId && typeof caseApi?.get === 'function') {
+      const caseDetail = await caseApi.get(runData.case_id).catch(() => null)
+      targetProjectId = (caseDetail as { project_id?: number | null } | null)?.project_id ?? null
+    }
+    const projects = await projectApi.list()
+    const matched = targetProjectId
+      ? projects.find((item) => item.id === targetProjectId)
+      : projects.length === 1
+        ? projects[0]
+        : undefined
+    const role = matched?.current_user_role
+    projectRole.value = role === 'owner' || role === 'editor' || role === 'viewer' ? role : undefined
+  } catch {
+    projectRole.value = undefined
+  }
+}
+
+function isResumableWebStep(step: RunStepItem) {
+  if (!canEditProject.value) {
+    return false
+  }
+  if ((step.status !== 'failed' && step.status !== 'error') || !run.value?.case_id || run.value?.case_type !== 'web') {
+    return false
+  }
+  const req = step.request_data as Record<string, unknown> | null | undefined
+  return Boolean(req && typeof req.action === 'string' && req.action.trim())
+}
+
+function stepVisualDiffUrl(step: RunStepItem): string | null {
+  const resp = step.response_data as Record<string, unknown> | null | undefined
+  return resp && typeof resp.diff_url === 'string' && resp.diff_url.trim() ? resp.diff_url.trim() : null
+}
 
 const isParameterizedParent = computed(() =>
   computeIsParameterizedParent(run.value?.result_summary as Record<string, unknown> | undefined),
@@ -1066,7 +1119,7 @@ const failedOrErrorSteps = computed(() => pickFailedOrErrorSteps(steps.value))
 const screenshotCount = computed(() => countScreenshotSteps(steps.value))
 
 const canGenerateFailureDiagnosis = computed(() =>
-  Boolean(run.value && (run.value.status === 'failed' || run.value.status === 'error' || failedOrErrorSteps.value.length > 0)),
+  Boolean(canEditProject.value && run.value && (run.value.status === 'failed' || run.value.status === 'error' || failedOrErrorSteps.value.length > 0)),
 )
 
 const failureDiagnosis = computed<FailureDiagnosisResult | null>(() =>
@@ -1103,6 +1156,11 @@ async function openResumeCaseEditor(stepIndex: number) {
   try {
     const caseData = await caseApi.get(run.value.case_id)
     if (caseData.case_type === 'web') {
+      const cfg = (caseData as { config?: Record<string, unknown> }).config
+      if (!Array.isArray(cfg?.steps)) {
+        message.warning(t('run.empty_steps'))
+        return
+      }
       let effectiveProjectId: number | null = (caseData as { project_id?: number | null }).project_id ?? run.value?.project_id ?? null
       if (!effectiveProjectId && route.query.project_id) {
         effectiveProjectId = Number(route.query.project_id)
@@ -1843,6 +1901,7 @@ onMounted(async () => {
     run.value = data
     steps.value = data.steps ?? []
     expandedKeys.value = computeExpandedKeys(steps.value)
+    await loadProjectRole(data)
     await loadInternalDefects()
     void fetchSyncStatus()
   } finally {

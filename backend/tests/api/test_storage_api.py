@@ -155,3 +155,72 @@ def test_storage_cleanup_execute_delegates_to_service(monkeypatch):
         "prefixes": None,
         "repair_orphan_references": True,
     }
+
+
+def test_get_storage_media_requires_auth_and_blocks_sensitive_prefixes(monkeypatch):
+    import sys
+    from fastapi import HTTPException
+    import pytest
+
+    media_dep = inspect.signature(storage.get_storage_media).parameters["_"].default.dependency
+    assert media_dep is storage.get_current_user
+
+    with pytest.raises(HTTPException) as exc_traversal:
+        asyncio.run(storage.get_storage_media("screenshots/../secret.txt", _=None))
+    assert exc_traversal.value.status_code == 400
+
+    with pytest.raises(HTTPException) as exc_forbidden:
+        asyncio.run(storage.get_storage_media("storage-states/projects/1/default.json", _=None))
+    assert exc_forbidden.value.status_code == 403
+
+    minio_mod = sys.modules["app.core.minio_client"]
+    monkeypatch.setattr(minio_mod, "read_bytes", lambda _obj: b"png-bytes", raising=False)
+    res = asyncio.run(storage.get_storage_media("screenshots/runs/1/step_0.png", _=None))
+    assert res.body == b"png-bytes"
+    assert res.headers["cache-control"] == "private, max-age=3600"
+
+
+def test_get_storage_media_allows_new_prefixes_and_disables_inline_svg(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from fastapi import HTTPException
+    import pytest
+
+    minio_mod = sys.modules["app.core.minio_client"]
+    monkeypatch.setattr(minio_mod, "read_bytes", lambda obj: f"bytes:{obj}".encode("utf-8"), raising=False)
+
+    for allowed_obj in (
+        "gifs/runs/1/recording.gif",
+        "android-artifacts/runs/1/log.txt",
+        "ios-artifacts/runs/1/syslog.txt",
+        "web-files/runs/1/capture.png",
+    ):
+        res = asyncio.run(storage.get_storage_media(allowed_obj, _=None))
+        assert res.body == f"bytes:{allowed_obj}".encode("utf-8")
+        assert res.headers["x-content-type-options"] == "nosniff"
+
+    svg_res = asyncio.run(storage.get_storage_media('reports/run-1/diagram"evil.svg', _=None))
+    assert svg_res.headers["x-content-type-options"] == "nosniff"
+    assert svg_res.headers["content-disposition"].startswith('attachment; filename="')
+    assert '"' not in svg_res.headers["content-disposition"].split('filename="', 1)[1][:-1]
+
+    class _AccessDB:
+        def __init__(self, resolved_project_id):
+            self.resolved_project_id = resolved_project_id
+
+        async def execute(self, _stmt):
+            return SimpleNamespace(scalar_one_or_none=lambda: self.resolved_project_id)
+
+    async def deny_access(*_args, **_kwargs):
+        raise HTTPException(status_code=403, detail="无权访问")
+
+    monkeypatch.setattr(storage, "assert_project_access", deny_access)
+    with pytest.raises(HTTPException) as exc_denied:
+        asyncio.run(
+            storage.get_storage_media(
+                "screenshots/runs/9/step_0.png",
+                _=SimpleNamespace(id=99, role=storage.UserRole.viewer),
+                db=_AccessDB(12),
+            )
+        )
+    assert exc_denied.value.status_code == 403

@@ -98,8 +98,10 @@ class _SnapshotDB:
         self.snapshot_obj = snapshot_obj
         self.added = []
 
-    async def get(self, model, _pk):
+    async def get(self, model, pk):
         model_name = getattr(model, "__name__", "")
+        if model_name == "Module":
+            return types.SimpleNamespace(id=pk, project_id=1)
         if model_name == "CaseSnapshot":
             return self.snapshot_obj
         if model_name == "TestCase":

@@ -24,6 +24,8 @@ load_all_models()
 
 def test_api_case_review_workflow_and_approval_transition(monkeypatch):
     from app.api.v1 import cases
+    from app.api.v1.cases import workflow as cases_workflow
+    from app.models.user_project import ProjectRole
     from app.schemas.case import CaseWorkflowRequest
 
     now = datetime.now(timezone.utc)
@@ -55,12 +57,20 @@ def test_api_case_review_workflow_and_approval_transition(monkeypatch):
             self.committed = False
 
         async def get(self, _model, _obj_id):
+            if _obj_id == 1:
+                return SimpleNamespace(id=1, project_id=10)
             return None
 
         async def commit(self):
             self.committed = True
 
+    access_calls = []
+
+    async def fake_access(_db, _user, project_id, min_role):
+        access_calls.append((project_id, min_role))
+
     db = FakeDB()
+    monkeypatch.setattr(cases_workflow, "assert_project_access", fake_access)
     monkeypatch.setattr(cases, "_get_case_detail_or_404", lambda *_args, **_kwargs: asyncio.sleep(0, result=case))
     monkeypatch.setattr(cases, "write_audit_log", AsyncMock())
 
@@ -74,6 +84,7 @@ def test_api_case_review_workflow_and_approval_transition(monkeypatch):
     updated = asyncio.run(cases.approve_case(case_id=101, body=req_approve, db=db, current_user=user))
     assert updated.review_status == "approved"
     assert updated.status == CaseStatus.active
+    assert access_calls == [(10, ProjectRole.editor), (10, ProjectRole.editor)]
 
 
 @pytest.mark.asyncio
