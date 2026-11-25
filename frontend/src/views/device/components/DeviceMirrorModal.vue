@@ -675,21 +675,17 @@ function triggerScreenshotFallback(session: number) {
   startMirrorPolling()
 }
 
-function initScrcpyStream(serial: string) {
+function initScrcpyStream(serial: string, forceReconnect = false) {
   closeScrcpyStream()
   const activeSession = mirrorSession
   const runtime = getRuntimeMode()
   const deviceWorkerId = props.device?.worker_id?.trim()
-  const skipScrcpyForWorkerMode = Boolean(
-    runtime?.android_multi_node_enabled ||
-    runtime?.adb_scan_mode === 'worker' ||
-    (deviceWorkerId && deviceWorkerId !== 'local'),
+  const useDeviceScopedScrcpy = Boolean(
+    props.device?.id &&
+    (runtime?.android_multi_node_enabled ||
+      runtime?.adb_scan_mode === 'worker' ||
+      (deviceWorkerId && deviceWorkerId !== 'local')),
   )
-  if (skipScrcpyForWorkerMode) {
-    streamFallbackReason.value = '当前节点模式使用截图轮询，已跳过 Scrcpy 直连通道'
-    triggerScreenshotFallback(activeSession)
-    return
-  }
   if (!isWebCodecsSupported() || !scrcpyCanvasRef.value) {
     streamFallbackReason.value = describeStreamFallback()
     triggerScreenshotFallback(activeSession)
@@ -719,6 +715,7 @@ function initScrcpyStream(serial: string) {
       }
     },
     onFallback: () => {
+      if (activeSession !== mirrorSession) return
       closeScrcpyStream()
       triggerScreenshotFallback(activeSession)
     },
@@ -729,31 +726,66 @@ function initScrcpyStream(serial: string) {
     fpsCount = 0
   }, 1000)
 
-  // 如果 5 秒内未收到首帧，自动启用截图轮询兜底
+  // 若在首帧超时窗口内仍未解码出画面，自动启用截图轮询兜底（收到首帧后会自动停止轮询）
+  const fallbackWaitMs = useDeviceScopedScrcpy ? 10000 : 5000
   scrcpyFallbackTimer = setTimeout(() => {
-    if (!isScrcpyLive.value) {
+    if (activeSession === mirrorSession && !isScrcpyLive.value) {
       triggerScreenshotFallback(activeSession)
     }
-  }, 5000)
+  }, fallbackWaitMs)
 
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   // WebSocket 握手自动携带同源 HttpOnly Cookie，JWT 不进 URL。
-  const wsUrl = `${proto}//${window.location.host}/ws/scrcpy/${encodeURIComponent(serial)}`
+  let wsUrl: string
+  if (useDeviceScopedScrcpy && props.device?.id) {
+    const params = new URLSearchParams()
+    if (effectiveLeaseToken.value) params.set('lease_token', effectiveLeaseToken.value)
+    if (forceReconnect) params.set('reconnect', '1')
+    const query = params.toString()
+    wsUrl = `${proto}//${window.location.host}/ws/scrcpy/devices/${props.device.id}${query ? `?${query}` : ''}`
+  } else {
+    wsUrl = `${proto}//${window.location.host}/ws/scrcpy/${encodeURIComponent(serial)}`
+  }
   scrcpyWs = new WebSocket(wsUrl)
   scrcpyWs.binaryType = 'arraybuffer'
 
   scrcpyWs.onmessage = (event) => {
     if (event.data instanceof ArrayBuffer) {
       scrcpyDecoder?.push(new Uint8Array(event.data))
+      return
+    }
+    if (typeof event.data === 'string') {
+      try {
+        const msg = JSON.parse(event.data) as {
+          type?: string
+          width?: number
+          height?: number
+          code?: string
+          message?: string
+        }
+        if (msg.type === 'metadata' && msg.width && msg.height) {
+          realResolution.value = { w: Number(msg.width), h: Number(msg.height) }
+        } else if (msg.type === 'error') {
+          if (msg.code === 'control_denied') {
+            if (msg.message) message.warning(msg.message)
+          } else if (msg.message) {
+            streamFallbackReason.value = msg.message
+          }
+        }
+      } catch {
+        // 忽略非 JSON 文本消息
+      }
     }
   }
 
   scrcpyWs.onclose = () => {
+    if (activeSession !== mirrorSession) return
     closeScrcpyStream()
     triggerScreenshotFallback(activeSession)
   }
 
   scrcpyWs.onerror = () => {
+    if (activeSession !== mirrorSession) return
     closeScrcpyStream()
     triggerScreenshotFallback(activeSession)
   }
@@ -789,11 +821,27 @@ function closeScrcpyStream() {
   currentFps.value = 0
 }
 
-function handleReconnectStream() {
+async function handleReconnectStream() {
   if (!props.device) return
+  const activeDevice = props.device
+  const activeSession = mirrorSession
   mirrorError.value = ''
+  streamFallbackReason.value = ''
   stopMirrorPolling()
-  initScrcpyStream(props.device.serial)
+  closeScrcpyStream()
+  if (!isWebCodecsSupported() || !scrcpyCanvasRef.value) {
+    initScrcpyStream(activeDevice.serial, false)
+    return
+  }
+  if (props.canModify !== false && typeof deviceApi.reconnectStream === 'function') {
+    try {
+      await deviceApi.reconnectStream(activeDevice.id, true)
+    } catch {
+      // REST 预热失败时仍继续尝试 WebSocket，由服务端返回详细 error 原因或回退截图
+    }
+  }
+  if (!props.open || activeSession !== mirrorSession || props.device?.id !== activeDevice.id) return
+  initScrcpyStream(activeDevice.serial, false)
 }
 
 function getCanvasCoords(e: MouseEvent) {
@@ -815,6 +863,7 @@ function getCanvasCoords(e: MouseEvent) {
 }
 
 function sendWsTouch(action: 0 | 1 | 2, coords: { x: number; y: number; w: number; h: number }) {
+  if (!hasControlLease.value) return false
   if (scrcpyWs && scrcpyWs.readyState === WebSocket.OPEN) {
     scrcpyWs.send(
       JSON.stringify({
@@ -824,6 +873,7 @@ function sendWsTouch(action: 0 | 1 | 2, coords: { x: number; y: number; w: numbe
         y: coords.y,
         w: coords.w,
         h: coords.h,
+        ...(effectiveLeaseToken.value ? { lease_token: effectiveLeaseToken.value } : {}),
       }),
     )
     return true
@@ -833,6 +883,10 @@ function sendWsTouch(action: 0 | 1 | 2, coords: { x: number; y: number; w: numbe
 
 function onCanvasMouseDown(e: MouseEvent) {
   if (e.button !== 0 || !props.device) return
+  if (!(recording.value && pickAssertMode.value) && !hasControlLease.value) {
+    message.warning(t('device.mirror_modal.readonly_warning'))
+    return
+  }
   isMouseDown = true
   const coords = getCanvasCoords(e)
   showRipple(e.clientX, e.clientY)
@@ -999,7 +1053,13 @@ async function sendKeyEvent(keycode: number | string) {
     return
   }
   if (isScrcpyLive.value && scrcpyWs && scrcpyWs.readyState === WebSocket.OPEN) {
-    scrcpyWs.send(JSON.stringify({ type: 'key', keycode: Number(keycode) }))
+    scrcpyWs.send(
+      JSON.stringify({
+        type: 'key',
+        keycode: Number(keycode),
+        ...(effectiveLeaseToken.value ? { lease_token: effectiveLeaseToken.value } : {}),
+      }),
+    )
     recordKeyEvent(Number(keycode))
     return
   }
@@ -1038,7 +1098,13 @@ async function sendQuickText() {
     }
   }
   if (isScrcpyLive.value && scrcpyWs && scrcpyWs.readyState === WebSocket.OPEN) {
-    scrcpyWs.send(JSON.stringify({ type: 'text', text }))
+    scrcpyWs.send(
+      JSON.stringify({
+        type: 'text',
+        text,
+        ...(effectiveLeaseToken.value ? { lease_token: effectiveLeaseToken.value } : {}),
+      }),
+    )
     recordQuickStep()
     quickInputText.value = ''
     return

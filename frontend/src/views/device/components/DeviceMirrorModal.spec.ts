@@ -47,6 +47,7 @@ vi.mock('@/api', () => ({
     swipe: vi.fn(),
     uiTarget: uiTargetMock,
     uiAnchors: uiAnchorsMock,
+    reconnectStream: vi.fn(),
     acquireLease: acquireLeaseMock,
     heartbeatLease: heartbeatLeaseMock,
     releaseLease: releaseLeaseMock,
@@ -713,10 +714,10 @@ describe('DeviceMirrorModal', () => {
     wrapper.unmount()
   })
 
-  it('skips Scrcpy WebSocket for worker-owned devices while preserving Scrcpy for local devices', async () => {
+  it('routes worker-owned devices to device-scoped Scrcpy WebSocket relay while preserving local Scrcpy path', async () => {
     vi.useFakeTimers()
     const OriginalWebSocket = globalThis.WebSocket
-    const wsUrls: string[] = []
+    const wsInstances: Array<{ url: string; sent: string[]; onmessage: ((e: any) => void) | null; onclose: (() => void) | null; onerror: (() => void) | null }> = []
     class FakeWS {
       static OPEN = 1
       readyState = 1
@@ -725,10 +726,15 @@ describe('DeviceMirrorModal', () => {
       onclose: (() => void) | null = null
       onerror: (() => void) | null = null
       onmessage: ((e: any) => void) | null = null
+      sent: string[] = []
+      url: string
       constructor(url: string) {
-        wsUrls.push(url)
+        this.url = url
+        wsInstances.push(this)
       }
-      send() {}
+      send(data: string) {
+        this.sent.push(data)
+      }
       close() {}
     }
     globalThis.WebSocket = FakeWS as unknown as typeof WebSocket
@@ -740,7 +746,16 @@ describe('DeviceMirrorModal', () => {
       })
       await vi.advanceTimersByTimeAsync(80)
       await flushPromises()
-      expect(wsUrls).toEqual([])
+      expect(wsInstances.some((ws) => ws.url.includes('/ws/scrcpy/devices/11') && ws.url.includes('lease_token=lease-worker'))).toBe(true)
+
+      const workerWs = wsInstances[0]
+      workerWs.onmessage?.({ data: JSON.stringify({ type: 'metadata', width: 1080, height: 2340 }) } as any)
+      await workerWrapper.vm.$nextTick()
+      expect((workerWrapper.vm as unknown as { realResolution: { w: number; h: number } }).realResolution).toEqual({ w: 1080, h: 2340 })
+
+      // 模拟中继断开时，平滑退回截图轮询兜底。
+      workerWs.onerror?.()
+      await flushPromises()
       expect(workerWrapper.find('.mirror-img').exists()).toBe(true)
       workerWrapper.unmount()
 
@@ -751,8 +766,70 @@ describe('DeviceMirrorModal', () => {
       })
       await vi.advanceTimersByTimeAsync(80)
       await flushPromises()
-      expect(wsUrls.some((url) => url.includes('/ws/scrcpy/DEV-LOCAL'))).toBe(true)
+      expect(wsInstances.some((ws) => ws.url.includes('/ws/scrcpy/DEV-LOCAL'))).toBe(true)
       localWrapper.unmount()
+    } finally {
+      globalThis.WebSocket = OriginalWebSocket
+    }
+  })
+
+  it('reconnects stream via deviceApi.reconnectStream and attaches lease_token to WS control commands', async () => {
+    vi.useFakeTimers()
+    const OriginalWebSocket = globalThis.WebSocket
+    const wsInstances: Array<{ url: string; sent: string[] }> = []
+    class FakeWS {
+      static OPEN = 1
+      readyState = 1
+      binaryType = 'arraybuffer'
+      onopen: (() => void) | null = null
+      onclose: (() => void) | null = null
+      onerror: (() => void) | null = null
+      onmessage: ((e: any) => void) | null = null
+      sent: string[] = []
+      url: string
+      constructor(url: string) {
+        this.url = url
+        wsInstances.push(this)
+      }
+      send(data: string) {
+        this.sent.push(data)
+      }
+      close() {}
+    }
+    globalThis.WebSocket = FakeWS as unknown as typeof WebSocket
+    const { deviceApi } = await import('@/api')
+    const reconnectSpy = vi.mocked(deviceApi.reconnectStream)
+    reconnectSpy.mockResolvedValue({ status: 'ok', mode: 'worker_relay', device_id: 21, serial: 'DEV-R11' })
+
+    try {
+      const wrapper = mountModal({
+        open: true,
+        device: { id: 21, serial: 'DEV-R11', worker_id: 'worker-local', status: 'online' },
+        leaseToken: 'lease-21',
+      })
+      await vi.advanceTimersByTimeAsync(80)
+      await flushPromises()
+      expect(wsInstances).toHaveLength(1)
+
+      const vm = wrapper.vm as unknown as {
+        isScrcpyLive: boolean
+        sendKeyEvent: (keycode: number) => Promise<void>
+        handleReconnectStream: () => Promise<void>
+      }
+      vm.isScrcpyLive = true
+      await vm.sendKeyEvent(3)
+      expect(JSON.parse(wsInstances[0].sent[0])).toEqual({
+        type: 'key',
+        keycode: 3,
+        lease_token: 'lease-21',
+      })
+
+      await vm.handleReconnectStream()
+      await flushPromises()
+      expect(reconnectSpy).toHaveBeenCalledWith(21, true)
+      expect(wsInstances).toHaveLength(2)
+      expect(wsInstances[1].url).toContain('/ws/scrcpy/devices/21')
+      wrapper.unmount()
     } finally {
       globalThis.WebSocket = OriginalWebSocket
     }

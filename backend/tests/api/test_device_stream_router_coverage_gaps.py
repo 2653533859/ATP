@@ -122,6 +122,12 @@ class _ManualExecutor(concurrent.futures.ThreadPoolExecutor):
         return future
 
 
+@pytest.fixture(autouse=True)
+def _default_single_node_scrcpy_settings(monkeypatch):
+    monkeypatch.setattr(ds_router.settings, "ANDROID_MULTI_NODE_ENABLED", False)
+    monkeypatch.setattr(ds_router.settings, "ADB_SCAN_MODE", "local")
+
+
 def _patch_user(monkeypatch):
     async def fake_get_user(_websocket):
         return _user()
@@ -375,3 +381,209 @@ def test_reconnect_scrcpy_triggers_stream_setup(monkeypatch):
     _patch_manager(monkeypatch, ensure_device_stream=ensured.append)
     assert ds_router.reconnect_scrcpy("SER-9") == {"status": "ok", "serial": "SER-9"}
     assert ensured == ["SER-9"]
+
+
+class _DeviceWs(_FakeWebSocket):
+    def __init__(self, texts=(), cookies=None, query_params=None, wake_first_send=None):
+        super().__init__(texts=texts, cookies=cookies, query_params=query_params, wake_first_send=wake_first_send)
+        self.sent_texts = []
+        self.close_reasons = []
+
+    async def send_text(self, text):
+        self.sent_texts.append(text)
+
+    async def close(self, code=1000, reason=None):
+        self.closed.append(code)
+        self.close_reasons.append(reason)
+
+
+class _DeviceLookupSession:
+    def __init__(self, device):
+        self._device = device
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def get(self, _model, _key):
+        return self._device
+
+
+def test_reconnect_scrcpy_by_device_id_routes_local_and_worker_relay(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app.models.device import Device, DeviceStatus
+
+    online_local = Device(id=10, serial="SER-LOCAL", status=DeviceStatus.online, worker_id="local")
+    online_worker = Device(id=11, serial="SER-WIN", status=DeviceStatus.online, worker_id="worker-win")
+    offline_dev = Device(id=12, serial="SER-OFF", status=DeviceStatus.offline, worker_id="worker-win")
+    unclaimed_dev = Device(id=13, serial="SER-FREE", status=DeviceStatus.online, worker_id=None)
+
+    # 1. Not found -> 404
+    with pytest.raises(HTTPException) as not_found:
+        asyncio.run(ds_router.reconnect_scrcpy_by_device_id(999, True, db=_DeviceLookupSession(None)))
+    assert not_found.value.status_code == 404
+
+    # 2. Offline -> 400
+    with pytest.raises(HTTPException) as offline_exc:
+        asyncio.run(ds_router.reconnect_scrcpy_by_device_id(12, True, db=_DeviceLookupSession(offline_dev)))
+    assert offline_exc.value.status_code == 400
+
+    # 3. Local mode reconnect cleans & restarts scrcpy_manager
+    monkeypatch.setattr(ds_router.settings, "ATP_LOCAL_MODE", True)
+    monkeypatch.setattr(ds_router.settings, "ANDROID_MULTI_NODE_ENABLED", False)
+    cleaned = []
+    ensured = []
+    monkeypatch.setattr(ds_router.scrcpy_manager, "_cleanup_device", cleaned.append)
+    monkeypatch.setattr(
+        ds_router.scrcpy_manager,
+        "ensure_device_stream",
+        lambda serial: ensured.append(serial) or SimpleNamespace(screen_width=1080, screen_height=1920),
+    )
+    res_local = asyncio.run(ds_router.reconnect_scrcpy_by_device_id(10, True, db=_DeviceLookupSession(online_local)))
+    assert res_local["mode"] == "local"
+    assert cleaned == ["SER-LOCAL"]
+    assert ensured == ["SER-LOCAL"]
+
+    # 4. Multi-node worker mode
+    monkeypatch.setattr(ds_router.settings, "ATP_LOCAL_MODE", False)
+    monkeypatch.setattr(ds_router.settings, "ANDROID_MULTI_NODE_ENABLED", True)
+
+    with pytest.raises(HTTPException) as unclaimed_exc:
+        asyncio.run(ds_router.reconnect_scrcpy_by_device_id(13, True, db=_DeviceLookupSession(unclaimed_dev)))
+    assert unclaimed_exc.value.status_code == 409
+
+    from app.services import android_worker_registry
+
+    async def fake_get_worker(worker_id):
+        if worker_id == "worker-win":
+            return {"worker_id": "worker-win", "instance_generation": 42}
+        return None
+
+    monkeypatch.setattr(android_worker_registry, "get_android_worker", fake_get_worker)
+
+    reconnect_calls = []
+
+    async def fake_remote_reconnect(worker_id, serial, *, expected_generation=None, force=True):
+        reconnect_calls.append((worker_id, serial, expected_generation, force))
+        return {"ok": True, "width": 1080, "height": 2340}
+
+    monkeypatch.setattr(ds_router, "request_remote_scrcpy_reconnect", fake_remote_reconnect)
+    res_remote = asyncio.run(ds_router.reconnect_scrcpy_by_device_id(11, True, db=_DeviceLookupSession(online_worker)))
+    assert res_remote == {
+        "status": "ok",
+        "mode": "worker_relay",
+        "device_id": 11,
+        "serial": "SER-WIN",
+        "worker_id": "worker-win",
+        "width": 1080,
+        "height": 2340,
+    }
+    assert reconnect_calls == [("worker-win", "SER-WIN", 42, True)]
+
+    # Sanity check datetime import free
+    assert datetime.now(timezone.utc) + timedelta(seconds=10) > datetime.now(timezone.utc)
+
+
+def test_device_scoped_ws_stream_enforces_lease_and_relays_worker_frames(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app.models.device import Device, DeviceStatus
+    from app.models.user import UserRole
+
+    worker_device = Device(id=21, serial="SER-R11", status=DeviceStatus.online, worker_id="worker-win")
+    engineer = SimpleNamespace(id=1, username="eng", role=UserRole.engineer, is_active=True)
+
+    monkeypatch.setattr(ds_router.settings, "ATP_LOCAL_MODE", False)
+    monkeypatch.setattr(ds_router.settings, "ANDROID_MULTI_NODE_ENABLED", True)
+
+    async def _get_eng(_ws):
+        return engineer
+
+    monkeypatch.setattr(ds_router, "_get_ws_user", _get_eng)
+    monkeypatch.setattr(ds_router, "AsyncSessionLocal", lambda: _DeviceLookupSession(worker_device))
+
+    from app.services import android_worker_registry
+
+    async def _worker_online(worker_id):
+        assert worker_id == "worker-win"
+        return {"worker_id": "worker-win", "instance_generation": 5}
+
+    monkeypatch.setattr(android_worker_registry, "get_android_worker", _worker_online)
+
+    async def _fake_lease(_db, dev_id, token):
+        if dev_id == 21 and token == "valid-lease":
+            return SimpleNamespace(
+                id=1,
+                device_id=21,
+                lease_token="valid-lease",
+                expires_at=datetime.now(timezone.utc) + timedelta(seconds=60),
+            )
+        return None
+
+    monkeypatch.setattr(ds_router, "get_active_device_lease", _fake_lease)
+
+    relay_calls = []
+    relay_closed = []
+
+    class _FakeRemoteStream:
+        def __init__(self, ws_received_all):
+            self.metadata = {"serial": "SER-R11", "width": 1080, "height": 1920, "device_name": "OPPO R11"}
+            self.error_code = None
+            self.error_message = None
+            self._chunks = iter([b"\x00\x00\x00\x01sps", b"\x00\x00\x00\x01idr"])
+            self._ws_received_all = ws_received_all
+
+        async def recv_chunk(self, timeout=1.0):
+            del timeout
+            nxt = next(self._chunks, None)
+            if nxt is None:
+                while not self._ws_received_all.is_set():
+                    await asyncio.sleep(0.01)
+                return None
+            return nxt
+
+        async def send_touch(self, action, x, y, width, height):
+            relay_calls.append(("touch", action, x, y, width, height))
+
+        async def send_key(self, keycode):
+            relay_calls.append(("key", keycode))
+
+        async def send_text(self, text):
+            relay_calls.append(("text", text))
+
+        async def close(self):
+            relay_closed.append(True)
+
+    ws = _DeviceWs(
+        texts=[
+            json.dumps({"type": "touch", "action": 0, "x": 10, "y": 20, "w": 1080, "h": 1920, "lease_token": "wrong"}),
+            json.dumps(
+                {"type": "touch", "action": 0, "x": 30, "y": 40, "w": 1080, "h": 1920, "lease_token": "valid-lease"}
+            ),
+            json.dumps({"type": "key", "keycode": 3, "lease_token": "valid-lease"}),
+            json.dumps({"type": "text", "text": "ok", "lease_token": "valid-lease"}),
+        ]
+    )
+
+    async def _fake_open_remote(worker_id, serial, *, expected_generation=None, force_restart=False):
+        relay_calls.append(("open", worker_id, serial, expected_generation, force_restart))
+        return _FakeRemoteStream(ws.received_all)
+
+    monkeypatch.setattr(ds_router, "open_remote_scrcpy_stream", _fake_open_remote)
+    asyncio.run(ds_router.scrcpy_device_video_stream(ws, 21, lease_token=None, reconnect=True))
+
+    assert ws.accepted == 1
+    assert ws.sent_bytes == [b"\x00\x00\x00\x01sps", b"\x00\x00\x00\x01idr"]
+    metadata_msg = json.loads(ws.sent_texts[0])
+    assert metadata_msg["type"] == "metadata"
+    assert metadata_msg["width"] == 1080
+    denied_msg = json.loads(ws.sent_texts[1])
+    assert denied_msg["code"] == "control_denied"
+    assert relay_calls == [
+        ("open", "worker-win", "SER-R11", 5, True),
+        ("touch", 0, 30, 40, 1080, 1920),
+        ("key", 3),
+        ("text", "ok"),
+    ]
+    assert relay_closed == [True]

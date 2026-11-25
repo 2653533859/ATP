@@ -244,12 +244,13 @@ def _schedule_performance_node_heartbeat(**_kwargs):
 
 _android_heartbeat_thread = None
 _android_local_identity_server = None
+_android_scrcpy_relay_agent = None
 
 
 @worker_ready.connect
 def _schedule_android_worker_heartbeat(sender=None, **_kwargs):
     """Start an independent daemon heartbeat thread for explicitly identified Android Workers."""
-    global _android_heartbeat_thread, _android_local_identity_server
+    global _android_heartbeat_thread, _android_local_identity_server, _android_scrcpy_relay_agent
     worker_id = settings.ANDROID_WORKER_ID.strip()
     if not worker_id:
         return
@@ -266,6 +267,7 @@ def _schedule_android_worker_heartbeat(sender=None, **_kwargs):
         worker_queues_for,
         _sync_redis_client,
     )
+    from app.services.scrcpy_relay import ScrcpyWorkerRelayAgent
 
     client = None
     try:
@@ -283,7 +285,10 @@ def _schedule_android_worker_heartbeat(sender=None, **_kwargs):
         set_current_worker_runtime(normalized_id, generation, token)
 
         def _stop_conflicted_worker() -> None:
-            global _android_local_identity_server
+            global _android_local_identity_server, _android_scrcpy_relay_agent
+            if _android_scrcpy_relay_agent is not None:
+                _android_scrcpy_relay_agent.stop()
+                _android_scrcpy_relay_agent = None
             if _android_local_identity_server is not None:
                 _android_local_identity_server.stop()
                 _android_local_identity_server = None
@@ -326,6 +331,13 @@ def _schedule_android_worker_heartbeat(sender=None, **_kwargs):
             )
             if identity_server.start():
                 _android_local_identity_server = identity_server
+
+        relay_agent = ScrcpyWorkerRelayAgent(
+            worker_id=normalized_id,
+            instance_generation=generation,
+        )
+        relay_agent.start()
+        _android_scrcpy_relay_agent = relay_agent
     except Exception as exc:
         mark_worker_runtime_conflict()
         if client is not None:
@@ -344,7 +356,10 @@ def _schedule_android_worker_heartbeat(sender=None, **_kwargs):
 @worker_shutdown.connect
 @worker_process_shutdown.connect
 def _shutdown_android_worker_heartbeat(**_kwargs):
-    global _android_heartbeat_thread, _android_local_identity_server
+    global _android_heartbeat_thread, _android_local_identity_server, _android_scrcpy_relay_agent
+    if _android_scrcpy_relay_agent is not None:
+        _android_scrcpy_relay_agent.stop()
+        _android_scrcpy_relay_agent = None
     if _android_local_identity_server is not None:
         _android_local_identity_server.stop()
         _android_local_identity_server = None

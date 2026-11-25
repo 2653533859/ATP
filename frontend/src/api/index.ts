@@ -2529,6 +2529,12 @@ export const deviceApi = {
   inputText: (id: number, text: string, leaseToken?: string | null) =>
     http.post(`/devices/${id}/text`, { text }, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   screenshotUrl: (id: number) => `/api/v1/devices/${id}/screenshot`,
+  reconnectStream: (id: number, force = true) =>
+    http.post<unknown, { status: string; mode?: string; device_id: number; serial: string; worker_id?: string }>(
+      `/devices/by-id/${id}/stream/reconnect`,
+      undefined,
+      { params: { force } },
+    ),
   groups: () => http.get<unknown, DeviceGroupItem[]>('/device-groups'),
   createGroup: (data: { name: string; description?: string; device_ids: number[] }) =>
     http.post<unknown, DeviceGroupItem>('/device-groups', data),
