@@ -5,6 +5,8 @@
     centered
     :footer="null"
     :destroy-on-close="true"
+    :mask-closable="false"
+    :keyboard="false"
     class="device-mirror-dialog"
     @cancel="handleClose"
   >

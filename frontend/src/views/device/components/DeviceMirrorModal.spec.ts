@@ -64,16 +64,26 @@ vi.mock('@/composables/useWebCodecsDecoder', () => ({
 
 const modalStub = defineComponent({
   name: 'AModal',
-  props: ['open', 'title', 'width'],
+  props: ['open', 'title', 'width', 'maskClosable', 'keyboard'],
   emits: ['cancel', 'update:open'],
   setup(props, { slots, emit }) {
     return () =>
       props.open
-        ? h('div', { class: 'ant-modal', 'data-title': props.title, 'data-width': props.width }, [
-            h('div', { class: 'ant-modal-title' }, slots.title ? slots.title() : props.title),
-            h('button', { class: 'modal-close', onClick: () => emit('cancel') }, 'close'),
-            slots.default?.(),
-          ])
+        ? h(
+            'div',
+            {
+              class: 'ant-modal',
+              'data-title': props.title,
+              'data-width': props.width,
+              'data-mask-closable': String(props.maskClosable),
+              'data-keyboard': String(props.keyboard),
+            },
+            [
+              h('div', { class: 'ant-modal-title' }, slots.title ? slots.title() : props.title),
+              h('button', { class: 'modal-close', onClick: () => emit('cancel') }, 'close'),
+              slots.default?.(),
+            ],
+          )
         : null
   },
 })
@@ -833,5 +843,17 @@ describe('DeviceMirrorModal', () => {
     } finally {
       globalThis.WebSocket = OriginalWebSocket
     }
+  })
+
+  it('disables mask and ESC keyboard closing to prevent accidental dismissal while mirroring', () => {
+    const wrapper = mountModal({
+      open: true,
+      device: { id: 30, serial: 'DEV-LOCK-CLOSE', status: 'online' },
+      leaseToken: 'lease-30',
+    })
+    const modal = wrapper.find('.ant-modal')
+    expect(modal.attributes('data-mask-closable')).toBe('false')
+    expect(modal.attributes('data-keyboard')).toBe('false')
+    wrapper.unmount()
   })
 })
