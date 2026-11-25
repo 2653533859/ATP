@@ -329,8 +329,9 @@ def test_fluency_run_stops_stages_after_device_lost(
 
     asyncio.run(android_fluency_executor.run_mobile_special_fluency(_FakeDB(), run))
 
-    assert run.status is RunStatus.completed
+    assert run.status is RunStatus.failed
     assert run.summary_json["device_lost"] is True
+    assert "失联" in run.summary_json.get("error_message", "")
     assert quiet_adb == []  # 掉线后一个 stage 都不执行
     types_seen = [e["type"] for e in chain_events]
     assert "stage_start" not in types_seen

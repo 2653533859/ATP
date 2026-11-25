@@ -24,7 +24,7 @@ from app.models.apk import Apk
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.apk import ApkOut, ApkUpdate
-from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.services.apk_metadata import extract_apk_metadata
 from app.services.project_scope import scope_to_visible_projects
 from app.models.user_project import ProjectRole
@@ -78,7 +78,7 @@ async def upload_apk(
     version_code: int | None = Form(None),
     description: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     """上传 APK 文件到 MinIO 并创建记录"""
     # 校验项目存在
@@ -177,7 +177,7 @@ async def update_apk(
     apk_id: int,
     body: ApkUpdate,
     db: AsyncSession = Depends(get_db),
-    user=Depends(require_engineer),
+    user=Depends(get_current_user),
 ):
     apk = await db.get(Apk, apk_id)
     if not apk:
@@ -194,7 +194,7 @@ async def update_apk(
 async def delete_apk(
     apk_id: int,
     db: AsyncSession = Depends(get_db),
-    user=Depends(require_engineer),
+    user=Depends(get_current_user),
 ):
     apk = await db.get(Apk, apk_id)
     if not apk:

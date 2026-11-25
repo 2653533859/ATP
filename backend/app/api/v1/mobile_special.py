@@ -41,7 +41,6 @@ from app.schemas.mobile_special import (
 from app.api.deps import (
     assert_project_access,
     get_current_user,
-    require_engineer,
 )
 from app.models.user_project import ProjectRole
 from app.services.mobile_special_control import request_cancel
@@ -153,13 +152,17 @@ async def _enqueue_mobile_run_or_fail(
     try:
         _enqueue_mobile_run(run.id, worker_id=resolved_worker_id)
     except Exception as exc:
-        if settings.ATP_LOCAL_MODE:
-            run.status = RunStatus.failed
-            run.finished_at = datetime.now(timezone.utc)
-            run.summary_json = {"error_message": "本地执行任务投递失败"}
-            await db.commit()
-            raise HTTPException(status_code=503, detail="本地执行任务投递失败，请检查 SQLite 状态") from exc
-        raise
+        err_msg = "本地执行任务投递失败" if settings.ATP_LOCAL_MODE else f"执行任务投递失败: {str(exc)[:300]}"
+        run.status = RunStatus.failed
+        run.finished_at = datetime.now(timezone.utc)
+        run.summary_json = {"error_message": err_msg}
+        await db.commit()
+        detail = (
+            "本地执行任务投递失败，请检查 SQLite 状态"
+            if settings.ATP_LOCAL_MODE
+            else f"执行任务投递失败: {str(exc)[:300]}"
+        )
+        raise HTTPException(status_code=503, detail=detail) from exc
 
 
 async def _resolve_apk_package(
@@ -285,7 +288,7 @@ async def list_tasks(
 async def create_task(
     body: MobileSpecialTaskCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_engineer),
+    current_user=Depends(get_current_user),
 ):
     """Create a new mobile special task."""
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
@@ -329,7 +332,7 @@ async def update_task(
     task_id: int,
     body: MobileSpecialTaskUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_engineer),
+    current_user=Depends(get_current_user),
 ):
     """Update a mobile special task."""
     task = await db.get(MobileSpecialTask, task_id)
@@ -363,7 +366,7 @@ async def update_task(
 async def delete_task(
     task_id: int,
     db: AsyncSession = Depends(get_db),
-    user=Depends(require_engineer),
+    user=Depends(get_current_user),
 ):
     """Delete a mobile special task."""
     task = await db.get(MobileSpecialTask, task_id)
@@ -382,7 +385,7 @@ async def trigger_task_run(
     task_id: int,
     body: RunTriggerRequest,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_engineer),
+    current_user=Depends(get_current_user),
 ):
     """Manually trigger a mobile special task run."""
     task = await db.get(MobileSpecialTask, task_id)
@@ -441,6 +444,9 @@ async def trigger_task_run(
     await db.refresh(run)
 
     await _enqueue_mobile_run_or_fail(run, db, worker_id=resolved_worker_id)
+    task.last_run_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(run)
 
     return run
 
@@ -449,7 +455,7 @@ async def trigger_task_run(
 async def stop_run(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_engineer),
+    current_user=Depends(get_current_user),
 ):
     """Stop a running mobile special task."""
     run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor, for_update=True)
@@ -478,7 +484,7 @@ async def stop_run(
 async def replay_run(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_engineer),
+    current_user=Depends(get_current_user),
 ):
     """Create a new run with the original configuration, including Monkey seed."""
     source_run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
@@ -489,7 +495,16 @@ async def replay_run(
         raise HTTPException(status_code=400, detail="Only Monkey stability runs support replay")
 
     config = dict(source_run.config_snapshot or {})
+    config.pop("_expected_worker_id", None)
+    config.pop("_expected_generation", None)
     config["replay_of_run_id"] = source_run.id
+    if settings.ATP_LOCAL_MODE:
+        if source_run.device_id is None and not (source_run.device_serial or config.get("device_serial")):
+            raise HTTPException(status_code=409, detail="请先连接 Android 设备并在 APP 工作台扫描后选择设备")
+        if source_run.device_id is not None:
+            selected_device = await db.get(Device, source_run.device_id)
+            if selected_device is None or selected_device.status != DeviceStatus.online:
+                raise HTTPException(status_code=409, detail="所选 Android 设备不在线，请重新扫描")
     resolved_dev_id, resolved_serial, resolved_worker_id, expected_gen = await _resolve_mobile_run_target(
         db,
         device_id=source_run.device_id,
@@ -575,7 +590,7 @@ async def get_run(
 async def delete_run(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_engineer),
+    current_user=Depends(get_current_user),
 ):
     """Delete one finished mobile special run record."""
     run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)

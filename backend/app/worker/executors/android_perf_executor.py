@@ -19,7 +19,7 @@ import logging
 import subprocess
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -36,6 +36,7 @@ from app.models.mobile_special import (
     ArtifactType,
 )
 from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable
+from app.services.adb_service import adb_subprocess_kwargs
 from app.services.mobile_special.adb_client import (
     run_adb_shell,
     build_meminfo_cmd,
@@ -129,7 +130,9 @@ def _resolve_pid(serial: str, package: str) -> Optional[int]:
 
 def _clear_logcat_buffer(serial: str) -> None:
     try:
-        subprocess.run(["adb", "-s", serial, "logcat", "-c"], capture_output=True, timeout=10)
+        subprocess.run(
+            ["adb", "-s", serial, "logcat", "-c"], capture_output=True, timeout=10, **adb_subprocess_kwargs()
+        )
     except Exception:
         logger.debug("failed to clear logcat for %s", serial, exc_info=True)
 
@@ -159,6 +162,7 @@ def _start_screen_recording(serial: str, remote_path: str, max_seconds: int):
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
+            **adb_subprocess_kwargs(),
         )
     except Exception as exc:
         logger.warning("failed to start Android replay recording for %s: %s", serial, exc)
@@ -176,7 +180,12 @@ def _replay_window_seconds(value: object) -> int:
 
 async def _remove_remote_recording(serial: str, remote_path: str) -> None:
     try:
-        await asyncio.to_thread(subprocess.run, ["adb", "-s", serial, "shell", "rm", remote_path], timeout=10)
+        await asyncio.to_thread(
+            subprocess.run,
+            ["adb", "-s", serial, "shell", "rm", remote_path],
+            timeout=10,
+            **adb_subprocess_kwargs(),
+        )
     except Exception:
         logger.debug("failed to remove Android replay segment %s", remote_path, exc_info=True)
 
@@ -217,6 +226,7 @@ async def _finish_screen_recording(
             capture_output=True,
             text=True,
             timeout=30,
+            **adb_subprocess_kwargs(),
         )
         if pulled.returncode != 0 or not local_path.exists():
             return None, None
@@ -247,7 +257,7 @@ async def _sample_once(
 ) -> list[dict]:
     """执行一次采样，返回样本列表"""
     samples = []
-    sample_time = datetime.now()
+    sample_time = datetime.now(timezone.utc)
 
     if collect_performance:
         # CPU
@@ -390,7 +400,7 @@ async def run_mobile_special_perf(
     validation_errors = _validate_inputs(device_serial, app_package, config)
     if validation_errors:
         run.status = RunStatus.failed
-        run.finished_at = datetime.now()
+        run.finished_at = datetime.now(timezone.utc)
         run.summary_json = {"error_message": "; ".join(validation_errors)}
         await db.commit()
         await events.record(
@@ -422,7 +432,7 @@ async def run_mobile_special_perf(
     )
     if not reachable:
         run.status = RunStatus.failed
-        run.finished_at = datetime.now()
+        run.finished_at = datetime.now(timezone.utc)
         run.summary_json = {"error_message": f"设备不可达: {device_message}"}
         await db.commit()
         await events.record(
@@ -448,7 +458,7 @@ async def run_mobile_special_perf(
         )
         return
 
-    run.started_at = datetime.now()
+    run.started_at = datetime.now(timezone.utc)
     run.status = RunStatus.running
     await db.commit()
     await events.record(
@@ -506,7 +516,7 @@ async def run_mobile_special_perf(
         if not app_started:
             error_message = f"应用启动失败: {app_package}"
             run.status = RunStatus.failed
-            run.finished_at = datetime.now()
+            run.finished_at = datetime.now(timezone.utc)
             run.duration_ms = 0
             run.summary_json = {"error_message": error_message, "app_package": app_package}
             await db.commit()
@@ -577,6 +587,8 @@ async def run_mobile_special_perf(
     sample_count = 0
     device_lost_at: Optional[float] = None
     cancelled = False
+    execution_error: str | None = None
+    sampling_error: str | None = None
 
     def _on_device_lost(reason: str) -> None:
         nonlocal device_lost_at
@@ -592,6 +604,7 @@ async def run_mobile_special_perf(
         async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost, executor_label="perf") as hb:
             while (time.monotonic() - start_time) < duration_seconds:
                 if hb.lost:
+                    execution_error = f"设备 {device_serial} 在性能采集期间失联"
                     break
                 if cancel_check is not None and await asyncio.to_thread(cancel_check):
                     cancelled = True
@@ -670,6 +683,7 @@ async def run_mobile_special_perf(
                 await asyncio.sleep(interval_seconds)
     except Exception as e:
         logger.exception("perf sampling error for run %s: %s", run.id, e)
+        sampling_error = f"性能采集异常: {str(e)[:500]}"
 
     incidents_data: list[dict] = []
     raw_logcat = ""
@@ -722,7 +736,7 @@ async def run_mobile_special_perf(
     for sample_data in all_samples:
         sample = MobileMetricSample(
             run_id=run.id,
-            sample_time=sample_data.get("sample_time", datetime.now()),
+            sample_time=sample_data.get("sample_time", datetime.now(timezone.utc)),
             metric_type=sample_data["metric_type"],
             metric_value=sample_data["metric_value"],
             source=sample_data.get("source"),
@@ -736,7 +750,7 @@ async def run_mobile_special_perf(
         incident = MobileIncident(
             run_id=run.id,
             incident_type=incident_data.get("incident_type", "crash"),
-            event_time=incident_data.get("event_time", datetime.now()),
+            event_time=incident_data.get("event_time", datetime.now(timezone.utc)),
             title=incident_data.get("title"),
             detail=incident_data.get("detail"),
             process_name=incident_data.get("process_name"),
@@ -832,12 +846,18 @@ async def run_mobile_special_perf(
     # 8. 更新 Run
     if cancelled:
         run.status = RunStatus.stopped
+    elif execution_error:
+        run.status = RunStatus.failed
+        summary["error_message"] = execution_error
     elif not all_samples and not incidents_data:
         run.status = RunStatus.failed
         summary["error_message"] = "未采集到有效性能指标"
+    elif sampling_error:
+        run.status = RunStatus.failed
+        summary["error_message"] = sampling_error
     else:
         run.status = RunStatus.completed
-    run.finished_at = datetime.now()
+    run.finished_at = datetime.now(timezone.utc)
     run.duration_ms = total_ms
     run.summary_json = summary
     await db.commit()
@@ -859,7 +879,13 @@ async def run_mobile_special_perf(
             "duration_ms": total_ms,
             "summary": summary,
             "progress": 100,
-            "current_step": "执行完成" if run.status == RunStatus.completed else "执行已停止",
+            "current_step": (
+                "执行完成"
+                if run.status == RunStatus.completed
+                else "执行失败"
+                if run.status == RunStatus.failed
+                else "执行已停止"
+            ),
             "device_status": "online" if device_lost_at is None else "offline",
             "error": summary.get("error_message"),
         },

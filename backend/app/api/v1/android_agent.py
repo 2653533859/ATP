@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from datetime import datetime, timezone
 import asyncio
 import hashlib
 import json
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, status
@@ -67,6 +69,7 @@ from app.services.android_agent.device_adapter import DeviceAdapterError, UiTarg
 from app.services.android_agent.replay import (
     build_replay_preview,
     find_published_case,
+    find_replay_by_idempotency,
     find_verified_replay,
     start_replay,
     sync_draft_replays,
@@ -74,8 +77,21 @@ from app.services.android_agent.replay import (
 )
 from app.services.device_leases import get_active_device_lease, release_device_lease
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/android-agent", tags=["Android Agent"])
 coordinator = AgentCoordinator()
+_ACTIVE_AGENT_RUN_TASKS: dict[int, asyncio.Task[Any]] = {}
+_CREATE_SESSION_IDEM_CACHE: OrderedDict[tuple[int, int, str], int] = OrderedDict()
+
+
+async def shutdown_active_agent_tasks() -> None:
+    tasks = list(_ACTIVE_AGENT_RUN_TASKS.values())
+    for task in tasks:
+        if not task.done():
+            task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+    _ACTIVE_AGENT_RUN_TASKS.clear()
 
 
 async def _lock_agent_session(db: AsyncSession, session_id: int) -> AndroidAgentSession:
@@ -232,14 +248,30 @@ async def list_agent_models(
 async def create_agent_session(
     payload: AgentSessionCreate,
     project_id: int = Path(..., ge=1),
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AndroidAgentSession:
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
     _require_android_agent_interactive_allowed()
+    norm_key = idempotency_key.strip() if isinstance(idempotency_key, str) else ""
+    if norm_key:
+        cache_tuple = (project_id, int(current_user.id), norm_key)
+        cached_sid = _CREATE_SESSION_IDEM_CACHE.get(cache_tuple)
+        if cached_sid is not None:
+            _CREATE_SESSION_IDEM_CACHE.move_to_end(cache_tuple)
+            existing_session = await db.get(AndroidAgentSession, cached_sid)
+            if existing_session is not None and existing_session.project_id == project_id:
+                return existing_session
     session = await coordinator.create_session(db, project_id, payload)
     await db.commit()
     await db.refresh(session)
+    if norm_key:
+        cache_tuple = (project_id, int(current_user.id), norm_key)
+        _CREATE_SESSION_IDEM_CACHE[cache_tuple] = session.id
+        _CREATE_SESSION_IDEM_CACHE.move_to_end(cache_tuple)
+        while len(_CREATE_SESSION_IDEM_CACHE) > 2048:
+            _CREATE_SESSION_IDEM_CACHE.popitem(last=False)
     return session
 
 
@@ -741,7 +773,8 @@ async def complete_agent_session(
 @router.post(
     "/sessions/{session_id}/run",
     response_model=AgentRunResultResponse,
-    summary="驱动模型循环执行一轮会话（阻塞至收敛）",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="异步启动模型循环后台执行（立即返回 202，经由事件流轮询跟踪）",
 )
 async def run_agent_session_endpoint(
     project_id: int = Path(..., ge=1),
@@ -758,6 +791,12 @@ async def run_agent_session_endpoint(
             status_code=409,
             detail=f"agent_loop_rejected: 会话状态 {session.status}，只有 running 会话可以驱动",
         )
+    existing_task = _ACTIVE_AGENT_RUN_TASKS.get(session_id)
+    if existing_task is not None and not existing_task.done():
+        raise HTTPException(
+            status_code=409,
+            detail="agent_loop_rejected: 会话循环已在后台执行中，请勿重复启动",
+        )
     if session.device_id is None:
         raise HTTPException(status_code=409, detail="device_unavailable: 会话未绑定设备")
     device = await db.get(Device, session.device_id)
@@ -770,23 +809,33 @@ async def run_agent_session_endpoint(
     adapter = await asyncio.to_thread(_build_device_adapter, device, session.package_name)
     values = {key: str(value) for key, value in (session.context_values or {}).items()}
 
-    try:
-        result = await run_agent_session(
-            AsyncSessionLocal,
-            session_id,
-            adapter=adapter,
-            llm_request=llm_request,
-            values=values,
-            max_rounds=max_rounds,
-        )
-    except AgentLoopError as exc:
-        raise HTTPException(status_code=409, detail=f"agent_loop_rejected: {exc}") from None
+    async def _execute_loop() -> None:
+        try:
+            await run_agent_session(
+                AsyncSessionLocal,
+                session_id,
+                adapter=adapter,
+                llm_request=llm_request,
+                values=values,
+                max_rounds=max_rounds,
+            )
+        except AgentLoopError as exc:
+            logger.info("Android Agent background loop exited for session %s: %s", session_id, exc)
+        except Exception:
+            logger.exception("Android Agent background loop failed unexpectedly for session %s", session_id)
+        finally:
+            if _ACTIVE_AGENT_RUN_TASKS.get(session_id) is current_task:
+                _ACTIVE_AGENT_RUN_TASKS.pop(session_id, None)
+
+    current_task = asyncio.create_task(_execute_loop())
+    _ACTIVE_AGENT_RUN_TASKS[session_id] = current_task
+
     return AgentRunResultResponse(
-        status=result.status,
-        reason=result.reason,
-        steps=result.steps,
-        model_calls=result.model_calls,
-        tokens=result.tokens,
+        status=AgentSessionStatus.running.value,
+        reason="accepted",
+        steps=int(getattr(session, "steps_count", 0) or 0),
+        model_calls=int(getattr(session, "model_calls_count", 0) or 0),
+        tokens=int(getattr(session, "total_tokens", 0) or 0),
     )
 
 
@@ -1192,6 +1241,7 @@ async def start_agent_draft_replay(
                 detail=f"{exc.code}: {exc.message}",
             ) from exc
 
+    existing_replay = await find_replay_by_idempotency(db, draft.id, payload.idempotency_key)
     replay, case, run = await start_replay(
         db,
         draft=draft,
@@ -1203,18 +1253,26 @@ async def start_agent_draft_replay(
         device_serial=device_serial,
         device_id=resolved_device_id,
     )
-    await coordinator.append_event(
-        db,
-        session.id,
-        event_type="replay_queued",
-        payload={
-            "replay_id": replay.id,
-            "draft_id": draft.id,
-            "draft_version": replay.draft_version,
-            "case_id": replay.case_id,
-            "run_id": replay.run_id,
-        },
-    )
+    if existing_replay is not None and existing_replay.status != "dispatch_failed":
+        return AgentReplayHandoffResponse(
+            replay=AgentReplayResponse.model_validate(replay),
+            case_id=case.id,
+            run_id=run.id,
+            frozen_snapshot=replay.environment_snapshot,
+        )
+    if existing_replay is None:
+        await coordinator.append_event(
+            db,
+            session.id,
+            event_type="replay_queued",
+            payload={
+                "replay_id": replay.id,
+                "draft_id": draft.id,
+                "draft_version": replay.draft_version,
+                "case_id": replay.case_id,
+                "run_id": replay.run_id,
+            },
+        )
     await db.commit()
     await db.refresh(replay)
 

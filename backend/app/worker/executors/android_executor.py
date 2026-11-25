@@ -26,6 +26,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.minio_client import download_file, upload_file, presigned_url
+from app.services.adb_service import adb_subprocess_env
 from app.services.script_dependencies import extend_pythonpath, prepare_script_dependencies
 from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
@@ -230,7 +231,12 @@ async def run_android_case(
         dependencies_dir = await prepare_script_dependencies(cfg.get("requirements_path"), tmpdir)
 
         # ── 3. 生成 conftest.py（注入设备 serial + 环境变量）──
-        env_lines = "\n".join(f"    os.environ[{k!r}] = {v!r}" for k, v in extra_vars.items())
+        safe_extra_vars = {
+            str(k): str(v)
+            for k, v in extra_vars.items()
+            if k is not None and v is not None and not str(k).startswith("_expected_")
+        }
+        env_lines = "\n".join(f"    os.environ[{k!r}] = {v!r}" for k, v in safe_extra_vars.items())
         conftest = tmpdir / "conftest.py"
         conftest.write_text(
             f"""import os
@@ -266,7 +272,7 @@ def device_serial():
 
         env = extend_pythonpath(
             {
-                **os.environ,
+                **adb_subprocess_env(),
                 "DEVICE_SERIAL": device_serial,
             },
             dependencies_dir,

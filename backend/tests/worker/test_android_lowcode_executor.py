@@ -265,22 +265,23 @@ def test_take_screenshot_upload_and_fallbacks(monkeypatch):
     monkeypatch.setattr(executor, "upload_bytes", lambda name, data, ct: uploads.append((name, ct)))
     monkeypatch.setattr(executor, "presigned_url", lambda name: f"https://minio/{name}")
 
-    url = asyncio.run(executor._take_screenshot("s1", 7, 2))
+    url, raw = asyncio.run(executor._take_screenshot("s1", 7, 2))
     assert url == "https://minio/screenshots/runs/7/step_2.png"
+    assert raw == b"png"
     assert uploads == [("screenshots/runs/7/step_2.png", "image/png")]
 
-    # 截图无数据 → None，不上传
+    # 截图无数据 → (None, None)，不上传
     monkeypatch.setattr(executor, "_adb_screenshot", lambda serial: None)
-    assert asyncio.run(executor._take_screenshot("s1", 7, 3)) is None
+    assert asyncio.run(executor._take_screenshot("s1", 7, 3)) == (None, None)
 
-    # 上传抛异常 → 吞掉返回 None
+    # 上传抛异常 → 吞掉返回 (None, None)
     monkeypatch.setattr(executor, "_adb_screenshot", lambda serial: b"png")
 
     def broken_upload(*_a):
         raise RuntimeError("minio down")
 
     monkeypatch.setattr(executor, "upload_bytes", broken_upload)
-    assert asyncio.run(executor._take_screenshot("s1", 7, 4)) is None
+    assert asyncio.run(executor._take_screenshot("s1", 7, 4)) == (None, None)
 
 
 def test_safe_publish_swallows_errors(monkeypatch):

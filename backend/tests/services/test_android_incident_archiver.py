@@ -107,7 +107,21 @@ def test_slice_video_segment(tmp_path: Path):
     assert out_segment.stat().st_size > 0
 
 
-def test_archive_incident_artifacts(tmp_path: Path):
+def test_archive_incident_artifacts(tmp_path: Path, monkeypatch):
+    from app.services import android_incident_archiver
+
+    uploaded_objects: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        android_incident_archiver,
+        "upload_bytes",
+        lambda object_name, data, **_kw: uploaded_objects.append(("bytes", object_name)) or object_name,
+    )
+    monkeypatch.setattr(
+        android_incident_archiver,
+        "upload_file",
+        lambda object_name, local_path, **_kw: uploaded_objects.append(("file", object_name)) or object_name,
+    )
+
     db = _FakeDB()
     dummy_video = tmp_path / "recording.mp4"
     dummy_video.write_bytes(b"sample-video-bytes")
@@ -135,13 +149,65 @@ def test_archive_incident_artifacts(tmp_path: Path):
         )
     )
 
-    assert "logcat_aligned" in artifacts
-    assert "video_segment" in artifacts
-    assert incident.artifact_path is not None
+    assert artifacts["logcat_aligned"] == "runs/12/incidents/77/incident_crash_logcat.txt"
+    assert artifacts["video_segment"] == "runs/12/incidents/77/incident_crash_segment.mp4"
+    assert incident.artifact_path == "runs/12/incidents/77/incident_crash_segment.mp4"
+    assert ("bytes", "runs/12/incidents/77/incident_crash_logcat.txt") in uploaded_objects
+    assert ("file", "runs/12/incidents/77/incident_crash_segment.mp4") in uploaded_objects
     assert "FATAL EXCEPTION" in (incident.detail or "")
 
     # Check MobileRunArtifacts added
-    artifact_types = [a.artifact_type for a in db.added if isinstance(a, MobileRunArtifact)]
+    added_artifacts = [a for a in db.added if isinstance(a, MobileRunArtifact)]
+    artifact_types = [a.artifact_type for a in added_artifacts]
     assert ArtifactType.raw_log in artifact_types
     assert ArtifactType.trace in artifact_types
+    assert all(not a.file_path.startswith(".local-data") for a in added_artifacts)
     assert db.flushed >= 1
+
+
+def test_archive_incident_artifacts_handles_naive_timestamps_and_cleans_orphans_on_db_error(
+    monkeypatch, tmp_path: Path
+):
+    from datetime import datetime, timezone
+    from app.services import android_incident_archiver as archiver
+
+    video_src = tmp_path / "full.mp4"
+    video_src.write_bytes(b"video-bytes")
+    deleted: list[str] = []
+
+    monkeypatch.setattr(archiver, "upload_bytes", lambda obj, data, content_type="": obj)
+    monkeypatch.setattr(archiver, "upload_file", lambda obj, path, content_type="": obj)
+    monkeypatch.setattr(archiver, "slice_video_segment", lambda src, dst, offset: Path(dst).write_bytes(b"clip") > 0)
+    monkeypatch.setattr(archiver.minio_client, "delete_file", lambda obj: deleted.append(obj), raising=False)
+
+    class _FailingDB(_FakeDB):
+        async def flush(self):
+            raise RuntimeError("db flush failed")
+
+    # Aware incident_time + naive run_start_time should align without TypeError and cleanup on flush error.
+    incident = MobileIncident(
+        id=88,
+        run_id=15,
+        incident_type=IncidentType.crash,
+        event_time=datetime(2026, 11, 25, 10, 0, 20, tzinfo=timezone.utc),
+    )
+    try:
+        asyncio.run(
+            archiver.archive_incident_artifacts(
+                _FailingDB(),
+                run_id=15,
+                incident=incident,
+                full_logcat="11-25 10:00:18.000 FATAL EXCEPTION\n",
+                video_path=video_src,
+                run_start_time=datetime(2026, 11, 25, 10, 0, 5),
+            )
+        )
+    except RuntimeError as exc:
+        assert "db flush failed" in str(exc)
+    else:
+        raise AssertionError("Expected RuntimeError from failing db.flush")
+
+    assert deleted == [
+        "runs/15/incidents/88/incident_crash_logcat.txt",
+        "runs/15/incidents/88/incident_crash_segment.mp4",
+    ]

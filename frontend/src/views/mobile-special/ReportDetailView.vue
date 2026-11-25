@@ -36,7 +36,7 @@
             <a-tag v-if="monkeySeed !== null" color="purple">
               {{ t('mobile_special.replay_seed') }}: {{ monkeySeed }}
             </a-tag>
-            <a-button v-if="run.task_type === 'stability'" type="primary" ghost size="small" @click="replayRun">
+            <a-button v-if="run.task_type === 'stability'" type="primary" ghost size="small" :disabled="!canModify" @click="replayRun">
               {{ t('mobile_special.replay_run') }}
             </a-button>
             <a-button
@@ -45,6 +45,7 @@
               danger
               ghost
               size="small"
+              :disabled="!canModify"
               :loading="creatingInternalDefect"
               @click="createInternalDefect"
             >
@@ -286,12 +287,14 @@ import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 import {
   mobileSpecialApi,
   defectApi,
+  projectApi,
   type MobileSpecialRunItem,
   type MobileSpecialTaskItem,
   type MobileMetricSampleItem,
   type MobileIncidentItem,
   type MobileRunArtifactItem,
   type MobileRunEventItem,
+  type ProjectItem,
   type ArtifactType,
   type IncidentType,
   type MobileRunStatus,
@@ -299,6 +302,9 @@ import {
   type TaskType,
   type DefectItem,
 } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { extractApiError } from '@/utils/apiError'
+import { canEditProjectByRole } from '@/utils/permissions'
 
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asArtifact = (record: unknown) => record as MobileRunArtifactItem
@@ -319,11 +325,18 @@ const router = useRouter()
 const route = useRoute()
 const { t, locale } = useI18n()
 const { chartTheme } = useChartTheme()
+const auth = useAuthStore()
+const projects = ref<ProjectItem[]>([])
 
 const loading = ref(false)
 const runId = computed(() => Number(route.params.runId))
 const run = ref<MobileSpecialRunItem | null>(null)
 const taskInfo = ref<MobileSpecialTaskItem | null>(null)
+const canModify = computed(() => {
+  const pid = taskInfo.value?.project_id
+  const proj = pid ? projects.value.find((p) => p.id === pid) : undefined
+  return canEditProjectByRole(auth.user?.role, proj?.current_user_role)
+})
 const allSamples = ref<MobileMetricSampleItem[]>([])
 const samples = ref<MobileMetricSampleItem[]>([])
 const incidents = ref<MobileIncidentItem[]>([])
@@ -398,9 +411,35 @@ type TooltipDataPoint = {
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'string') return error
-  if (error instanceof Error) return error.message
-  return fallback
+  return extractApiError(error, fallback)
+}
+
+function mergeSamples(dbList: MobileMetricSampleItem[], liveList: MobileMetricSampleItem[]): MobileMetricSampleItem[] {
+  const seen = new Set<string>()
+  const latestByType = new Map<string, number>()
+  const merged: MobileMetricSampleItem[] = []
+  for (const item of dbList) {
+    const ts = new Date(item.sample_time).getTime()
+    const bucket = Number.isFinite(ts) ? ts : item.sample_time
+    const key = `${item.metric_type}|${bucket}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      merged.push(item)
+    }
+    const prev = latestByType.get(item.metric_type) ?? -Infinity
+    if (Number.isFinite(ts) && ts > prev) latestByType.set(item.metric_type, ts)
+  }
+  for (const item of liveList) {
+    const ts = new Date(item.sample_time).getTime()
+    const bucket = Number.isFinite(ts) ? ts : item.sample_time
+    const key = `${item.metric_type}|${bucket}`
+    const maxDbTs = latestByType.get(item.metric_type) ?? -Infinity
+    if (!seen.has(key) && (!Number.isFinite(ts) || ts >= maxDbTs)) {
+      seen.add(key)
+      merged.push(item)
+    }
+  }
+  return merged
 }
 
 function firstTooltipPoint(params: unknown): TooltipDataPoint | null {
@@ -425,7 +464,7 @@ const metricTypeOptions = computed(() => [
   { label: t('mobile_special.reports.metrics.jank'), value: 'jank_count' },
 ])
 
-const effectiveSamples = computed(() => [...allSamples.value, ...liveSamples.value])
+const effectiveSamples = computed(() => mergeSamples(allSamples.value, liveSamples.value))
 
 const incidentColumns = computed(() => [
   { title: t('common.type'), key: 'incident_type', width: 100 },
@@ -483,13 +522,47 @@ const latestMetricCards = computed(() => {
 })
 
 onMounted(async () => {
+  projects.value = await projectApi.list().catch(() => [])
   await loadAll()
   initTrendChart()
   startLiveStream()
   window.addEventListener('resize', handleResize)
 })
 
+let loadDetailSeq = 0
+
+watch(runId, async (nextId, prevId) => {
+  if (!nextId || nextId === prevId) return
+  stopLiveStream()
+  run.value = null
+  taskInfo.value = null
+  allSamples.value = []
+  samples.value = []
+  incidents.value = []
+  events.value = []
+  artifacts.value = []
+  liveSamples.value = []
+  live.value = {
+    connected: false,
+    progress: 0,
+    phase: '',
+    currentStep: '',
+    sampleCount: 0,
+    incidentCount: 0,
+    deviceStatus: 'unknown',
+    lastUpdated: '',
+    error: '',
+    logs: [],
+  }
+  await loadAll()
+  if (!trendChart && trendChartRef.value) {
+    initTrendChart()
+  }
+  startLiveStream()
+})
+
 onUnmounted(() => {
+  loadDetailSeq += 1
   stopLiveStream()
   trendChart?.dispose()
   window.removeEventListener('resize', handleResize)
@@ -500,25 +573,28 @@ function handleResize() {
 }
 
 async function loadAll() {
+  const targetRunId = runId.value
+  const seq = ++loadDetailSeq
   loading.value = true
   try {
     const [runData, samplesData, incidentsData, eventsData, artifactsData] = await Promise.all([
-      mobileSpecialApi.getRun(runId.value),
-      mobileSpecialApi.getRunSamples(runId.value, { limit: 500 }),
-      mobileSpecialApi.getRunIncidents(runId.value),
-      mobileSpecialApi.getRunEvents(runId.value, { limit: EVENT_LIMIT }),
-      mobileSpecialApi.getRunArtifacts(runId.value),
+      mobileSpecialApi.getRun(targetRunId),
+      mobileSpecialApi.getRunSamples(targetRunId, { limit: 500 }),
+      mobileSpecialApi.getRunIncidents(targetRunId),
+      mobileSpecialApi.getRunEvents(targetRunId, { limit: EVENT_LIMIT }),
+      mobileSpecialApi.getRunArtifacts(targetRunId),
     ])
+    if (seq !== loadDetailSeq) return
 
     run.value = runData
     allSamples.value = samplesData
-    samples.value = samplesData
-    incidents.value = incidentsData
-    events.value = eventsData
-    artifacts.value = artifactsData
     if (!isLiveStatus(runData.status)) {
       liveSamples.value = []
     }
+    samples.value = mergeSamples(samplesData, liveSamples.value)
+    incidents.value = incidentsData
+    events.value = eventsData
+    artifacts.value = artifactsData
     live.value.sampleCount = Math.max(live.value.sampleCount, samplesData.length)
     live.value.incidentCount = incidentsData.length
     if (!isLiveStatus(runData.status) && runData.status === 'completed') {
@@ -528,16 +604,27 @@ async function loadAll() {
 
     if (runData.task_id) {
       try {
-        taskInfo.value = await mobileSpecialApi.getTask(runData.task_id)
-      } catch { /* ignore */ }
+        const fetchedTask = await mobileSpecialApi.getTask(runData.task_id)
+        if (seq !== loadDetailSeq) return
+        taskInfo.value = fetchedTask
+      } catch {
+        if (seq !== loadDetailSeq) return
+        taskInfo.value = null
+      }
+    } else {
+      taskInfo.value = null
     }
     await loadInternalDefects()
+    if (seq !== loadDetailSeq) return
 
     updateTrendChart()
   } catch (e: unknown) {
+    if (seq !== loadDetailSeq) return
     message.error(errorMessage(e, t('mobile_special.reports.msg.load_detail_failed')))
   } finally {
-    loading.value = false
+    if (seq === loadDetailSeq) {
+      loading.value = false
+    }
   }
 }
 
@@ -551,7 +638,7 @@ async function loadInternalDefects() {
 }
 
 async function createInternalDefect() {
-  if (!canCreateInternalDefect.value || creatingInternalDefect.value) return
+  if (!canModify.value || !canCreateInternalDefect.value || creatingInternalDefect.value) return
   creatingInternalDefect.value = true
   try {
     const result = await defectApi.createFromRun('android', runId.value)
@@ -587,7 +674,7 @@ async function loadSamples() {
       metric_type: selectedMetricType.value,
       limit: 500,
     })
-    samples.value = [...data, ...liveSamples.value]
+    samples.value = mergeSamples(data, liveSamples.value)
     updateTrendChart()
   } catch (e: unknown) {
     message.error(errorMessage(e, t('mobile_special.reports.msg.load_metrics_failed')))
@@ -635,7 +722,7 @@ function applyLiveMessage(msg: WsMessage) {
     }))
     if (incoming.length) {
       liveSamples.value = [...liveSamples.value, ...incoming].slice(-300)
-      samples.value = [...samples.value, ...incoming]
+      samples.value = mergeSamples(allSamples.value, liveSamples.value)
     }
     addLiveLog('info', t('mobile_special.reports.live.sampled', { count: live.value.sampleCount }))
   }
@@ -685,7 +772,7 @@ async function pollLiveRun() {
         mobileSpecialApi.getRunEvents(runId.value, { limit: EVENT_LIMIT }),
       ])
       allSamples.value = latestSamples
-      samples.value = [...latestSamples, ...liveSamples.value]
+      samples.value = mergeSamples(latestSamples, liveSamples.value)
       incidents.value = latestIncidents
       events.value = latestEvents
       live.value.sampleCount = Math.max(live.value.sampleCount, latestSamples.length)
@@ -727,7 +814,7 @@ function prettyJson(value: Record<string, unknown>) {
 }
 
 async function replayRun() {
-  if (!run.value) return
+  if (!run.value || !canModify.value) return
   try {
     const replay = await mobileSpecialApi.replayRun(run.value.id)
     message.success(t('mobile_special.replay_started'))

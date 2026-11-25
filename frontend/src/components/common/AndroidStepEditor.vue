@@ -713,19 +713,28 @@ function revokeScreenshotUrl() {
   }
 }
 
+let screenshotRequestSeq = 0
+let editorUnmounted = false
+
 async function refreshScreenshot() {
   if (!props.deviceId) return
+  const seq = ++screenshotRequestSeq
   screenshotLoading.value = true
   try {
     const blob = await deviceApi.screenshot(props.deviceId)
+    if (editorUnmounted || seq !== screenshotRequestSeq) return
     const nextUrl = URL.createObjectURL(blob)
     revokeScreenshotUrl()
     screenshotObjectUrl = nextUrl
     screenshotUrl.value = nextUrl
   } catch {
-    message.error(t('case.android_editor.visual_refresh_failed'))
+    if (!editorUnmounted && seq === screenshotRequestSeq) {
+      message.error(t('case.android_editor.visual_refresh_failed'))
+    }
   } finally {
-    screenshotLoading.value = false
+    if (seq === screenshotRequestSeq) {
+      screenshotLoading.value = false
+    }
   }
 }
 
@@ -909,7 +918,11 @@ watch(
   },
 )
 
-onBeforeUnmount(revokeScreenshotUrl)
+onBeforeUnmount(() => {
+  editorUnmounted = true
+  screenshotRequestSeq += 1
+  revokeScreenshotUrl()
+})
 
 defineExpose({
   devicePackages,

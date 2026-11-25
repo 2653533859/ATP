@@ -32,7 +32,8 @@ from app.schemas.android_precheck import (
     PrecheckStatus,
 )
 from app.core.encryption import decrypt_env_vars
-from app.services.android_agent.strict_replay import StrictStepError, validate_strict_step
+from app.services.adb_service import adb_subprocess_kwargs
+from app.services.android_agent.strict_replay import STRICT_ACTIONS, StrictStepError, validate_strict_step
 from app.services.device_leases import lease_is_active
 from app.services.device_resolution import DeviceResolutionError, extract_device_id, resolve_device_async
 
@@ -97,6 +98,7 @@ def _check_adb_environment_state(serial: str) -> tuple[bool, str | None]:
             capture_output=True,
             timeout=5,
             text=True,
+            **adb_subprocess_kwargs(),
         )
         output = (proc.stdout or "").strip().lower() + (proc.stderr or "").strip().lower()
         if proc.returncode != 0:
@@ -501,6 +503,8 @@ async def precheck_android_execution(
                         suggestion="严格回放只接受唯一精确定位、无坐标兜底的步骤；请补全定位条件或关闭严格回放",
                     )
                 )
+                continue
+            if action in STRICT_ACTIONS:
                 continue
         elif action == "wait_until":
             items.append(

@@ -381,6 +381,7 @@ import MonacoEditor from '@/components/common/MonacoEditor.vue'
 import GeneratedScriptModal from '@/components/common/GeneratedScriptModal.vue'
 import { generateAndroidPythonScript } from '@/utils/pythonScriptGenerator'
 import { clearLocalRecordingDraft, saveLocalRecordingDraft } from '@/utils/recordingDraft'
+import { extractApiError } from '@/utils/apiError'
 import CaseDatasetBinding from '@/components/common/CaseDatasetBinding.vue'
 import {
   buildCaseDatasetConfig,
@@ -1161,12 +1162,14 @@ async function handlePrecheck() {
   prechecking.value = true
   try {
     const config = buildConfig()
-    const projectId = Number(route.params.id) || props.projectId || 0
+    const projectId = resolvedProjectId.value ?? 0
     const resolvedId = cfg.device_id ?? selectedDeviceId.value ?? undefined
+    const activeLeaseToken = editorLease.value?.lease_token
     let res: AndroidPrecheckResponse
     if (localCaseId.value) {
       res = await caseApi.precheck(localCaseId.value, {
         ...(resolvedId ? { device_id: resolvedId } : {}),
+        ...(activeLeaseToken ? { lease_token: activeLeaseToken } : {}),
         device_serial: cfg.device_serial,
         steps: lowcodeSteps.value,
         config,
@@ -1175,6 +1178,7 @@ async function handlePrecheck() {
       res = await caseApi.precheckAndroidDraft({
         project_id: projectId,
         ...(resolvedId ? { device_id: resolvedId } : {}),
+        ...(activeLeaseToken ? { lease_token: activeLeaseToken } : {}),
         device_serial: cfg.device_serial,
         steps: lowcodeSteps.value,
         config,
@@ -1187,8 +1191,8 @@ async function handlePrecheck() {
     } else {
       message.warning(t('case.drawer.android.precheck_warning'))
     }
-  } catch (error: any) {
-    message.error(error?.message || t('case.drawer.android.precheck_error'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('case.drawer.android.precheck_error')))
   } finally {
     prechecking.value = false
   }

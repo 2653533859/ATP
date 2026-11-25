@@ -259,6 +259,10 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
         run.status = RunStatus.error
         run.error_message = "iOS 用例未配置任何步骤"
         await db.commit()
+        await _safe_publish(
+            run.id,
+            {"type": "completed", "run_id": run.id, "status": run.status.value, "error_message": run.error_message},
+        )
         return
     project_id = await _resolve_project_id(db, case)
     device = await db.get(IosDevice, cfg.get("ios_device_id")) if cfg.get("ios_device_id") else None
@@ -267,6 +271,10 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
         run.status = RunStatus.error
         run.error_message = "IPA 资产不属于当前项目"
         await db.commit()
+        await _safe_publish(
+            run.id,
+            {"type": "completed", "run_id": run.id, "status": run.status.value, "error_message": run.error_message},
+        )
         return
     udid = str((device.udid if device else cfg.get("udid")) or "")
     server_url = str((device.appium_server_url if device else cfg.get("appium_server_url")) or "")
@@ -274,6 +282,10 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
         run.status = RunStatus.error
         run.error_message = "未配置 iOS UDID 或 Appium 地址"
         await db.commit()
+        await _safe_publish(
+            run.id,
+            {"type": "completed", "run_id": run.id, "status": run.status.value, "error_message": run.error_message},
+        )
         return
 
     lease_token: str | None = None
@@ -292,6 +304,10 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
             run.status = RunStatus.failed
             run.error_message = f"iOS 设备租约冲突: {exc}"
             await db.commit()
+            await _safe_publish(
+                run.id,
+                {"type": "completed", "run_id": run.id, "status": run.status.value, "error_message": run.error_message},
+            )
             return
 
     client = IosAppiumClient(server_url, timeout=float(cfg.get("timeout_seconds", 30)))
@@ -350,12 +366,14 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                     error_message = str(exc)[:2000]
             if cfg.get("capture_screenshot", True) or action == "screenshot":
                 try:
-                    screenshot = response_data.get("screenshot_base64") if response_data else await client.screenshot()
+                    screenshot = (response_data or {}).get("screenshot_base64") or await client.screenshot()
                     screenshot_url = await _upload_artifact(
                         run.id, f"step_{index}.png", base64.b64decode(screenshot), "image/png"
                     )
                 except Exception:
                     logger.debug("iOS screenshot unavailable for run %s step %s", run.id, index, exc_info=True)
+            if lease_token and device is not None:
+                await heartbeat_ios_device_lease(db, device.id, lease_token)
             result = StepResult(
                 run_id=run.id,
                 step_index=index,
@@ -368,8 +386,6 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                 screenshot_url=screenshot_url,
             )
             db.add(result)
-            if lease_token and device is not None:
-                await heartbeat_ios_device_lease(db, device.id, lease_token)
             await db.commit()
             await _safe_publish(
                 run.id,

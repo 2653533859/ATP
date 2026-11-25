@@ -157,22 +157,26 @@ async def test_run_endpoint_returns_loop_result(tmp_path: Path, monkeypatch):
             result = await agent_api.run_agent_session_endpoint(
                 project_id=1, session_id=session_id, max_rounds=7, db=db, current_user=user
             )
-        assert result.status == "needs_review"
-        assert result.reason == "cannot_progress"
-        assert result.model_calls == 2
+            bg_task = agent_api._ACTIVE_AGENT_RUN_TASKS.get(session_id)
+            if bg_task is not None:
+                await bg_task
+        assert result.status == "running"
+        assert result.reason == "accepted"
         assert captured["session_id"] == session_id
         assert captured["max_rounds"] == 7
+        assert session_id not in agent_api._ACTIVE_AGENT_RUN_TASKS
     finally:
         await engine.dispose()
 
 
 @pytest.mark.asyncio
-async def test_run_endpoint_maps_loop_rejection_to_409(tmp_path: Path, monkeypatch):
+async def test_run_endpoint_rejects_duplicate_concurrent_launch_and_handles_bg_error(tmp_path: Path, monkeypatch):
+    import asyncio as _asyncio
+
     engine, factory = await _setup(tmp_path)
     try:
         session_id = await _session(factory)
         async with factory() as db:
-            user = await db.get(User, 1)
             db.add(
                 agent_api.AILLMConfig(
                     id=1,
@@ -192,19 +196,31 @@ async def test_run_endpoint_maps_loop_rejection_to_409(tmp_path: Path, monkeypat
         monkeypatch.setattr(agent_api, "decrypt", lambda _value: "plain-key")
         monkeypatch.setattr(agent_api, "_build_device_adapter", lambda device, package: object())
 
-        async def reject_loop(*args, **kwargs):
+        gate = _asyncio.Event()
+
+        async def slow_then_reject(*args, **kwargs):
+            await gate.wait()
             raise AgentLoopError("lease_missing")
 
-        monkeypatch.setattr(agent_api, "run_agent_session", reject_loop)
+        monkeypatch.setattr(agent_api, "run_agent_session", slow_then_reject)
 
         async with factory() as db:
             user = await db.get(User, 1)
+            accepted = await agent_api.run_agent_session_endpoint(
+                project_id=1, session_id=session_id, max_rounds=5, db=db, current_user=user
+            )
+            assert accepted.status == "running"
             with pytest.raises(HTTPException) as exc_info:
                 await agent_api.run_agent_session_endpoint(
                     project_id=1, session_id=session_id, max_rounds=5, db=db, current_user=user
                 )
             assert exc_info.value.status_code == 409
-            assert "lease_missing" in exc_info.value.detail
+            assert "agent_loop_rejected" in exc_info.value.detail
+            bg_task = agent_api._ACTIVE_AGENT_RUN_TASKS.get(session_id)
+            gate.set()
+            if bg_task is not None:
+                await bg_task
+            assert session_id not in agent_api._ACTIVE_AGENT_RUN_TASKS
     finally:
         await engine.dispose()
 

@@ -65,6 +65,8 @@ class _FakePrecheckDB:
 
         if "from devices" in sql:
             for v in params.values():
+                if isinstance(v, int) and not isinstance(v, bool) and v in self.devices_by_id:
+                    return _MockResult(self.devices_by_id[v])
                 if v in self.devices:
                     return _MockResult(self.devices[v])
             for serial, dev in self.devices.items():
@@ -621,3 +623,45 @@ async def test_precheck_wait_until_needs_strict_mode():
         check_adb_environment=False,
     )
     assert [item.code for item in res.items if item.status == PrecheckStatus.FAIL] == ["WAIT_UNTIL_REQUIRES_STRICT"]
+
+
+@pytest.mark.asyncio
+async def test_precheck_strict_replay_assert_element_allows_text_selector_without_resource_id():
+    dev = Device(id=1, serial="android-online-1", status=DeviceStatus.online)
+    db = _FakePrecheckDB(devices=[dev])
+    res = await precheck_android_execution(
+        db,
+        device_serial=dev.serial,
+        config={"strict_replay": True},
+        steps=[{"action": "assert_element", "params": {"text": "提交"}}],
+        check_adb_environment=False,
+    )
+    assert res.ok is True
+    assert not any(item.code == "MISSING_ASSERT_ELEMENT" for item in res.items)
+
+
+@pytest.mark.asyncio
+async def test_precheck_allows_same_lease_token_via_ignore_lease_token():
+    dev = Device(id=1, serial="android-online-1", status=DeviceStatus.online)
+    lease = DeviceLease(
+        id=9,
+        device_id=1,
+        lease_token="editor-lease-tok",
+        owner_id=99,
+        owner_label="android-case-editor",
+        acquired_at=datetime.now(timezone.utc),
+        heartbeat_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+    )
+    db = _FakePrecheckDB(devices=[dev], leases=[lease])
+    res = await precheck_android_execution(
+        db,
+        device_id=1,
+        device_serial=dev.serial,
+        steps=[{"action": "click", "params": {"text": "确认"}}],
+        ignore_lease_token="editor-lease-tok",
+        ignore_lease_owner_id=1,
+        check_adb_environment=False,
+    )
+    assert res.ok is True
+    assert not any(item.code == "DEVICE_LEASE_CONFLICT" for item in res.items)

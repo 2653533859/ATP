@@ -32,11 +32,15 @@ const {
 
 const chartTheme = ref('atp-light')
 const chartInstances: Array<{ setOption: ReturnType<typeof vi.fn>; resize: ReturnType<typeof vi.fn>; dispose: ReturnType<typeof vi.fn> }> = []
+let mockAuthRole: 'admin' | 'engineer' | 'tester' | 'viewer' = 'engineer'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key, locale: ref('zh-CN') }),
 }))
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerPush }) }))
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({ user: { role: mockAuthRole }, fetchMe: vi.fn() }),
+}))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }), useRouter: () => ({ push: routerPush }) }))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess },
 }))
@@ -105,7 +109,7 @@ afterEach(() => {
   mountedWrappers.splice(0).forEach((wrapper) => wrapper.unmount())
 })
 
-const PROJECTS = [{ id: 4, name: 'Mobile' }]
+const PROJECTS = [{ id: 4, name: 'Mobile', current_user_role: 'editor' }]
 const RUNS = [
   { id: 20, task_id: 3, task_name: 'Perf', task_type: 'performance', status: 'completed', device_serial: 'emulator', app_package: 'com.acme', duration_ms: 1500, started_at: '2026-08-01T10:00:00Z' },
   { id: 21, task_id: 4, task_name: null, task_type: 'stability', status: 'running', device_serial: 'emulator', app_package: 'com.acme', duration_ms: null, started_at: null },
@@ -215,5 +219,18 @@ describe('ReportCenterView mount', () => {
     expect(removeEventListener).toHaveBeenCalledWith('resize', resizeRegistration?.[1])
     addEventListener.mockRestore()
     removeEventListener.mockRestore()
+  })
+
+  it('disables stop action when user has only viewer role on selected project', async () => {
+    mockAuthRole = 'viewer'
+    projectList.mockResolvedValueOnce([{ id: 1, name: '默认项目', current_user_role: 'viewer' }])
+    try {
+      const wrapper = mountPage()
+      await flushPromises()
+      const stopBtn = wrapper.findAll('button').find((button) => button.text() === 'mobile_special.reports.stop')
+      expect(stopBtn?.attributes('disabled')).toBeDefined()
+    } finally {
+      mockAuthRole = 'engineer'
+    }
   })
 })

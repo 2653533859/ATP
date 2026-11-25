@@ -237,8 +237,21 @@ describe('AppWorkbenchView', () => {
     expect(caseRun).not.toHaveBeenCalled()
 
     await vm.runAndroidCase()
-    expect(casePrecheck).toHaveBeenCalledWith(101)
-    expect(caseRun).toHaveBeenCalledWith(101)
+    expect(casePrecheck).toHaveBeenCalledWith(101, { device_id: 10, device_serial: 'emulator-5554' })
+    expect(caseRun).toHaveBeenCalledWith(101, { extra_vars: { device_id: 10, device_serial: 'emulator-5554' } })
+
+    // Script mode skips lowcode precheck and offline device disables execution
+    casePrecheck.mockClear()
+    caseRun.mockClear()
+    caseGet.mockResolvedValueOnce({ ...androidCase, config: { script_path: 'tests/test_login.py' } })
+    await vm.runAndroidCase()
+    expect(casePrecheck).not.toHaveBeenCalled()
+    expect(caseRun).toHaveBeenCalledWith(101, { extra_vars: { device_id: 10, device_serial: 'emulator-5554' } })
+
+    const typedVm = wrapper.vm as unknown as { selectedDeviceId: number | null; canRunAndroidCase: boolean }
+    typedVm.selectedDeviceId = 11
+    await flushPromises()
+    expect(typedVm.canRunAndroidCase).toBe(false)
     wrapper.unmount()
   })
 

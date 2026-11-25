@@ -15,7 +15,7 @@ import asyncio
 import logging
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -136,7 +136,7 @@ async def run_mobile_special_fluency(
     validation_errors = _validate_inputs(device_serial, app_package, config)
     if validation_errors:
         run.status = RunStatus.failed
-        run.finished_at = datetime.now()
+        run.finished_at = datetime.now(timezone.utc)
         run.summary_json = {"error_message": "; ".join(validation_errors)}
         await db.commit()
         await events.record(
@@ -163,7 +163,7 @@ async def run_mobile_special_fluency(
     )
     if not reachable:
         run.status = RunStatus.failed
-        run.finished_at = datetime.now()
+        run.finished_at = datetime.now(timezone.utc)
         run.summary_json = {"error_message": f"设备不可达: {device_message}"}
         await db.commit()
         await events.record(
@@ -184,7 +184,7 @@ async def run_mobile_special_fluency(
         )
         return
 
-    run.started_at = datetime.now()
+    run.started_at = datetime.now(timezone.utc)
     run.status = RunStatus.running
     await db.commit()
     await events.record(
@@ -275,6 +275,7 @@ async def run_mobile_special_fluency(
         async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost, executor_label="fluency") as hb:
             for idx, stage in enumerate(stages):
                 if hb.lost:
+                    execution_error = execution_error or f"设备 {device_serial} 在流畅度测试期间失联"
                     break
                 if cancel_check is not None and await asyncio.to_thread(cancel_check):
                     cancelled = True
@@ -354,13 +355,16 @@ async def run_mobile_special_fluency(
                 # 等待一段时间
                 remaining = float(duration_between)
                 while remaining > 0:
+                    if hb.lost:
+                        execution_error = execution_error or f"设备 {device_serial} 在流畅度测试期间失联"
+                        break
                     sleep_for = min(1.0, remaining)
                     await asyncio.sleep(sleep_for)
                     remaining -= sleep_for
                     if cancel_check is not None and await asyncio.to_thread(cancel_check):
                         cancelled = True
                         break
-                if cancelled:
+                if cancelled or hb.lost:
                     break
 
                 # 采样 FPS
@@ -372,7 +376,7 @@ async def run_mobile_special_fluency(
                 if raw:
                     result = _parse_framestats(raw)
                     if result:
-                        result["sample_time"] = datetime.now()
+                        result["sample_time"] = datetime.now(timezone.utc)
                         result["stage_name"] = stage_name
                         all_samples.append(result)
 
@@ -433,7 +437,7 @@ async def run_mobile_special_fluency(
     for sample_data in all_samples:
         sample = MobileMetricSample(
             run_id=run.id,
-            sample_time=sample_data.get("sample_time", datetime.now()),
+            sample_time=sample_data.get("sample_time", datetime.now(timezone.utc)),
             metric_type=sample_data.get("metric_type", "fps"),
             metric_value=sample_data.get("metric_value", 0),
             source=sample_data.get("source"),
@@ -457,7 +461,7 @@ async def run_mobile_special_fluency(
         run.status = RunStatus.failed
     else:
         run.status = RunStatus.completed
-    run.finished_at = datetime.now()
+    run.finished_at = datetime.now(timezone.utc)
     run.duration_ms = total_ms
     run.summary_json = summary
     await db.commit()

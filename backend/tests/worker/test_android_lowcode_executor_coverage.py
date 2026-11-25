@@ -1189,19 +1189,20 @@ def test_adb_screenshot_and_take_screenshot_real_body(monkeypatch):
     monkeypatch.setattr(ale, "_adb_screenshot", lambda serial: b"PNG")
     monkeypatch.setattr(ale, "upload_bytes", lambda name, data, ct: uploaded.append((name, data, ct)))
     monkeypatch.setattr(ale, "presigned_url", lambda name, expires_seconds=None: f"https://minio/{name}")
-    url = asyncio.run(ale._take_screenshot("S1", 9, 0))
+    url, raw = asyncio.run(ale._take_screenshot("S1", 9, 0))
     assert url == "https://minio/screenshots/runs/9/step_0.png"
+    assert raw == b"PNG"
     assert uploaded == [("screenshots/runs/9/step_0.png", b"PNG", "image/png")]
 
     monkeypatch.setattr(ale, "_adb_screenshot", lambda serial: None)
-    assert asyncio.run(ale._take_screenshot("S1", 9, 1)) is None
+    assert asyncio.run(ale._take_screenshot("S1", 9, 1)) == (None, None)
 
     def _upload_boom(name, data, ct):
         raise RuntimeError("minio down")
 
     monkeypatch.setattr(ale, "_adb_screenshot", lambda serial: b"PNG")
     monkeypatch.setattr(ale, "upload_bytes", _upload_boom)
-    assert asyncio.run(ale._take_screenshot("S1", 9, 2)) is None
+    assert asyncio.run(ale._take_screenshot("S1", 9, 2)) == (None, None)
 
 
 def test_run_android_lowcode_steps_collects_device_artifacts_by_default(monkeypatch):

@@ -26,7 +26,7 @@ from app.core.config import settings
 from app.models.device import Device, DeviceStatus
 from app.models.user import User
 from app.api.deps import get_current_user, require_engineer
-from app.services.adb_service import sanitize_adb_input_text
+from app.services.adb_service import adb_subprocess_kwargs, sanitize_adb_input_text
 from app.services.device_leases import get_active_device_lease
 from app.services.device_packages import latest_snapshot, list_snapshots, save_snapshot, serialize_snapshot
 from app.schemas.device import (
@@ -279,7 +279,7 @@ def _adb_screenshot(serial: str, timeout: int = 10) -> bytes | None:
     """通过 adb 截图，返回 PNG 字节"""
     cmd = ["adb", "-s", serial, "exec-out", "screencap", "-p"]
     try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout, **adb_subprocess_kwargs())
         if proc.returncode == 0 and proc.stdout:
             return proc.stdout
         return None
@@ -311,7 +311,7 @@ def _adb_input(serial: str, *args: str, timeout: int = 10) -> bool:
     """通过 adb shell input 执行实时交互。"""
     cmd = ["adb", "-s", serial, "shell", "input", *args]
     try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout, **adb_subprocess_kwargs())
         return proc.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
         logger.warning("adb input failed for %s: %s", serial, e)
@@ -329,13 +329,13 @@ def _read_ui_hierarchy_xml(serial: str, timeout: int = 10) -> tuple[str | None, 
     dump_cmd = ["adb", "-s", serial, "shell", "uiautomator", "dump", hierarchy_path]
     cat_cmd = ["adb", "-s", serial, "shell", "cat", hierarchy_path]
     try:
-        dump_proc = subprocess.run(dump_cmd, capture_output=True, timeout=timeout)
+        dump_proc = subprocess.run(dump_cmd, capture_output=True, timeout=timeout, **adb_subprocess_kwargs())
         if dump_proc.returncode != 0:
             output = ((dump_proc.stdout or b"") + (dump_proc.stderr or b"")).decode("utf-8", errors="replace")
             logger.warning("adb ui hierarchy dump failed for %s: %s", serial, output[-500:])
             return None, _ui_target_diagnostic("unavailable", "uiautomator_dump_failed")
 
-        cat_proc = subprocess.run(cat_cmd, capture_output=True, timeout=timeout)
+        cat_proc = subprocess.run(cat_cmd, capture_output=True, timeout=timeout, **adb_subprocess_kwargs())
         if cat_proc.returncode != 0:
             logger.warning("adb ui hierarchy read failed for %s", serial)
             return None, _ui_target_diagnostic("unavailable", "uiautomator_read_failed")

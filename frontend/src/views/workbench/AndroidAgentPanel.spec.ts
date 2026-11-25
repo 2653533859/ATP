@@ -457,7 +457,11 @@ describe('AndroidAgentPanel', () => {
     expect(startReplay).toHaveBeenCalledWith(
       1,
       3,
-      expect.objectContaining({ initial_state_confirmed: true, module_id: 1, idempotency_key: 'agent-replay-3-1' }),
+      expect.objectContaining({
+        initial_state_confirmed: true,
+        module_id: 1,
+        idempotency_key: expect.stringMatching(/^agent-replay-3-1-/),
+      }),
     )
     expect(messageSuccess).toHaveBeenCalled()
   })

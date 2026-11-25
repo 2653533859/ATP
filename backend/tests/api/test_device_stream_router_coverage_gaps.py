@@ -18,8 +18,10 @@ from app.models.bootstrap import load_all_models
 load_all_models()
 
 
-def _user():
-    return SimpleNamespace(id=7, username="engineer", is_active=True)
+def _user(role=None):
+    from app.models.user import UserRole
+
+    return SimpleNamespace(id=7, username="engineer", role=role or UserRole.engineer, is_active=True)
 
 
 class _ScalarResult:
@@ -225,9 +227,25 @@ def test_video_stream_sends_chunks_and_skips_empty_ones(monkeypatch):
 
 
 def test_video_stream_handles_touch_key_text_and_ignores_bad_frames(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
     _patch_user(monkeypatch)
+    monkeypatch.setattr(ds_router, "AsyncSessionLocal", lambda: _WsSession(SimpleNamespace(id=3, serial="SER-3")))
+
+    async def _fake_lease(_db, dev_id, token):
+        if dev_id == 3 and token == "ser3-lease":
+            return SimpleNamespace(
+                id=1,
+                device_id=3,
+                lease_token="ser3-lease",
+                expires_at=datetime.now(timezone.utc) + timedelta(seconds=60),
+            )
+        return None
+
+    monkeypatch.setattr(ds_router, "get_active_device_lease", _fake_lease)
     calls = []
     ws = _FakeWebSocket(
+        query_params={"lease_token": "ser3-lease"},
         texts=[
             json.dumps({"type": "touch", "action": 2, "x": 10, "y": 20, "w": 1080, "h": 1920}),
             json.dumps({"type": "touch"}),
@@ -236,7 +254,7 @@ def test_video_stream_handles_touch_key_text_and_ignores_bad_frames(monkeypatch)
             json.dumps({"type": "text"}),
             "{bad json",
             json.dumps({"type": "unknown"}),
-        ]
+        ],
     )
     stream = _WaitingStream(ws.received_all)
     _patch_manager(
@@ -587,3 +605,44 @@ def test_device_scoped_ws_stream_enforces_lease_and_relays_worker_frames(monkeyp
         ("text", "ok"),
     ]
     assert relay_closed == [True]
+
+
+def test_legacy_serial_ws_stream_rejects_viewer_role_and_missing_lease(monkeypatch):
+    from app.models.user import UserRole
+
+    async def get_viewer(_ws):
+        return _user(role=UserRole.tester)
+
+    monkeypatch.setattr(ds_router, "_get_ws_user", get_viewer)
+    ws_viewer = _FakeWebSocket()
+    asyncio.run(ds_router.scrcpy_video_stream(ws_viewer, "SER-VIEWER"))
+    assert ws_viewer.closed == [ds_router.status.WS_1008_POLICY_VIOLATION]
+    assert ws_viewer.accepted == 0
+
+    _patch_user(monkeypatch)
+    monkeypatch.setattr(ds_router.settings, "ATP_LOCAL_MODE", False)
+    monkeypatch.setattr(
+        ds_router, "AsyncSessionLocal", lambda: _WsSession(SimpleNamespace(id=30, serial="SER-NOLEASE"))
+    )
+
+    async def no_lease(*_a, **_kw):
+        return None
+
+    monkeypatch.setattr(ds_router, "get_active_device_lease", no_lease)
+    calls = []
+    sent_texts: list[str] = []
+
+    class _RecordingWS(_FakeWebSocket):
+        async def send_text(self, text):
+            sent_texts.append(text)
+
+    ws_no_lease = _RecordingWS(texts=[json.dumps({"type": "touch", "action": 0, "x": 10, "y": 20})])
+    stream = _WaitingStream(ws_no_lease.received_all)
+    _patch_manager(
+        monkeypatch,
+        create_client_stream=lambda _serial: stream,
+        send_touch_event=lambda *args: calls.append(args),
+    )
+    asyncio.run(ds_router.scrcpy_video_stream(ws_no_lease, "SER-NOLEASE"))
+    assert calls == []
+    assert any(json.loads(item)["code"] == "control_denied" for item in sent_texts)

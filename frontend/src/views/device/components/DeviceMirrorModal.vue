@@ -299,6 +299,7 @@ import {
   buildAndroidRecordedSwipeParams,
   type AndroidRecordedStepDraft,
 } from '@/utils/androidRecording'
+import { extractApiError } from '@/utils/apiError'
 
 const props = withDefaults(
   defineProps<{
@@ -908,7 +909,7 @@ function onWindowMouseMove(e: MouseEvent) {
   sendWsTouch(2, coords)
 }
 
-function onWindowMouseUp(e: MouseEvent) {
+async function onWindowMouseUp(e: MouseEvent) {
   if (!isMouseDown) return
   isMouseDown = false
   window.removeEventListener('mousemove', onWindowMouseMove)
@@ -924,7 +925,9 @@ function onWindowMouseUp(e: MouseEvent) {
   const sent = sendWsTouch(1, coords)
   if (!recording.value || !start || !start.sent || !sent) return
   if (Math.hypot(coords.x - start.x, coords.y - start.y) < 12) {
-    appendRecordedStep('click', '镜像点击', buildAndroidRecordedClickParams(start, null))
+    const deviceId = props.device.id
+    const target = await deviceApi.uiTarget(deviceId, { x: start.x, y: start.y }).then((res) => res.target).catch(() => null)
+    appendRecordedStep('click', '镜像点击', buildAndroidRecordedClickParams(start, target))
   } else {
     appendRecordedStep('swipe', '镜像滑动', buildAndroidRecordedSwipeParams(
       start, coords, { width: start.w, height: start.h }, Math.max(100, Math.min(Date.now() - start.time, 1500)),
@@ -1072,8 +1075,7 @@ async function sendKeyEvent(keycode: number | string) {
       scheduleActionRefresh(150)
     }
   } catch (err: unknown) {
-    const msg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err)
-    message.warning(t('device.mirror_modal.key_failed', { reason: msg }))
+    message.warning(t('device.mirror_modal.key_failed', { reason: extractApiError(err, '按键发送失败') }))
   }
 }
 
@@ -1119,8 +1121,7 @@ async function sendQuickText() {
       scheduleActionRefresh(200)
     }
   } catch (err: unknown) {
-    const msg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err)
-    message.warning(t('device.mirror_modal.text_failed', { reason: msg }))
+    message.warning(t('device.mirror_modal.text_failed', { reason: extractApiError(err, '文本输入失败') }))
   }
 }
 

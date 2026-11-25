@@ -574,6 +574,7 @@ import {
 import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { getRuntimeMode } from '@/runtimeMode'
 import { loadDevicePackagesAsync } from '@/utils/devicePackages'
+import { extractApiError } from '@/utils/apiError'
 
 const props = defineProps<{
   projectId: number | null
@@ -1061,12 +1062,21 @@ function getAgentApi() {
   }
 }
 
+let modelsRequestSeq = 0
+let sessionsListRequestSeq = 0
+
 async function refreshModels() {
-  if (!props.projectId) return
+  if (!props.projectId) {
+    models.value = []
+    return
+  }
+  const projectId = props.projectId
+  const seq = ++modelsRequestSeq
   try {
     const api = getAgentApi()
     if (typeof api?.listModels !== 'function') return
-    const list = await api.listModels(props.projectId)
+    const list = await api.listModels(projectId)
+    if (seq !== modelsRequestSeq || props.projectId !== projectId) return
     models.value = Array.isArray(list) ? list : []
     modelsLoaded.value = true
     if (formLlmConfigId.value === undefined && models.value.length) {
@@ -1074,7 +1084,9 @@ async function refreshModels() {
       formLlmConfigId.value = preferred.id
     }
   } catch {
-    modelsLoaded.value = true
+    if (seq === modelsRequestSeq) {
+      modelsLoaded.value = true
+    }
   }
 }
 
@@ -1144,13 +1156,17 @@ async function refreshSessionsList() {
     sessions.value = []
     return
   }
+  const projectId = props.projectId
+  const seq = ++sessionsListRequestSeq
   try {
     const api = getAgentApi()
     if (typeof api?.listSessions !== 'function') {
       sessions.value = []
       return
     }
-    sessions.value = await api.listSessions(props.projectId)
+    const list = await api.listSessions(projectId)
+    if (seq !== sessionsListRequestSeq || props.projectId !== projectId) return
+    sessions.value = list
   } catch {
     // 忽略加载历史列表异常
   }
@@ -1274,9 +1290,12 @@ async function runLoop() {
   errorMessage.value = ''
   message.info(t('android_agent.run_started'))
   try {
-    // 阻塞调用：后端一直跑到收敛（暂停/失败/预算耗尽）才返回，结果只给稳定状态与用量
+    // 异步后台执行：接口立即返回 202 running，状态与日志通过轮询刷新
     const result = await androidAgentApi.runSession(props.projectId, sessionId.value)
-    message.info(t('android_agent.run_finished', { status: result.status, reason: result.reason }))
+    if (result.reason !== 'accepted' && result.status !== 'running') {
+      message.info(t('android_agent.run_finished', { status: result.status, reason: result.reason }))
+    }
+    startPolling()
     await refreshSession()
   } catch (error) {
     errorMessage.value = describeError(error)
@@ -1450,15 +1469,29 @@ async function openReplayPreview() {
   }
 }
 
+let activeReplayKey = ''
+let replayAttemptSeq = 0
+let lastReplayAttemptFailed = false
+
 async function startReplay() {
   const moduleId = replayModuleId.value
   if (!props.projectId || !draft.value || moduleId === undefined) return
   replaying.value = true
+  const currentDraftPrefix = `agent-replay-${draft.value.id}-${draft.value.version}-`
+  const canRetrySameKey = Boolean(
+    activeReplayKey.startsWith(currentDraftPrefix)
+    && (latestReplay.value?.status === 'dispatch_failed' || lastReplayAttemptFailed),
+  )
+  if (!canRetrySameKey) {
+    replayAttemptSeq += 1
+    activeReplayKey = `${currentDraftPrefix}${replayAttemptSeq}-${Date.now()}`
+  }
+  lastReplayAttemptFailed = false
   try {
     const handoff = await androidAgentApi.startReplay(props.projectId, draft.value.id, {
       initial_state_confirmed: replayStateConfirmed.value,
       module_id: moduleId,
-      idempotency_key: 'agent-replay-' + draft.value.id + '-' + draft.value.version,
+      idempotency_key: activeReplayKey,
     })
     latestReplay.value = handoff.replay ?? null
     const replayId = handoff.replay?.id ?? handoff.run_id
@@ -1467,6 +1500,7 @@ async function startReplay() {
     startPolling()
     await refreshEventsQuietly()
   } catch (error) {
+    lastReplayAttemptFailed = true
     errorMessage.value = describeError(error)
   } finally {
     replaying.value = false
@@ -1492,11 +1526,8 @@ async function publishDraft() {
 }
 
 function describeError(error: unknown): string {
-  const detail =
-    typeof error === 'string'
-      ? error
-      : (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-  if (typeof detail === 'string') {
+  const detail = extractApiError(error, '')
+  if (detail) {
     if (detail.includes('android_agent_disabled')) {
       agentDisabled.value = true
       return t('android_agent.error_disabled')
@@ -1512,6 +1543,9 @@ watch(
   () => props.projectId,
   () => {
     stopPolling()
+    activeReplayKey = ''
+    replayAttemptSeq = 0
+    lastReplayAttemptFailed = false
     sessions.value = []
     session.value = null
     events.value = []
@@ -1522,9 +1556,23 @@ watch(
     showCompleteForm.value = false
     previewItems.value = []
     publishedCaseId.value = null
+    replayStateConfirmed.value = false
+    replayModuleId.value = undefined
     models.value = []
     modelsLoaded.value = false
+    formTitle.value = ''
     formLlmConfigId.value = undefined
+    formDeviceId.value = undefined
+    formPackage.value = ''
+    formGoal.value = ''
+    formOutcome.value = ''
+    formVars.value = []
+    manualActionType.value = 'tap'
+    manualResourceId.value = ''
+    manualValue.value = ''
+    manualWaitMs.value = 1000
+    manualRequestKeys.clear()
+    errorMessage.value = ''
     void refreshModels()
     void refreshSessionsList()
   },

@@ -856,4 +856,63 @@ describe('DeviceMirrorModal', () => {
     expect(modal.attributes('data-keyboard')).toBe('false')
     wrapper.unmount()
   })
+
+  it('queries uiTarget for locator properties when recording a scrcpy tap', async () => {
+    vi.useFakeTimers()
+    const OriginalWebSocket = globalThis.WebSocket
+    const sentFrames: string[] = []
+    class FakeWS {
+      static OPEN = 1
+      readyState = 1
+      binaryType = 'arraybuffer'
+      onopen: (() => void) | null = null
+      onclose: (() => void) | null = null
+      onerror: (() => void) | null = null
+      onmessage: ((e: any) => void) | null = null
+      constructor(_url: string) {
+        setTimeout(() => this.onopen?.(), 0)
+      }
+      send(data: string) {
+        sentFrames.push(data)
+      }
+      close() {}
+    }
+    globalThis.WebSocket = FakeWS as unknown as typeof WebSocket
+    uiTargetMock.mockResolvedValueOnce({ target: { resourceId: 'com.demo:id/submit', text: '提交' } })
+
+    try {
+      const wrapper = mountModal({
+        open: true,
+        device: { id: 1, serial: 'DEV-SCRCPY-REC', status: 'online' },
+        recordable: true,
+        leaseToken: 'lease-rec',
+      })
+      await vi.advanceTimersByTimeAsync(80)
+      await flushPromises()
+
+      const vm = wrapper.vm as unknown as {
+        isScrcpyLive: boolean
+        startRecording: () => void
+        recordedSteps: Array<{ action: string; params: Record<string, unknown> }>
+        onCanvasMouseDown: (e: MouseEvent) => void
+        onWindowMouseUp: (e: MouseEvent) => Promise<void>
+      }
+      // Prepare fake canvas bounds cleanly by triggering recording and stubbing rect
+      const canvasEl = wrapper.find('canvas').element as HTMLCanvasElement
+      canvasEl.getBoundingClientRect = () => ({ left: 0, top: 0, width: 720, height: 1280 } as DOMRect)
+      vm.isScrcpyLive = true
+      vm.startRecording()
+      vm.onCanvasMouseDown(new MouseEvent('mousedown', { clientX: 100, clientY: 200 }))
+      await vm.onWindowMouseUp(new MouseEvent('mouseup', { clientX: 100, clientY: 200 }))
+      await flushPromises()
+
+      expect(uiTargetMock).toHaveBeenCalled()
+      expect(sentFrames.some((f) => f.includes('"type":"touch"'))).toBe(true)
+      expect(vm.recordedSteps).toHaveLength(1)
+      expect(vm.recordedSteps[0].params.resourceId).toBe('com.demo:id/submit')
+      wrapper.unmount()
+    } finally {
+      globalThis.WebSocket = OriginalWebSocket
+    }
+  })
 })

@@ -4,7 +4,7 @@
       <div>
         <h2 class="page-title">{{ t('apk.title') }}</h2>
       </div>
-      <a-button type="primary" @click="uploadOpen = true">
+      <a-button type="primary" :disabled="!canUploadAnyProject" @click="openUploadModal">
         <UploadOutlined /> {{ t('apk.upload') }}
       </a-button>
     </div>
@@ -78,9 +78,9 @@
         <template v-if="column.key === 'action'">
           <a-space>
             <a-button type="link" size="small" @click="handleDownload(asApk(record))">{{ t('apk.download') }}</a-button>
-            <a-button type="link" size="small" @click="openEdit(asApk(record))">{{ t('common.edit') }}</a-button>
-            <a-popconfirm :title="t('apk.confirm_delete')" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
+            <a-button type="link" size="small" :disabled="!canEditProject(asApk(record).project_id)" @click="openEdit(asApk(record))">{{ t('common.edit') }}</a-button>
+            <a-popconfirm :disabled="!canEditProject(asApk(record).project_id)" :title="t('apk.confirm_delete')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger :disabled="!canEditProject(asApk(record).project_id)">{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -93,8 +93,10 @@
       :ok-text="t('apk.upload_action')"
       :cancel-text="t('common.cancel')"
       :confirm-loading="uploading"
-      :ok-button-props="{ disabled: !uploadForm.file || !uploadForm.project_id }"
+      :mask-closable="false"
+      :ok-button-props="{ disabled: !uploadForm.file || !uploadForm.project_id || !canEditProject(uploadForm.project_id) }"
       @ok="handleUpload"
+      @cancel="resetUploadForm"
     >
       <a-form layout="vertical">
         <a-form-item :label="t('apk.fields.project')" required>
@@ -103,7 +105,7 @@
             :placeholder="t('apk.select_project')"
             style="width: 100%"
           >
-            <a-select-option v-for="p in projects" :key="p.id" :value="p.id">
+            <a-select-option v-for="p in editableProjects" :key="p.id" :value="p.id">
               {{ p.name }}
             </a-select-option>
           </a-select>
@@ -166,15 +168,40 @@ import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { UploadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import type { UploadFile } from 'ant-design-vue'
 import { apkApi, projectApi } from '@/api'
 import type { ApkItem, ProjectItem } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { extractApiError } from '@/utils/apiError'
+import { canEditProjectByRole } from '@/utils/permissions'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asApk = (record: unknown) => record as ApkItem
 
 const { t } = useI18n()
+const route = useRoute()
+const auth = useAuthStore()
 const apks = ref<ApkItem[]>([])
 const projects = ref<ProjectItem[]>([])
+const editableProjects = computed(() =>
+  projects.value.filter((p) => canEditProjectByRole(auth.user?.role, p.current_user_role)),
+)
+const canUploadAnyProject = computed(() => editableProjects.value.length > 0)
+function canEditProject(pid?: number | null): boolean {
+  if (auth.user?.role === 'admin') return true
+  if (!pid) return false
+  const proj = projects.value.find((p) => p.id === pid)
+  return canEditProjectByRole(auth.user?.role, proj?.current_user_role)
+}
+function openUploadModal() {
+  resetUploadForm()
+  if (projectFilter.value && canEditProject(projectFilter.value)) {
+    uploadForm.value.project_id = projectFilter.value
+  } else if (editableProjects.value.length) {
+    uploadForm.value.project_id = editableProjects.value[0].id
+  }
+  uploadOpen.value = true
+}
 const loading = ref(false)
 const projectFilter = ref<number | undefined>(undefined)
 const keyword = ref('')
@@ -223,9 +250,7 @@ const apkProjectCount = computed(() => new Set(apks.value.map((apk) => apk.proje
 const totalSizeLabel = computed(() => formatSize(apks.value.reduce((total, apk) => total + apk.file_size, 0)))
 
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'string') return error
-  if (error instanceof Error) return error.message
-  return fallback
+  return extractApiError(error, fallback)
 }
 
 function formatSize(bytes: number) {
@@ -256,6 +281,10 @@ function handleRemoveFile() {
 async function loadProjects() {
   try {
     projects.value = await projectApi.list()
+    const queryPid = Number(route.query.project_id)
+    if (Number.isInteger(queryPid) && queryPid > 0 && projects.value.some((p) => p.id === queryPid)) {
+      projectFilter.value = queryPid
+    }
   } catch (e: unknown) {
     message.error(errorMessage(e, t('apk.msg.load_projects_failed')))
   }
@@ -357,9 +386,9 @@ async function handleDownload(record: ApkItem) {
   }
 }
 
-onMounted(() => {
-  loadProjects()
-  loadApks()
+onMounted(async () => {
+  await loadProjects()
+  await loadApks()
 })
 </script>
 

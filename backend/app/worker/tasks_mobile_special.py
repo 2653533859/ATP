@@ -102,6 +102,18 @@ def run_mobile_special_task(self, run_id: int):
                     run.finished_at = datetime.now(timezone.utc)
                     run.summary_json = {"error_message": err_msg}
                     await db.commit()
+                    await _safe_publish_run_event(
+                        run_id,
+                        {
+                            "type": "completed",
+                            "run_id": run_id,
+                            "status": "failed",
+                            "progress": 100,
+                            "current_step": "执行节点校验失败",
+                            "error": err_msg,
+                            "summary": run.summary_json,
+                        },
+                    )
                     return
 
             candidate_serial = run.device_serial or (run.config_snapshot or {}).get("device_serial")
@@ -126,6 +138,18 @@ def run_mobile_special_task(self, run_id: int):
                         run.finished_at = datetime.now(timezone.utc)
                         run.summary_json = {"error_message": err_msg}
                         await db.commit()
+                        await _safe_publish_run_event(
+                            run_id,
+                            {
+                                "type": "completed",
+                                "run_id": run_id,
+                                "status": "failed",
+                                "progress": 100,
+                                "current_step": "执行节点校验失败",
+                                "error": err_msg,
+                                "summary": run.summary_json,
+                            },
+                        )
                         return
                 except DeviceResolutionError as exc:
                     if require_claimed or exc.code in {"device_serial_ambiguous", "device_identity_mismatch"}:
@@ -133,6 +157,18 @@ def run_mobile_special_task(self, run_id: int):
                         run.finished_at = datetime.now(timezone.utc)
                         run.summary_json = {"error_message": f"{exc.code}: {exc.message}"}
                         await db.commit()
+                        await _safe_publish_run_event(
+                            run_id,
+                            {
+                                "type": "completed",
+                                "run_id": run_id,
+                                "status": "failed",
+                                "progress": 100,
+                                "current_step": "设备解析失败",
+                                "error": f"{exc.code}: {exc.message}",
+                                "summary": run.summary_json,
+                            },
+                        )
                         return
 
             run.device_serial = (
@@ -319,9 +355,23 @@ def run_mobile_special_task(self, run_id: int):
                         cancel_check=lambda: is_cancel_requested(run_id, client=control_client),
                     )
                 else:
+                    err_msg = f"Unknown task_type: {task.task_type}"
                     run.status = RunStatus.failed
-                    run.summary_json = {"error_message": f"Unknown task_type: {task.task_type}"}
+                    run.finished_at = datetime.now(timezone.utc)
+                    run.summary_json = {"error_message": err_msg}
                     await db.commit()
+                    await _safe_publish_run_event(
+                        run_id,
+                        {
+                            "type": "completed",
+                            "run_id": run_id,
+                            "status": "failed",
+                            "progress": 100,
+                            "current_step": "未知专项类型",
+                            "error": err_msg,
+                            "summary": run.summary_json,
+                        },
+                    )
 
             except Exception as e:
                 logger.exception(f"Mobile special run {run_id} failed: {e}")

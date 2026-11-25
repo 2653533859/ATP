@@ -325,7 +325,8 @@ def test_stability_run_records_device_lost(
 
     assert run.summary_json["device_lost"] is True
     assert "device_lost_at_sec" in run.summary_json
-    assert run.status is RunStatus.completed
+    assert run.status is RunStatus.failed
+    assert "失联" in run.summary_json.get("error_message", "")
 
 
 def test_stability_run_survives_monkey_exec_failure(
@@ -420,4 +421,50 @@ def test_clear_logcat_buffer_swallows_errors(monkeypatch):
         raise RuntimeError("adb gone")
 
     monkeypatch.setattr(android_stability_executor.subprocess, "run", broken_run)
+
+
+def test_stability_run_writes_back_monkey_seed_and_uses_wall_clock_start_time(
+    monkeypatch, chain_events, reachable, fast_clock, quiet_heartbeat, quiet_start_app
+):
+    from datetime import datetime, timezone
+
+    captured_start_times: list[datetime] = []
+
+    async def fake_archive(db, *, run_id, incident, full_logcat, video_path=None, run_start_time=None):
+        if run_start_time is not None:
+            captured_start_times.append(run_start_time)
+        return {}
+
+    monkeypatch.setattr(
+        "app.services.android_incident_archiver.archive_incident_artifacts",
+        fake_archive,
+    )
+    monkeypatch.setattr(
+        android_stability_executor,
+        "_run_logcat_monitor",
+        lambda *_a, **_kw: asyncio.sleep(
+            0,
+            result=(
+                [
+                    {
+                        "incident_type": android_stability_executor.IncidentType.crash,
+                        "title": "FATAL",
+                        "detail": "Crash",
+                        "event_time": datetime.now(timezone.utc),
+                    }
+                ],
+                [],
+                "log",
+            ),
+        ),
+    )
+    run = _run_stub(device_serial="emu-5554", app_package="com.example.app", duration_seconds=60)
+    run.config_snapshot.pop("monkey_seed", None)
+
+    asyncio.run(android_stability_executor.run_mobile_special_stability(_FakeDB(), run))
+
+    assert run.status is RunStatus.completed
+    assert run.config_snapshot["monkey_seed"] == 12345
+    assert run.summary_json["monkey_seed"] == 12345
+    assert captured_start_times and captured_start_times[0].year >= 2025
     android_stability_executor._clear_logcat_buffer("emu-5554")  # 不应抛异常

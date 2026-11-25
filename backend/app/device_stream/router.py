@@ -494,6 +494,20 @@ async def scrcpy_video_stream(websocket: WebSocket, serial: str):
     if not user:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+    if getattr(user, "role", None) not in (UserRole.admin, UserRole.engineer):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    serial_device_id: int | None = None
+    lease_cache: dict[str, Any] = {}
+    fallback_token = websocket.query_params.get("lease_token") if hasattr(websocket, "query_params") else None
+    if not settings.ATP_LOCAL_MODE:
+        try:
+            async with AsyncSessionLocal() as db:
+                dev_row = (await db.execute(select(Device).where(Device.serial == serial))).scalar_one_or_none()
+                serial_device_id = getattr(dev_row, "id", None)
+        except Exception:
+            serial_device_id = None
 
     await websocket.accept()
     logger.info("Scrcpy 视频流客户端已连接: %s (user=%s)", serial, user.username)
@@ -517,7 +531,20 @@ async def scrcpy_video_stream(websocket: WebSocket, serial: str):
                 raw_text = await websocket.receive_text()
                 try:
                     cmd = json.loads(raw_text)
+                    if not isinstance(cmd, dict):
+                        continue
                     cmd_type = cmd.get("type")
+                    if cmd_type not in {"touch", "key", "text"}:
+                        continue
+                    if not settings.ATP_LOCAL_MODE and serial_device_id is None:
+                        raise PermissionError("设备未在平台注册或缺少有效租约，无法发送实时控制指令")
+                    await _verify_ws_control_permission(
+                        user=user,
+                        device_id=serial_device_id or 0,
+                        cmd=cmd,
+                        fallback_token=fallback_token,
+                        lease_cache=lease_cache,
+                    )
                     if cmd_type == "touch":
                         scrcpy_manager.send_touch_event(
                             serial,
@@ -535,6 +562,16 @@ async def scrcpy_video_stream(websocket: WebSocket, serial: str):
                         await loop.run_in_executor(
                             None, scrcpy_manager.send_text_event, serial, str(cmd.get("text", ""))
                         )
+                except PermissionError as auth_err:
+                    try:
+                        await websocket.send_text(
+                            json.dumps(
+                                {"type": "error", "code": "control_denied", "message": str(auth_err)},
+                                ensure_ascii=False,
+                            )
+                        )
+                    except Exception:
+                        pass
                 except Exception as ctrl_err:
                     logger.debug("Scrcpy 控制指令处理忽略: %s", ctrl_err)
 

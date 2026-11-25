@@ -45,7 +45,7 @@
         <div class="minor-actions">
           <a-button type="link" size="small" class="footer-link" @click="emit('edit', device)">详情</a-button>
           <a-button
-            v-if="!device.worker_id"
+            v-if="!device.worker_id && canClaim"
             type="link"
             size="small"
             class="footer-link"
@@ -88,7 +88,7 @@ import { MobileOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import type { DeviceItem, DeviceStatus } from '@/api'
 
-defineProps<{ devices: DeviceItem[] }>()
+defineProps<{ devices: DeviceItem[]; canClaim?: boolean }>()
 const emit = defineEmits<{
   edit: [device: DeviceItem]
   claim: [device: DeviceItem]

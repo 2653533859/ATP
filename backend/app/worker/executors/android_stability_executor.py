@@ -13,12 +13,13 @@ Android 稳定性测试执行器（智能稳定性 / Monkey 探索模式）
 
 import asyncio
 from contextlib import suppress
+import inspect
 import json
 import logging
 import subprocess
 import time
 from datetime import datetime, timezone
-from asyncio import CancelledError
+from asyncio import CancelledError, Event
 from typing import Callable, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +32,7 @@ from app.models.mobile_special import (
     IncidentType,
 )
 from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable
+from app.services.adb_service import adb_subprocess_kwargs
 from app.services.mobile_special.adb_client import run_adb_shell
 from app.services.mobile_special.parsers import parse_logcat_crash, parse_logcat_anr
 from app.services.mobile_special.preflight import AndroidPreflightError, launch_android_app
@@ -181,6 +183,7 @@ def _clear_logcat_buffer(serial: str) -> None:
             capture_output=True,
             text=True,
             timeout=10,
+            **adb_subprocess_kwargs(),
         )
     except Exception:
         logger.debug("failed to clear logcat buffer for %s", serial, exc_info=True)
@@ -194,6 +197,7 @@ async def _run_logcat_monitor(
     serial: str,
     run_id: int,
     duration_seconds: int,
+    stop_event: asyncio.Event | None = None,
 ) -> tuple[list[dict], list[dict], str]:
     """后台运行 logcat，收集 crash 和 ANR"""
     raw_lines: list[str] = []
@@ -205,10 +209,13 @@ async def _run_logcat_monitor(
         *_build_logcat_cmd(serial),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        **adb_subprocess_kwargs(),
     )
 
     try:
         while (time.monotonic() - start_time) < duration_seconds:
+            if stop_event is not None and stop_event.is_set():
+                break
             if proc.stdout is None:
                 break
             try:
@@ -251,6 +258,11 @@ async def run_mobile_special_stability(
     duration_seconds = config.get("duration_seconds", 300)
     operation_interval_ms = config.get("operation_interval_ms", 500)
     seed = config.get("monkey_seed", 12345)
+    if "monkey_seed" not in config:
+        snapshot = dict(config)
+        snapshot["monkey_seed"] = seed
+        run.config_snapshot = snapshot
+        config = snapshot
     events = recorder or MobileRunEventRecorder(db, run.id)
     await events.initialize()
 
@@ -258,7 +270,7 @@ async def run_mobile_special_stability(
     validation_errors = _validate_inputs(device_serial, app_package, config)
     if validation_errors:
         run.status = RunStatus.failed
-        run.finished_at = datetime.now()
+        run.finished_at = datetime.now(timezone.utc)
         run.summary_json = {"error_message": "; ".join(validation_errors)}
         await db.commit()
         await events.record(
@@ -285,7 +297,7 @@ async def run_mobile_special_stability(
     )
     if not reachable:
         run.status = RunStatus.failed
-        run.finished_at = datetime.now()
+        run.finished_at = datetime.now(timezone.utc)
         run.summary_json = {"error_message": f"设备不可达: {device_message}"}
         await db.commit()
         await events.record(
@@ -306,7 +318,7 @@ async def run_mobile_special_stability(
         )
         return
 
-    run.started_at = datetime.now()
+    run.started_at = datetime.now(timezone.utc)
     run.status = RunStatus.running
     await db.commit()
     await events.record(
@@ -350,7 +362,7 @@ async def run_mobile_special_stability(
         if not app_started:
             error_message = f"应用启动失败: {app_package}"
             run.status = RunStatus.failed
-            run.finished_at = datetime.now()
+            run.finished_at = datetime.now(timezone.utc)
             run.duration_ms = 0
             run.summary_json = {"error_message": error_message, "app_package": app_package}
             await db.commit()
@@ -380,7 +392,11 @@ async def run_mobile_special_stability(
     # 4. 启动 logcat 监控 crash/ANR
     raw_log = ""
     recording_local_path: str | None = None
-    logcat_task = asyncio.create_task(_run_logcat_monitor(device_serial, run.id, duration_seconds))
+    logcat_stop_event = Event()
+    _logcat_kwargs: dict[str, asyncio.Event] = (
+        {"stop_event": logcat_stop_event} if "stop_event" in inspect.signature(_run_logcat_monitor).parameters else {}
+    )
+    logcat_task = asyncio.create_task(_run_logcat_monitor(device_serial, run.id, duration_seconds, **_logcat_kwargs))
     # 5. 执行 monkey 命令（外包心跳监控；掉线时同时取消 monkey 和 logcat）
     monkey_cmd = _build_monkey_cmd(
         serial=device_serial,
@@ -414,6 +430,7 @@ async def run_mobile_special_stability(
     )
 
     start_time = time.monotonic()
+    run_start_wall_time = datetime.now(timezone.utc)
     completed_actions = 0
     device_lost_at: Optional[float] = None
     monkey_proc: Optional[asyncio.subprocess.Process] = None
@@ -442,6 +459,7 @@ async def run_mobile_special_stability(
                 *monkey_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
+                **adb_subprocess_kwargs(),
             )
             output_task = asyncio.create_task(
                 _consume_monkey_output(getattr(monkey_proc, "stdout", None), run.id, events)
@@ -452,6 +470,7 @@ async def run_mobile_special_stability(
             next_progress_at = 30.0
             while (time.monotonic() - start_time) < duration_seconds:
                 if hb.lost:
+                    execution_error = execution_error or f"设备 {device_serial} 在稳定性探索期间失联"
                     break
                 if monkey_proc.returncode is not None:
                     if monkey_proc.returncode != 0:
@@ -510,14 +529,22 @@ async def run_mobile_special_stability(
         logger.exception("monkey execution error for run %s: %s", run.id, e)
         execution_error = f"Monkey 执行失败: {str(e)[:500]}"
 
-    # 6. 等待 logcat 完成；取消时立即终止 logcat 子进程。
-    if execution_error or cancelled:
+    # 6. 等待 logcat 完成；取消或设备失联时立即终止 logcat 子进程。
+    logcat_stop_event.set()
+    if cancelled or device_lost_at is not None:
         logcat_task.cancel()
         with suppress(CancelledError):
             await logcat_task
         crashes, anrs, raw_log = [], [], ""
     else:
-        crashes, anrs, raw_log = await asyncio.wait_for(logcat_task, timeout=30)
+        try:
+            crashes, anrs, raw_log = await asyncio.wait_for(logcat_task, timeout=30)
+        except asyncio.TimeoutError:
+            logger.warning("logcat monitor timed out for run %s; cancelling", run.id)
+            logcat_task.cancel()
+            with suppress(CancelledError):
+                await logcat_task
+            crashes, anrs, raw_log = [], [], ""
     total_ms = int((time.monotonic() - start_time) * 1000)
 
     # 7. 保存 incidents
@@ -560,7 +587,7 @@ async def run_mobile_special_stability(
         incident = MobileIncident(
             run_id=run.id,
             incident_type=inc.get("incident_type", IncidentType.crash),
-            event_time=inc.get("event_time", datetime.now()),
+            event_time=inc.get("event_time", datetime.now(timezone.utc)),
             title=inc.get("title"),
             detail=inc.get("detail"),
             process_name=inc.get("process_name"),
@@ -577,8 +604,8 @@ async def run_mobile_special_stability(
                 run_id=run.id,
                 incident=incident,
                 full_logcat=raw_log,
-                video_path=recording_local_path if "recording_local_path" in locals() else None,
-                run_start_time=datetime.fromtimestamp(start_time, tz=timezone.utc),
+                video_path=recording_local_path,
+                run_start_time=run_start_wall_time,
             )
         except Exception as exc:
             logger.warning("Failed to archive incident artifacts for run %s: %s", run.id, exc)
@@ -588,6 +615,7 @@ async def run_mobile_special_stability(
     summary = {
         "explore_duration_seconds": int(total_ms / 1000),
         "operation_interval_ms": operation_interval_ms,
+        "monkey_seed": seed,
         "crash_count": crash_count,
         "anr_count": anr_count,
         "completed_action_count": completed_actions,
@@ -606,7 +634,7 @@ async def run_mobile_special_stability(
         run.status = RunStatus.failed
     else:
         run.status = RunStatus.completed
-    run.finished_at = datetime.now()
+    run.finished_at = datetime.now(timezone.utc)
     run.duration_ms = total_ms
     run.summary_json = summary
     await db.commit()

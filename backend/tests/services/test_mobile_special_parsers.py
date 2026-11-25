@@ -184,3 +184,13 @@ class TestParsePid:
     def test_parse_pid_returns_none_for_invalid(self):
         assert parse_pid("") is None
         assert parse_pid("not a number") is None
+
+    def test_logcat_incidents_emit_timezone_aware_utc_timestamps(self):
+        from datetime import timezone
+
+        crashes = parse_logcat_crash(
+            "FATAL EXCEPTION: main\nProcess: com.example.app\njava.lang.RuntimeException: boom\n"
+        )
+        anrs = parse_logcat_anr("ANR in com.example.app\nReason: Input dispatching timed out\n")
+        assert crashes and crashes[0]["event_time"].tzinfo is timezone.utc
+        assert anrs and anrs[0]["event_time"].tzinfo is timezone.utc

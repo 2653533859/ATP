@@ -6,7 +6,7 @@ or incidents.
 """
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.models.mobile_special import MetricType, IncidentType
@@ -268,7 +268,7 @@ def parse_logcat_crash(raw: str) -> list[dict]:
                 "detail": stack_line or exc_detail,
                 "process_name": process_name,
                 "thread_name": None,
-                "event_time": datetime.now(),
+                "event_time": datetime.now(timezone.utc),
                 "extra": {"raw_block": block[:500]},
             }
         )
@@ -311,7 +311,7 @@ def parse_logcat_anr(raw: str) -> list[dict]:
                 "detail": reason,
                 "process_name": process_name,
                 "thread_name": None,
-                "event_time": datetime.now(),
+                "event_time": datetime.now(timezone.utc),
                 "extra": {"raw_block": block[:500]},
             }
         )

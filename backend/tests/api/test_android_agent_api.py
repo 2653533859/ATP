@@ -811,3 +811,33 @@ async def test_cancel_during_manual_write_retains_lease_until_call_finishes(tmp_
     finally:
         finish.set()
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_api_create_session_honors_idempotency_key_header(tmp_path: Path):
+    engine, factory, user = await _setup_api_test_db(tmp_path)
+    try:
+        async with factory() as db:
+            payload = AgentSessionCreate(
+                device_id=1,
+                package_name="com.example.app",
+                goal="Idempotent Create",
+                expected_outcome="Same Session Returned",
+            )
+            first = await create_agent_session(
+                payload=payload,
+                project_id=1,
+                idempotency_key="idem-session-key-1",
+                db=db,
+                current_user=user,
+            )
+            second = await create_agent_session(
+                payload=payload,
+                project_id=1,
+                idempotency_key="idem-session-key-1",
+                db=db,
+                current_user=user,
+            )
+            assert first.id == second.id
+    finally:
+        await engine.dispose()

@@ -43,6 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.minio_client import upload_bytes, upload_file, presigned_url
+from app.services.adb_service import adb_subprocess_kwargs
 from app.services.gif_recorder import generate_and_upload_run_gif
 from app.core.redis_client import publish_run_event
 from app.models.apk import Apk
@@ -198,7 +199,7 @@ def _adb_screenshot(serial: str) -> bytes | None:
     """通过 adb 截图，返回 PNG 字节"""
     cmd = ["adb", "-s", serial, "exec-out", "screencap", "-p"]
     try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=10)
+        proc = subprocess.run(cmd, capture_output=True, timeout=10, **adb_subprocess_kwargs())
         if proc.returncode == 0 and proc.stdout:
             return proc.stdout
         return None
@@ -261,6 +262,7 @@ def _start_screen_recording(serial: str, remote_path: str, max_seconds: int):
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
+            **adb_subprocess_kwargs(),
         )
     except Exception as exc:
         logger.warning("Android screen recording unavailable for %s: %s", serial, exc)
@@ -287,6 +289,7 @@ async def _finish_screen_recording(serial: str, process, remote_path: str, run_i
             capture_output=True,
             text=True,
             timeout=30,
+            **adb_subprocess_kwargs(),
         )
         if pulled.returncode != 0 or not local_path.exists() or local_path.stat().st_size > 200_000_000:
             return None
@@ -298,7 +301,12 @@ async def _finish_screen_recording(serial: str, process, remote_path: str, run_i
         return None
     finally:
         try:
-            await asyncio.to_thread(subprocess.run, ["adb", "-s", serial, "shell", "rm", remote_path], timeout=10)
+            await asyncio.to_thread(
+                subprocess.run,
+                ["adb", "-s", serial, "shell", "rm", remote_path],
+                timeout=10,
+                **adb_subprocess_kwargs(),
+            )
         except Exception:
             pass
         try:
@@ -311,7 +319,7 @@ def _adb_cmd(serial: str, *args: str, timeout: int = 15) -> tuple[bool, str]:
     """执行 adb shell 命令，返回 (success, output)"""
     cmd = ["adb", "-s", serial, *args]
     try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout, **adb_subprocess_kwargs())
         stdout = (
             (proc.stdout or b"").decode("utf-8", errors="replace")
             if isinstance(proc.stdout, bytes)
@@ -1124,7 +1132,11 @@ async def _run_android_lowcode_steps(
             executed_steps += 1
 
             # 每步截图
-            screenshot_url, screenshot_bytes = await _take_screenshot(device_serial, run.id, idx)
+            screenshot_res = await _take_screenshot(device_serial, run.id, idx)
+            if isinstance(screenshot_res, tuple):
+                screenshot_url, screenshot_bytes = screenshot_res
+            else:
+                screenshot_url, screenshot_bytes = screenshot_res, None
             if screenshot_bytes:
                 status_tag = f" [{status.value}]"
                 gif_frames.append((screenshot_bytes, f"步骤 {idx + 1}: {step_name}{status_tag}"))

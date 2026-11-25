@@ -124,6 +124,7 @@
               type="link"
               size="small"
               danger
+              :disabled="!canModify"
               @click="handleStop(asRun(record))"
             >{{ t('mobile_special.reports.stop') }}</a-button>
           </template>
@@ -182,13 +183,16 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { Dayjs } from 'dayjs'
 import { init, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { useChartTheme } from '@/utils/chartTheme'
 import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { projectApi, mobileSpecialApi, type MobileSpecialRunItem, type ProjectItem, type TaskType, type MobileRunStatus } from '@/api'
+import { extractApiError } from '@/utils/apiError'
+import { canEditProjectByRole } from '@/utils/permissions'
+import { useAuthStore } from '@/stores/auth'
 import {
   addMobileRunTaskFallback,
   buildMobileRunQuery,
@@ -199,16 +203,26 @@ import {
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asRun = (record: unknown) => record as MobileSpecialRunItem
 
+const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const { t, locale } = useI18n()
 const { chartTheme } = useChartTheme()
 const loading = ref(false)
 const runs = ref<MobileSpecialRunItem[]>([])
+const projects = ref<ProjectItem[]>([])
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
 
 const selectedProjectId = ref<number | null>(null)
 const selectedTaskType = ref<TaskType | null>(null)
 const selectedStatus = ref<MobileRunStatus | null>(null)
+const selectedProject = computed(() => projects.value.find((p) => p.id === selectedProjectId.value))
+const canModify = computed(() => {
+  if (selectedProjectId.value != null) {
+    return canEditProjectByRole(auth.user?.role, selectedProject.value?.current_user_role)
+  }
+  return projects.value.some((p) => canEditProjectByRole(auth.user?.role, p.current_user_role))
+})
 // RangePicker 产出 Dayjs 对；filterMobileRunsByDateRange 接受其超集 DateRangeValue
 const dateRange = ref<[Dayjs, Dayjs] | null>(null)
 
@@ -224,9 +238,7 @@ const trendChartRef = ref<HTMLDivElement | null>(null)
 let trendChart: ECharts | null = null
 
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'string') return error
-  if (error instanceof Error) return error.message
-  return fallback
+  return extractApiError(error, fallback)
 }
 
 const taskTypeOptions = computed(() => [
@@ -265,8 +277,12 @@ const reportPolling = useVisiblePolling(() => {
 onMounted(async () => {
   try {
     const list = await projectApi.list()
+    projects.value = list
     projectOptions.value = list.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
-    if (list.length > 0) {
+    const queryPid = Number(route.query?.project_id)
+    if (Number.isInteger(queryPid) && queryPid > 0 && list.some((p: ProjectItem) => p.id === queryPid)) {
+      selectedProjectId.value = queryPid
+    } else if (list.length > 0) {
       selectedProjectId.value = list[0].id
     }
   } catch (e: unknown) {
@@ -438,6 +454,7 @@ async function exportJson(record: MobileSpecialRunItem) {
 }
 
 async function handleStop(record: MobileSpecialRunItem) {
+  if (!canModify.value) return
   try {
     await mobileSpecialApi.stopRun(record.id)
     message.success(t('mobile_special.reports.msg.stopped'))

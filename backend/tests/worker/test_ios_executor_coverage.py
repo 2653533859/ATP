@@ -773,3 +773,17 @@ def test_run_ios_case_wda_retry_returns_failed_result(ios_env, monkeypatch):
     assert db.added[0].status == RunStatus.failed
     assert "iOS 断言失败" in db.added[0].error_message
     assert run.status == RunStatus.failed
+
+
+def test_run_ios_case_captures_screenshot_for_regular_step_and_publishes_completed_on_early_exit(ios_env):
+    _FakeAppiumClient.step_hook = lambda *_a: {"success": True}
+    db, run, case = _env([{"action": "click"}], config={"ios_device_id": 3, "capture_screenshot": True}, device=DEVICE)
+    asyncio.run(ios.run_ios_case(db, run, case, {}))
+    assert run.status == RunStatus.passed
+    assert db.added[0].screenshot_url is not None
+
+    db_empty, run_empty, case_empty = _env([], config={"ios_device_id": 3}, device=DEVICE)
+    asyncio.run(ios.run_ios_case(db_empty, run_empty, case_empty, {}))
+    assert run_empty.status == RunStatus.error
+    assert ios_env.published[-1]["type"] == "completed"
+    assert ios_env.published[-1]["status"] == "error"

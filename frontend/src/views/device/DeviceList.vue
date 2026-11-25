@@ -227,6 +227,7 @@
     <DeviceMatrixPanel
       v-show="viewMode === 'card'"
       :devices="displayDevices"
+      :can-claim="isAdmin"
       @edit="openEdit"
       @claim="openClaimModal"
       @delete="handleDelete"
@@ -238,7 +239,7 @@
     <div v-show="viewMode === 'table'" class="table-card-wrap">
       <a-table
         :columns="columns"
-        :data-source="filteredDevices"
+        :data-source="displayDevices"
         :loading="loading"
         row-key="id"
         size="middle"
@@ -290,7 +291,7 @@
               </a-button>
               <a-button type="link" size="small" @click="openEdit(asDevice(record))">{{ t('common.edit') }}</a-button>
               <a-button
-                v-if="!record.worker_id"
+                v-if="!record.worker_id && isAdmin"
                 type="link"
                 size="small"
                 @click="openClaimModal(asDevice(record))"
@@ -402,6 +403,17 @@
               message="支持连接局域网、VPN 或云端的 Android 真机、车机或模拟器。手机需在开发者选项开启「无线调试」或已在工位执行 adb tcpip 5555。"
             />
             <a-form layout="vertical">
+              <a-form-item v-if="workers.length > 0" label="执行节点">
+                <a-select
+                  v-model:value="remoteForm.worker_id"
+                  placeholder="请选择接入该远程设备的 Android Worker"
+                  allow-clear
+                >
+                  <a-select-option v-for="w in workers" :key="w.worker_id" :value="w.worker_id">
+                    {{ w.hostname || w.worker_id }} ({{ w.worker_id }})
+                  </a-select-option>
+                </a-select>
+              </a-form-item>
               <a-form-item label="设备 IP 地址" required>
                 <a-input
                   v-model:value="remoteForm.host"
@@ -514,11 +526,16 @@ import { deviceApi } from '@/api'
 import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import type { AndroidWorkerItem, DeviceGroupItem, DeviceItem, DeviceStatus, RemoteAgentItem } from '@/api'
 import { probeLocalAndroidWorker, type LocalAndroidWorkerIdentity } from '@/utils/localAndroidWorker'
+import { useAuthStore } from '@/stores/auth'
+import { extractApiError } from '@/utils/apiError'
 import DeviceMatrixPanel from './components/DeviceMatrixPanel.vue'
 import DeviceMirrorModal from './components/DeviceMirrorModal.vue'
 
 const asDevice = (record: unknown) => record as DeviceItem
 
+const auth = useAuthStore()
+const isAdmin = computed(() => auth.user?.role === 'admin')
+let pageUnmounted = false
 
 const { t } = useI18n()
 const devices = ref<DeviceItem[]>([])
@@ -568,7 +585,7 @@ const claimForm = ref({ worker_id: '' })
 const remoteConnectModalVisible = ref(false)
 const remoteConnectTab = ref('direct')
 const remoteConnecting = ref(false)
-const remoteForm = ref({ host: '', port: 5555 })
+const remoteForm = ref<{ host: string; port: number; worker_id?: string }>({ host: '', port: 5555, worker_id: undefined })
 
 const remoteAgents = ref<RemoteAgentItem[]>([])
 const agentProbeLoadingId = ref<number | null>(null)
@@ -625,7 +642,11 @@ function downloadAgentScript() {
 }
 
 function openRemoteConnectModal() {
-  remoteForm.value = { host: '', port: 5555 }
+  remoteForm.value = {
+    host: '',
+    port: 5555,
+    worker_id: selectedWorkerId.value || workers.value[0]?.worker_id || undefined,
+  }
   remoteConnectTab.value = 'direct'
   remoteConnectModalVisible.value = true
 }
@@ -636,19 +657,19 @@ async function handleRemoteConnect() {
     message.warning('请输入设备 IP 地址')
     return
   }
+  const workerId = remoteForm.value.worker_id || selectedWorkerId.value
   remoteConnecting.value = true
   try {
     const res = await deviceApi.connect({
       host,
       port: remoteForm.value.port || 5555,
-      ...(selectedWorkerId.value ? { worker_id: selectedWorkerId.value } : {}),
+      ...(workerId ? { worker_id: workerId } : {}),
     })
     message.success(res.message || '远程设备连接成功！')
     remoteConnectModalVisible.value = false
     await loadDevices()
-  } catch (err: any) {
-    const detail = err?.response?.data?.detail || err?.message || '连接失败'
-    message.error(detail)
+  } catch (err: unknown) {
+    message.error(extractApiError(err, '连接失败'))
   } finally {
     remoteConnecting.value = false
   }
@@ -666,19 +687,20 @@ async function handleRemoteDisconnect(target: DeviceItem | string) {
     })
     message.success(`已断开远程设备 ${serial}`)
     await loadDevices()
-  } catch (err: any) {
-    message.error(`断开连接失败: ${err?.response?.data?.detail || err?.message || err}`)
+  } catch (err: unknown) {
+    message.error(`断开连接失败: ${extractApiError(err, '未知错误')}`)
   }
 }
 
 function openClaimModal(device: DeviceItem) {
+  if (!isAdmin.value) return
   claimTarget.value = device
   claimForm.value = { worker_id: selectedWorkerId.value || workers.value[0]?.worker_id || '' }
   claimOpen.value = true
 }
 
 async function handleClaimSubmit() {
-  if (!claimTarget.value) return
+  if (!claimTarget.value || !isAdmin.value) return
   const wid = claimForm.value.worker_id.trim()
   if (!wid) {
     ;(message.warning ?? message.info)('请选择或输入目标 Android Worker 节点 ID')
@@ -694,8 +716,8 @@ async function handleClaimSubmit() {
     message.success(`设备 ${claimTarget.value.serial} 已认领至节点 ${wid}`)
     claimOpen.value = false
     await loadDevices()
-  } catch (err: any) {
-    message.error(err?.response?.data?.detail || err?.message || '认领失败')
+  } catch (err: unknown) {
+    message.error(extractApiError(err, '认领失败'))
   } finally {
     claiming.value = false
   }
@@ -762,9 +784,7 @@ function setStatusPill(status: 'all' | 'online' | 'busy' | 'offline') {
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'string') return error
-  if (error instanceof Error) return error.message
-  return fallback
+  return extractApiError(error, fallback)
 }
 
 function statusBadge(s: DeviceStatus): 'success' | 'default' | 'processing' {
@@ -1002,9 +1022,11 @@ async function handleScan() {
 
 async function waitForScan(scanId: string) {
   const startedAt = Date.now()
-  while (Date.now() - startedAt < 30000) {
+  while (!pageUnmounted && Date.now() - startedAt < 30000) {
     await new Promise((resolve) => setTimeout(resolve, 500))
+    if (pageUnmounted) return
     const status = await deviceApi.scanStatus(scanId)
+    if (pageUnmounted) return
     if (status.status === 'completed') {
       if (selectedWorkerId.value || statusFilter.value) {
         await loadDevices()
@@ -1095,6 +1117,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  pageUnmounted = true
+  devicePolling.stop()
   closeMirror()
 })
 </script>

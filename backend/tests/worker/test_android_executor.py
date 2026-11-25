@@ -530,3 +530,56 @@ def test_android_chain_generic_exception_marks_run_failed(
     assert run.status is RunStatus.failed
     assert "minio down" in run.error_message
     assert chain_events[-1]["status"] == "failed"
+
+
+def test_android_executor_coerces_extra_vars_to_str_and_strips_expected_routing_meta(
+    monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat
+):
+    captured_conftest: list[str] = []
+
+    async def fake_exec(*cmd, **kwargs):
+        tmpdir = Path(kwargs["cwd"])
+        captured_conftest.append((tmpdir / "conftest.py").read_text(encoding="utf-8"))
+        report_path = next(a.split("=", 1)[1] for a in cmd if str(a).startswith("--json-report-file="))
+        Path(report_path).write_text(
+            json.dumps({"tests": [{"nodeid": "case.py::test_ok", "outcome": "passed", "duration": 0.1}]}),
+            encoding="utf-8",
+        )
+        return _FakeAsyncProc(returncode=0)
+
+    async def fake_resolve_device(_db, *, device_id=None, serial=None, **_kw):
+        return _Obj(id=device_id or 5, serial=serial or "SER-5", worker_id="win-a")
+
+    async def fake_acquire_lease(*_a, **_kw):
+        return _Obj(lease_token="tok-5")
+
+    async def fake_release_lease(*_a, **_kw):
+        return None
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(
+        "app.services.android_worker_registry.verify_worker_execution_target",
+        lambda **_kw: (True, None),
+    )
+    monkeypatch.setattr("app.services.device_resolution.resolve_device_async", fake_resolve_device)
+    monkeypatch.setattr("app.services.device_leases.acquire_device_lease", fake_acquire_lease)
+    monkeypatch.setattr("app.services.device_leases.release_device_lease", fake_release_lease)
+    run = _Obj(id=22, status=RunStatus.pending)
+    _run(
+        _FakeDB(),
+        run,
+        _case_stub(),
+        {
+            "device_id": 5,
+            "TIMEOUT_SEC": 30,
+            "_expected_worker_id": "win-a",
+            "_expected_generation": 9,
+        },
+    )
+
+    assert run.status is RunStatus.passed
+    conftest_text = captured_conftest[0]
+    assert "os.environ['device_id'] = '5'" in conftest_text
+    assert "os.environ['TIMEOUT_SEC'] = '30'" in conftest_text
+    assert "_expected_worker_id" not in conftest_text
+    assert "_expected_generation" not in conftest_text

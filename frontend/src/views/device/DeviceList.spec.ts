@@ -11,10 +11,13 @@ const {
   deviceScanStatus,
   deviceUpdate,
   deviceDelete,
+  deviceConnect,
+  deviceClaim,
   messageError,
   messageInfo,
   messageSuccess,
   probeLocalAndroidWorker,
+  authState,
 } = vi.hoisted(() => ({
   deviceList: vi.fn(),
   deviceWorkers: vi.fn(),
@@ -22,25 +25,32 @@ const {
   deviceScanStatus: vi.fn(),
   deviceUpdate: vi.fn(),
   deviceDelete: vi.fn(),
+  deviceConnect: vi.fn(),
+  deviceClaim: vi.fn(),
   messageError: vi.fn(),
   messageInfo: vi.fn(),
   messageSuccess: vi.fn(),
   probeLocalAndroidWorker: vi.fn(),
+  authState: { user: { role: 'admin' } },
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
+vi.mock('@/runtimeMode', () => ({ getRuntimeMode: () => ({ mode: 'server' }) }))
 vi.mock('ant-design-vue', () => ({ message: { error: messageError, info: messageInfo, success: messageSuccess } }))
 vi.mock('@/utils/localAndroidWorker', () => ({
   probeLocalAndroidWorker,
 }))
 vi.mock('@/api', () => ({
-    deviceApi: {
-      list: deviceList,
-      workers: deviceWorkers,
-      scan: deviceScan,
-      scanStatus: deviceScanStatus,
-      update: deviceUpdate,
+  deviceApi: {
+    list: deviceList,
+    workers: deviceWorkers,
+    scan: deviceScan,
+    scanStatus: deviceScanStatus,
+    update: deviceUpdate,
     delete: deviceDelete,
+    connect: deviceConnect,
+    claim: deviceClaim,
     screenshot: vi.fn(),
   },
 }))
@@ -120,6 +130,7 @@ enableAutoUnmount(afterEach)
 beforeEach(() => {
   vi.unstubAllEnvs()
   vi.clearAllMocks()
+  authState.user = { role: 'admin' }
   window.localStorage.clear()
   probeLocalAndroidWorker.mockResolvedValue(null)
   deviceList.mockResolvedValue(DEVICES)
@@ -128,6 +139,8 @@ beforeEach(() => {
   deviceScanStatus.mockResolvedValue({ status: 'completed', scan_id: 'scan-id', devices: DEVICES })
   deviceUpdate.mockResolvedValue({})
   deviceDelete.mockResolvedValue({})
+  deviceConnect.mockResolvedValue({ success: true, message: 'ok', serial: '192.168.1.10:5555' })
+  deviceClaim.mockResolvedValue({})
 })
 
 describe('DeviceList mount', () => {
@@ -362,5 +375,46 @@ describe('DeviceList status polling', () => {
 
     await vi.advanceTimersByTimeAsync(60000)
     expect(deviceList).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('DeviceList RBAC, table filter, and remote worker selection', () => {
+  it('binds table rows to displayDevices and restricts claim to admin while sending explicit worker_id on remote connect', async () => {
+    deviceWorkers.mockResolvedValue([{ worker_id: 'win-worker-1', hostname: 'WIN-1', status: 'online' }])
+    deviceList.mockResolvedValue([
+      { id: 1, serial: 'emu-online', name: 'OnePlus', brand: 'OnePlus', model: '12', os_version: '14', status: 'online', worker_id: null },
+      { id: 2, serial: 'emu-off', name: 'Pixel', brand: 'Google', model: '7', os_version: '13', status: 'offline', worker_id: 'win-worker-1' },
+    ])
+
+    // 1. engineer user must NOT see Claim button
+    authState.user = { role: 'engineer' }
+    const wrapper = mountDeviceList()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      setStatusPill: (status: 'all' | 'online' | 'busy' | 'offline') => void
+      isAdmin: boolean
+      remoteForm: { host: string; port: number; worker_id?: string }
+      openRemoteConnectModal: () => void
+      handleRemoteConnect: () => Promise<void>
+    }
+    expect(vm.isAdmin).toBe(false)
+    expect(wrapper.findAll('.device-row')).toHaveLength(2)
+
+    // Filtering via status pill must update table view (.device-row), not only matrix cards
+    vm.setStatusPill('online')
+    await flushPromises()
+    expect(wrapper.findAll('.device-row')).toHaveLength(1)
+
+    // Remote connect uses explicit worker_id
+    vm.openRemoteConnectModal()
+    vm.remoteForm.host = '10.1.2.3'
+    vm.remoteForm.worker_id = 'win-worker-1'
+    await vm.handleRemoteConnect()
+    expect(deviceConnect).toHaveBeenCalledWith({
+      host: '10.1.2.3',
+      port: 5555,
+      worker_id: 'win-worker-1',
+    })
+    wrapper.unmount()
   })
 })

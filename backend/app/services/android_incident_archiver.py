@@ -8,19 +8,30 @@ Provides:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import shutil
 import subprocess
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import minio_client
+from app.core.minio_client import upload_bytes, upload_file
 from app.models.mobile_special import ArtifactType, MobileIncident, MobileRunArtifact
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
 
 # Standard Android logcat time format: "MM-DD HH:MM:SS.mmm"
 _LOGCAT_TIME_RE = re.compile(r"^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{3})?)")
@@ -158,56 +169,86 @@ async def archive_incident_artifacts(
     run_start_time: datetime | None = None,
 ) -> dict[str, str]:
     """Align logcat and video artifacts for an incident and link them to the database."""
-    incident_time = incident.event_time or datetime.now(timezone.utc)
+    incident_time = _ensure_utc(incident.event_time or datetime.now(timezone.utc))
     aligned_log = align_incident_logcat(full_logcat, incident_time)
 
     artifacts: dict[str, str] = {}
-    artifact_dir = Path(f".local-data/artifacts/runs/{run_id}/incidents/{incident.id or 'new'}")
-    artifact_dir.mkdir(parents=True, exist_ok=True)
+    uploaded_objs: list[str] = []
+    incident_key = incident.id or "new"
+    prefix = f"runs/{run_id}/incidents/{incident_key}"
 
-    # 1. Save aligned logcat snippet
-    logcat_file = artifact_dir / f"incident_{incident.incident_type.value}_logcat.txt"
-    logcat_file.write_text(aligned_log, encoding="utf-8")
-    artifacts["logcat_aligned"] = str(logcat_file.as_posix())
+    try:
+        with tempfile.TemporaryDirectory(prefix=f"atp_incident_{run_id}_") as tmp_dir_str:
+            artifact_dir = Path(tmp_dir_str)
 
-    # 2. Slice and link video segment
-    if video_path and Path(video_path).is_file():
-        offset = 0.0
-        if run_start_time:
-            delta = (incident_time - run_start_time).total_seconds()
-            offset = max(0.0, delta)
-
-        video_segment_file = artifact_dir / f"incident_{incident.incident_type.value}_segment.mp4"
-        if slice_video_segment(video_path, video_segment_file, offset):
-            artifacts["video_segment"] = str(video_segment_file.as_posix())
-            incident.artifact_path = str(video_segment_file.as_posix())
-
-    # 3. Update incident detail with aligned stack trace
-    if not incident.detail and aligned_log:
-        incident.detail = aligned_log[:2000]
-
-    # 4. Record MobileRunArtifact entries
-    db.add(
-        MobileRunArtifact(
-            run_id=run_id,
-            artifact_type=ArtifactType.raw_log,
-            file_path=str(logcat_file.as_posix()),
-            file_name=logcat_file.name,
-            file_size=logcat_file.stat().st_size,
-        )
-    )
-
-    if "video_segment" in artifacts:
-        seg_path = Path(artifacts["video_segment"])
-        db.add(
-            MobileRunArtifact(
-                run_id=run_id,
-                artifact_type=ArtifactType.trace,
-                file_path=str(seg_path.as_posix()),
-                file_name=seg_path.name,
-                file_size=seg_path.stat().st_size if seg_path.exists() else 0,
+            # 1. Save aligned logcat snippet and upload to object storage
+            logcat_filename = f"incident_{incident.incident_type.value}_logcat.txt"
+            logcat_bytes = aligned_log.encode("utf-8", errors="replace")
+            logcat_obj_name = await asyncio.to_thread(
+                upload_bytes,
+                f"{prefix}/{logcat_filename}",
+                logcat_bytes,
+                content_type="text/plain; charset=utf-8",
             )
-        )
+            uploaded_objs.append(logcat_obj_name)
+            artifacts["logcat_aligned"] = logcat_obj_name
+            db.add(
+                MobileRunArtifact(
+                    run_id=run_id,
+                    artifact_type=ArtifactType.raw_log,
+                    file_path=logcat_obj_name,
+                    file_name=logcat_filename,
+                    file_size=len(logcat_bytes),
+                )
+            )
 
-    await db.flush()
+            # 2. Slice and upload video segment
+            video_obj_name: str | None = None
+            video_size = 0
+            video_filename = f"incident_{incident.incident_type.value}_segment.mp4"
+            if video_path and Path(video_path).is_file():
+                offset = 0.0
+                if run_start_time:
+                    delta = (incident_time - _ensure_utc(run_start_time)).total_seconds()
+                    offset = max(0.0, delta)
+
+                video_segment_file = artifact_dir / video_filename
+                sliced = await asyncio.to_thread(slice_video_segment, video_path, video_segment_file, offset)
+                if sliced and video_segment_file.is_file():
+                    video_size = video_segment_file.stat().st_size
+                    video_obj_name = await asyncio.to_thread(
+                        upload_file,
+                        f"{prefix}/{video_filename}",
+                        video_segment_file,
+                        content_type="video/mp4",
+                    )
+                    uploaded_objs.append(video_obj_name)
+                    artifacts["video_segment"] = video_obj_name
+                    incident.artifact_path = video_obj_name
+
+            # 3. Update incident detail with aligned stack trace
+            if not incident.detail and aligned_log:
+                incident.detail = aligned_log[:2000]
+
+            if video_obj_name is not None:
+                db.add(
+                    MobileRunArtifact(
+                        run_id=run_id,
+                        artifact_type=ArtifactType.trace,
+                        file_path=video_obj_name,
+                        file_name=video_filename,
+                        file_size=video_size,
+                    )
+                )
+
+            await db.flush()
+    except Exception:
+        delete_fn = getattr(minio_client, "delete_file", None)
+        if callable(delete_fn):
+            for obj_name in uploaded_objs:
+                try:
+                    await asyncio.to_thread(delete_fn, obj_name)
+                except Exception:
+                    logger.debug("Failed to cleanup orphan incident artifact %s", obj_name, exc_info=True)
+        raise
     return artifacts

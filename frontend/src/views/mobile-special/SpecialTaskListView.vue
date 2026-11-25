@@ -24,7 +24,7 @@
           size="small"
           @change="loadTasks"
         />
-        <a-button type="primary" size="small" :disabled="!selectedProjectId" @click="openCreate">
+        <a-button type="primary" size="small" :disabled="!selectedProjectId || !canModify" @click="openCreate">
           + {{ t('mobile_special.new_task') }}
         </a-button>
       </div>
@@ -41,7 +41,8 @@
         >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
-            <a style="font-weight: 500" @click="openEdit(asTask(record))">{{ record.name }}</a>
+            <a v-if="canModify" style="font-weight: 500" @click="openEdit(asTask(record))">{{ record.name }}</a>
+            <span v-else style="font-weight: 500">{{ record.name }}</span>
           </template>
           <template v-else-if="column.key === 'task_type'">
             <a-tag :color="taskTypeColor(record.task_type)">{{ taskTypeLabel(record.task_type) }}</a-tag>
@@ -55,10 +56,10 @@
             {{ record.last_run_at ? formatDate(record.last_run_at) : '-' }}
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="primary" size="small" @click="triggerRun(asTask(record))">{{ t('mobile_special.execute') }}</a-button>
-            <a-button type="link" size="small" @click="openEdit(asTask(record))">{{ t('common.edit') }}</a-button>
-            <a-popconfirm :title="t('mobile_special.confirm_delete_task')" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
+            <a-button type="primary" size="small" :disabled="!canModify" @click="triggerRun(asTask(record))">{{ t('mobile_special.execute') }}</a-button>
+            <a-button type="link" size="small" :disabled="!canModify" @click="openEdit(asTask(record))">{{ t('common.edit') }}</a-button>
+            <a-popconfirm :disabled="!canModify" :title="t('mobile_special.confirm_delete_task')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger :disabled="!canModify">{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </template>
         </template>
@@ -82,13 +83,13 @@
         </a-form-item>
 
         <a-form-item :label="t('mobile_special.form.source_type')">
-          <a-select v-model:value="form.source_type" :options="sourceTypeOptions" />
+          <a-select v-model:value="form.source_type" :options="sourceTypeOptions" @change="legacySourceType = null" />
         </a-form-item>
 
         <a-divider>{{ t('mobile_special.form.device_config') }}</a-divider>
 
         <a-form-item :label="t('mobile_special.form.device_scope')">
-          <a-select v-model:value="form.device_scope_type" :options="deviceScopeOptions" />
+          <a-select v-model:value="form.device_scope_type" :options="deviceScopeOptions" @change="legacyDeviceScopeType = null" />
         </a-form-item>
 
         <a-form-item v-if="form.device_scope_type === 'single_device'" :label="t('mobile_special.form.select_device')">
@@ -233,7 +234,7 @@
       <template #footer>
         <a-space>
           <a-button @click="drawerVisible = false">{{ t('common.cancel') }}</a-button>
-          <a-button type="primary" :loading="saving" @click="handleSave">{{ editingTask ? t('common.save') : t('common.create') }}</a-button>
+          <a-button type="primary" :loading="saving" :disabled="!canModify" @click="handleSave">{{ editingTask ? t('common.save') : t('common.create') }}</a-button>
         </a-space>
       </template>
     </a-drawer>
@@ -273,7 +274,7 @@
 import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   projectApi,
   mobileSpecialApi,
@@ -288,12 +289,17 @@ import {
 import { buildMobileApkOptions, findMobileApkPackage, type MobileApkOption } from '@/utils/mobileSpecialForm'
 import { loadDevicePackagesAsync } from '@/utils/devicePackages'
 import { getRuntimeMode } from '@/runtimeMode'
+import { useAuthStore } from '@/stores/auth'
+import { extractApiError } from '@/utils/apiError'
+import { canEditProjectByRole } from '@/utils/permissions'
 
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asTask = (record: unknown) => record as MobileSpecialTaskItem
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const localMode = getRuntimeMode()?.mode === 'local'
 
 type SelectOption<T extends string | number> = {
@@ -335,9 +341,7 @@ type TaskForm = {
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'string') return error
-  if (error instanceof Error) return error.message
-  return fallback
+  return extractApiError(error, fallback)
 }
 
 const loading = ref(false)
@@ -350,6 +354,8 @@ const apkOptions = ref<ApkOption[]>([])
 
 const selectedProjectId = ref<number | null>(null)
 const selectedTaskType = ref<TaskType | null>(null)
+const selectedProject = computed(() => projects.value.find((p) => p.id === selectedProjectId.value))
+const canModify = computed(() => canEditProjectByRole(auth.user?.role, selectedProject.value?.current_user_role))
 
 const taskTypeOptions = computed(() => [
   { label: t('mobile_special.task_types.performance'), value: 'performance' },
@@ -359,15 +365,11 @@ const taskTypeOptions = computed(() => [
 
 const sourceTypeOptions = computed(() => [
   { label: t('mobile_special.source_types.apk_only'), value: 'apk_only' },
-  { label: t('mobile_special.source_types.case'), value: 'case' },
-  { label: t('mobile_special.source_types.suite'), value: 'suite' },
   { label: t('mobile_special.source_types.monkey'), value: 'monkey' },
 ])
 
 const deviceScopeOptions = computed(() => [
   { label: t('mobile_special.device_scopes.single_device'), value: 'single_device' },
-  { label: t('mobile_special.device_scopes.device_group'), value: 'device_group' },
-  { label: t('mobile_special.device_scopes.manual_pick'), value: 'manual_pick' },
 ])
 
 const columns = computed(() => [
@@ -470,9 +472,12 @@ onMounted(async () => {
     const list = await projectApi.list()
     projects.value = list
     projectOptions.value = list.map((p) => ({ label: p.name, value: p.id }))
-    // Load devices and APKs for first project
-    if (list.length > 0) {
-      selectedProjectId.value = list[0].id
+    const queryPid = Number(route.query.project_id)
+    const initialPid = Number.isInteger(queryPid) && queryPid > 0 && list.some((p) => p.id === queryPid)
+      ? queryPid
+      : list[0]?.id
+    if (initialPid) {
+      selectedProjectId.value = initialPid
       await Promise.all([loadDevices(), loadApks(), loadTasks()])
     }
   } catch (e: unknown) {
@@ -481,7 +486,10 @@ onMounted(async () => {
 })
 
 async function loadDevices() {
-  if (!selectedProjectId.value) return
+  if (!selectedProjectId.value) {
+    deviceOptions.value = []
+    return
+  }
   try {
     deviceOptions.value = []
     const devs = await deviceApi.list({})
@@ -490,7 +498,10 @@ async function loadDevices() {
 }
 
 async function loadApks() {
-  if (!selectedProjectId.value) return
+  if (!selectedProjectId.value) {
+    apkOptions.value = []
+    return
+  }
   try {
     apkOptions.value = []
     const apks = await apkApi.list({ project_id: selectedProjectId.value })
@@ -504,24 +515,45 @@ function handleApkChange(apkId: unknown) {
     : ''
 }
 
+let loadTasksSeq = 0
+const legacySourceType = ref<SourceType | null>(null)
+const legacyDeviceScopeType = ref<DeviceScopeType | null>(null)
+
 async function loadTasks() {
-  if (!selectedProjectId.value) return
+  const projectId = selectedProjectId.value
+  if (!projectId) {
+    loadTasksSeq += 1
+    tasks.value = []
+    return
+  }
+  const seq = ++loadTasksSeq
   loading.value = true
   try {
-    const params: { project_id: number; task_type?: TaskType } = { project_id: selectedProjectId.value }
+    const params: { project_id: number; task_type?: TaskType } = { project_id: projectId }
     if (selectedTaskType.value) {
       params.task_type = selectedTaskType.value
     }
-    tasks.value = await mobileSpecialApi.listTasks(params)
+    const items = await mobileSpecialApi.listTasks(params)
+    if (seq !== loadTasksSeq || selectedProjectId.value !== projectId) return
+    tasks.value = items
   } catch (e: unknown) {
+    if (seq !== loadTasksSeq || selectedProjectId.value !== projectId) return
     message.error(errorMessage(e, t('mobile_special.msg.load_failed')))
   } finally {
-    loading.value = false
+    if (seq === loadTasksSeq) {
+      loading.value = false
+    }
   }
 }
 
 function onProjectChange() {
-  Promise.all([loadApks(), loadTasks()])
+  loadTasksSeq += 1
+  if (!selectedProjectId.value) {
+    tasks.value = []
+    apkOptions.value = []
+    return
+  }
+  void Promise.all([loadDevices(), loadApks(), loadTasks()])
 }
 
 function formatDate(dateStr: string) {
@@ -541,7 +573,10 @@ function taskTypeLabel(type: TaskType) {
 }
 
 function openCreate() {
+  if (!canModify.value) return
   editingTask.value = null
+  legacySourceType.value = null
+  legacyDeviceScopeType.value = null
   form.value = {
     name: '',
     task_type: 'performance',
@@ -576,13 +611,18 @@ function openCreate() {
 }
 
 function openEdit(task: MobileSpecialTaskItem) {
+  if (!canModify.value) return
   editingTask.value = task
   const config = task.config_json || {}
+  const isKnownSource = task.source_type === 'monkey' || task.source_type === 'apk_only'
+  legacySourceType.value = isKnownSource ? null : task.source_type
+  legacyDeviceScopeType.value = task.device_scope_type === 'device_group' ? task.device_scope_type : null
+  const normalizedSource: SourceType = task.source_type === 'monkey' ? 'monkey' : 'apk_only'
   form.value = {
     name: task.name,
     task_type: task.task_type,
-    source_type: task.source_type,
-    device_scope_type: task.device_scope_type,
+    source_type: normalizedSource,
+    device_scope_type: 'single_device',
     device_id: task.device_id ?? null,
     device_group_tag: task.device_group_tag || '',
     apk_id: task.apk_id ?? null,
@@ -619,10 +659,13 @@ function openEdit(task: MobileSpecialTaskItem) {
 
 function resetForm() {
   editingTask.value = null
+  legacySourceType.value = null
+  legacyDeviceScopeType.value = null
   drawerVisible.value = false
 }
 
 async function handleSave() {
+  if (!canModify.value) return
   if (!form.value.name.trim()) {
     message.warning(t('mobile_special.form.name'))
     return
@@ -649,8 +692,8 @@ async function handleSave() {
       name: form.value.name.trim(),
       project_id: selectedProjectId.value!,
       task_type: form.value.task_type,
-      source_type: form.value.source_type,
-      device_scope_type: form.value.device_scope_type,
+      source_type: legacySourceType.value ?? form.value.source_type,
+      device_scope_type: legacyDeviceScopeType.value ?? form.value.device_scope_type,
       device_id: form.value.device_id,
       device_group_tag: form.value.device_group_tag || undefined,
       apk_id: form.value.apk_id,

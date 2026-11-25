@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ApkList from './ApkList.vue'
 
-const { apkList, apkUpload, apkUpdate, apkDelete, apkDownload, projectList, messageError, messageSuccess } =
+const { apkList, apkUpload, apkUpdate, apkDelete, apkDownload, projectList, messageError, messageSuccess, authState } =
   vi.hoisted(() => ({
     apkList: vi.fn(),
     apkUpload: vi.fn(),
@@ -14,9 +14,12 @@ const { apkList, apkUpload, apkUpdate, apkDelete, apkDownload, projectList, mess
     projectList: vi.fn(),
     messageError: vi.fn(),
     messageSuccess: vi.fn(),
+    authState: { user: { role: 'admin' } },
   }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
 
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess },
@@ -76,8 +79,9 @@ function mountApkList() {
         }),
         AButton: defineComponent({
           name: 'AButton',
+          props: { disabled: Boolean },
           emits: ['click'],
-          setup: (_p, { slots, emit }) => () => h('button', { onClick: () => emit('click') }, slots.default?.()),
+          setup: (p, { slots, emit }) => () => h('button', { disabled: p.disabled, onClick: () => emit('click') }, slots.default?.()),
         }),
         AStatistic: defineComponent({
           name: 'AStatistic',
@@ -116,6 +120,7 @@ const PROJECTS = [{ id: 5, name: 'Acme' }, { id: 6, name: 'Beta' }]
 
 beforeEach(() => {
   vi.clearAllMocks()
+  authState.user = { role: 'admin' }
   apkList.mockResolvedValue(APKS)
   projectList.mockResolvedValue(PROJECTS)
   apkUpload.mockResolvedValue({})
@@ -173,5 +178,34 @@ describe('ApkList mount', () => {
     expect(apkDelete).toHaveBeenCalledWith(1)
     expect(messageSuccess).toHaveBeenCalled()
     expect(apkList).toHaveBeenCalled() // reload
+  })
+
+  it('disables write buttons for viewer project role and resets upload form on cancel', async () => {
+    authState.user = { role: 'tester' }
+    projectList.mockResolvedValueOnce([
+      { id: 5, name: 'Acme', current_user_role: 'viewer' },
+      { id: 6, name: 'Beta', current_user_role: 'viewer' },
+    ])
+    const wrapper = mountApkList()
+    await flushPromises()
+
+    const uploadBtn = wrapper.findAll('button').find((b) => b.text().includes('apk.upload'))!
+    const editBtn = wrapper.findAll('button').find((b) => b.text() === 'common.edit')!
+    const deleteBtn = wrapper.findAll('button').find((b) => b.text() === 'common.delete')!
+    expect(uploadBtn.attributes('disabled')).toBeDefined()
+    expect(editBtn.attributes('disabled')).toBeDefined()
+    expect(deleteBtn.attributes('disabled')).toBeDefined()
+
+    const vm = wrapper.vm as unknown as {
+      uploadForm: { project_id?: number; file: File | null; package_name: string }
+      fileList: unknown[]
+      resetUploadForm: () => void
+    }
+    vm.uploadForm.package_name = 'com.stale.app'
+    vm.fileList = [{ uid: '-1', name: 'old.apk' }]
+    vm.resetUploadForm()
+    expect(vm.uploadForm.package_name).toBe('')
+    expect(vm.fileList).toEqual([])
+    wrapper.unmount()
   })
 })

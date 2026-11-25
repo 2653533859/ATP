@@ -113,16 +113,17 @@
               <div class="panel-head-actions">
                 <a-popconfirm
                   v-if="offlineDeviceCount > 0"
+                  :disabled="!canManageDevices"
                   title="确定清理所有已离线的设备记录吗？"
                   ok-text="清理"
                   cancel-text="取消"
                   @confirm="purgeOfflineDevices"
                 >
-                  <a-button size="small" type="link" danger :loading="purgingOffline" class="purge-offline-btn">
+                  <a-button size="small" type="link" danger :disabled="!canManageDevices" :loading="purgingOffline" class="purge-offline-btn">
                     清理离线 ({{ offlineDeviceCount }})
                   </a-button>
                 </a-popconfirm>
-                <a-button size="small" :loading="scanning" :disabled="!canModify" @click="scanDevices">
+                <a-button size="small" :loading="scanning" :disabled="!canManageDevices" @click="scanDevices">
                   <ReloadOutlined />
                 </a-button>
               </div>
@@ -173,12 +174,13 @@
               <a-button size="small" type="link" @click="deviceFilter = 'all'">查看全部设备</a-button>
               <a-popconfirm
                 v-if="offlineDeviceCount > 0"
+                :disabled="!canManageDevices"
                 title="确定清理所有已离线的设备记录吗？"
                 ok-text="清理"
                 cancel-text="取消"
                 @confirm="purgeOfflineDevices"
               >
-                <a-button size="small" type="link" danger :loading="purgingOffline">一键清理离线设备</a-button>
+                <a-button size="small" type="link" danger :disabled="!canManageDevices" :loading="purgingOffline">一键清理离线设备</a-button>
               </a-popconfirm>
             </div>
           </div>
@@ -201,16 +203,17 @@
             <div v-if="selectedDevice.status !== 'online'" class="offline-guidance">
               <span class="offline-hint">⚠️ 设备已离线。请检查 USB 连线、开启调试授权，或点击重新扫描。</span>
               <div class="offline-actions-row">
-                <a-button size="small" :loading="scanning" :disabled="!canModify" class="offline-scan-btn" @click="scanDevices">
+                <a-button size="small" :loading="scanning" :disabled="!canManageDevices" class="offline-scan-btn" @click="scanDevices">
                   <ReloadOutlined /> 重新扫描
                 </a-button>
                 <a-popconfirm
+                  :disabled="!canManageDevices"
                   title="确定删除此离线设备记录？删除后可重新接入并扫描发现。"
                   ok-text="删除"
                   cancel-text="取消"
                   @confirm="deleteOfflineDevice(selectedDevice)"
                 >
-                  <a-button size="small" danger :loading="deletingDeviceId === selectedDevice.id" class="offline-del-btn">
+                  <a-button size="small" danger :disabled="!canManageDevices" :loading="deletingDeviceId === selectedDevice.id" class="offline-del-btn">
                     <DeleteOutlined /> 删除记录
                   </a-button>
                 </a-popconfirm>
@@ -227,11 +230,11 @@
                 v-if="!lease"
                 size="small"
                 type="primary"
-                :disabled="!canModify"
+                :disabled="!canManageDevices"
                 :loading="leaseLoading"
                 @click="acquireLease"
               >{{ t('app_workbench.reserve') }}</a-button>
-              <a-button v-else size="small" danger :loading="leaseLoading" @click="() => releaseLease()">{{ t('app_workbench.release') }}</a-button>
+              <a-button v-else size="small" danger :disabled="!canManageDevices" :loading="leaseLoading" @click="() => releaseLease()">{{ t('app_workbench.release') }}</a-button>
               <a-button size="small" :disabled="!lease" @click="openPreview">
                 <EyeOutlined /> {{ t('app_workbench.preview') }}
               </a-button>
@@ -562,7 +565,7 @@
       <div class="node-modal-content">
         <a-tabs v-model:activeKey="nodeModalTab">
           <!-- Tab 1: Windows 本地 Worker 快速接入 -->
-          <a-tab-pane key="worker" tab="Windows Worker 本地接入">
+          <a-tab-pane v-if="!localMode" key="worker" tab="Windows Worker 本地接入">
             <div class="mode-summary-banner">
               <div class="mode-icon-wrap">
                 <DesktopOutlined class="mode-icon" />
@@ -638,9 +641,20 @@
               <div class="quick-step-title">快速接入 WiFi 局域网真机</div>
               <p class="quick-step-desc">确保手机与云端服务器网络互通并开启了网络调试，在此输入手机 IP 地址即可建立直连：</p>
               <div class="wifi-input-row">
-                <a-input v-model:value="wifiHostInput" placeholder="输入手机局域网 IP，如 172.16.101.11" style="flex: 2;" />
+                <a-select
+                  v-if="!localMode && workers.length"
+                  v-model:value="wifiWorkerId"
+                  placeholder="选择执行节点"
+                  allow-clear
+                  style="width: 170px;"
+                >
+                  <a-select-option v-for="w in workers" :key="w.worker_id" :value="w.worker_id">
+                    {{ w.hostname || w.worker_id }}
+                  </a-select-option>
+                </a-select>
+                <a-input v-model:value="wifiHostInput" placeholder="输入手机局域网 IP" style="flex: 2;" />
                 <a-input-number v-model:value="wifiPortInput" :min="1024" :max="65535" placeholder="端口 5555" style="width: 100px;" />
-                <a-button type="primary" :loading="connectingWifi" @click="quickConnectWifiDevice">
+                <a-button type="primary" :loading="connectingWifi" :disabled="!canManageDevices" @click="quickConnectWifiDevice">
                   连接 WiFi 设备
                 </a-button>
               </div>
@@ -705,13 +719,14 @@ import {
   type TaskType,
 } from '@/api'
 import { useVisiblePolling } from '@/composables/useVisiblePolling'
-import { canEditProjectByRole } from '@/utils/permissions'
+import { canEditProjectAssets, canEditProjectByRole } from '@/utils/permissions'
 import {
   clearLocalRecordingDraft,
   loadLocalRecordingDraft,
   saveLocalRecordingDraft,
 } from '@/utils/recordingDraft'
 import { useAuthStore } from '@/stores/auth'
+import { extractApiError } from '@/utils/apiError'
 import { getRuntimeMode } from '@/runtimeMode'
 import DeviceMirrorModal from '@/views/device/components/DeviceMirrorModal.vue'
 import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
@@ -721,7 +736,6 @@ import type { AndroidRecordedStepDraft } from '@/utils/androidRecording'
 
 type LaunchMode = 'case' | 'special'
 const localMode = getRuntimeMode()?.mode === 'local'
-type ErrorLike = { response?: { data?: { detail?: unknown } }; message?: unknown }
 
 const recordingRecords = ref<RecordingRecordItem[]>([])
 const historyDrawerOpen = ref(false)
@@ -815,6 +829,7 @@ let projectDataSequence = 0
 const projectOptions = computed<SelectOption<number>[]>(() => projects.value.map((project) => ({ label: project.name, value: project.id })))
 const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
 const canModify = computed(() => canEditProjectByRole(auth.user?.role, selectedProject.value?.current_user_role))
+const canManageDevices = computed(() => canEditProjectAssets(auth.user?.role))
 const selectedDevice = computed(() => devices.value.find((device) => device.id === selectedDeviceId.value) || null)
 const selectedAndroidCase = computed(() => androidCases.value.find((item) => item.id === selectedCaseId.value) || null)
 const selectedSpecialTask = computed(() => specialTasks.value.find((task) => task.id === selectedSpecialTaskId.value) || null)
@@ -826,10 +841,12 @@ const deletingDeviceId = ref<number | null>(null)
 const purgingOffline = ref(false)
 
 const nodeModalOpen = ref(false)
-const nodeModalTab = ref<'worker' | 'direct'>('worker')
-const wifiHostInput = ref('172.16.101.11')
+const nodeModalTab = ref<'worker' | 'direct'>(localMode ? 'direct' : 'worker')
+const wifiHostInput = ref('')
+const wifiWorkerId = ref<string | undefined>(undefined)
 const wifiPortInput = ref(5555)
 const connectingWifi = ref(false)
+let workbenchUnmounted = false
 
 function isWifiDevice(device: DeviceItem): boolean {
   return Boolean(device.ip_address || (device.serial && device.serial.includes(':')))
@@ -891,15 +908,18 @@ async function refreshWorkers() {
 }
 
 async function quickConnectWifiDevice() {
-  if (!wifiHostInput.value) {
+  if (!canManageDevices.value) return
+  if (!wifiHostInput.value.trim()) {
     message.warning('请输入设备 IP 地址')
     return
   }
   connectingWifi.value = true
   try {
+    const wid = wifiWorkerId.value || workers.value[0]?.worker_id
     const res = await deviceApi.connect({
       host: wifiHostInput.value.trim(),
       port: Number(wifiPortInput.value) || 5555,
+      ...(!localMode && wid ? { worker_id: wid } : {}),
     })
     if (res.success) {
       message.success(`WiFi 设备 ${res.serial} 连接成功！已接入云端设备池`)
@@ -940,7 +960,7 @@ const apkOptions = computed<SelectOption<number>[]>(() => [
   { label: t('app_workbench.no_apk_override'), value: 0 },
   ...apks.value.map((apk) => ({ label: `${apk.package_name || apk.filename}${apk.version_name ? ` · v${apk.version_name}` : ''}`, value: apk.id })),
 ])
-const canRunAndroidCase = computed(() => Boolean(canModify.value && selectedDevice.value && selectedAndroidCase.value?.is_ready_for_execution && !lease.value && !runLoading.value))
+const canRunAndroidCase = computed(() => Boolean(canModify.value && selectedDevice.value?.status === 'online' && selectedAndroidCase.value?.is_ready_for_execution && !lease.value && !runLoading.value))
 const canRunSpecialTask = computed(() => Boolean(canModify.value && selectedSpecialTask.value && !lease.value && !runLoading.value))
 const deviceFamilies = compatibilityFamilies
 
@@ -975,12 +995,7 @@ function positiveInt(value: unknown): number | null {
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'object' && error !== null) {
-    const typed = error as ErrorLike
-    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
-    if (typeof typed.message === 'string') return typed.message
-  }
-  return error instanceof Error ? error.message : fallback
+  return extractApiError(error, fallback)
 }
 
 function formatTime(value?: string | null) {
@@ -1228,7 +1243,7 @@ function selectDevice(device: DeviceItem) {
 }
 
 async function scanDevices() {
-  if (!canModify.value) return
+  if (!canManageDevices.value) return
   scanning.value = true
   try {
     const result = await deviceApi.scan()
@@ -1249,7 +1264,7 @@ async function scanDevices() {
 }
 
 async function deleteOfflineDevice(device: DeviceItem) {
-  if (!canModify.value) return
+  if (!canManageDevices.value) return
   deletingDeviceId.value = device.id
   try {
     await deviceApi.delete(device.id)
@@ -1266,7 +1281,7 @@ async function deleteOfflineDevice(device: DeviceItem) {
 }
 
 async function purgeOfflineDevices() {
-  if (!canModify.value) return
+  if (!canManageDevices.value) return
   purgingOffline.value = true
   try {
     const res = await deviceApi.purgeOffline()
@@ -1284,11 +1299,18 @@ async function purgeOfflineDevices() {
 
 async function waitForScan(scanId: string) {
   for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (workbenchUnmounted) return
     await new Promise((resolve) => window.setTimeout(resolve, 500))
+    if (workbenchUnmounted) return
     const result = await deviceApi.scanStatus(scanId)
+    if (workbenchUnmounted) return
     devices.value = result.devices
     if (result.status === 'completed') {
       message.success(t('app_workbench.scan_success', { count: devices.value.length }))
+      return
+    }
+    if (result.status === 'partial_failed') {
+      message.warning(`部分节点扫描失败（失败 ${result.failed_workers ?? 1}/${result.total_workers ?? 1}），已同步在线节点设备`)
       return
     }
     if (result.status === 'failed') throw new Error(result.error || t('app_workbench.scan_failed'))
@@ -1298,7 +1320,7 @@ async function waitForScan(scanId: string) {
 
 async function acquireLease() {
   const device = selectedDevice.value
-  if (!device || !canModify.value) return
+  if (!device || !canManageDevices.value) return
   leaseLoading.value = true
   try {
     const result = await deviceApi.acquireLease(device.id, { ttl_seconds: 120, owner_label: 'app-workbench' })
@@ -1339,6 +1361,7 @@ async function heartbeatLease() {
 }
 
 async function releaseLease(silent = false) {
+  if (!canManageDevices.value && !silent) return
   const current = lease.value
   if (!current?.lease_token) return
   leaseLoading.value = true
@@ -1360,17 +1383,28 @@ async function runAndroidCase() {
   if (!current || !device || !canRunAndroidCase.value) return
   runLoading.value = true
   try {
-    const precheck = await caseApi.precheck(current.id)
-    if (precheck.device_serial !== device.serial) {
-      message.warning(t('app_workbench.run_device_mismatch'))
-      return
+    const detail = await Promise.resolve(caseApi.get(current.id)).catch(() => null)
+    const isScriptMode = detail
+      ? !Array.isArray((detail.config as Record<string, unknown> | undefined)?.steps)
+      : (current.step_count === 0 && current.script_status === 'generated')
+    if (!isScriptMode) {
+      const precheck = await caseApi.precheck(current.id, {
+        device_id: device.id,
+        device_serial: device.serial,
+      })
+      if (precheck.device_serial && precheck.device_serial !== device.serial) {
+        message.warning(t('app_workbench.run_device_mismatch'))
+        return
+      }
+      if (!precheck.ok) {
+        const failure = precheck.items.find((item) => item.status === 'FAIL')
+        message.warning(failure ? `${failure.code}: ${failure.message}` : t('app_workbench.run_precheck_failed'))
+        return
+      }
     }
-    if (!precheck.ok) {
-      const failure = precheck.items.find((item) => item.status === 'FAIL')
-      message.warning(failure ? `${failure.code}: ${failure.message}` : t('app_workbench.run_precheck_failed'))
-      return
-    }
-    const result = await caseApi.run(current.id)
+    const result = await caseApi.run(current.id, {
+      extra_vars: { device_id: device.id, device_serial: device.serial },
+    })
     message.success(t('app_workbench.run_started'))
     await router.push({ name: 'run-detail', params: { runId: String(result.id) } })
   } catch (error: unknown) {
@@ -1408,10 +1442,18 @@ function openActivity(activity: ActivityItem) {
 }
 
 function openDevices() { void router.push('/devices') }
-function openApks() { void router.push('/apks') }
-function openIosAssets() { void router.push('/ios-assets') }
-function openSpecialTasks() { void router.push('/mobile-special/tasks') }
-function openSpecialReports() { void router.push('/mobile-special/reports') }
+function openApks() {
+  void router.push({ path: '/apks', query: selectedProjectId.value ? { project_id: String(selectedProjectId.value) } : {} })
+}
+function openIosAssets() {
+  void router.push({ path: '/ios-assets', query: selectedProjectId.value ? { project_id: String(selectedProjectId.value) } : {} })
+}
+function openSpecialTasks() {
+  void router.push({ path: '/mobile-special/tasks', query: selectedProjectId.value ? { project_id: String(selectedProjectId.value) } : {} })
+}
+function openSpecialReports() {
+  void router.push({ path: '/mobile-special/reports', query: selectedProjectId.value ? { project_id: String(selectedProjectId.value) } : {} })
+}
 function openAndroidCases() {
   void router.push({ path: '/cases', query: selectedProjectId.value ? { project_id: String(selectedProjectId.value), case_type: 'android' } : {} })
 }
@@ -1649,14 +1691,43 @@ function closePreview() {
   previewOpen.value = false
 }
 
+function releaseLeaseOnPageHide() {
+  const current = lease.value
+  if (!current?.lease_token || typeof fetch !== 'function') return
+  lease.value = null
+  stopLeaseHeartbeat()
+  void fetch(`/api/v1/devices/${current.device_id}/lease`, {
+    method: 'DELETE',
+    credentials: 'include',
+    keepalive: true,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-ATP-Client-Mode': localMode ? 'local' : 'server',
+    },
+    body: JSON.stringify({ lease_token: current.lease_token }),
+  }).catch(() => undefined)
+}
+
 onMounted(() => {
   void loadProjects()
   devicePolling.start()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', releaseLeaseOnPageHide)
+  }
 })
 onUnmounted(() => {
+  workbenchUnmounted = true
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('pagehide', releaseLeaseOnPageHide)
+  }
   closePreview()
   stopLeaseHeartbeat()
-  if (lease.value?.lease_token) void deviceApi.releaseLease(lease.value.device_id, lease.value.lease_token)
+  const current = lease.value
+  lease.value = null
+  if (current?.lease_token) {
+    void deviceApi.releaseLease(current.device_id, current.lease_token).catch(() => undefined)
+  }
 })
 </script>
 

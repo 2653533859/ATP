@@ -539,7 +539,7 @@ async def test_api_replay_preview_requires_confirmed_initial_state(tmp_path: Pat
 
 
 @pytest.mark.asyncio
-async def test_api_replay_is_idempotent_per_version(tmp_path: Path):
+async def test_api_replay_is_idempotent_per_version(tmp_path: Path, _stub_replay_dispatch):
     engine, factory, user = await _setup_db(tmp_path, tag="replay")
     try:
         session_id = await _seed_session(factory)
@@ -560,8 +560,9 @@ async def test_api_replay_is_idempotent_per_version(tmp_path: Path):
             )
             assert handoff.replay.status == "queued"
             assert handoff.case_id > 0
+            assert len(_stub_replay_dispatch) == 1
 
-            # 同幂等键重复请求返回同一回放，不重复发起
+            # 同幂等键重复请求返回同一回放，不重复入队派发
             again = await start_agent_draft_replay(
                 project_id=1,
                 draft_id=draft.id,
@@ -570,6 +571,7 @@ async def test_api_replay_is_idempotent_per_version(tmp_path: Path):
                 current_user=user,
             )
             assert again.replay.id == handoff.replay.id
+            assert len(_stub_replay_dispatch) == 1
 
             # 未确认初始状态必须拒绝
             with pytest.raises(HTTPException) as exc_info:

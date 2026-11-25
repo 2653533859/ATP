@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.minio_client import upload_bytes
 from app.models.mobile_special import ArtifactType, MobileRunArtifact, MobileSpecialRun
+from app.services.adb_service import adb_subprocess_kwargs
 from app.services.mobile_special_events import MobileRunEventRecorder, sanitize_mobile_payload
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ def _capture_logcat(serial: str) -> tuple[bytes | None, str | None]:
             capture_output=True,
             text=False,
             timeout=30,
+            **adb_subprocess_kwargs(),
         )
     except FileNotFoundError:
         return None, "adb 命令未找到"
@@ -55,6 +57,7 @@ def _capture_screenshot(serial: str) -> tuple[bytes | None, str | None]:
             capture_output=True,
             text=False,
             timeout=20,
+            **adb_subprocess_kwargs(),
         )
     except FileNotFoundError:
         return None, "adb 命令未找到"

@@ -604,3 +604,28 @@ def test_start_app_uses_launcher_or_explicit_activity(monkeypatch):
         lambda *a, **kw: (_ for _ in ()).throw(android_perf_executor.AndroidPreflightError("failed")),
     )
     assert android_perf_executor._start_app("emu-5554", "com.example.app") is False
+
+
+def test_perf_run_marks_failed_when_device_lost(monkeypatch, chain_events, fast_clock, quiet_heartbeat):
+    monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
+
+    class _LostHB(quiet_heartbeat):
+        async def __aenter__(self):
+            self.lost = True
+            if self.on_lost is not None:
+                self.on_lost("hb lost")
+            return self
+
+    monkeypatch.setattr(android_perf_executor, "HeartbeatMonitor", _LostHB)
+    monkeypatch.setattr(
+        android_perf_executor,
+        "_sample_once",
+        lambda *_a, **_kw: asyncio.sleep(0, result=[{"metric_type": "cpu_pct", "metric_value": 12.0, "source": "top"}]),
+    )
+    run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=60)
+
+    asyncio.run(android_perf_executor.run_mobile_special_perf(_RecordingDB(), run))
+
+    assert run.status is RunStatus.failed
+    assert "失联" in run.summary_json.get("error_message", "")
+    assert chain_events[-1]["status"] == "failed"

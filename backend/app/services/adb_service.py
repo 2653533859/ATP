@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass
+from typing import Any
 
 from app.core.config import settings
 
@@ -52,13 +53,27 @@ class AdbDeviceInfo:
     port: int | None = None
 
 
+def adb_subprocess_env() -> dict[str, str]:
+    """Build subprocess environment with ADB_SERVER_SOCKET when configured."""
+    env = os.environ.copy()
+    server_socket = (getattr(settings, "ADB_SERVER_SOCKET", "") or "").strip()
+    if server_socket:
+        env["ADB_SERVER_SOCKET"] = server_socket
+    return env
+
+
+def adb_subprocess_kwargs() -> dict[str, Any]:
+    """Return optional subprocess env kwargs when ADB_SERVER_SOCKET is explicitly set."""
+    server_socket = (getattr(settings, "ADB_SERVER_SOCKET", "") or "").strip()
+    if not server_socket:
+        return {}
+    return {"env": adb_subprocess_env()}
+
+
 def _run_adb(*args: str, timeout: int = 10) -> str | None:
     """同步执行 adb 命令，返回 stdout"""
     cmd = ["adb", *args]
-    env = os.environ.copy()
-    server_socket = getattr(settings, "ADB_SERVER_SOCKET", "").strip()
-    if server_socket:
-        env["ADB_SERVER_SOCKET"] = server_socket
+    env = adb_subprocess_env()
     try:
         proc = subprocess.run(
             cmd,

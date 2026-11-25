@@ -215,7 +215,7 @@ async def upload_ios_app(
     provisioning_profile: str | None = Form(None),
     description: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     await assert_project_access(db, current_user, project_id, ProjectRole.editor)
     if await db.get(Project, project_id) is None:
@@ -285,7 +285,7 @@ async def update_ios_app(
     app_id: int,
     body: IosAppUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_engineer),
+    user: User = Depends(get_current_user),
 ):
     app = await db.get(IosApp, app_id)
     if app is None:
@@ -299,7 +299,7 @@ async def update_ios_app(
 
 
 @router.delete("/ios-apps/{app_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_ios_app(app_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(require_engineer)):
+async def delete_ios_app(app_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     app = await db.get(IosApp, app_id)
     if app is None:
         raise HTTPException(status_code=404, detail="iOS 应用不存在")

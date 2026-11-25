@@ -145,8 +145,8 @@ def _isolate_route_behavior_from_run_access_and_redis(monkeypatch):
     monkeypatch.setattr(ms, "request_cancel", lambda _run_id: None)
 
 
-def _user(uid=9):
-    return _Obj(id=uid)
+def _user(uid=9, role=None):
+    return _Obj(id=uid, role=role)
 
 
 def _task(task_id=1, project_id=5, **overrides):
@@ -680,6 +680,59 @@ def test_get_run_and_summary():
 
     with pytest.raises(HTTPException):
         asyncio.run(ms.get_run(404, db=_FakeDB()))
+
+
+def test_trigger_run_sets_last_run_at_and_server_enqueue_failure_marks_failed(access_recorder, monkeypatch):
+    from app.models.user import UserRole
+
+    monkeypatch.setattr(ms.settings, "ATP_LOCAL_MODE", False)
+    monkeypatch.setattr(ms.settings, "ANDROID_MULTI_NODE_ENABLED", False)
+    queued: list[int] = []
+    monkeypatch.setattr(ms, "_enqueue_mobile_run", lambda rid, **_kw: queued.append(rid))
+
+    task = _task(last_run_at=None)
+    db = _FakeDB(
+        {
+            ("MobileSpecialTask", 1): task,
+            ("Device", 77): _Obj(id=77, serial="ser-77", status="online"),
+        }
+    )
+    run = asyncio.run(
+        ms.trigger_task_run(
+            1,
+            body=RunTriggerRequest(),
+            db=db,
+            current_user=_user(role=UserRole.tester),
+        )
+    )
+    assert queued == [run.id]
+    assert task.last_run_at is not None
+    assert access_recorder == [(task.project_id, ms.ProjectRole.editor)]
+
+    # 验证写端点不依赖全局 require_engineer，仅依赖项目级 editor 检查
+    write_routes = {
+        "/mobile-special/tasks",
+        "/mobile-special/tasks/{task_id}",
+        "/mobile-special/tasks/{task_id}/run",
+        "/mobile-special/runs/{run_id}/stop",
+        "/mobile-special/runs/{run_id}/replay",
+        "/mobile-special/runs/{run_id}",
+    }
+    for route in ms.router.routes:
+        if getattr(route, "path", None) in write_routes:
+            dep_names = [getattr(d.call, "__name__", "") for d in getattr(route.dependant, "dependencies", [])]
+            assert "require_engineer" not in dep_names
+
+    # 服务端模式下入队异常也应标记 RunStatus.failed 并提交，不遗留 pending 僵尸任务
+    monkeypatch.setattr(ms, "_enqueue_mobile_run", lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError("redis down")))
+    failing_run = _Obj(id=77, status=RunStatus.pending, finished_at=None, summary_json={})
+    fail_db = _FakeDB({})
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(ms._enqueue_mobile_run_or_fail(failing_run, fail_db))
+    assert exc.value.status_code == 503
+    assert failing_run.status is RunStatus.failed
+    assert failing_run.finished_at is not None
+    assert fail_db.commits == 1
 
 
 def _sample(sid=1, metric=MetricType.cpu_pct, value=12.5):

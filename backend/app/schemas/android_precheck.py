@@ -51,6 +51,7 @@ class AndroidPrecheckResponse(BaseModel):
 class CasePrecheckIn(BaseModel):
     device_id: int | None = None
     device_serial: str | None = None
+    lease_token: str | None = None
     env_id: int | None = None
     extra_vars: dict[str, Any] = Field(default_factory=dict)
     steps: list[dict[str, Any]] | None = None
@@ -61,6 +62,7 @@ class AndroidDraftPrecheckIn(BaseModel):
     project_id: int
     device_id: int | None = None
     device_serial: str | None = None
+    lease_token: str | None = None
     env_id: int | None = None
     extra_vars: dict[str, Any] = Field(default_factory=dict)
     steps: list[dict[str, Any]] | None = None
