@@ -15,15 +15,28 @@ describe('layout navigation state', () => {
       'menu.system_center.governance',
       'menu.system.users',
     ])
-    expect(getBreadcrumbKeys('/system/ai-llm-configs', 'menu.system.ai_llm_configs')).toEqual([
+    expect(getBreadcrumbKeys('/system/environments', 'menu.system.environments')).toEqual([
       'menu.groups.system_center',
-      'menu.system_center.config',
-      'menu.system.ai_llm_configs',
+      'hub.settings.group_project',
+      'menu.system.environments',
+    ])
+    expect(getBreadcrumbKeys('/system/storage', 'menu.system.storage')).toEqual([
+      'menu.groups.system_center',
+      'hub.settings.group_platform',
+      'menu.system.storage',
     ])
     expect(getBreadcrumbKeys('/mock-rules', 'menu.mock_rules')).toEqual([
       'menu.groups.test_capabilities',
       'menu.capabilities.api',
       'menu.mock_rules',
+    ])
+    expect(getBreadcrumbKeys('/system/bug-trackers', 'menu.system.bug_trackers')).toEqual([
+      'menu.groups.test_assets_new',
+      'menu.system.bug_trackers',
+    ])
+    expect(getBreadcrumbKeys('/system/ai-llm-configs', 'menu.system.ai_llm_configs')).toEqual([
+      'menu.groups.system_center',
+      'menu.system.ai_llm_configs',
     ])
   })
 
@@ -71,12 +84,19 @@ describe('layout navigation state', () => {
     expect(getSelectedMenuKey('/system/audit-logs')).toBe('/system/users')
     expect(getSelectedMenuKey('/system/toolbox')).toBe('/system/toolbox')
     expect(getSelectedMenuKey('/system/remote-nodes')).toBe('/system/toolbox')
-    expect(getSelectedMenuKey('/system/ai-llm-configs')).toBe('/system/config')
-    expect(getSelectedMenuKey('/system/environments')).toBe('/system/config')
+    expect(getSelectedMenuKey('/system/ai-llm-configs')).toBe('/system/ai-llm-configs')
+    expect(getSelectedMenuKey('/system/bug-trackers')).toBe('/system/bug-trackers')
+    expect(getSelectedMenuKey('/system/environments')).toBe('/system/environments')
+    expect(getSelectedMenuKey('/system/global-variables')).toBe('/system/environments')
+    expect(getSelectedMenuKey('/system/notifications')).toBe('/system/environments')
+    expect(getSelectedMenuKey('/system/config')).toBe('/system/config')
+    expect(getSelectedMenuKey('/system/storage')).toBe('/system/config')
+    expect(getSelectedMenuKey('/system/startup-config')).toBe('/system/config')
 
     expect(getMenuOpenKeys('/system/web-assets')).toEqual(['test-capabilities'])
     expect(getMenuOpenKeys('/system/api-contract-assets')).toEqual(['test-capabilities'])
     expect(getMenuOpenKeys('/cloud-sync')).toEqual(['test-assets'])
+    expect(getMenuOpenKeys('/system/bug-trackers')).toEqual(['test-assets'])
     expect(getMenuOpenKeys('/system/ai-llm-configs')).toEqual(['system-center'])
   })
 

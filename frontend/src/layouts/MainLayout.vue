@@ -62,6 +62,7 @@
               <a-menu-item v-if="supportsFeature('plans') || supportsFeature('suites')" key="/plans">{{ t('menu.assets.plans_and_suites') }}</a-menu-item>
               <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
               <a-menu-item v-if="supportsFeature('defects')" key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
+              <a-menu-item v-if="!localMode && canAccess(['admin', 'engineer'])" key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
               <a-menu-item key="/reports">{{ t('menu.assets.reports') }}</a-menu-item>
             </a-sub-menu>
 
@@ -76,7 +77,9 @@
             <a-sub-menu v-if="canAccess(['admin', 'engineer'])" key="system-center">
               <template #icon><SettingOutlined /></template>
               <template #title>{{ t('menu.groups.system_center') }}</template>
-              <a-menu-item key="/system/config">{{ t('menu.system_center.config') }}</a-menu-item>
+              <a-menu-item key="/system/environments">{{ t('hub.settings.group_project') }}</a-menu-item>
+              <a-menu-item key="/system/config">{{ t('hub.settings.group_platform') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
               <a-menu-item v-if="canAccess(['admin'])" key="/system/users">{{ t('menu.system_center.governance') }}</a-menu-item>
               <a-menu-item v-if="!localMode" key="/system/toolbox">{{ t('menu.system_center.remote_ops') }}</a-menu-item>
             </a-sub-menu>

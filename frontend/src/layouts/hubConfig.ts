@@ -21,6 +21,8 @@ export type HubId =
   | 'reports'
   | 'ai-center'
   | 'requirements-knowledge'
+  | 'project-settings'
+  | 'platform-settings'
   | 'governance'
   | 'remote-ops'
 
@@ -33,11 +35,6 @@ export interface HubVisibilityContext {
   role?: string | null
   localMode: boolean
   supportsFeature: (feature: string) => boolean
-}
-
-export interface SettingsHubGroup {
-  titleKey: string
-  items: HubTabItem[]
 }
 
 export const TABBED_HUBS: Record<HubId, HubDefinition> = {
@@ -96,6 +93,22 @@ export const TABBED_HUBS: Record<HubId, HubDefinition> = {
       { path: '/knowledge', labelKey: 'menu.intelligence.knowledge' },
     ],
   },
+  'project-settings': {
+    titleKey: 'hub.settings.group_project',
+    tabs: [
+      { path: '/system/environments', labelKey: 'menu.system.environments' },
+      { path: '/system/global-variables', labelKey: 'menu.system.global_variables' },
+      { path: '/system/notifications', labelKey: 'menu.system.notifications', roles: ['admin', 'engineer'], serverOnly: true },
+    ],
+  },
+  'platform-settings': {
+    titleKey: 'hub.settings.group_platform',
+    tabs: [
+      { path: '/system/config', labelKey: 'hub.settings.revisions', roles: ['admin', 'engineer'] },
+      { path: '/system/storage', labelKey: 'menu.system.storage', roles: ['admin', 'engineer'], serverOnly: true },
+      { path: '/system/startup-config', labelKey: 'menu.system.startup_config', roles: ['admin'] },
+    ],
+  },
   governance: {
     titleKey: 'menu.system_center.governance',
     tabs: [
@@ -123,27 +136,6 @@ export const TABBED_HUBS: Record<HubId, HubDefinition> = {
     ],
   },
 }
-
-export const SETTINGS_HUB_GROUPS: SettingsHubGroup[] = [
-  {
-    titleKey: 'hub.settings.group_project',
-    items: [
-      { path: '/system/environments', labelKey: 'menu.system.environments' },
-      { path: '/system/global-variables', labelKey: 'menu.system.global_variables' },
-      { path: '/system/notifications', labelKey: 'menu.system.notifications', roles: ['admin', 'engineer'], serverOnly: true },
-      { path: '/system/bug-trackers', labelKey: 'menu.system.bug_trackers', roles: ['admin', 'engineer'], serverOnly: true },
-    ],
-  },
-  {
-    titleKey: 'hub.settings.group_platform',
-    items: [
-      { path: '/system/ai-llm-configs', labelKey: 'menu.system.ai_llm_configs', roles: ['admin'] },
-      { path: '/system/storage', labelKey: 'menu.system.storage', roles: ['admin', 'engineer'], serverOnly: true },
-      { path: '/system/startup-config', labelKey: 'menu.system.startup_config', roles: ['admin'] },
-      { path: '/system/config', labelKey: 'hub.settings.revisions', roles: ['admin', 'engineer'] },
-    ],
-  },
-]
 
 export function isNavItemVisible(item: VisibilityRule, ctx: HubVisibilityContext): boolean {
   if (item.serverOnly && ctx.localMode) return false

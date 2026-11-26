@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { SETTINGS_HUB_GROUPS, getVisibleHubTabs, isHubItemVisible, matchActiveHubTab } from './hubConfig'
+import { getVisibleHubTabs, matchActiveHubTab } from './hubConfig'
 
 const allFeatures = () => true
 
@@ -72,36 +72,57 @@ describe('hub navigation config', () => {
     expect(localRemote).toEqual([])
   })
 
-  it('filters settings hub navigation items properly for engineers vs admins and localMode', () => {
-    const engineerPaths = SETTINGS_HUB_GROUPS.flatMap((group) =>
-      group.items.filter((item) => isHubItemVisible(item, {
-        role: 'engineer',
-        localMode: false,
-        supportsFeature: allFeatures,
-      })).map((item) => item.path),
-    )
-    expect(engineerPaths).toEqual([
+  it('filters project-settings and platform-settings tabs by role and localMode', () => {
+    const engineerProjectTabs = getVisibleHubTabs('project-settings', {
+      role: 'engineer',
+      localMode: false,
+      supportsFeature: allFeatures,
+    })
+    expect(engineerProjectTabs.map((item) => item.path)).toEqual([
       '/system/environments',
       '/system/global-variables',
       '/system/notifications',
-      '/system/bug-trackers',
-      '/system/storage',
-      '/system/config',
     ])
 
-    const localAdminSettings = SETTINGS_HUB_GROUPS.flatMap((group) =>
-      group.items.filter((item) => isHubItemVisible(item, {
-        role: 'admin',
-        localMode: true,
-        supportsFeature: allFeatures,
-      })).map((item) => item.path),
-    )
-    expect(localAdminSettings).toEqual([
+    const localAdminProjectTabs = getVisibleHubTabs('project-settings', {
+      role: 'admin',
+      localMode: true,
+      supportsFeature: allFeatures,
+    })
+    expect(localAdminProjectTabs.map((item) => item.path)).toEqual([
       '/system/environments',
       '/system/global-variables',
-      '/system/ai-llm-configs',
-      '/system/startup-config',
+    ])
+
+    const engineerPlatformTabs = getVisibleHubTabs('platform-settings', {
+      role: 'engineer',
+      localMode: false,
+      supportsFeature: allFeatures,
+    })
+    expect(engineerPlatformTabs.map((item) => item.path)).toEqual([
       '/system/config',
+      '/system/storage',
+    ])
+
+    const adminPlatformTabs = getVisibleHubTabs('platform-settings', {
+      role: 'admin',
+      localMode: false,
+      supportsFeature: allFeatures,
+    })
+    expect(adminPlatformTabs.map((item) => item.path)).toEqual([
+      '/system/config',
+      '/system/storage',
+      '/system/startup-config',
+    ])
+
+    const localAdminPlatformTabs = getVisibleHubTabs('platform-settings', {
+      role: 'admin',
+      localMode: true,
+      supportsFeature: allFeatures,
+    })
+    expect(localAdminPlatformTabs.map((item) => item.path)).toEqual([
+      '/system/config',
+      '/system/startup-config',
     ])
 
     const localGovTabs = getVisibleHubTabs('governance', {

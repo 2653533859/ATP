@@ -44,6 +44,14 @@ describe('quick search index', () => {
     expect(filterQuickSearchItems('模型', zhT, adminCtx).map((i) => i.path)).toContain('/system/ai-llm-configs')
     expect(filterQuickSearchItems('节点', zhT, adminCtx).map((i) => i.path)).toContain('/system/remote-nodes')
     expect(filterQuickSearchItems('openapi', enT, adminCtx).map((i) => i.path)).toContain('/system/api-contract-assets')
+
+    const bugTrackers = QUICK_SEARCH_ITEMS.find((i) => i.path === '/system/bug-trackers')
+    expect(bugTrackers?.groupKey).toBe('menu.groups.test_assets_new')
+    expect(bugTrackers?.parentKey).toBeUndefined()
+
+    const llmConfig = QUICK_SEARCH_ITEMS.find((i) => i.path === '/system/ai-llm-configs')
+    expect(llmConfig?.groupKey).toBe('menu.groups.system_center')
+    expect(llmConfig?.parentKey).toBeUndefined()
   })
 
   it('respects user roles and local mode when listing visible items', () => {

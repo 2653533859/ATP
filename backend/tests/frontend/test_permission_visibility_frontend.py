@@ -28,17 +28,19 @@ def test_layout_hides_non_operable_role_entries():
     layout = repo_path("frontend/src/layouts/MainLayout.vue").read_text(encoding="utf-8")
     hub_config = repo_path("frontend/src/layouts/hubConfig.ts").read_text(encoding="utf-8")
 
-    # 系统中心整体只对 admin/engineer 暴露；平台治理（用户/审计/清理/告警）仅对 admin 暴露
+    # 系统中心整体只对 admin/engineer 暴露；AI 模型配置与平台治理仅对 admin 暴露
     assert "canAccess(['admin', 'engineer'])" in layout
+    assert 'key="/system/environments"' in layout
     assert 'key="/system/config"' in layout
+    assert 'v-if="canAccess([\'admin\'])" key="/system/ai-llm-configs"' in layout
+    assert "v-if=\"!localMode && canAccess(['admin', 'engineer'])\" key=\"/system/bug-trackers\"" in layout
     assert 'v-if="canAccess([\'admin\'])" key="/system/users"' in layout
     assert 'key="/system/dashboard-alerts"' not in layout
-    assert 'key="/system/ai-llm-configs"' not in layout
 
-    # 二级设置与聚合入口保持严格角色隔离
+    # 二级聚合入口保持严格角色隔离
     normalized_hub_config = " ".join(hub_config.split())
     assert (
-        "path: '/system/ai-llm-configs', labelKey: 'menu.system.ai_llm_configs', roles: ['admin']"
+        "path: '/system/startup-config', labelKey: 'menu.system.startup_config', roles: ['admin']"
         in normalized_hub_config
     )
     assert (

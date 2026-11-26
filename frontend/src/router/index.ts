@@ -256,7 +256,31 @@ const router = createRouter({
         },
         {
           path: '',
-          component: () => import('@/layouts/SettingsHubLayout.vue'),
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'project-settings' },
+          children: [
+            {
+              path: 'system/environments',
+              name: 'environments',
+              component: () => import('@/views/system/EnvironmentList.vue'),
+            },
+            {
+              path: 'system/global-variables',
+              name: 'global-variables',
+              component: () => import('@/views/system/GlobalVariableLibrary.vue'),
+            },
+            {
+              path: 'system/notifications',
+              name: 'notifications',
+              component: () => import('@/views/system/NotificationList.vue'),
+              meta: { roles: ENGINEER_ONLY },
+            },
+          ],
+        },
+        {
+          path: '',
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'platform-settings' },
           children: [
             {
               path: 'system/config',
@@ -269,9 +293,10 @@ const router = createRouter({
               },
             },
             {
-              path: 'system/environments',
-              name: 'environments',
-              component: () => import('@/views/system/EnvironmentList.vue'),
+              path: 'system/storage',
+              name: 'system-storage',
+              component: () => import('@/views/system/StorageManagementView.vue'),
+              meta: { roles: ENGINEER_ONLY },
             },
             {
               path: 'system/startup-config',
@@ -279,36 +304,19 @@ const router = createRouter({
               component: () => import('@/views/system/StartupConfigView.vue'),
               meta: { requireAdmin: true, roles: ADMIN_ONLY },
             },
-            {
-              path: 'system/notifications',
-              name: 'notifications',
-              component: () => import('@/views/system/NotificationList.vue'),
-              meta: { roles: ENGINEER_ONLY },
-            },
-            {
-              path: 'system/bug-trackers',
-              name: 'bug-trackers',
-              component: () => import('@/views/system/BugTrackerList.vue'),
-              meta: { roles: ENGINEER_ONLY },
-            },
-            {
-              path: 'system/storage',
-              name: 'system-storage',
-              component: () => import('@/views/system/StorageManagementView.vue'),
-              meta: { roles: ENGINEER_ONLY },
-            },
-            {
-              path: 'system/global-variables',
-              name: 'global-variables',
-              component: () => import('@/views/system/GlobalVariableLibrary.vue'),
-            },
-            {
-              path: 'system/ai-llm-configs',
-              name: 'system-ai-llm-configs',
-              component: () => import('@/views/system/AILLMConfigList.vue'),
-              meta: { roles: ADMIN_ONLY },
-            },
           ],
+        },
+        {
+          path: 'system/bug-trackers',
+          name: 'bug-trackers',
+          component: () => import('@/views/system/BugTrackerList.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
+          path: 'system/ai-llm-configs',
+          name: 'system-ai-llm-configs',
+          component: () => import('@/views/system/AILLMConfigList.vue'),
+          meta: { roles: ADMIN_ONLY },
         },
         {
           path: '',
