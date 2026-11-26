@@ -44,13 +44,30 @@ const router = createRouter({
           },
         },
         {
-          path: 'api-workbench',
-          name: 'api-workbench',
-          component: () => import('@/views/workbench/ApiWorkbenchView.vue'),
-          meta: {
-            menuTitleKey: 'menu.capabilities.api',
-            descriptionKey: 'navigation.placeholder.description.api',
-          },
+          path: '',
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'api' },
+          children: [
+            {
+              path: 'api-workbench',
+              name: 'api-workbench',
+              component: () => import('@/views/workbench/ApiWorkbenchView.vue'),
+              meta: {
+                menuTitleKey: 'menu.capabilities.api',
+                descriptionKey: 'navigation.placeholder.description.api',
+              },
+            },
+            {
+              path: 'mock-rules',
+              name: 'mock-rules',
+              component: () => import('@/views/mock/MockRuleList.vue'),
+            },
+            {
+              path: 'system/api-contract-assets',
+              name: 'system-api-contract-assets',
+              component: () => import('@/views/system/ApiContractAssetsView.vue'),
+            },
+          ],
         },
         {
           path: 'mobile-special/workbench',
@@ -62,13 +79,25 @@ const router = createRouter({
           },
         },
         {
-          path: 'ui-workbench',
-          name: 'ui-workbench',
-          component: () => import('@/views/workbench/UiWorkbenchView.vue'),
-          meta: {
-            menuTitleKey: 'menu.capabilities.ui',
-            descriptionKey: 'navigation.placeholder.description.ui',
-          },
+          path: '',
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'ui' },
+          children: [
+            {
+              path: 'ui-workbench',
+              name: 'ui-workbench',
+              component: () => import('@/views/workbench/UiWorkbenchView.vue'),
+              meta: {
+                menuTitleKey: 'menu.capabilities.ui',
+                descriptionKey: 'navigation.placeholder.description.ui',
+              },
+            },
+            {
+              path: 'system/web-assets',
+              name: 'system-web-assets',
+              component: () => import('@/views/system/WebAssetsView.vue'),
+            },
+          ],
         },
         {
           path: 'performance-workbench',
@@ -80,13 +109,32 @@ const router = createRouter({
           },
         },
         {
-          path: 'ai-workbench',
-          name: 'ai-workbench',
-          component: () => import('@/views/workbench/AIWorkbenchView.vue'),
-          meta: {
-            menuTitleKey: 'menu.capabilities.ai',
-            descriptionKey: 'navigation.placeholder.description.ai',
-          },
+          path: '',
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'ai-center' },
+          children: [
+            {
+              path: 'ai-workbench',
+              name: 'ai-workbench',
+              component: () => import('@/views/workbench/AIWorkbenchView.vue'),
+              meta: {
+                menuTitleKey: 'menu.capabilities.ai',
+                descriptionKey: 'navigation.placeholder.description.ai',
+              },
+            },
+            {
+              path: 'system/ai-healing-stats',
+              name: 'system-ai-healing-stats',
+              component: () => import('@/views/system/AIHealingStatsView.vue'),
+              meta: { requireAdmin: true, roles: ADMIN_ONLY },
+            },
+            {
+              path: 'system/healing-examples',
+              name: 'system-healing-examples',
+              component: () => import('@/views/system/HealingExamplesView.vue'),
+              meta: { requireAdmin: true, roles: ADMIN_ONLY },
+            },
+          ],
         },
         {
           path: 'bugs',
@@ -98,22 +146,51 @@ const router = createRouter({
           },
         },
         {
-          path: 'reports',
-          name: 'reports',
-          component: () => import('@/views/report/ReportCenterView.vue'),
-          meta: {
-            menuTitleKey: 'menu.assets.reports',
-            descriptionKey: 'navigation.placeholder.description.reports',
-          },
+          path: '',
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'reports' },
+          children: [
+            {
+              path: 'reports',
+              name: 'reports',
+              component: () => import('@/views/report/ReportCenterView.vue'),
+              meta: {
+                menuTitleKey: 'menu.assets.reports',
+                descriptionKey: 'navigation.placeholder.description.reports',
+              },
+            },
+            {
+              path: 'cloud-sync',
+              name: 'cloud-sync',
+              component: () => import('@/views/cloud-sync/CloudSyncDashboard.vue'),
+            },
+          ],
         },
         {
-          path: 'case-reviews',
-          name: 'case-reviews',
-          component: () => import('@/views/case/CaseReviewWorkbench.vue'),
-          meta: {
-            menuTitleKey: 'menu.assets.reviews',
-            descriptionKey: 'navigation.placeholder.description.reviews',
-          },
+          path: '',
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'cases' },
+          children: [
+            {
+              path: 'cases',
+              name: 'cases',
+              component: () => import('@/views/case/CaseList.vue'),
+            },
+            {
+              path: 'projects/:projectId/cases',
+              name: 'project-cases',
+              component: () => import('@/views/case/CaseList.vue'),
+            },
+            {
+              path: 'case-reviews',
+              name: 'case-reviews',
+              component: () => import('@/views/case/CaseReviewWorkbench.vue'),
+              meta: {
+                menuTitleKey: 'menu.assets.reviews',
+                descriptionKey: 'navigation.placeholder.description.reviews',
+              },
+            },
+          ],
         },
         {
           path: 'hermes',
@@ -130,48 +207,139 @@ const router = createRouter({
           redirect: '/hermes',
         },
         {
-          path: 'requirements',
-          name: 'requirements',
-          component: () => import('@/views/intelligence/RequirementTraceabilityView.vue'),
-          meta: {
-            menuTitleKey: 'menu.intelligence.requirements',
-            descriptionKey: 'navigation.placeholder.description.requirements',
-          },
+          path: '',
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'requirements-knowledge' },
+          children: [
+            {
+              path: 'requirements',
+              name: 'requirements',
+              component: () => import('@/views/intelligence/RequirementTraceabilityView.vue'),
+              meta: {
+                menuTitleKey: 'menu.intelligence.requirements',
+                descriptionKey: 'navigation.placeholder.description.requirements',
+              },
+            },
+            {
+              path: 'knowledge',
+              name: 'knowledge',
+              component: () => import('@/views/intelligence/KnowledgeHubView.vue'),
+              meta: {
+                menuTitleKey: 'menu.intelligence.knowledge',
+                descriptionKey: 'navigation.placeholder.description.knowledge',
+              },
+            },
+          ],
         },
         {
-          path: 'knowledge',
-          name: 'knowledge',
-          component: () => import('@/views/intelligence/KnowledgeHubView.vue'),
-          meta: {
-            menuTitleKey: 'menu.intelligence.knowledge',
-            descriptionKey: 'navigation.placeholder.description.knowledge',
-          },
+          path: '',
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'remote-ops' },
+          children: [
+            {
+              path: 'system/toolbox',
+              name: 'system-toolbox',
+              component: () => import('@/views/system/RemoteToolboxView.vue'),
+              meta: {
+                roles: ENGINEER_ONLY,
+                menuTitleKey: 'menu.system_center.toolbox',
+                descriptionKey: 'navigation.placeholder.description.toolbox',
+              },
+            },
+            {
+              path: 'system/remote-nodes',
+              name: 'system-remote-nodes',
+              component: () => import('@/views/system/RemoteNodesView.vue'),
+              meta: { requireAdmin: true, roles: ADMIN_ONLY, menuTitleKey: 'menu.system_center.remote_nodes' },
+            },
+          ],
         },
         {
-          path: 'system/toolbox',
-          name: 'system-toolbox',
-          component: () => import('@/views/system/RemoteToolboxView.vue'),
-          meta: {
-            roles: ENGINEER_ONLY,
-            menuTitleKey: 'menu.system_center.toolbox',
-            descriptionKey: 'navigation.placeholder.description.toolbox',
-          },
+          path: '',
+          component: () => import('@/layouts/SettingsHubLayout.vue'),
+          children: [
+            {
+              path: 'system/config',
+              name: 'system-config',
+              component: () => import('@/views/system/ConfigurationCenterView.vue'),
+              meta: {
+                roles: ENGINEER_ONLY,
+                menuTitleKey: 'menu.system_center.config',
+                descriptionKey: 'navigation.placeholder.description.config',
+              },
+            },
+            {
+              path: 'system/environments',
+              name: 'environments',
+              component: () => import('@/views/system/EnvironmentList.vue'),
+            },
+            {
+              path: 'system/startup-config',
+              name: 'system-startup-config',
+              component: () => import('@/views/system/StartupConfigView.vue'),
+              meta: { requireAdmin: true, roles: ADMIN_ONLY },
+            },
+            {
+              path: 'system/notifications',
+              name: 'notifications',
+              component: () => import('@/views/system/NotificationList.vue'),
+              meta: { roles: ENGINEER_ONLY },
+            },
+            {
+              path: 'system/bug-trackers',
+              name: 'bug-trackers',
+              component: () => import('@/views/system/BugTrackerList.vue'),
+              meta: { roles: ENGINEER_ONLY },
+            },
+            {
+              path: 'system/storage',
+              name: 'system-storage',
+              component: () => import('@/views/system/StorageManagementView.vue'),
+              meta: { roles: ENGINEER_ONLY },
+            },
+            {
+              path: 'system/global-variables',
+              name: 'global-variables',
+              component: () => import('@/views/system/GlobalVariableLibrary.vue'),
+            },
+            {
+              path: 'system/ai-llm-configs',
+              name: 'system-ai-llm-configs',
+              component: () => import('@/views/system/AILLMConfigList.vue'),
+              meta: { roles: ADMIN_ONLY },
+            },
+          ],
         },
         {
-          path: 'system/remote-nodes',
-          name: 'system-remote-nodes',
-          component: () => import('@/views/system/RemoteNodesView.vue'),
-          meta: { requireAdmin: true, roles: ADMIN_ONLY, menuTitleKey: 'menu.system_center.remote_nodes' },
-        },
-        {
-          path: 'system/config',
-          name: 'system-config',
-          component: () => import('@/views/system/ConfigurationCenterView.vue'),
-          meta: {
-            roles: ENGINEER_ONLY,
-            menuTitleKey: 'menu.system_center.config',
-            descriptionKey: 'navigation.placeholder.description.config',
-          },
+          path: '',
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'governance' },
+          children: [
+            {
+              path: 'system/users',
+              name: 'system-users',
+              component: () => import('@/views/system/UserManagementView.vue'),
+              meta: { requireAdmin: true, roles: ADMIN_ONLY },
+            },
+            {
+              path: 'system/audit-logs',
+              name: 'audit-logs',
+              component: () => import('@/views/audit/AuditLogList.vue'),
+              meta: { requireAdmin: true, roles: ADMIN_ONLY },
+            },
+            {
+              path: 'system/run-retention',
+              name: 'system-run-retention',
+              component: () => import('@/views/system/RunRetentionView.vue'),
+              meta: { requireAdmin: true, roles: ADMIN_ONLY },
+            },
+            {
+              path: 'system/dashboard-alerts',
+              name: 'system-dashboard-alerts',
+              component: () => import('@/views/system/DashboardAlertRulesView.vue'),
+              meta: { requireAdmin: true, roles: ADMIN_ONLY },
+            },
+          ],
         },
         {
           path: 'projects',
@@ -189,16 +357,6 @@ const router = createRouter({
           component: () => import('@/views/account/AccountSettingsView.vue'),
         },
         {
-          path: 'cases',
-          name: 'cases',
-          component: () => import('@/views/case/CaseList.vue'),
-        },
-        {
-          path: 'projects/:projectId/cases',
-          name: 'project-cases',
-          component: () => import('@/views/case/CaseList.vue'),
-        },
-        {
           path: 'cases/:caseId',
           name: 'case-detail',
           component: () => import('@/views/case/CaseDetail.vue'),
@@ -212,34 +370,6 @@ const router = createRouter({
           path: 'runs/:runId',
           name: 'run-detail',
           component: () => import('@/views/run/RunDetail.vue'),
-        },
-        {
-          path: 'cloud-sync',
-          name: 'cloud-sync',
-          component: () => import('@/views/cloud-sync/CloudSyncDashboard.vue'),
-        },
-        {
-          path: 'system/environments',
-          name: 'environments',
-          component: () => import('@/views/system/EnvironmentList.vue'),
-        },
-        {
-          path: 'system/startup-config',
-          name: 'system-startup-config',
-          component: () => import('@/views/system/StartupConfigView.vue'),
-          meta: { requireAdmin: true, roles: ADMIN_ONLY },
-        },
-        {
-          path: 'system/notifications',
-          name: 'notifications',
-          component: () => import('@/views/system/NotificationList.vue'),
-          meta: { roles: ENGINEER_ONLY },
-        },
-        {
-          path: 'system/bug-trackers',
-          name: 'bug-trackers',
-          component: () => import('@/views/system/BugTrackerList.vue'),
-          meta: { roles: ENGINEER_ONLY },
         },
         {
           path: 'devices',
@@ -260,23 +390,25 @@ const router = createRouter({
           meta: { menuTitleKey: 'menu.ios_assets' },
         },
         {
-          path: 'suites',
-          name: 'suites',
-          component: () => import('@/views/suite/SuiteList.vue'),
-          meta: {
-            menuTitleKey: 'menu.assets.suites',
-            descriptionKey: 'navigation.placeholder.description.suites',
-          },
-        },
-        {
-          path: 'plans',
-          name: 'plans',
-          component: () => import('@/views/plan/PlanList.vue'),
-        },
-        {
-          path: 'mock-rules',
-          name: 'mock-rules',
-          component: () => import('@/views/mock/MockRuleList.vue'),
+          path: '',
+          component: () => import('@/layouts/TabbedHubLayout.vue'),
+          meta: { hubId: 'plans-suites' },
+          children: [
+            {
+              path: 'suites',
+              name: 'suites',
+              component: () => import('@/views/suite/SuiteList.vue'),
+              meta: {
+                menuTitleKey: 'menu.assets.suites',
+                descriptionKey: 'navigation.placeholder.description.suites',
+              },
+            },
+            {
+              path: 'plans',
+              name: 'plans',
+              component: () => import('@/views/plan/PlanList.vue'),
+            },
+          ],
         },
         {
           path: 'mobile-special/tasks',
@@ -294,59 +426,6 @@ const router = createRouter({
           component: () => import('@/views/mobile-special/ReportDetailView.vue'),
         },
         {
-          path: 'system/storage',
-          name: 'system-storage',
-          component: () => import('@/views/system/StorageManagementView.vue'),
-          meta: { roles: ENGINEER_ONLY },
-        },
-        {
-          path: 'system/global-variables',
-          name: 'global-variables',
-          component: () => import('@/views/system/GlobalVariableLibrary.vue'),
-        },
-        {
-          path: 'system/audit-logs',
-          name: 'audit-logs',
-          component: () => import('@/views/audit/AuditLogList.vue'),
-          meta: { requireAdmin: true, roles: ADMIN_ONLY },
-        },
-        {
-          path: 'system/users',
-          name: 'system-users',
-          component: () => import('@/views/system/UserManagementView.vue'),
-          meta: { requireAdmin: true, roles: ADMIN_ONLY },
-        },
-        {
-          path: 'system/run-retention',
-          name: 'system-run-retention',
-          component: () => import('@/views/system/RunRetentionView.vue'),
-          meta: { requireAdmin: true, roles: ADMIN_ONLY },
-        },
-        {
-          path: 'system/dashboard-alerts',
-          name: 'system-dashboard-alerts',
-          component: () => import('@/views/system/DashboardAlertRulesView.vue'),
-          meta: { requireAdmin: true, roles: ADMIN_ONLY },
-        },
-        {
-          path: 'system/ai-llm-configs',
-          name: 'system-ai-llm-configs',
-          component: () => import('@/views/system/AILLMConfigList.vue'),
-          meta: { roles: ADMIN_ONLY },
-        },
-        {
-          path: 'system/healing-examples',
-          name: 'system-healing-examples',
-          component: () => import('@/views/system/HealingExamplesView.vue'),
-          meta: { requireAdmin: true, roles: ADMIN_ONLY },
-        },
-        {
-          path: 'system/ai-healing-stats',
-          name: 'system-ai-healing-stats',
-          component: () => import('@/views/system/AIHealingStatsView.vue'),
-          meta: { requireAdmin: true, roles: ADMIN_ONLY },
-        },
-        {
           path: 'system/datasets',
           name: 'system-datasets',
           component: () => import('@/views/system/DatasetLibrary.vue'),
@@ -355,16 +434,6 @@ const router = createRouter({
           path: 'system/performance',
           name: 'system-performance',
           component: () => import('@/views/system/PerformanceCenterView.vue'),
-        },
-        {
-          path: 'system/web-assets',
-          name: 'system-web-assets',
-          component: () => import('@/views/system/WebAssetsView.vue'),
-        },
-        {
-          path: 'system/api-contract-assets',
-          name: 'system-api-contract-assets',
-          component: () => import('@/views/system/ApiContractAssetsView.vue'),
         },
       ],
     },

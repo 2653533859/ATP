@@ -6,33 +6,33 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/projects': 'workbench',
   '/tasks': 'workbench',
   '/runs': 'workbench',
-  '/cloud-sync': 'workbench',
   '/api-workbench': 'test-capabilities',
+  '/mock-rules': 'test-capabilities',
+  '/system/api-contract-assets': 'test-capabilities',
   '/mobile-special': 'test-capabilities',
-  '/ui-workbench': 'test-capabilities',
-  '/performance-workbench': 'test-capabilities',
-  '/ai-workbench': 'test-capabilities',
-  '/cases': 'test-assets',
-  '/plans': 'test-assets',
-  '/bugs': 'test-assets',
-  '/reports': 'test-assets',
-  '/case-reviews': 'test-assets',
-  '/suites': 'test-assets',
-  '/hermes': 'intelligence-center',
-  '/ai-chat': 'intelligence-center',
-  '/requirements': 'intelligence-center',
-  '/knowledge': 'intelligence-center',
-  '/system/datasets': 'test-assets',
-  '/system/web-assets': 'test-assets',
-  '/system/api-contract-assets': 'test-assets',
-  '/system/performance': 'test-capabilities',
-  '/system/ai-healing-stats': 'intelligence-center',
-  '/system/healing-examples': 'intelligence-center',
-  '/system': 'system-center',
   '/devices': 'test-capabilities',
   '/apks': 'test-capabilities',
   '/ios-assets': 'test-capabilities',
-  '/mock-rules': 'test-capabilities',
+  '/ui-workbench': 'test-capabilities',
+  '/system/web-assets': 'test-capabilities',
+  '/performance-workbench': 'test-capabilities',
+  '/system/performance': 'test-capabilities',
+  '/cases': 'test-assets',
+  '/plans': 'test-assets',
+  '/suites': 'test-assets',
+  '/case-reviews': 'test-assets',
+  '/system/datasets': 'test-assets',
+  '/bugs': 'test-assets',
+  '/reports': 'test-assets',
+  '/cloud-sync': 'test-assets',
+  '/hermes': 'intelligence-center',
+  '/ai-chat': 'intelligence-center',
+  '/ai-workbench': 'intelligence-center',
+  '/system/ai-healing-stats': 'intelligence-center',
+  '/system/healing-examples': 'intelligence-center',
+  '/requirements': 'intelligence-center',
+  '/knowledge': 'intelligence-center',
+  '/system': 'system-center',
 }
 
 export const navigationGroupTitleKeys: Record<NavigationGroup, string> = {
@@ -61,6 +61,9 @@ export const systemRouteTitles: Record<string, string> = {
   '/system/bug-trackers': 'menu.system.bug_trackers',
   '/system/users': 'menu.system.users',
   '/system/audit-logs': 'menu.system.audit_logs',
+  '/system/remote-nodes': 'menu.system_center.remote_nodes',
+  '/system/toolbox': 'menu.system_center.toolbox',
+  '/system/config': 'menu.system_center.config',
 }
 
 const mobileRouteTitles: Record<string, string> = {
@@ -68,56 +71,98 @@ const mobileRouteTitles: Record<string, string> = {
   '/mobile-special/reports': 'menu.mobile_special.reports',
 }
 
+const SUBPAGE_HUB_PARENTS: Array<[string, string]> = [
+  ['/mock-rules', 'menu.capabilities.api'],
+  ['/system/api-contract-assets', 'menu.capabilities.api'],
+  ['/system/web-assets', 'menu.capabilities.ui'],
+  ['/case-reviews', 'menu.assets.cases'],
+  ['/plans', 'menu.assets.plans_and_suites'],
+  ['/suites', 'menu.assets.plans_and_suites'],
+  ['/cloud-sync', 'menu.assets.reports'],
+  ['/ai-workbench', 'menu.intelligence.ai_hub'],
+  ['/system/ai-healing-stats', 'menu.intelligence.ai_hub'],
+  ['/system/healing-examples', 'menu.intelligence.ai_hub'],
+  ['/requirements', 'menu.intelligence.requirements_knowledge'],
+  ['/knowledge', 'menu.intelligence.requirements_knowledge'],
+  ['/system/users', 'menu.system_center.governance'],
+  ['/system/audit-logs', 'menu.system_center.governance'],
+  ['/system/run-retention', 'menu.system_center.governance'],
+  ['/system/dashboard-alerts', 'menu.system_center.governance'],
+  ['/system/toolbox', 'menu.system_center.remote_ops'],
+  ['/system/remote-nodes', 'menu.system_center.remote_ops'],
+  ['/system/environments', 'menu.system_center.config'],
+  ['/system/global-variables', 'menu.system_center.config'],
+  ['/system/notifications', 'menu.system_center.config'],
+  ['/system/bug-trackers', 'menu.system_center.config'],
+  ['/system/ai-llm-configs', 'menu.system_center.config'],
+  ['/system/storage', 'menu.system_center.config'],
+  ['/system/startup-config', 'menu.system_center.config'],
+]
+
 export function findRouteEntry<T>(entries: Record<string, T>, path: string): T | undefined {
   return Object.entries(entries).find(([prefix]) => path.startsWith(prefix))?.[1]
 }
 
 export function getMenuOpenKeys(path: string, _localMode = false): string[] {
+  if (path.startsWith('/projects/') && path.endsWith('/cases')) return ['test-assets']
   const group = findRouteEntry(routeMenuGroups, path)
   return group ? [group] : []
 }
 
-const DIRECT_SYSTEM_MENU_PATHS = [
-  '/system/config',
-  '/system/ai-llm-configs',
-  '/system/environments',
-  '/system/global-variables',
-  '/system/notifications',
-  '/system/bug-trackers',
-  '/system/storage',
-  '/system/toolbox',
-  '/system/remote-nodes',
-  '/system/users',
-  '/system/audit-logs',
-  '/system/run-retention',
-  '/system/dashboard-alerts',
-  '/system/startup-config',
-  '/system/datasets',
-  '/system/web-assets',
-  '/system/api-contract-assets',
-  '/system/healing-examples',
-  '/system/ai-healing-stats',
+export function resolveAccordionOpenKeys(
+  currentOpenKeys: readonly string[],
+  nextOpenKeys: readonly string[],
+): string[] {
+  const latestOpened = nextOpenKeys.find((key) => !currentOpenKeys.includes(key))
+  if (latestOpened) return [latestOpened]
+  return nextOpenKeys.length ? [nextOpenKeys[nextOpenKeys.length - 1]] : []
+}
+
+const ROUTE_TO_MENU_KEY: Array<[string, string]> = [
+  ['/api-workbench', '/api-workbench'],
+  ['/mock-rules', '/api-workbench'],
+  ['/system/api-contract-assets', '/api-workbench'],
+  ['/mobile-special/', '/mobile-special/workbench'],
+  ['/devices', '/mobile-special/workbench'],
+  ['/apks', '/mobile-special/workbench'],
+  ['/ios-assets', '/mobile-special/workbench'],
+  ['/ui-workbench', '/ui-workbench'],
+  ['/system/web-assets', '/ui-workbench'],
+  ['/performance-workbench', '/performance-workbench'],
+  ['/system/performance', '/performance-workbench'],
+  ['/cases', '/cases'],
+  ['/case-reviews', '/cases'],
+  ['/plans', '/plans'],
+  ['/suites', '/plans'],
+  ['/system/datasets', '/system/datasets'],
+  ['/bugs', '/bugs'],
+  ['/reports', '/reports'],
+  ['/cloud-sync', '/reports'],
+  ['/hermes', '/hermes'],
+  ['/ai-chat', '/hermes'],
+  ['/ai-workbench', '/ai-workbench'],
+  ['/system/ai-healing-stats', '/ai-workbench'],
+  ['/system/healing-examples', '/ai-workbench'],
+  ['/requirements', '/requirements'],
+  ['/knowledge', '/requirements'],
+  ['/system/users', '/system/users'],
+  ['/system/audit-logs', '/system/users'],
+  ['/system/run-retention', '/system/users'],
+  ['/system/dashboard-alerts', '/system/users'],
+  ['/system/toolbox', '/system/toolbox'],
+  ['/system/remote-nodes', '/system/toolbox'],
+  ['/system/', '/system/config'],
 ]
 
 export function getSelectedMenuKey(path: string, _localMode = false): string {
   if (path.startsWith('/projects/') && path.endsWith('/cases')) return '/cases'
   if (path.startsWith('/projects/')) return '/projects'
-  if (path.startsWith('/cases/')) return '/cases'
   if (path === '/runs' || path.startsWith('/runs/')) return '/tasks'
-  if (path.startsWith('/mobile-special/')) return '/mobile-special/workbench'
-  if (path.startsWith('/devices') || path.startsWith('/apks') || path.startsWith('/ios-assets')) return '/mobile-special/workbench'
 
-  const matchedSystemKey = DIRECT_SYSTEM_MENU_PATHS.find((prefix) => path.startsWith(prefix))
-  if (matchedSystemKey) return matchedSystemKey
-
-  if (path.startsWith('/system/performance')) return '/performance-workbench'
-  if (path.startsWith('/mock-rules')) return '/mock-rules'
-  if (path.startsWith('/suites')) return '/suites'
-  if (path.startsWith('/hermes') || path.startsWith('/ai-chat')) return '/hermes'
-  if (path.startsWith('/requirements')) return '/requirements'
-  if (path.startsWith('/knowledge')) return '/knowledge'
-  if (path.startsWith('/system/')) return '/system/config'
-  return path
+  const matched = ROUTE_TO_MENU_KEY.find(([prefix]) =>
+    prefix.endsWith('/') ? path.startsWith(prefix) : path === prefix || path.startsWith(`${prefix}/`),
+  )
+  return matched ? matched[1] : path
 }
 
 export function getRouteTitleKey(path: string, menuTitleKey?: unknown): string {
@@ -130,8 +175,8 @@ export function getRouteTitleKey(path: string, menuTitleKey?: unknown): string {
   if (path.startsWith('/cases')) return 'menu.cases'
   if (path.startsWith('/runs')) return 'menu.runs'
   if (path.startsWith('/cloud-sync')) return 'menu.workbench.cloud_sync'
-  if (path.startsWith('/suites')) return 'menu.suites'
-  if (path.startsWith('/plans')) return 'menu.plans'
+  if (path.startsWith('/suites')) return 'menu.assets.suites'
+  if (path.startsWith('/plans')) return 'menu.assets.plans'
   if (path.startsWith('/hermes')) return 'menu.intelligence.hermes'
   if (path.startsWith('/ai-chat')) return 'menu.intelligence.ai_chat'
   if (path.startsWith('/requirements')) return 'menu.intelligence.requirements'
@@ -144,8 +189,19 @@ export function getRouteTitleKey(path: string, menuTitleKey?: unknown): string {
 }
 
 export function getBreadcrumbKeys(path: string, routeTitleKey: string): string[] {
-  const group = findRouteEntry(routeMenuGroups, path)
+  const group =
+    path.startsWith('/projects/') && path.endsWith('/cases')
+      ? 'test-assets'
+      : findRouteEntry(routeMenuGroups, path)
   if (!group) return [routeTitleKey]
-  const groupTitleKey = navigationGroupTitleKeys[group]
-  return groupTitleKey === routeTitleKey ? [routeTitleKey] : [groupTitleKey, routeTitleKey]
+
+  const keys: string[] = [navigationGroupTitleKeys[group]]
+  const hubParent = SUBPAGE_HUB_PARENTS.find(([prefix]) => path === prefix || path.startsWith(`${prefix}/`))?.[1]
+  if (hubParent && !keys.includes(hubParent)) {
+    keys.push(hubParent)
+  }
+  if (!keys.includes(routeTitleKey)) {
+    keys.push(routeTitleKey)
+  }
+  return keys
 }

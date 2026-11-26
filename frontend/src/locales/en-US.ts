@@ -202,6 +202,7 @@ export default {
       cases: 'Test Cases',
       suites: 'Test Suites',
       plans: 'Test Plans',
+      plans_and_suites: 'Plans & Suites',
       bugs: 'Defects',
       reports: 'Test Reports',
       reviews: 'Case Reviews',
@@ -209,13 +210,17 @@ export default {
     intelligence: {
       hermes: 'Hermes Assistant',
       ai_chat: 'AI Free Chat',
+      ai_hub: 'AI & Self-Healing',
       requirements: 'Requirements & Case Traceability',
       knowledge: 'Knowledge Hub',
+      requirements_knowledge: 'Requirements & Knowledge',
     },
     system_center: {
       toolbox: 'Remote Toolbox',
       remote_nodes: 'Remote Node Access',
       config: 'Configuration Center',
+      governance: 'Platform Governance',
+      remote_ops: 'Remote Ops',
     },
     mobile_special: {
       title: 'Android Special',
@@ -273,9 +278,14 @@ export default {
       queue: 'Running: {count} tasks',
     },
     quick_search: {
-      trigger: 'Search cases, APIs, tasks, or reports…',
-      input_placeholder: 'Enter a case name, module, route, or keyword…',
+      trigger: 'Quick jump to pages, features, or cases…',
+      input_placeholder: 'Type a page name, alias (Mock, POM, Audit, LLM), or case keyword…',
       section_title: 'Common pages',
+      recent_title: 'Recent',
+      all_matches_title: 'Matching Pages',
+      empty_matches: 'No matching pages found',
+      search_cases_action: 'Search test cases for "{keyword}"',
+      footer_hint: '↑↓ Navigate · Enter Open · ESC Close',
       pages: {
         dashboard: 'Quality insights dashboard',
         api_workbench: 'API and automation workbench',
@@ -288,6 +298,26 @@ export default {
         cases: 'Cases',
         ai_copilot: 'AI Copilot',
       },
+    },
+  },
+  hub: {
+    api: {
+      workbench: 'API Console & Scenarios',
+    },
+    ui: {
+      workbench: 'UI Cases & Recorder',
+    },
+    cases: {
+      library: 'Case Library',
+    },
+    reports: {
+      quality: 'Quality Reports',
+      cloud_sync: 'Cloud Sync Results',
+    },
+    settings: {
+      group_project: 'Project & Integrations',
+      group_platform: 'Platform Settings',
+      revisions: 'Snapshots & Rollback',
     },
   },
   navigation: {

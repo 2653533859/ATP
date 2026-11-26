@@ -202,6 +202,7 @@ export default {
       cases: '测试用例',
       suites: '测试套件',
       plans: '测试计划',
+      plans_and_suites: '计划与套件',
       bugs: '缺陷管理',
       reports: '测试报告',
       reviews: '用例评审',
@@ -209,13 +210,17 @@ export default {
     intelligence: {
       hermes: 'Hermes 助手',
       ai_chat: 'AI 自由对话',
+      ai_hub: 'AI 工作台与自愈',
       requirements: '需求与用例追踪',
       knowledge: '知识中枢',
+      requirements_knowledge: '需求与知识库',
     },
     system_center: {
       toolbox: '远程工具箱',
       remote_nodes: '远程节点授权',
       config: '配置中心',
+      governance: '平台治理',
+      remote_ops: '远程运维',
     },
     mobile_special: {
       title: 'Android 专项',
@@ -273,9 +278,14 @@ export default {
       queue: '执行中: {count} 个任务',
     },
     quick_search: {
-      trigger: '快速检索用例、接口、执行任务或报告…',
-      input_placeholder: '输入用例名称、模块、路由或关键字…',
+      trigger: '快速检索页面、功能或用例…',
+      input_placeholder: '输入功能名、别名（如 Mock、POM、审计、模型）或用例关键字…',
       section_title: '常用页面快速跳转',
+      recent_title: '最近访问',
+      all_matches_title: '匹配的功能页面',
+      empty_matches: '未找到匹配的功能入口',
+      search_cases_action: '在测试用例中搜索 “{keyword}”',
+      footer_hint: '↑↓ 切换 · Enter 跳转 · ESC 关闭',
       pages: {
         dashboard: '质量洞察大盘',
         api_workbench: '接口与自动化工作台',
@@ -288,6 +298,26 @@ export default {
         cases: '用例',
         ai_copilot: 'AI 助手',
       },
+    },
+  },
+  hub: {
+    api: {
+      workbench: '接口调试与场景',
+    },
+    ui: {
+      workbench: 'UI 用例与录制',
+    },
+    cases: {
+      library: '用例库',
+    },
+    reports: {
+      quality: '质量报告',
+      cloud_sync: '云端结果汇总',
+    },
+    settings: {
+      group_project: '项目与集成配置',
+      group_platform: '平台与基础配置',
+      revisions: '配置版本与回滚',
     },
   },
   navigation: {

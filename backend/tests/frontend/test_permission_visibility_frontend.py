@@ -25,16 +25,30 @@ def test_router_supports_general_role_meta():
 
 
 def test_layout_hides_non_operable_role_entries():
-    content = repo_path("frontend/src/layouts/MainLayout.vue").read_text(encoding="utf-8")
+    layout = repo_path("frontend/src/layouts/MainLayout.vue").read_text(encoding="utf-8")
+    hub_config = repo_path("frontend/src/layouts/hubConfig.ts").read_text(encoding="utf-8")
 
-    assert "canAccess(['admin', 'engineer'])" in content
-    assert 'key="/system/config"' in content
-    assert 'key="/system/dashboard-alerts"' not in content
-    # Windows 本地模式补充的系统入口只在 localMode 模板块内渲染，且整个
-    # 系统中心子菜单仍由 canAccess 角色门控；服务器模式不得把它们暴露给全部角色。
-    local_block = content.split('<template v-if="localMode">', 1)[1].split("</a-sub-menu>", 1)[0]
-    assert 'key="/system/ai-llm-configs"' in local_block
-    assert content.count('key="/system/ai-llm-configs"') == 1
+    # 系统中心整体只对 admin/engineer 暴露；平台治理（用户/审计/清理/告警）仅对 admin 暴露
+    assert "canAccess(['admin', 'engineer'])" in layout
+    assert 'key="/system/config"' in layout
+    assert 'v-if="canAccess([\'admin\'])" key="/system/users"' in layout
+    assert 'key="/system/dashboard-alerts"' not in layout
+    assert 'key="/system/ai-llm-configs"' not in layout
+
+    # 二级设置与聚合入口保持严格角色隔离
+    normalized_hub_config = " ".join(hub_config.split())
+    assert (
+        "path: '/system/ai-llm-configs', labelKey: 'menu.system.ai_llm_configs', roles: ['admin']"
+        in normalized_hub_config
+    )
+    assert (
+        "path: '/system/dashboard-alerts', labelKey: 'menu.system.dashboard_alerts', roles: ['admin']"
+        in normalized_hub_config
+    )
+    assert (
+        "path: '/system/remote-nodes', labelKey: 'menu.system_center.remote_nodes', roles: ['admin']"
+        in normalized_hub_config
+    )
 
 
 def test_case_list_exposes_disabled_read_only_actions():

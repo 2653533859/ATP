@@ -20,10 +20,11 @@
         <div class="sider-menu-scroll">
           <a-menu
             :selectedKeys="selectedKeys"
-            v-model:openKeys="openKeys"
+            :openKeys="openKeys"
             :theme="siderTheme"
             mode="inline"
             class="app-menu"
+            @openChange="onMenuOpenChange"
             @click="onMenuClick"
           >
             <a-sub-menu key="workbench">
@@ -43,7 +44,6 @@
                   <a-badge v-if="activeTaskCount > 0" :count="activeTaskCount" :overflow-count="99" />
                 </span>
               </a-menu-item>
-              <a-menu-item v-if="localMode || canAccess(['admin'])" key="/cloud-sync">{{ t('menu.workbench.cloud_sync', '云端结果中心') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu key="test-capabilities">
@@ -53,75 +53,66 @@
               <a-menu-item key="/mobile-special/workbench">{{ t('menu.capabilities.app') }}</a-menu-item>
               <a-menu-item key="/ui-workbench">{{ t('menu.capabilities.ui') }}</a-menu-item>
               <a-menu-item v-if="supportsFeature('performance')" key="/performance-workbench">{{ t('menu.capabilities.performance') }}</a-menu-item>
-              <a-menu-item v-if="supportsFeature('ai_generation')" key="/ai-workbench">{{ t('menu.capabilities.ai') }}</a-menu-item>
-              <a-menu-item key="/mock-rules">{{ t('menu.mock_rules') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu key="test-assets">
               <template #icon><AppstoreOutlined /></template>
               <template #title>{{ t('menu.groups.test_assets_new') }}</template>
               <a-menu-item key="/cases">{{ t('menu.assets.cases') }}</a-menu-item>
-              <a-menu-item v-if="supportsFeature('suites')" key="/suites">{{ t('menu.assets.suites') }}</a-menu-item>
-              <a-menu-item v-if="supportsFeature('plans')" key="/plans">{{ t('menu.assets.plans') }}</a-menu-item>
+              <a-menu-item v-if="supportsFeature('plans') || supportsFeature('suites')" key="/plans">{{ t('menu.assets.plans_and_suites') }}</a-menu-item>
+              <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
               <a-menu-item v-if="supportsFeature('defects')" key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
               <a-menu-item key="/reports">{{ t('menu.assets.reports') }}</a-menu-item>
-              <a-menu-item key="/case-reviews">{{ t('menu.assets.reviews') }}</a-menu-item>
-              <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
-              <a-menu-item key="/system/web-assets">{{ t('menu.system.web_assets') }}</a-menu-item>
-              <a-menu-item key="/system/api-contract-assets">{{ t('menu.system.api_contract_assets') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu key="intelligence-center">
               <template #icon><ApiOutlined /></template>
               <template #title>{{ t('menu.groups.intelligence_center') }}</template>
               <a-menu-item key="/hermes">{{ t('menu.intelligence.hermes') }}</a-menu-item>
-              <a-menu-item key="/requirements">{{ t('menu.intelligence.requirements') }}</a-menu-item>
-              <a-menu-item key="/knowledge">{{ t('menu.intelligence.knowledge') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin'])" key="/system/healing-examples">{{ t('menu.system.ai_healing_examples') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-healing-stats">{{ t('menu.system.ai_healing_stats') }}</a-menu-item>
+              <a-menu-item v-if="supportsFeature('ai_generation') || canAccess(['admin'])" key="/ai-workbench">{{ t('menu.intelligence.ai_hub') }}</a-menu-item>
+              <a-menu-item key="/requirements">{{ t('menu.intelligence.requirements_knowledge') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu v-if="canAccess(['admin', 'engineer'])" key="system-center">
               <template #icon><SettingOutlined /></template>
               <template #title>{{ t('menu.groups.system_center') }}</template>
               <a-menu-item key="/system/config">{{ t('menu.system_center.config') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
-              <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
-              <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
-              <a-menu-item key="/system/notifications">{{ t('menu.system.notifications') }}</a-menu-item>
-              <a-menu-item key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
-              <a-menu-item key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
-              <a-menu-item v-if="!localMode" key="/system/toolbox">{{ t('menu.system_center.toolbox') }}</a-menu-item>
-              <a-menu-item v-if="!localMode && canAccess(['admin'])" key="/system/remote-nodes">{{ t('menu.system_center.remote_nodes') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin'])" key="/system/users">{{ t('menu.system.users') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin'])" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin'])" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin'])" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin'])" key="/system/startup-config">{{ t('menu.system.startup_config') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin'])" key="/system/users">{{ t('menu.system_center.governance') }}</a-menu-item>
+              <a-menu-item v-if="!localMode" key="/system/toolbox">{{ t('menu.system_center.remote_ops') }}</a-menu-item>
             </a-sub-menu>
           </a-menu>
         </div>
 
-        <!-- 侧边栏底部 Web 录制 Worker 状态 -->
+        <!-- 侧边栏底部精简 Web 录制 Worker 状态条 -->
         <div v-if="!collapsed && !localMode" class="sider-footer">
-          <div class="worker-status-card">
-            <div class="worker-status-header">
+          <a-popover placement="topLeft" trigger="hover">
+            <template #content>
+              <div class="worker-popover-card">
+                <div class="worker-status-header">
+                  <span>{{ t('layout.worker.title') }}</span>
+                  <span :class="['worker-badge', `worker-badge-${workerState}`]">
+                    {{ t(`layout.worker.states.${workerState}`) }}
+                  </span>
+                </div>
+                <div class="worker-progress">
+                  <div class="worker-progress-bar" :style="{ width: `${workerAvailabilityPercent}%` }"></div>
+                </div>
+                <div class="worker-meta">
+                  <span>{{ workerNodeSummary }}</span>
+                  <span>{{ t('layout.worker.queue', { count: activeTaskCount }) }}</span>
+                </div>
+              </div>
+            </template>
+            <button type="button" class="worker-compact-bar" @click="navTo('/ui-workbench')">
               <span class="worker-indicator">
                 <span :class="['status-dot', `status-dot-${workerState}`]"></span>
-                {{ t('layout.worker.title') }}
+                <span>{{ t('layout.worker.title') }}</span>
               </span>
               <span :class="['worker-badge', `worker-badge-${workerState}`]">
                 {{ t(`layout.worker.states.${workerState}`) }}
               </span>
-            </div>
-            <div class="worker-progress">
-              <div class="worker-progress-bar" :style="{ width: `${workerAvailabilityPercent}%` }"></div>
-            </div>
-            <div class="worker-meta">
-              <span>{{ workerNodeSummary }}</span>
-              <span>{{ t('layout.worker.queue', { count: activeTaskCount }) }}</span>
-            </div>
-          </div>
+            </button>
+          </a-popover>
         </div>
       </div>
     </a-layout-sider>
@@ -230,10 +221,10 @@
       v-model:open="quickSearchOpen"
       :footer="null"
       :closable="false"
-      width="560px"
+      width="600px"
       class="quick-search-modal"
     >
-      <div class="quick-search-box">
+      <div class="quick-search-box" @keydown="onQuickSearchKeydown">
         <div class="quick-search-input-wrap">
           <SearchOutlined class="quick-search-icon" />
           <a-input
@@ -242,35 +233,84 @@
             :placeholder="t('layout.quick_search.input_placeholder')"
             :bordered="false"
             class="quick-search-input"
-            @press-enter="executeSearch"
           />
           <button type="button" class="quick-search-esc" @click="quickSearchOpen = false">ESC</button>
         </div>
-        <div class="quick-nav-section">
-          <div class="quick-nav-title">{{ t('layout.quick_search.section_title') }}</div>
-          <div class="quick-nav-list">
-            <button type="button" class="quick-nav-item" @click="navTo('/dashboard')">
-              <DashboardOutlined />
-              <span>{{ t('layout.quick_search.pages.dashboard') }}</span>
-              <span class="quick-nav-hint">{{ t('layout.quick_search.hints.overview') }}</span>
-            </button>
-            <button type="button" class="quick-nav-item" @click="navTo('/api-workbench')">
-              <ApiOutlined />
-              <span>{{ t('layout.quick_search.pages.api_workbench') }}</span>
-              <span class="quick-nav-hint">{{ t('layout.quick_search.hints.api_runner') }}</span>
-            </button>
-            <button type="button" class="quick-nav-item" @click="navTo('/cases')">
-              <AppstoreOutlined />
-              <span>{{ t('layout.quick_search.pages.cases') }}</span>
-              <span class="quick-nav-hint">{{ t('layout.quick_search.hints.cases') }}</span>
-            </button>
-            <button v-if="supportsFeature('hermes')" type="button" class="quick-nav-item" @click="navTo('/hermes')">
-              <ThunderboltFilled style="color: var(--c-ai);" />
-              <span>{{ t('layout.quick_search.pages.hermes') }}</span>
-              <span class="quick-nav-hint">{{ t('layout.quick_search.hints.ai_copilot') }}</span>
-            </button>
+        <div ref="quickSearchListRef" class="quick-nav-scroll">
+          <template v-if="!searchQuery.trim()">
+            <div v-if="recentQuickItems.length" class="quick-nav-section">
+              <div class="quick-nav-title">{{ t('layout.quick_search.recent_title') }}</div>
+              <div class="quick-nav-list">
+                <button
+                  v-for="(item, idx) in recentQuickItems"
+                  :key="`recent-${item.path}`"
+                  type="button"
+                  class="quick-nav-item"
+                  :class="{ 'is-active': activeSearchIndex === idx }"
+                  @mouseenter="activeSearchIndex = idx"
+                  @click="navTo(item.path)"
+                >
+                  <HistoryOutlined />
+                  <span>{{ t(item.titleKey) }}</span>
+                  <span class="quick-nav-hint">{{ formatQuickItemHint(item) }}</span>
+                </button>
+              </div>
+            </div>
+            <div class="quick-nav-section">
+              <div class="quick-nav-title">{{ t('layout.quick_search.section_title') }}</div>
+              <div class="quick-nav-list">
+                <button
+                  v-for="(item, idx) in pinnedQuickItems"
+                  :key="item.path"
+                  type="button"
+                  class="quick-nav-item"
+                  :class="{ 'is-active': activeSearchIndex === recentQuickItems.length + idx }"
+                  @mouseenter="activeSearchIndex = recentQuickItems.length + idx"
+                  @click="navTo(item.path)"
+                >
+                  <ThunderboltFilled v-if="item.path === '/hermes'" style="color: var(--c-ai);" />
+                  <AppstoreOutlined v-else />
+                  <span>{{ t(item.titleKey) }}</span>
+                  <span class="quick-nav-hint">{{ formatQuickItemHint(item) }}</span>
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <div v-else class="quick-nav-section">
+            <div class="quick-nav-title">{{ t('layout.quick_search.all_matches_title') }}</div>
+            <div v-if="filteredQuickItems.length" class="quick-nav-list">
+              <button
+                v-for="(item, idx) in filteredQuickItems"
+                :key="item.path"
+                type="button"
+                class="quick-nav-item"
+                :class="{ 'is-active': activeSearchIndex === idx }"
+                @mouseenter="activeSearchIndex = idx"
+                @click="navTo(item.path)"
+              >
+                <AppstoreOutlined />
+                <span>{{ t(item.titleKey) }}</span>
+                <span class="quick-nav-hint">{{ formatQuickItemHint(item) }}</span>
+              </button>
+            </div>
+            <div v-else class="quick-nav-empty">{{ t('layout.quick_search.empty_matches') }}</div>
+            <div class="quick-nav-list quick-nav-fallback">
+              <button
+                type="button"
+                class="quick-nav-item"
+                :class="{ 'is-active': activeSearchIndex === filteredQuickItems.length }"
+                @mouseenter="activeSearchIndex = filteredQuickItems.length"
+                @click="executeSearch"
+              >
+                <SearchOutlined />
+                <span>{{ t('layout.quick_search.search_cases_action', { keyword: searchQuery.trim() }) }}</span>
+                <span class="quick-nav-hint">/cases</span>
+              </button>
+            </div>
           </div>
         </div>
+        <div class="quick-search-footer">{{ t('layout.quick_search.footer_hint') }}</div>
       </div>
     </a-modal>
   </a-layout>
@@ -295,6 +335,7 @@ import {
   UserOutlined,
   ThunderboltFilled,
   SearchOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/stores/auth'
@@ -310,7 +351,15 @@ import {
   getMenuOpenKeys,
   getRouteTitleKey,
   getSelectedMenuKey,
+  resolveAccordionOpenKeys,
 } from './navigation'
+import {
+  filterQuickSearchItems,
+  getVisibleQuickSearchItems,
+  readRecentQuickSearchPaths,
+  recordRecentQuickSearchPath,
+  type QuickSearchItem,
+} from './quickSearch'
 
 const router = useRouter()
 const localMode = getRuntimeMode()?.mode === 'local'
@@ -341,6 +390,47 @@ const openKeys = ref<string[]>(getMenuOpenKeys(route.path, localMode))
 const quickSearchOpen = ref(false)
 const searchQuery = ref('')
 const quickSearchInputRef = ref()
+const quickSearchListRef = ref<HTMLElement | null>(null)
+const activeSearchIndex = ref(0)
+const recentQuickPaths = ref<string[]>(readRecentQuickSearchPaths())
+
+const quickSearchContext = computed(() => ({
+  role: auth.user?.role,
+  localMode,
+  supportsFeature,
+}))
+
+const visibleQuickItems = computed(() => getVisibleQuickSearchItems(quickSearchContext.value))
+
+const recentQuickItems = computed(() =>
+  recentQuickPaths.value
+    .map((path) => visibleQuickItems.value.find((item) => item.path === path))
+    .filter((item): item is QuickSearchItem => Boolean(item)),
+)
+
+const pinnedQuickItems = computed(() => filterQuickSearchItems('', t, quickSearchContext.value))
+const filteredQuickItems = computed(() => filterQuickSearchItems(searchQuery.value, t, quickSearchContext.value))
+
+type QuickSearchEntry = { type: 'route'; path: string } | { type: 'case-search' }
+
+const selectableQuickEntries = computed<QuickSearchEntry[]>(() => {
+  if (!searchQuery.value.trim()) {
+    return [...recentQuickItems.value, ...pinnedQuickItems.value].map((item) => ({
+      type: 'route' as const,
+      path: item.path,
+    }))
+  }
+  const entries: QuickSearchEntry[] = filteredQuickItems.value.map((item) => ({
+    type: 'route' as const,
+    path: item.path,
+  }))
+  entries.push({ type: 'case-search' })
+  return entries
+})
+
+function formatQuickItemHint(item: QuickSearchItem): string {
+  return item.parentKey ? `${t(item.groupKey)} › ${t(item.parentKey)}` : t(item.groupKey)
+}
 
 type WorkerState = 'checking' | 'ready' | 'degraded' | 'unavailable' | 'local'
 
@@ -372,6 +462,9 @@ const workerNodeSummary = computed(() => {
 })
 
 function openQuickSearch() {
+  recentQuickPaths.value = readRecentQuickSearchPaths()
+  searchQuery.value = ''
+  activeSearchIndex.value = 0
   quickSearchOpen.value = true
   nextTick(() => {
     quickSearchInputRef.value?.focus?.()
@@ -380,7 +473,8 @@ function openQuickSearch() {
 
 function navTo(path: string) {
   quickSearchOpen.value = false
-  router.push(path)
+  const projectId = queryProjectId(route.query.project_id ?? route.params.projectId)
+  void router.push(projectId ? { path, query: { project_id: String(projectId) } } : path)
 }
 
 function executeSearch() {
@@ -388,26 +482,72 @@ function executeSearch() {
   if (keyword) {
     quickSearchOpen.value = false
     const query: Record<string, string> = { keyword }
-    const projectId = queryProjectId(route.query.project_id)
+    const projectId = queryProjectId(route.query.project_id ?? route.params.projectId)
     if (projectId) query.project_id = String(projectId)
     void router.push({ path: '/cases', query })
   }
 }
 
+function onQuickSearchKeydown(e: KeyboardEvent) {
+  if (e.isComposing) return
+  const total = selectableQuickEntries.value.length
+  if (!total) return
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    activeSearchIndex.value = (activeSearchIndex.value + 1) % total
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    activeSearchIndex.value = (activeSearchIndex.value - 1 + total) % total
+  } else if (e.key === 'Enter') {
+    e.preventDefault()
+    const target = selectableQuickEntries.value[activeSearchIndex.value] ?? selectableQuickEntries.value[0]
+    if (!target) return
+    if (target.type === 'route') navTo(target.path)
+    else executeSearch()
+  }
+}
+
+watch(searchQuery, () => {
+  activeSearchIndex.value = 0
+})
+
+watch(activeSearchIndex, () => {
+  void nextTick(() => {
+    const activeEl = quickSearchListRef.value?.querySelector?.('.quick-nav-item.is-active')
+    if (activeEl && 'scrollIntoView' in activeEl) {
+      ;(activeEl as HTMLElement).scrollIntoView({ block: 'nearest' })
+    }
+  })
+})
+
 // 键盘监听 ⌘+K / Ctrl+K
 function onGlobalKeydown(e: KeyboardEvent) {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault()
-    quickSearchOpen.value = !quickSearchOpen.value
     if (quickSearchOpen.value) {
-      nextTick(() => quickSearchInputRef.value?.focus?.())
+      quickSearchOpen.value = false
+    } else {
+      openQuickSearch()
     }
   }
 }
 
+function onMenuOpenChange(nextOpenKeys: unknown[]) {
+  openKeys.value = resolveAccordionOpenKeys(openKeys.value, nextOpenKeys.map(String))
+}
+
 watch(() => route.path, (path) => {
-  const activeKeys = getMenuOpenKeys(path, localMode)
-  openKeys.value = Array.from(new Set([...openKeys.value, ...activeKeys]))
+  if (!collapsed.value) {
+    const activeKeys = getMenuOpenKeys(path, localMode)
+    if (activeKeys.length) {
+      openKeys.value = activeKeys
+    }
+  }
+  recentQuickPaths.value = recordRecentQuickSearchPath(path)
+}, { immediate: true })
+
+watch(collapsed, (isCollapsed) => {
+  openKeys.value = isCollapsed ? [] : getMenuOpenKeys(route.path, localMode)
 })
 
 function queryProjectId(value: unknown) {
@@ -514,7 +654,16 @@ async function handleGlobalProjectSelect(info: { key: string | number }) {
 }
 
 function onMenuClick({ key }: { key: string | number }) {
-  router.push(String(key))
+  let targetPath = String(key)
+  if (targetPath === '/plans' && !supportsFeature('plans') && supportsFeature('suites')) {
+    targetPath = '/suites'
+  } else if (targetPath === '/ai-workbench' && !supportsFeature('ai_generation') && canAccess(['admin'])) {
+    targetPath = '/system/ai-healing-stats'
+  } else if (targetPath === '/system/users' && localMode) {
+    targetPath = '/system/audit-logs'
+  }
+  const projectId = queryProjectId(route.query.project_id ?? route.params.projectId)
+  void router.push(projectId ? { path: targetPath, query: { project_id: String(projectId) } } : targetPath)
 }
 
 async function handleLogout() {
@@ -675,21 +824,38 @@ function onLocaleChange(value: unknown) {
   font-weight: 600;
 }
 
-/* 侧栏底部 Worker 状态卡片 */
+/* 侧栏底部精简 Worker 状态条 */
 .sider-footer {
   flex-shrink: 0;
-  padding: 12px;
+  padding: 10px 12px;
   border-top: 1px solid var(--c-border-subtle);
   background: var(--c-bg-elevated);
 }
-.worker-status-card {
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  background: var(--c-bg-body);
+.worker-compact-bar {
+  width: 100%;
   border: 1px solid var(--c-border);
+  background: var(--c-bg-body);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.worker-compact-bar:hover {
+  border-color: var(--c-border-strong);
+  background: var(--c-bg-subtle);
+}
+.worker-popover-card {
+  width: 210px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .worker-status-header {
   display: flex;
@@ -984,8 +1150,15 @@ function onLocaleChange(value: unknown) {
   color: var(--c-text-tertiary);
   cursor: pointer;
 }
+.quick-nav-scroll {
+  max-height: 380px;
+  overflow-y: auto;
+}
 .quick-nav-section {
-  padding: 16px;
+  padding: 12px 16px;
+}
+.quick-nav-section + .quick-nav-section {
+  padding-top: 4px;
 }
 .quick-nav-title {
   font-size: 11px;
@@ -998,6 +1171,17 @@ function onLocaleChange(value: unknown) {
   flex-direction: column;
   gap: 4px;
 }
+.quick-nav-fallback {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--c-border-subtle);
+}
+.quick-nav-empty {
+  padding: 14px 8px;
+  font-size: 12px;
+  color: var(--c-text-tertiary);
+  text-align: center;
+}
 .quick-nav-item {
   width: 100%;
   border: 0;
@@ -1005,7 +1189,7 @@ function onLocaleChange(value: unknown) {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   border-radius: var(--radius-md);
   font-size: 13px;
   font-weight: 500;
@@ -1015,14 +1199,25 @@ function onLocaleChange(value: unknown) {
   font-family: inherit;
   text-align: left;
 }
-.quick-nav-item:hover {
+.quick-nav-item:hover,
+.quick-nav-item.is-active {
   background: var(--c-bg-subtle);
+}
+.quick-nav-item.is-active {
+  color: var(--c-primary);
 }
 .quick-nav-hint {
   margin-left: auto;
   font-size: 11px;
-  font-family: monospace;
   color: var(--c-text-tertiary);
+  white-space: nowrap;
+}
+.quick-search-footer {
+  padding: 8px 16px;
+  border-top: 1px solid var(--c-border-subtle);
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+  text-align: right;
 }
 
 .quick-search-trigger:focus-visible,
