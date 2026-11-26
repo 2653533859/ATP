@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import re
 import time
 from typing import Any
 
@@ -13,6 +12,7 @@ from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.services.step_result_collector import StepResultBatchCollector
+from app.services.template_variables import render_template_string
 from app.worker.executors._assertion_helpers import (
     build_basic_auth_header,
     collect_auth_redact_fields,
@@ -22,7 +22,6 @@ from app.core.tracing import inject_w3c_trace_headers
 
 logger = logging.getLogger(__name__)
 _tracer = get_tracer("atp.executor.multiprotocol")
-VAR_PATTERN = re.compile(r"\{\{(\w+)\}\}")
 
 
 async def _safe_publish_run_event(run_id: int, payload: dict[str, Any]) -> None:
@@ -35,7 +34,7 @@ async def _safe_publish_run_event(run_id: int, payload: dict[str, Any]) -> None:
 def render_template(text: Any, context: dict[str, Any]) -> Any:
     if not isinstance(text, str):
         return text
-    return VAR_PATTERN.sub(lambda m: str(context.get(m.group(1), m.group(0))), text)
+    return render_template_string(text, context)
 
 
 def render_dict(data: Any, context: dict[str, Any]) -> Any:

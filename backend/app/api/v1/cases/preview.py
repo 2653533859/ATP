@@ -104,7 +104,10 @@ async def preview_api_request(
         headers = render_recursive(dict(body.headers), lambda text: _render(text, effective_vars))
         params = render_recursive(dict(body.params), lambda text: _render(text, effective_vars))
         cookies = render_recursive(dict(body.cookies), lambda text: _render(text, effective_vars))
-        render_auth_value = (lambda value: _render(str(value), effective_vars)) if effective_vars else str
+        has_auth_template = "{{" in str(auth_config)
+        render_auth_value = (
+            (lambda value: _render(str(value), effective_vars)) if (effective_vars or has_auth_template) else str
+        )
         request_auth: httpx.Auth | tuple[str, str] | None = None
         if auth_type == "bearer":
             headers["Authorization"] = f"Bearer {_render(str(auth_config.get('token') or ''), effective_vars)}"

@@ -55,6 +55,7 @@ function mountEditor(props: Record<string, unknown> = {}) {
         ADropdown: passthrough('ADropdown'),
         AInput: inputStub,
         AMenu: passthrough('AMenu'),
+        AMenuDivider: passthrough('AMenuDivider'),
         AMenuItem: passthrough('AMenuItem'),
         ASelect: passthrough('ASelect'),
         ASelectOption: passthrough('ASelectOption'),
@@ -161,5 +162,51 @@ describe('SmartJsonEditor', () => {
     vm.addRow()
     vm.rows[1].key = 'next'
     expect(vm.duplicateKeys).toEqual(['next'])
+  })
+
+  it('inserts dynamic variable presets in both visual and raw modes', async () => {
+    const wrapper = mountEditor({ value: '{}', showDynamicVars: true })
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.handleInsertDynamicVar({ key: 'uuid' })
+    expect(vm.rows).toEqual([{ key: 'request_id', type: 'string', value: '{{$uuid}}' }])
+    expect(messageSuccess).toHaveBeenCalledTimes(1)
+    const emitted = wrapper.emitted('update:value')!
+    expect(JSON.parse(emitted[emitted.length - 1][0] as string)).toEqual({ request_id: '{{$uuid}}' })
+
+    vm.switchMode('raw')
+    vm.handleInsertDynamicVar({ key: 'timestamp' })
+    expect(messageSuccess).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(vm.rawText)).toEqual({
+      request_id: '{{$uuid}}',
+      timestamp: '{{$timestamp}}',
+    })
+  })
+
+  it('groups schema/contract derived templates separately from built-in templates and applies them', async () => {
+    const schemaTpl = {
+      id: 'schema_asset_1',
+      label: 'Schema · CreateOrder',
+      preview: '{"order_no":"sample"}',
+      value: JSON.stringify({ order_no: 'ORD_{{$random_str(6)}}', amount: 10 }, null, 2),
+      group: 'schema' as const,
+    }
+    const wrapper = mountEditor({
+      value: '{}',
+      templates: [...API_BODY_TEMPLATES, schemaTpl],
+    })
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.builtinTemplates.length).toBe(API_BODY_TEMPLATES.length)
+    expect(vm.derivedTemplates).toEqual([schemaTpl])
+
+    vm.handleSelectTemplate({ key: 'schema_asset_1' })
+    const emitted = wrapper.emitted('update:value')!
+    expect(JSON.parse(emitted[emitted.length - 1][0] as string)).toEqual({
+      order_no: 'ORD_{{$random_str(6)}}',
+      amount: 10,
+    })
   })
 })

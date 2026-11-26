@@ -2433,7 +2433,7 @@ export const environmentApi = {
   list: (projectId: number) =>
     http.get<unknown, EnvironmentItem[]>('/environments', { params: { project_id: projectId } }),
   create: (data: { name: string; description?: string; project_id: number }) =>
-    http.post('/environments', data),
+    http.post<unknown, EnvironmentItem>('/environments', data),
   update: (id: number, data: { name?: string; description?: string }) =>
     http.patch(`/environments/${id}`, data),
   delete: (id: number) => http.delete(`/environments/${id}`),

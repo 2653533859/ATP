@@ -21,6 +21,7 @@ export interface JsonTemplateOption {
   label: string
   preview: string
   value: string
+  group?: 'builtin' | 'schema' | 'contract'
 }
 
 export const HEADER_KEY_SUGGESTIONS = [
@@ -53,16 +54,110 @@ export const API_BODY_TEMPLATES: readonly JsonTemplateOption[] = [
     value: JSON.stringify({ username: 'admin', password: 'password' }, null, 2),
   },
   {
+    id: 'register_user_dynamic',
+    label: '动态随机用户注册',
+    preview: '{"username": "user_{{$random_str(6)}}", "email": "{{$random_email}}", "phone": "{{$random_phone}}"}',
+    value: JSON.stringify(
+      {
+        username: 'user_{{$random_str(6)}}',
+        email: '{{$random_email}}',
+        phone: '{{$random_phone}}',
+        full_name: '{{$random_name}}',
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'create_resource',
+    label: '通用新建资源（含动态 ID）',
+    preview: '{"name": "item_{{$random_str(6)}}", "code": "{{$uuid_hex}}", "enabled": true}',
+    value: JSON.stringify(
+      {
+        name: 'item_{{$random_str(6)}}',
+        code: '{{$uuid_hex}}',
+        enabled: true,
+        tags: ['api-test'],
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'batch_ids',
+    label: '批量操作 ID 列表',
+    preview: '{"ids": ["{{id_1}}", "{{id_2}}"], "action": "enable"}',
+    value: JSON.stringify({ ids: ['{{id_1}}', '{{id_2}}'], action: 'enable' }, null, 2),
+  },
+  {
     id: 'id_update',
     label: '状态更新模板',
-    preview: '{"id": "{{id}}", "status": "active"}',
-    value: JSON.stringify({ id: '{{id}}', status: 'active' }, null, 2),
+    preview: '{"id": "{{id}}", "status": "active", "updated_at": "{{$iso_now}}"}',
+    value: JSON.stringify({ id: '{{id}}', status: 'active', updated_at: '{{$iso_now}}' }, null, 2),
+  },
+  {
+    id: 'order_create',
+    label: '订单/业务单据创建',
+    preview: '{"order_no": "ORD_{{$random_str(8)}}", "amount": 99.5, "currency": "CNY"}',
+    value: JSON.stringify(
+      {
+        order_no: 'ORD_{{$random_str(8)}}',
+        amount: 99.5,
+        currency: 'CNY',
+        created_at: '{{$iso_now}}',
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'signed_request',
+    label: '签名防重放请求体',
+    preview: '{"timestamp": "{{$timestamp}}", "nonce": "{{$random_str(12)}}", "payload": {}}',
+    value: JSON.stringify(
+      {
+        timestamp: '{{$timestamp}}',
+        nonce: '{{$random_str(12)}}',
+        trace_id: '{{$uuid}}',
+        payload: {},
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'webhook_event',
+    label: 'Webhook 事件回调',
+    preview: '{"event_id": "{{$uuid}}", "event_type": "task.completed", "data": {}}',
+    value: JSON.stringify(
+      {
+        event_id: '{{$uuid}}',
+        event_type: 'task.completed',
+        occurred_at: '{{$iso_now}}',
+        data: { status: 'success' },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'graphql_payload',
+    label: 'GraphQL 查询载荷',
+    preview: '{"query": "query { ... }", "variables": {"id": "{{id}}"}}',
+    value: JSON.stringify(
+      {
+        query: 'query GetResource($id: ID!) { resource(id: $id) { id name } }',
+        variables: { id: '{{id}}' },
+      },
+      null,
+      2,
+    ),
   },
   {
     id: 'object_array',
     label: '对象数组结构',
-    preview: '[{"name": "item1"}]',
-    value: JSON.stringify([{ name: 'item1' }], null, 2),
+    preview: '[{"name": "item1", "score": "{{$random_int(60, 100)}}"}]',
+    value: JSON.stringify([{ name: 'item1', score: '{{$random_int(60, 100)}}' }], null, 2),
   },
 ]
 

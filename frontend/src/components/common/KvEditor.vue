@@ -1,13 +1,13 @@
 <template>
   <div class="kv-editor">
     <!-- 顶部预设快捷操作栏 -->
-    <div v-if="!disabled && presetKind !== 'none'" class="kv-toolbar">
+    <div v-if="!disabled && (presetKind !== 'none' || showDynamicVars)" class="kv-toolbar">
       <span class="kv-hint-tag">
-        {{ presetKind === 'headers' ? t('api_scenario.headers_presets_hint') : t('api_scenario.params_presets_hint') }}
+        {{ toolbarHint }}
       </span>
 
       <div class="kv-toolbar-actions">
-        <a-dropdown :trigger="['click']">
+        <a-dropdown v-if="currentPresets.length" :trigger="['click']">
           <template #overlay>
             <a-menu @click="handleApplyPreset">
               <a-menu-item v-for="item in currentPresets" :key="item.id">
@@ -20,7 +20,24 @@
           </template>
           <a-button size="small" class="preset-btn">
             <ThunderboltOutlined />
-            <span>{{ t('api_scenario.preset_dropdown_label') }}</span>
+            <span>{{ presetButtonLabel }}</span>
+            <DownOutlined class="dropdown-arrow" />
+          </a-button>
+        </a-dropdown>
+
+        <a-dropdown v-if="presetKind !== 'none' || showDynamicVars" :trigger="['click']">
+          <template #overlay>
+            <a-menu @click="handleInsertDynamicVar">
+              <a-menu-item v-for="dv in DYNAMIC_VARIABLE_PRESETS" :key="dv.id">
+                <div class="preset-menu-item">
+                  <span class="preset-label">{{ dv.label }}</span>
+                  <code class="preset-code">{{ dv.token }}</code>
+                </div>
+              </a-menu-item>
+            </a-menu>
+          </template>
+          <a-button size="small" class="preset-btn">
+            <span>{{ t('smart_json.dynamic_vars') }}</span>
             <DownOutlined class="dropdown-arrow" />
           </a-button>
         </a-dropdown>
@@ -78,22 +95,27 @@ import {
   DownOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-
-interface PresetItem {
-  id: string
-  label: string
-  preview: string
-  pairs: Array<{ key: string; value: string }>
-}
+import {
+  COOKIE_KEY_SUGGESTIONS,
+  COOKIE_PRESETS,
+  DYNAMIC_VARIABLE_PRESETS,
+  HEADER_KEY_SUGGESTIONS,
+  HEADER_PRESETS,
+  HEADER_VALUE_SUGGESTIONS,
+  PARAM_KEY_SUGGESTIONS,
+  PARAM_PRESETS,
+} from '@/utils/apiTemplates'
 
 const props = withDefaults(
   defineProps<{
     value: Record<string, string>
     presetKind?: 'headers' | 'params' | 'cookies' | 'none'
+    showDynamicVars?: boolean
     disabled?: boolean
   }>(),
   {
     presetKind: 'none',
+    showDynamicVars: false,
     disabled: false,
   },
 )
@@ -136,127 +158,24 @@ const hasActiveRows = computed(() => {
   return rows.value.some((r) => r.key.trim() || r.value.trim())
 })
 
-// ---------------- 常用预设定义 ----------------
-const HEADER_PRESETS: PresetItem[] = [
-  {
-    id: 'json',
-    label: 'JSON 请求头 (Content-Type: application/json)',
-    preview: 'Content-Type: application/json',
-    pairs: [{ key: 'Content-Type', value: 'application/json' }],
-  },
-  {
-    id: 'bearer_token',
-    label: 'Bearer 鉴权头 (Authorization: Bearer {{token}})',
-    preview: 'Authorization: Bearer {{token}}',
-    pairs: [{ key: 'Authorization', value: 'Bearer {{token}}' }],
-  },
-  {
-    id: 'form',
-    label: '表单提交头 (application/x-www-form-urlencoded)',
-    preview: 'Content-Type: application/x-www-form-urlencoded',
-    pairs: [{ key: 'Content-Type', value: 'application/x-www-form-urlencoded' }],
-  },
-  {
-    id: 'accept_json',
-    label: '接收格式 (Accept: application/json)',
-    preview: 'Accept: application/json',
-    pairs: [{ key: 'Accept', value: 'application/json' }],
-  },
-  {
-    id: 'csrf_ajax',
-    label: 'AJAX / CSRF (X-Requested-With: XMLHttpRequest)',
-    preview: 'X-Requested-With: XMLHttpRequest',
-    pairs: [{ key: 'X-Requested-With', value: 'XMLHttpRequest' }],
-  },
-  {
-    id: 'no_cache',
-    label: '禁用缓存 (Cache-Control: no-cache)',
-    preview: 'Cache-Control: no-cache',
-    pairs: [{ key: 'Cache-Control', value: 'no-cache' }],
-  },
-  {
-    id: 'user_agent',
-    label: '标准客户端 (User-Agent)',
-    preview: 'User-Agent: Mozilla/5.0...',
-    pairs: [{ key: 'User-Agent', value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }],
-  },
-]
-
-const PARAM_PRESETS: PresetItem[] = [
-  {
-    id: 'pagination',
-    label: '分页参数模板 (page=1, page_size=20)',
-    preview: 'page=1, page_size=20',
-    pairs: [
-      { key: 'page', value: '1' },
-      { key: 'page_size', value: '20' },
-    ],
-  },
-  {
-    id: 'sorting',
-    label: '排序规则参数 (sort_by=created_at, order=desc)',
-    preview: 'sort_by=created_at, order=desc',
-    pairs: [
-      { key: 'sort_by', value: 'created_at' },
-      { key: 'order', value: 'desc' },
-    ],
-  },
-  {
-    id: 'search',
-    label: '关键字检索 (keyword=)',
-    preview: 'keyword=',
-    pairs: [{ key: 'keyword', value: '' }],
-  },
-  {
-    id: 'status',
-    label: '状态过滤 (status=active)',
-    preview: 'status=active',
-    pairs: [{ key: 'status', value: 'active' }],
-  },
-  {
-    id: 'timerange',
-    label: '起止时间范围 (start_time, end_time)',
-    preview: 'start_time=..., end_time=...',
-    pairs: [
-      { key: 'start_time', value: '{{start_time}}' },
-      { key: 'end_time', value: '{{end_time}}' },
-    ],
-  },
-]
-
 const currentPresets = computed(() => {
   if (props.presetKind === 'headers') return HEADER_PRESETS
   if (props.presetKind === 'params') return PARAM_PRESETS
+  if (props.presetKind === 'cookies') return COOKIE_PRESETS
   return []
 })
 
-// ---------------- 常用候选词定义 ----------------
-const HEADER_KEY_SUGGESTIONS = [
-  'Content-Type',
-  'Authorization',
-  'Accept',
-  'User-Agent',
-  'X-Requested-With',
-  'Cache-Control',
-  'X-Token',
-  'Origin',
-  'Referer',
-  'Cookie',
-]
+const toolbarHint = computed(() => {
+  if (props.presetKind === 'headers') return t('api_scenario.headers_presets_hint')
+  if (props.presetKind === 'cookies') return t('api_scenario.cookies_presets_hint')
+  if (props.presetKind === 'params') return t('api_scenario.params_presets_hint')
+  return t('smart_json.dynamic_vars')
+})
 
-const PARAM_KEY_SUGGESTIONS = [
-  'page',
-  'page_size',
-  'limit',
-  'offset',
-  'keyword',
-  'sort_by',
-  'order',
-  'status',
-  'start_time',
-  'end_time',
-  'id',
-]
+const presetButtonLabel = computed(() => {
+  if (props.presetKind === 'cookies') return t('api_scenario.cookies_preset_dropdown_label')
+  return t('api_scenario.preset_dropdown_label')
+})
 
 function getKeyOptions(): Array<{ value: string }> {
   if (props.presetKind === 'headers') {
@@ -265,11 +184,15 @@ function getKeyOptions(): Array<{ value: string }> {
   if (props.presetKind === 'params') {
     return PARAM_KEY_SUGGESTIONS.map((k) => ({ value: k }))
   }
+  if (props.presetKind === 'cookies') {
+    return COOKIE_KEY_SUGGESTIONS.map((k) => ({ value: k }))
+  }
   return []
 }
 
 function getValueOptions(key: string): Array<{ value: string }> {
   const normKey = (key || '').trim().toLowerCase()
+  const dynamicOptions = DYNAMIC_VARIABLE_PRESETS.slice(0, 6).map((d) => ({ value: d.token }))
   if (props.presetKind === 'headers') {
     if (normKey === 'content-type') {
       return [
@@ -277,25 +200,34 @@ function getValueOptions(key: string): Array<{ value: string }> {
         { value: 'application/x-www-form-urlencoded' },
         { value: 'multipart/form-data' },
         { value: 'application/xml' },
-        { value: 'text/plain' },
+        { value: 'text/plain; charset=utf-8' },
       ]
     }
     if (normKey === 'authorization') {
       return [
         { value: 'Bearer {{token}}' },
         { value: 'Bearer {{access_token}}' },
-        { value: 'Basic {{credentials}}' },
+        { value: 'Basic {{basic_token}}' },
       ]
     }
     if (normKey === 'accept') {
       return [{ value: 'application/json' }, { value: '*/*' }, { value: 'text/html' }]
     }
-    if (normKey === 'x-requested-with') {
-      return [{ value: 'XMLHttpRequest' }]
+    if (normKey === 'x-request-id' || normKey === 'x-trace-id' || normKey === 'idempotency-key') {
+      return [{ value: '{{$uuid}}' }, { value: '{{$uuid_hex}}' }]
     }
     if (normKey === 'cache-control') {
       return [{ value: 'no-cache' }, { value: 'no-store' }, { value: 'max-age=0' }]
     }
+    return HEADER_VALUE_SUGGESTIONS.map((v) => ({ value: v }))
+  }
+
+  if (props.presetKind === 'cookies') {
+    if (normKey === 'session_id') return [{ value: '{{session_id}}' }, { value: '{{$uuid_hex}}' }]
+    if (normKey === 'csrf_token') return [{ value: '{{csrf_token}}' }, { value: '{{$random_str(16)}}' }]
+    if (normKey === 'auth_token') return [{ value: '{{token}}' }]
+    if (normKey === 'locale') return [{ value: 'zh-CN' }, { value: 'en-US' }]
+    return [{ value: '{{session_id}}' }, { value: '{{token}}' }, { value: '{{$uuid_hex}}' }]
   }
 
   if (props.presetKind === 'params') {
@@ -307,6 +239,10 @@ function getValueOptions(key: string): Array<{ value: string }> {
     if (normKey === 'status') {
       return [{ value: 'active' }, { value: 'inactive' }, { value: 'pending' }, { value: 'all' }]
     }
+    if (normKey === 'start_date' || normKey === 'end_date') {
+      return [{ value: '{{$date}}' }, { value: '{{$iso_now}}' }]
+    }
+    return dynamicOptions
   }
 
   return []
@@ -338,21 +274,38 @@ function handleApplyPreset({ key }: { key: string | number }) {
   const preset = currentPresets.value.find((p) => p.id === String(key))
   if (!preset) return
 
-  preset.pairs.forEach((pair) => {
-    // 检查是否有空的行，如果有则直接替换
+  Object.entries(preset.entries).forEach(([pairKey, pairValue]) => {
     const emptyIdx = rows.value.findIndex((r) => !r.key.trim())
     if (emptyIdx > -1) {
-      rows.value[emptyIdx] = { key: pair.key, value: pair.value }
+      rows.value[emptyIdx] = { key: pairKey, value: pairValue }
     } else {
-      // 检查是否已经存在该 key，若存在则更新
-      const existIdx = rows.value.findIndex((r) => r.key.toLowerCase() === pair.key.toLowerCase())
+      const existIdx = rows.value.findIndex((r) => r.key.toLowerCase() === pairKey.toLowerCase())
       if (existIdx > -1) {
-        rows.value[existIdx].value = pair.value
+        rows.value[existIdx].value = pairValue
       } else {
-        rows.value.push({ key: pair.key, value: pair.value })
+        rows.value.push({ key: pairKey, value: pairValue })
       }
     }
   })
+
+  emitCurrentValue()
+}
+
+function handleInsertDynamicVar({ key }: { key: string | number }) {
+  const preset = DYNAMIC_VARIABLE_PRESETS.find((d) => d.id === String(key))
+  if (!preset) return
+
+  const emptyRowIdx = rows.value.findIndex((r) => !r.key.trim() && !r.value.trim())
+  if (emptyRowIdx > -1) {
+    rows.value[emptyRowIdx] = { key: preset.suggestedKey, value: preset.token }
+  } else {
+    const missingValIdx = rows.value.findIndex((r) => r.key.trim() && !r.value.trim())
+    if (missingValIdx > -1) {
+      rows.value[missingValIdx].value = preset.token
+    } else {
+      rows.value.push({ key: preset.suggestedKey, value: preset.token })
+    }
+  }
 
   emitCurrentValue()
 }

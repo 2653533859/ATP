@@ -36,16 +36,44 @@
         <a-dropdown v-if="templates.length && !disabled" :trigger="['click']">
           <template #overlay>
             <a-menu @click="handleSelectTemplate">
-              <a-menu-item v-for="tpl in templates" :key="tpl.id">
+              <a-menu-item v-for="tpl in builtinTemplates" :key="tpl.id">
                 <div class="preset-menu-item">
                   <span class="preset-label">{{ tpl.label }}</span>
                   <code class="preset-code">{{ tpl.preview }}</code>
                 </div>
               </a-menu-item>
+              <template v-if="derivedTemplates.length">
+                <a-menu-divider v-if="builtinTemplates.length" />
+                <a-menu-item key="__schema_header" disabled>
+                  {{ t('smart_json.templates_schema') }}
+                </a-menu-item>
+                <a-menu-item v-for="tpl in derivedTemplates" :key="tpl.id">
+                  <div class="preset-menu-item">
+                    <span class="preset-label">{{ tpl.label }}</span>
+                    <code class="preset-code">{{ tpl.preview }}</code>
+                  </div>
+                </a-menu-item>
+              </template>
             </a-menu>
           </template>
           <a-button size="small" type="text">
             <ThunderboltOutlined /> {{ t('smart_json.templates') }}
+          </a-button>
+        </a-dropdown>
+
+        <a-dropdown v-if="showDynamicVars && !disabled" :trigger="['click']">
+          <template #overlay>
+            <a-menu @click="handleInsertDynamicVar">
+              <a-menu-item v-for="dv in DYNAMIC_VARIABLE_PRESETS" :key="dv.id">
+                <div class="preset-menu-item">
+                  <span class="preset-label">{{ dv.label }}</span>
+                  <code class="preset-code">{{ dv.token }}</code>
+                </div>
+              </a-menu-item>
+            </a-menu>
+          </template>
+          <a-button size="small" type="text">
+            <PlusOutlined /> {{ t('smart_json.dynamic_vars') }}
           </a-button>
         </a-dropdown>
 
@@ -171,6 +199,7 @@ import { message } from 'ant-design-vue'
 import { FormatPainterOutlined, MinusCircleOutlined, PlusOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { tryCompressJson, tryFormatJson } from '@/utils/jsonFormat'
+import { DYNAMIC_VARIABLE_PRESETS } from '@/utils/apiTemplates'
 import {
   HEADER_KEY_SUGGESTIONS,
   jsonTextToRows,
@@ -187,6 +216,7 @@ const props = withDefaults(
     placeholder?: string
     compact?: boolean
     allowTemplates?: boolean
+    showDynamicVars?: boolean
     presetKind?: 'headers' | 'none'
     templates?: readonly JsonTemplateOption[]
     defaultMode?: 'visual' | 'raw'
@@ -198,6 +228,7 @@ const props = withDefaults(
     placeholder: '',
     compact: false,
     allowTemplates: false,
+    showDynamicVars: false,
     presetKind: 'none',
     templates: () => [],
     defaultMode: 'visual',
@@ -213,6 +244,8 @@ const rows = ref<JsonFieldRow[]>([])
 const mode = ref<'visual' | 'raw'>(props.defaultMode)
 
 const headerOptions = HEADER_KEY_SUGGESTIONS.map((item) => ({ value: item }))
+const builtinTemplates = computed(() => props.templates.filter((tpl) => !tpl.group || tpl.group === 'builtin'))
+const derivedTemplates = computed(() => props.templates.filter((tpl) => tpl.group === 'schema' || tpl.group === 'contract'))
 const defaultPlaceholder = '{\n  "key": "value"\n}'
 const rowsCount = computed(() => Math.max(props.rows, props.compact ? 2 : 4))
 const validation = computed(() => validateJsonText(rawText.value, props.allowTemplates))
@@ -352,6 +385,55 @@ function handleSelectTemplate({ key }: { key: string | number }) {
     rows.value = []
     mode.value = 'raw'
   }
+}
+
+function handleInsertDynamicVar({ key }: { key: string | number }) {
+  const dv = DYNAMIC_VARIABLE_PRESETS.find((item) => item.id === String(key))
+  if (!dv) return
+
+  if (mode.value === 'visual') {
+    const emptyRow = rows.value.find((r) => !r.key.trim() && !r.value.trim())
+    if (emptyRow) {
+      emptyRow.key = dv.suggestedKey
+      emptyRow.type = 'string'
+      emptyRow.value = dv.token
+    } else {
+      const noValueRow = rows.value.find((r) => r.key.trim() && !r.value.trim() && r.type === 'string')
+      if (noValueRow) {
+        noValueRow.value = dv.token
+      } else {
+        rows.value.push({ key: dv.suggestedKey, type: 'string', value: dv.token })
+      }
+    }
+    handleRowsChange()
+  } else {
+    const trimmed = rawText.value.trim()
+    let updated = false
+    if (!trimmed) {
+      emitRawText(JSON.stringify({ [dv.suggestedKey]: dv.token }, null, 2))
+      updated = true
+    } else {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          const obj = parsed as Record<string, unknown>
+          let targetKey = dv.suggestedKey
+          if (Object.prototype.hasOwnProperty.call(obj, targetKey)) {
+            targetKey = `${dv.suggestedKey}_${Object.keys(obj).length + 1}`
+          }
+          obj[targetKey] = dv.token
+          emitRawText(JSON.stringify(obj, null, 2))
+          updated = true
+        }
+      } catch {
+        // Fallback: append token cleanly when raw text is partial or non-object JSON
+      }
+    }
+    if (!updated) {
+      emitRawText(`${rawText.value}${dv.token}`)
+    }
+  }
+  message.success(t('smart_json.dynamic_var_inserted', { label: dv.label }))
 }
 </script>
 

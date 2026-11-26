@@ -33,6 +33,7 @@ from app.services.dataset_execution import redact_execution_evidence
 from app.services.safe_expressions import SafeExpressionError, evaluate_safe_expression
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.services.step_result_collector import StepResultBatchCollector
+from app.services.template_variables import render_template_string, render_template_value
 from app.worker.executors._assertion_helpers import (
     build_basic_auth_header,
     collect_auth_redact_fields,
@@ -429,27 +430,13 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
 
 
 def _render(template: str, context: dict) -> str:
-    """简单的 {{variable}} 占位符替换"""
-    for k, v in context.items():
-        template = template.replace(f"{{{{{k}}}}}", str(v))
-    return template
+    """渲染 {{variable}} 与内置 {{$dynamic}} 占位符。"""
+    return render_template_string(template, context)
 
 
 def _render_body_value(value: Any, context: dict[str, Any]) -> Any:
     """Render placeholders recursively while preserving exact-placeholder types."""
-
-    if isinstance(value, str):
-        stripped = value.strip()
-        if stripped.startswith("{{") and stripped.endswith("}}") and stripped.count("{{") == 1:
-            key = stripped[2:-2].strip()
-            if key in context:
-                return context[key]
-        return _render(value, context)
-    if isinstance(value, dict):
-        return {key: _render_body_value(item, context) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_render_body_value(item, context) for item in value]
-    return value
+    return render_template_value(value, context, preserve_type=True)
 
 
 async def _build_request_kwargs(

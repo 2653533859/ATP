@@ -12,6 +12,8 @@ from typing import Any
 
 from jsonpath_ng import parse as jp_parse
 
+from app.services.template_variables import render_template_value
+
 
 class ApiHookError(ValueError):
     """API 前置/后置动作配置不合法。"""
@@ -80,15 +82,7 @@ def _require_variable(value: Any, index: int) -> str:
 
 
 def _render(value: Any, context: dict[str, Any]) -> Any:
-    if isinstance(value, str):
-        for key, item in context.items():
-            value = value.replace(f"{{{{{key}}}}}", str(item))
-        return value
-    if isinstance(value, list):
-        return [_render(item, context) for item in value]
-    if isinstance(value, dict):
-        return {key: _render(item, context) for key, item in value.items()}
-    return value
+    return render_template_value(value, context, preserve_type=False)
 
 
 def _extract(source: str, expression: str, expression_type: str, body: Any, headers: dict[str, Any] | None):

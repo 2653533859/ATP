@@ -60,7 +60,22 @@
           <template v-else>
             <a-spin :spinning="varsLoading">
               <div style="margin-bottom: 12px">
-                <a-button type="dashed" @click="addVariable">{{ t('system_pages.environment.add_variable') }}</a-button>
+                <a-space>
+                  <a-button type="dashed" @click="addVariable">{{ t('system_pages.environment.add_variable') }}</a-button>
+                  <a-dropdown :trigger="['click']">
+                    <template #overlay>
+                      <a-menu @click="handleApplyEnvPreset">
+                        <a-menu-item v-for="preset in ENVIRONMENT_VARIABLE_PRESETS" :key="preset.id">
+                          <div style="display: flex; flex-direction: column; gap: 2px">
+                            <span style="font-weight: 500">{{ preset.label }}</span>
+                            <small style="color: var(--c-text-tertiary)">{{ preset.description }}</small>
+                          </div>
+                        </a-menu-item>
+                      </a-menu>
+                    </template>
+                    <a-button>{{ t('system_pages.environment.apply_preset') }}</a-button>
+                  </a-dropdown>
+                </a-space>
               </div>
               <a-table
                 :data-source="editingVars"
@@ -116,8 +131,19 @@
         <a-form-item :label="t('common.name')" required>
           <a-input v-model:value="envForm.name" :placeholder="t('system_pages.environment.name_placeholder')" />
         </a-form-item>
-        <a-form-item :label="t('common.description')" style="margin-bottom: 0">
+        <a-form-item :label="t('common.description')">
           <a-textarea v-model:value="envForm.description" :rows="3" :placeholder="t('system_pages.environment.desc_placeholder')" />
+        </a-form-item>
+        <a-form-item v-if="!editingEnv" :label="t('system_pages.environment.initial_preset')" style="margin-bottom: 0">
+          <a-select
+            v-model:value="initialPresetId"
+            allow-clear
+            :placeholder="t('system_pages.environment.initial_preset_placeholder')"
+          >
+            <a-select-option v-for="preset in ENVIRONMENT_VARIABLE_PRESETS" :key="preset.id" :value="preset.id">
+              {{ preset.label }}
+            </a-select-option>
+          </a-select>
         </a-form-item>
       </a-form>
     </a-modal>
@@ -136,6 +162,7 @@ import {
   type EnvironmentItem,
 } from '@/api'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
+import { ENVIRONMENT_VARIABLE_PRESETS } from '@/utils/apiTemplates'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -183,6 +210,7 @@ const varColumns = computed(() => [
 const showCreateModal = ref(false)
 const editingEnv = ref<EnvironmentItem | null>(null)
 const envForm = ref({ name: '', description: '' })
+const initialPresetId = ref<string | undefined>(undefined)
 
 onMounted(async () => {
   try {
@@ -247,6 +275,39 @@ function addVariable() {
   ]
 }
 
+function handleApplyEnvPreset({ key }: { key: string | number }) {
+  const preset = ENVIRONMENT_VARIABLE_PRESETS.find((item) => item.id === String(key))
+  if (!preset) return
+
+  const existingKeys = new Set(
+    editingVars.value.map((v) => v.key.trim().toLowerCase()).filter(Boolean),
+  )
+  const appended: EditingVariable[] = []
+  let skipped = 0
+
+  for (const item of preset.variables) {
+    if (existingKeys.has(item.key.toLowerCase())) {
+      skipped += 1
+      continue
+    }
+    existingKeys.add(item.key.toLowerCase())
+    appended.push({
+      key: item.key,
+      value: item.value,
+      is_secret: item.is_secret,
+      _idx: varIdx++,
+      _wasSecret: false,
+    })
+  }
+
+  if (appended.length > 0) {
+    editingVars.value = [...editingVars.value, ...appended]
+    message.success(t('system_pages.environment.msg.preset_applied', { added: appended.length, skipped }))
+  } else {
+    message.info(t('system_pages.environment.msg.preset_all_exist'))
+  }
+}
+
 function removeVariable(index: number) {
   editingVars.value = editingVars.value.filter((_, i) => i !== index)
 }
@@ -296,6 +357,7 @@ function openEditModal(env: EnvironmentItem) {
 function resetEnvForm() {
   editingEnv.value = null
   envForm.value = { name: '', description: '' }
+  initialPresetId.value = undefined
 }
 
 async function handleSaveEnv() {
@@ -313,11 +375,27 @@ async function handleSaveEnv() {
       })
       message.success(t('system_pages.environment.msg.env_saved'))
     } else {
-      await environmentApi.create({
+      const created = await environmentApi.create({
         name: envForm.value.name.trim(),
         description: envForm.value.description.trim() || undefined,
         project_id: selectedProjectId.value!,
       })
+      if (initialPresetId.value && created?.id) {
+        const preset = ENVIRONMENT_VARIABLE_PRESETS.find((item) => item.id === initialPresetId.value)
+        if (preset) {
+          try {
+            await environmentApi.saveVariables(created.id, {
+              variables: preset.variables.map((item) => ({
+                key: item.key,
+                value: item.value,
+                is_secret: item.is_secret,
+              })),
+            })
+          } catch {
+            message.warning(t('system_pages.environment.msg.save_vars_failed'))
+          }
+        }
+      }
       message.success(t('system_pages.environment.msg.env_saved'))
     }
     showCreateModal.value = false

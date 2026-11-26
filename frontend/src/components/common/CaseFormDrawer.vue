@@ -155,29 +155,33 @@
             <a-dropdown :trigger="['click']">
               <template #overlay>
                 <a-menu @click="handleApplyRequestTemplate">
-                  <a-menu-item key="rest_json_get">
+                  <a-menu-item v-for="tpl in API_REQUEST_TEMPLATES" :key="tpl.id">
                     <div class="preset-menu-item">
-                      <span class="preset-label">标准 REST 查询 (GET + Accept JSON)</span>
-                      <small class="preset-code">配置 GET 方式、Accept 请求头与分页参数</small>
+                      <span class="preset-label">{{ tpl.label }}</span>
+                      <small class="preset-code">{{ tpl.description }}</small>
                     </div>
                   </a-menu-item>
-                  <a-menu-item key="jwt_form_login">
-                    <div class="preset-menu-item">
-                      <span class="preset-label">表单登录获取 Token (POST + urlencoded)</span>
-                      <small class="preset-code">配置 POST、urlencoded 头与表单凭据</small>
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="auth_json_post">
-                    <div class="preset-menu-item">
-                      <span class="preset-label">鉴权业务调用 (POST + Bearer Token)</span>
-                      <small class="preset-code">配置 POST、JSON 头、Authorization 头与 Body</small>
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="healthcheck_get">
-                    <div class="preset-menu-item">
-                      <span class="preset-label">服务探活配置 (GET)</span>
-                      <small class="preset-code">配置 GET 方式</small>
-                    </div>
+                  <template v-if="customRequestTemplates.length">
+                    <a-menu-divider />
+                    <a-menu-item key="__custom_header" disabled>
+                      {{ t('smart_json.custom_templates_label') }}
+                    </a-menu-item>
+                    <a-menu-item v-for="tpl in customRequestTemplates" :key="tpl.id">
+                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+                        <div class="preset-menu-item">
+                          <span class="preset-label">{{ tpl.label }}</span>
+                          <small class="preset-code">{{ tpl.description }}</small>
+                        </div>
+                        <MinusCircleOutlined
+                          style="color: var(--c-text-tertiary); flex-shrink: 0"
+                          @click.stop="handleDeleteCustomRequestTemplate(tpl.id)"
+                        />
+                      </div>
+                    </a-menu-item>
+                  </template>
+                  <a-menu-divider />
+                  <a-menu-item key="__save_current__">
+                    <span style="color: var(--c-primary); font-weight: 600">+ {{ t('smart_json.save_as_template') }}</span>
                   </a-menu-item>
                 </a-menu>
               </template>
@@ -215,7 +219,7 @@
               <a-radio-button value="xml">XML</a-radio-button>
               <a-radio-button value="raw">{{ t('case_form.body_types.raw') }}</a-radio-button>
             </a-radio-group>
-            <KvEditor v-if="cfg.body_type === 'form'" v-model:value="formBody" />
+            <KvEditor v-if="cfg.body_type === 'form'" v-model:value="formBody" show-dynamic-vars />
             <template v-else-if="cfg.body_type === 'multipart'">
               <div v-for="(part, i) in cfg.multipart" :key="i" class="assertion-row">
                 <a-input v-model:value="part.name" :placeholder="t('case_form.multipart.name_placeholder')" style="width: 150px" />
@@ -246,7 +250,8 @@
               v-else-if="cfg.body_type === 'json'"
               v-model:value="cfg.body"
               allow-templates
-              :templates="API_BODY_TEMPLATES"
+              show-dynamic-vars
+              :templates="apiBodyTemplates"
               :rows="8"
             />
             <template v-else-if="cfg.body_type !== 'none'">
@@ -254,34 +259,10 @@
                 <a-dropdown :trigger="['click']">
                   <template #overlay>
                     <a-menu @click="handleApplyBodyTemplate">
-                      <a-menu-item key="empty_object">
+                      <a-menu-item v-for="tpl in apiBodyTemplates" :key="tpl.id">
                         <div class="preset-menu-item">
-                          <span class="preset-label">空 JSON 对象</span>
-                          <code class="preset-code">{}</code>
-                        </div>
-                      </a-menu-item>
-                      <a-menu-item key="pagination">
-                        <div class="preset-menu-item">
-                          <span class="preset-label">分页检索参数</span>
-                          <code class="preset-code">{"page": 1, "page_size": 20, "keyword": ""}</code>
-                        </div>
-                      </a-menu-item>
-                      <a-menu-item key="login_credentials">
-                        <div class="preset-menu-item">
-                          <span class="preset-label">登录凭证结构</span>
-                          <code class="preset-code">{"username": "admin", "password": "password"}</code>
-                        </div>
-                      </a-menu-item>
-                      <a-menu-item key="id_update">
-                        <div class="preset-menu-item">
-                          <span class="preset-label">状态更新模板</span>
-                          <code class="preset-code">&#123;&quot;id&quot;: &quot;&#123;&#123;id&#125;&#125;&quot;, &quot;status&quot;: &quot;active&quot;&#125;</code>
-                        </div>
-                      </a-menu-item>
-                      <a-menu-item key="object_array">
-                        <div class="preset-menu-item">
-                          <span class="preset-label">对象数组结构</span>
-                          <code class="preset-code">[{"name": "item1"}]</code>
+                          <span class="preset-label">{{ tpl.label }}</span>
+                          <code class="preset-code">{{ tpl.preview }}</code>
                         </div>
                       </a-menu-item>
                     </a-menu>
@@ -447,16 +428,33 @@
             <span class="section-header-title">{{ t('case_form.sections.assertions') }}</span>
             <span class="section-header-line" />
           </div>
-          <a-button
-            type="primary"
-            ghost
-            size="small"
-            class="ai-suggest-btn"
-            :loading="aiSuggesting"
-            @click="openAiSuggestModal"
-          >
-            <ThunderboltOutlined /> {{ t('case_form.ai_suggest_action') }}
-          </a-button>
+          <a-space size="small">
+            <a-dropdown :trigger="['click']">
+              <template #overlay>
+                <a-menu @click="handleApplyAssertionPreset">
+                  <a-menu-item v-for="ap in ASSERTION_PRESETS" :key="ap.id">
+                    <div class="preset-menu-item">
+                      <span class="preset-label">{{ ap.label }}</span>
+                      <code class="preset-code">{{ ap.preview }}</code>
+                    </div>
+                  </a-menu-item>
+                </a-menu>
+              </template>
+              <a-button size="small">
+                {{ t('smart_json.templates') }} <DownOutlined style="font-size: 9px" />
+              </a-button>
+            </a-dropdown>
+            <a-button
+              type="primary"
+              ghost
+              size="small"
+              class="ai-suggest-btn"
+              :loading="aiSuggesting"
+              @click="openAiSuggestModal"
+            >
+              <ThunderboltOutlined /> {{ t('case_form.ai_suggest_action') }}
+            </a-button>
+          </a-space>
         </div>
         <div v-for="(a, i) in cfg.assertions" :key="i" class="assertion-row">
           <a-select v-model:value="a.target" style="width: 130px" :placeholder="t('case_form.assertion.target_placeholder')">
@@ -526,6 +524,21 @@
             <span class="section-header-title">{{ t('case_form.sections.extractions') }}</span>
             <span class="section-header-line" />
           </div>
+          <a-dropdown :trigger="['click']">
+            <template #overlay>
+              <a-menu @click="handleApplyExtractionPreset">
+                <a-menu-item v-for="ep in EXTRACTION_PRESETS" :key="ep.id">
+                  <div class="preset-menu-item">
+                    <span class="preset-label">{{ ep.label }}</span>
+                    <code class="preset-code">{{ ep.preview }}</code>
+                  </div>
+                </a-menu-item>
+              </a-menu>
+            </template>
+            <a-button size="small">
+              {{ t('smart_json.templates') }} <DownOutlined style="font-size: 9px" />
+            </a-button>
+          </a-dropdown>
         </div>
         <div v-for="(e, i) in cfg.extractions" :key="i" class="assertion-row">
           <a-input v-model:value="e.variable" :placeholder="t('case_form.extraction.variable_placeholder')" style="width: 140px" />
@@ -684,6 +697,7 @@
             v-model:value="gqlCfg.variables_text"
             compact
             allow-templates
+            show-dynamic-vars
             :rows="4"
             placeholder='{"id": "123"}'
           />
@@ -698,6 +712,7 @@
               v-model:value="gqlCfg.connection_payload_text"
               compact
               allow-templates
+              show-dynamic-vars
               :rows="3"
               placeholder='{"authToken":"{{token}}"}'
             />
@@ -902,6 +917,7 @@
                   v-model:value="m.data"
                   compact
                   allow-templates
+                  show-dynamic-vars
                   :rows="3"
                   :placeholder="t('case_form.websocket.data_placeholder', { variable: '{{variable}}' })"
                 />
@@ -1061,6 +1077,7 @@
           <SmartJsonEditor
             v-model:value="grpcCfg.request_json"
             allow-templates
+            show-dynamic-vars
             :rows="5"
             placeholder='{"user_id": "123"}'
           />
@@ -1272,6 +1289,23 @@
     :current-step-count="apiScenarioSteps.length"
     @import="handleImportLibrarySteps"
   />
+
+  <a-modal
+    v-model:open="saveCustomTemplateOpen"
+    :title="t('smart_json.save_template_title')"
+    width="420px"
+    centered
+    @ok="confirmSaveCustomRequestTemplate"
+  >
+    <a-form layout="vertical">
+      <a-form-item :label="t('smart_json.save_template_name')" required>
+        <a-input v-model:value="saveCustomTemplateForm.label" :placeholder="t('smart_json.save_template_name')" />
+      </a-form-item>
+      <a-form-item :label="t('smart_json.save_template_desc')" style="margin-bottom: 0">
+        <a-input v-model:value="saveCustomTemplateForm.description" :placeholder="t('smart_json.save_template_desc')" />
+      </a-form-item>
+    </a-form>
+  </a-modal>
 </template>
 
 
@@ -1286,7 +1320,27 @@ import ApiScenarioPipeline from '@/components/common/ApiScenarioPipeline.vue'
 import type { ApiScenarioStep } from '@/types/apiScenario'
 import { tryFormatJson, tryCompressJson } from '@/utils/jsonFormat'
 import { API_BODY_TEMPLATES } from '@/utils/smartJson'
-import { apiSchemaAssetApi, caseApi, projectApi, datasetApi, type AIAssertionSuggestion, type AIExtractionSuggestion, type ApiRequestPreviewPayload, type ApiRequestPreviewResult, type ApiSchemaAssetItem, type GraphqlIntrospectionField } from '@/api'
+import { API_REQUEST_TEMPLATES, ASSERTION_PRESETS, EXTRACTION_PRESETS, type ApiRequestTemplate } from '@/utils/apiTemplates'
+import { buildSchemaDerivedTemplates } from '@/utils/schemaSampleGenerator'
+import {
+  deleteCustomRequestTemplate,
+  loadCustomRequestTemplates,
+  saveCustomRequestTemplate,
+} from '@/utils/customApiTemplates'
+import {
+  apiContractAssetApi,
+  apiSchemaAssetApi,
+  caseApi,
+  projectApi,
+  datasetApi,
+  type AIAssertionSuggestion,
+  type AIExtractionSuggestion,
+  type ApiContractAssetItem,
+  type ApiRequestPreviewPayload,
+  type ApiRequestPreviewResult,
+  type ApiSchemaAssetItem,
+  type GraphqlIntrospectionField,
+} from '@/api'
 import type { CaseDetailItem, CaseLevel, CasePriority, CaseSavePayload, CaseSummaryItem, CaseType } from '@/api'
 import {
   getFirstStep,
@@ -1325,46 +1379,130 @@ function handleImportLibrarySteps(importedSteps: ApiScenarioStep[]) {
   }
   apiConfigTab.value = 'scenario'
 }
-function handleApplyRequestTemplate({ key }: { key: string | number }) {
-  if (key === 'rest_json_get') {
-    cfg.method = 'GET'
-    cfg.headers = { ...cfg.headers, Accept: 'application/json' }
-    cfg.params = { ...cfg.params, page: '1', page_size: '20' }
-    message.success(t('api_scenario.template_applied', { name: '标准 REST 查询' }))
-  } else if (key === 'jwt_form_login') {
-    cfg.method = 'POST'
-    cfg.headers = { ...cfg.headers, 'Content-Type': 'application/x-www-form-urlencoded' }
-    cfg.body_type = 'form'
-    formBody.value = { username: 'admin', password: 'password' }
-    message.success(t('api_scenario.template_applied', { name: '表单登录获取 Token' }))
-  } else if (key === 'auth_json_post') {
-    cfg.method = 'POST'
-    cfg.headers = {
-      ...cfg.headers,
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer {{token}}',
-    }
-    cfg.body_type = 'json'
-    if (!cfg.body) cfg.body = JSON.stringify({ name: 'demo', status: 'active' }, null, 2)
-    message.success(t('api_scenario.template_applied', { name: '鉴权业务调用' }))
-  } else if (key === 'healthcheck_get') {
-    cfg.method = 'GET'
-    message.success(t('api_scenario.template_applied', { name: '服务探活心跳' }))
+function openSaveCustomRequestTemplateModal() {
+  saveCustomTemplateForm.label = form.name?.trim() || `${cfg.method} ${cfg.url || '请求模板'}`
+  saveCustomTemplateForm.description = `${cfg.method} · ${cfg.body_type}`
+  saveCustomTemplateOpen.value = true
+}
+function confirmSaveCustomRequestTemplate() {
+  const label = saveCustomTemplateForm.label.trim()
+  if (!label) {
+    message.warning(t('smart_json.save_template_name'))
+    return
   }
+  let parsedJsonBody: Record<string, unknown> | unknown[] | undefined
+  if (cfg.body_type === 'json' && cfg.body.trim()) {
+    try {
+      const parsed = JSON.parse(cfg.body)
+      if (parsed && typeof parsed === 'object') {
+        parsedJsonBody = parsed as Record<string, unknown> | unknown[]
+      }
+    } catch {
+      // Fallback to rawBody if JSON contains unquoted placeholders
+    }
+  }
+  customRequestTemplates.value = saveCustomRequestTemplate(props.projectId ?? null, {
+    label,
+    description: saveCustomTemplateForm.description.trim() || `${cfg.method} · ${cfg.body_type}`,
+    method: (['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(cfg.method)
+      ? cfg.method
+      : 'POST') as ApiRequestTemplate['method'],
+    url: cfg.url || undefined,
+    headers: Object.keys(cfg.headers || {}).length ? { ...cfg.headers } : undefined,
+    params: Object.keys(cfg.params || {}).length ? { ...cfg.params } : undefined,
+    cookies: Object.keys(cfg.cookies || {}).length ? { ...cfg.cookies } : undefined,
+    bodyType:
+      cfg.body_type === 'form'
+        ? 'form'
+        : cfg.body_type === 'xml'
+          ? 'xml'
+          : cfg.body_type === 'json'
+            ? (parsedJsonBody ? 'json' : 'raw')
+            : cfg.body_type === 'none'
+              ? 'none'
+              : 'raw',
+    jsonBody: parsedJsonBody,
+    formBody: cfg.body_type === 'form' ? { ...formBody.value } : undefined,
+    rawBody: !parsedJsonBody && (cfg.body_type === 'raw' || cfg.body_type === 'xml' || cfg.body_type === 'json') ? cfg.body : undefined,
+  })
+  saveCustomTemplateOpen.value = false
+  message.success(t('smart_json.save_template_success', { name: label }))
+}
+function handleDeleteCustomRequestTemplate(id: string) {
+  customRequestTemplates.value = deleteCustomRequestTemplate(props.projectId ?? null, id)
+  message.success(t('smart_json.delete_template_success'))
+}
+function handleApplyRequestTemplate({ key }: { key: string | number }) {
+  const keyStr = String(key)
+  if (keyStr === '__save_current__') {
+    openSaveCustomRequestTemplateModal()
+    return
+  }
+  const tpl = [...API_REQUEST_TEMPLATES, ...customRequestTemplates.value].find((item) => item.id === keyStr)
+  if (!tpl) return
+  cfg.method = tpl.method
+  if (tpl.url && !cfg.url.trim()) cfg.url = tpl.url
+  if (tpl.headers) cfg.headers = { ...cfg.headers, ...tpl.headers }
+  if (tpl.params) cfg.params = { ...cfg.params, ...tpl.params }
+  if (tpl.cookies) cfg.cookies = { ...cfg.cookies, ...tpl.cookies }
+  if (tpl.bodyType) cfg.body_type = tpl.bodyType
+  if (tpl.bodyType === 'form' && tpl.formBody) {
+    formBody.value = { ...tpl.formBody }
+  } else if (tpl.bodyType === 'json' && tpl.jsonBody !== undefined) {
+    cfg.body = JSON.stringify(tpl.jsonBody, null, 2)
+  } else if ((tpl.bodyType === 'raw' || tpl.bodyType === 'xml') && tpl.rawBody !== undefined) {
+    cfg.body = tpl.rawBody
+  }
+  message.success(t('api_scenario.template_applied', { name: tpl.label }))
 }
 function handleApplyBodyTemplate({ key }: { key: string | number }) {
-  if (key === 'empty_object') {
-    cfg.body = '{\n  \n}'
-  } else if (key === 'pagination') {
-    cfg.body = JSON.stringify({ page: 1, page_size: 20, keyword: '' }, null, 2)
-  } else if (key === 'login_credentials') {
-    cfg.body = JSON.stringify({ username: 'admin', password: 'password' }, null, 2)
-  } else if (key === 'id_update') {
-    cfg.body = JSON.stringify({ id: '{{id}}', status: 'active' }, null, 2)
-  } else if (key === 'object_array') {
-    cfg.body = JSON.stringify([{ name: 'item1' }], null, 2)
+  const tpl = apiBodyTemplates.value.find((item) => item.id === String(key))
+  if (!tpl) return
+  cfg.body = tpl.value
+  message.success(t('api_scenario.template_applied', { name: tpl.label }))
+}
+function handleApplyAssertionPreset({ key }: { key: string | number }) {
+  const preset = ASSERTION_PRESETS.find((item) => item.id === String(key))
+  if (!preset) return
+  if (preset.target === 'jsonpath') {
+    cfg.assertions.push({
+      target: 'body',
+      expression_type: 'jsonpath',
+      expression: preset.expression || '$.code',
+      operator: preset.operator,
+      expected: preset.expected,
+    })
+  } else if (preset.target === 'response_time') {
+    cfg.assertions.push({
+      target: 'duration',
+      operator: preset.operator,
+      expected: preset.expected,
+    })
+  } else if (preset.target === 'body_contains') {
+    cfg.assertions.push({
+      target: 'body',
+      expression_type: 'jsonpath',
+      expression: '$',
+      operator: 'contains',
+      expected: preset.expected,
+    })
+  } else {
+    cfg.assertions.push({
+      target: preset.target,
+      expression: preset.expression || '',
+      operator: preset.operator,
+      expected: preset.expected,
+    })
   }
-  message.success(t('api_scenario.template_applied', { name: 'Body 结构' }))
+}
+function handleApplyExtractionPreset({ key }: { key: string | number }) {
+  const preset = EXTRACTION_PRESETS.find((item) => item.id === String(key))
+  if (!preset) return
+  cfg.extractions.push({
+    variable: preset.variable,
+    type: preset.type === 'xpath' ? 'xpath' : 'jsonpath',
+    expression: preset.expression,
+  })
 }
 
 
@@ -1620,6 +1758,14 @@ const datasetVersionOptions = ref<{ label: string; value: number }[]>([])
 const datasetVersionsLoading = ref(false)
 const datasetVersionLoadSeq = ref(0)
 const schemaAssets = ref<ApiSchemaAssetItem[]>([])
+const contractAssets = ref<ApiContractAssetItem[]>([])
+const apiBodyTemplates = computed(() => [
+  ...API_BODY_TEMPLATES,
+  ...buildSchemaDerivedTemplates(schemaAssets.value, contractAssets.value),
+])
+const customRequestTemplates = ref<ApiRequestTemplate[]>(loadCustomRequestTemplates(props.projectId ?? null))
+const saveCustomTemplateOpen = ref(false)
+const saveCustomTemplateForm = reactive({ label: '', description: '' })
 const savingSchemaAssetIndex = ref<number | null>(null)
 const schemaAssetOptions = computed(() => schemaAssets.value.map((item) => ({ label: `${item.name} v${item.version}`, value: item.id })))
 const apiScenarioSteps = ref<ApiScenarioStep[]>([])
@@ -1912,18 +2058,21 @@ function handleDatasetChange(value: unknown) {
 async function loadSchemaAssetOptions() {
   if (!props.projectId) {
     schemaAssets.value = []
+    contractAssets.value = []
     return
   }
-  try {
-    schemaAssets.value = await apiSchemaAssetApi.list(props.projectId)
-  } catch {
-    schemaAssets.value = []
-  }
+  const [schemaRes, contractRes] = await Promise.allSettled([
+    apiSchemaAssetApi?.list ? apiSchemaAssetApi.list(props.projectId) : Promise.resolve([]),
+    apiContractAssetApi?.list ? apiContractAssetApi.list(props.projectId) : Promise.resolve([]),
+  ])
+  schemaAssets.value = schemaRes.status === 'fulfilled' && Array.isArray(schemaRes.value) ? schemaRes.value : []
+  contractAssets.value = contractRes.status === 'fulfilled' && Array.isArray(contractRes.value) ? contractRes.value : []
 }
 
 watch(() => props.open, async (v) => {
   resetPreview()
   if (!v) return
+  customRequestTemplates.value = loadCustomRequestTemplates(props.projectId ?? null)
   loadDatasetOptions()
   loadSchemaAssetOptions()
   if (props.editCase) {

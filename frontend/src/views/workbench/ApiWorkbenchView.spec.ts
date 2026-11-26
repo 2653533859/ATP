@@ -63,7 +63,9 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
 }))
 vi.mock('@/api', () => ({
+  apiContractAssetApi: { list: vi.fn().mockResolvedValue([]) },
   apiScenarioApi: { list: apiScenarioList, create: apiScenarioCreate, delete: vi.fn() },
+  apiSchemaAssetApi: { list: vi.fn().mockResolvedValue([]) },
   caseApi: { get: caseGet, list: caseList, run: caseRun, previewRequest, suggestAssertions },
   environmentApi: { list: environmentList },
   projectApi: { list: projectList },

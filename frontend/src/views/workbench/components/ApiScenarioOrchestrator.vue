@@ -50,6 +50,10 @@
               <a-menu-item key="load_scenario">打开已有场景用例</a-menu-item>
               <a-menu-item key="new_scenario">新建空白场景</a-menu-item>
               <a-menu-divider />
+              <a-menu-item v-for="scTpl in SCENARIO_TEMPLATES" :key="`tpl:${scTpl.id}`">
+                场景模板：{{ scTpl.label }}
+              </a-menu-item>
+              <a-menu-divider />
               <a-menu-item key="clear_debug">清空调试结果</a-menu-item>
             </a-menu>
           </template>
@@ -200,9 +204,12 @@
                           <span class="var-menu-sub">={{ ev.value }}</span>
                         </a-menu-item>
                       </a-menu-item-group>
-                      <a-menu-item v-if="!availableUpstreamVars.length && !currentEnvVariables.length" key="__none" disabled>
-                        暂无可用变量（可在前序步骤「提取变量」或环境变量中添加）
-                      </a-menu-item>
+                      <a-menu-item-group title="内置动态变量">
+                        <a-menu-item v-for="dv in DYNAMIC_VARIABLE_PRESETS" :key="dv.token">
+                          <code>{{ dv.token }}</code>
+                          <span class="var-menu-sub">（{{ dv.label }}）</span>
+                        </a-menu-item>
+                      </a-menu-item-group>
                     </a-menu>
                   </template>
                 </a-dropdown>
@@ -234,7 +241,19 @@
                   <div class="kv-section">
                     <div class="kv-header">
                       <span>查询参数 (Query Params)</span>
-                      <a-button type="link" size="small" @click="addQueryParamRow">+ 添加参数</a-button>
+                      <a-space size="small">
+                        <a-dropdown :trigger="['click']">
+                          <template #overlay>
+                            <a-menu @click="({ key }) => applyStepParamPreset(String(key))">
+                              <a-menu-item v-for="preset in PARAM_PRESETS" :key="preset.id">
+                                {{ preset.label }}
+                              </a-menu-item>
+                            </a-menu>
+                          </template>
+                          <a-button type="link" size="small">常用参数 <DownOutlined /></a-button>
+                        </a-dropdown>
+                        <a-button type="link" size="small" @click="addQueryParamRow">+ 添加参数</a-button>
+                      </a-space>
                     </div>
                     <div v-if="!queryParamRows.length" class="kv-empty">暂无查询参数</div>
                     <div v-for="(row, idx) in queryParamRows" :key="idx" class="kv-row">
@@ -290,7 +309,19 @@
                           请求预览
                         </button>
                       </div>
-                      <a-button type="link" size="small" @click="formatCurrentJsonBody">格式化</a-button>
+                      <a-space size="small">
+                        <a-dropdown :trigger="['click']">
+                          <template #overlay>
+                            <a-menu @click="({ key }) => applyStepJsonBodyTemplate(String(key))">
+                              <a-menu-item v-for="tpl in stepBodyTemplates" :key="tpl.id">
+                                {{ tpl.label }}
+                              </a-menu-item>
+                            </a-menu>
+                          </template>
+                          <a-button type="link" size="small">Body 模板 <DownOutlined /></a-button>
+                        </a-dropdown>
+                        <a-button type="link" size="small" @click="formatCurrentJsonBody">格式化</a-button>
+                      </a-space>
                     </div>
 
                     <template v-if="jsonEditMode === 'raw'">
@@ -322,8 +353,9 @@
                                 <a-menu-item v-for="ev in currentEnvVariables" :key="ev.key">
                                   {{ formatVarToken(ev.key) }}
                                 </a-menu-item>
-                                <a-menu-item v-if="!availableUpstreamVars.length && !currentEnvVariables.length" key="__empty" disabled>
-                                  暂无可用变量
+                                <a-menu-divider />
+                                <a-menu-item v-for="dv in DYNAMIC_VARIABLE_PRESETS" :key="dv.token">
+                                  {{ dv.token }}（{{ dv.label }}）
                                 </a-menu-item>
                               </a-menu>
                             </template>
@@ -374,7 +406,19 @@
                   <div class="kv-section">
                     <div class="kv-header">
                       <span>HTTP 请求头 (Headers)</span>
-                      <a-button type="link" size="small" @click="addHeaderRow">+ 添加请求头</a-button>
+                      <a-space size="small">
+                        <a-dropdown :trigger="['click']">
+                          <template #overlay>
+                            <a-menu @click="({ key }) => applyStepHeaderPreset(String(key))">
+                              <a-menu-item v-for="preset in HEADER_PRESETS" :key="preset.id">
+                                {{ preset.label }}
+                              </a-menu-item>
+                            </a-menu>
+                          </template>
+                          <a-button type="link" size="small">常用请求头 <DownOutlined /></a-button>
+                        </a-dropdown>
+                        <a-button type="link" size="small" @click="addHeaderRow">+ 添加请求头</a-button>
+                      </a-space>
                     </div>
                     <div v-if="!headerRows.length" class="kv-empty">暂无自定义请求头</div>
                     <div v-for="(row, idx) in headerRows" :key="idx" class="kv-row">
@@ -421,6 +465,16 @@
                 <div class="kv-header">
                   <span>响应断言校验规则</span>
                   <a-space size="small">
+                    <a-dropdown :trigger="['click']">
+                      <template #overlay>
+                        <a-menu @click="({ key }) => applyStepAssertionPreset(String(key))">
+                          <a-menu-item v-for="ap in ASSERTION_PRESETS" :key="ap.id">
+                            {{ ap.label }}
+                          </a-menu-item>
+                        </a-menu>
+                      </template>
+                      <a-button size="small">断言模板 <DownOutlined /></a-button>
+                    </a-dropdown>
                     <a-button size="small" @click="addStatus200Assertion">+ 状态码 200</a-button>
                     <a-button type="primary" size="small" @click="addAssertionRow">+ 添加校验</a-button>
                   </a-space>
@@ -739,7 +793,9 @@ import {
   apiScenarioApi,
   caseApi,
   environmentApi,
+  type ApiContractAssetItem,
   type ApiScenarioRecord,
+  type ApiSchemaAssetItem,
   type CaseDetailItem,
   type CaseSummaryItem,
   type EnvVariableItem,
@@ -747,6 +803,15 @@ import {
   type AIAssertionSuggestResult,
 } from '@/api'
 import { extractApiError } from '@/utils/apiError'
+import { API_BODY_TEMPLATES } from '@/utils/smartJson'
+import { buildSchemaDerivedTemplates } from '@/utils/schemaSampleGenerator'
+import {
+  ASSERTION_PRESETS,
+  DYNAMIC_VARIABLE_PRESETS,
+  HEADER_PRESETS,
+  PARAM_PRESETS,
+  SCENARIO_TEMPLATES,
+} from '@/utils/apiTemplates'
 import {
   parseStepFromCase,
   type ApiScenarioStep,
@@ -768,18 +833,31 @@ interface StepDebugResult {
   assertionDetails: Array<{ label: string; passed: boolean; actual: string }>
 }
 
-const props = defineProps<{
-  projectId: number | null
-  moduleId: number | null
-  canModify: boolean
-  cases: CaseSummaryItem[]
-  scenarios?: ApiScenarioRecord[]
-  environments: EnvironmentItem[]
-  initialSteps?: ApiScenarioStep[] | null
-  initialScenario?: ApiScenarioRecord | null
-  initialStepIndex?: number | null
-  initialCase?: CaseDetailItem | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    projectId: number | null
+    moduleId: number | null
+    canModify: boolean
+    cases: CaseSummaryItem[]
+    scenarios?: ApiScenarioRecord[]
+    environments: EnvironmentItem[]
+    schemaAssets?: ApiSchemaAssetItem[]
+    contractAssets?: ApiContractAssetItem[]
+    initialSteps?: ApiScenarioStep[] | null
+    initialScenario?: ApiScenarioRecord | null
+    initialStepIndex?: number | null
+    initialCase?: CaseDetailItem | null
+  }>(),
+  {
+    schemaAssets: () => [],
+    contractAssets: () => [],
+  },
+)
+
+const stepBodyTemplates = computed(() => [
+  ...API_BODY_TEMPLATES,
+  ...buildSchemaDerivedTemplates(props.schemaAssets, props.contractAssets),
+])
 
 const emit = defineEmits<{
   exit: []
@@ -1424,7 +1502,8 @@ function removeJsonFieldRow(idx: number) {
 function setJsonFieldVar(idx: number, varName: string) {
   if (varName === '__empty') return
   if (jsonFieldRows.value[idx]) {
-    jsonFieldRows.value[idx].value = `{{${varName}}}`
+    const token = varName.startsWith('{{') && varName.endsWith('}}') ? varName : `{{${varName}}}`
+    jsonFieldRows.value[idx].value = token
     syncJsonFieldsToStep()
   }
 }
@@ -1495,8 +1574,73 @@ function applyBearerTokenToHeader() {
 
 function insertVariableIntoUrl(varName: string) {
   if (varName === '__none' || !currentStep.value) return
-  currentStep.value.url = `${currentStep.value.url || ''}{{${varName}}}`
+  const token = varName.startsWith('{{') && varName.endsWith('}}') ? varName : `{{${varName}}}`
+  currentStep.value.url = `${currentStep.value.url || ''}${token}`
   markDirty()
+}
+
+function applyKvEntriesToRows(rowsRef: { value: Array<{ key: string; value: string }> }, entries: Record<string, string>) {
+  for (const [k, v] of Object.entries(entries)) {
+    const existing = rowsRef.value.find((r) => r.key.toLowerCase() === k.toLowerCase())
+    if (existing) {
+      existing.value = v
+    } else {
+      rowsRef.value.push({ key: k, value: v })
+    }
+  }
+}
+
+function applyStepParamPreset(presetId: string) {
+  const preset = PARAM_PRESETS.find((item) => item.id === presetId)
+  if (!preset || !currentStep.value) return
+  applyKvEntriesToRows(queryParamRows, preset.entries)
+  syncQueryParamsToStep()
+  message.success(`已应用参数预设：${preset.label}`)
+}
+
+function applyStepHeaderPreset(presetId: string) {
+  const preset = HEADER_PRESETS.find((item) => item.id === presetId)
+  if (!preset || !currentStep.value) return
+  applyKvEntriesToRows(headerRows, preset.entries)
+  syncHeadersToStep()
+  message.success(`已应用请求头预设：${preset.label}`)
+}
+
+function applyStepJsonBodyTemplate(templateId: string) {
+  const tpl = stepBodyTemplates.value.find((item) => item.id === templateId)
+  if (!tpl || !currentStep.value) return
+  jsonBodyText.value = tpl.value
+  syncJsonTextToStep()
+  refreshJsonFieldRowsFromStep(currentStep.value)
+  message.success(`已填充 Body 模板：${tpl.label}`)
+}
+
+function applyStepAssertionPreset(presetId: string) {
+  const preset = ASSERTION_PRESETS.find((item) => item.id === presetId)
+  if (!preset || !currentStep.value) return
+  if (!currentStep.value.assertions) currentStep.value.assertions = []
+  currentStep.value.assertions.push({
+    target: preset.target,
+    expression: preset.expression,
+    operator: preset.operator,
+    expected: preset.expected,
+  })
+  markDirty()
+}
+
+function applyScenarioTemplate(templateId: string) {
+  const tpl = SCENARIO_TEMPLATES.find((item) => item.id === templateId)
+  if (!tpl) return
+  resetExecutionState()
+  editingCaseId.value = null
+  scenarioName.value = tpl.label
+  scenarioDescription.value = tpl.description
+  steps.value = tpl.steps.map((s) => toOrchestratorStep(s as ApiScenarioStep))
+  selectedStepUid.value = steps.value[0]?.uid ?? null
+  loadStepIntoEditor(steps.value[0] ?? null)
+  isDirty.value = true
+  saveDraftToStorage()
+  message.success(`已加载场景模板：${tpl.label}`)
 }
 
 function addStatus200Assertion() {
@@ -2037,6 +2181,11 @@ async function handleRunScenario() {
 }
 
 function handleMoreMenu({ key }: { key: string | number }) {
+  const keyStr = String(key)
+  if (keyStr.startsWith('tpl:')) {
+    applyScenarioTemplate(keyStr.slice(4))
+    return
+  }
   if (key === 'load_scenario') {
     loadScenarioModalOpen.value = true
   } else if (key === 'new_scenario') {

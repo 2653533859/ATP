@@ -183,4 +183,94 @@ describe('ApiScenarioOrchestrator regressions', () => {
     expect(vm.currentDebugResult).toBeNull()
     wrapper.unmount()
   })
+
+  it('loads scenario templates and applies step presets & dynamic variables', async () => {
+    const wrapper = mount(ApiScenarioOrchestrator, {
+      props: {
+        projectId: 1,
+        moduleId: 10,
+        canModify: true,
+        cases: [],
+        environments: [],
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      steps: Array<{
+        name: string
+        url: string
+        params: Record<string, string>
+        headers: Record<string, string>
+        assertions: Array<Record<string, unknown>>
+      }>
+      handleMoreMenu: (payload: { key: string }) => void
+      applyStepParamPreset: (id: string) => void
+      applyStepHeaderPreset: (id: string) => void
+      insertVariableIntoUrl: (varName: string) => void
+    }
+
+    vm.handleMoreMenu({ key: 'tpl:crud_lifecycle' })
+    expect(vm.steps).toHaveLength(4)
+    expect(vm.steps[0].name).toContain('创建')
+
+    vm.applyStepParamPreset('replay_guard')
+    expect(vm.steps[0].params.timestamp).toBe('{{$timestamp}}')
+    expect(vm.steps[0].params.nonce).toBe('{{$random_str}}')
+
+    vm.applyStepHeaderPreset('trace')
+    expect(vm.steps[0].headers['X-Request-Id']).toBe('{{$uuid}}')
+
+    vm.insertVariableIntoUrl('{{$uuid_hex}}')
+    expect(vm.steps[0].url).toContain('{{$uuid_hex}}')
+
+    wrapper.unmount()
+  })
+
+  it('includes schema and contract derived body templates inside stepBodyTemplates', async () => {
+    const wrapper = mount(ApiScenarioOrchestrator, {
+      props: {
+        projectId: 1,
+        moduleId: 10,
+        canModify: true,
+        cases: [],
+        environments: [],
+        schemaAssets: [
+          {
+            id: 5,
+            project_id: 1,
+            name: 'UserProfile',
+            definition: {
+              type: 'object',
+              properties: {
+                email: { type: 'string', format: 'email' },
+                active: { type: 'boolean' },
+              },
+            },
+            version: 1,
+            created_at: '',
+            updated_at: '',
+          },
+        ],
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      stepBodyTemplates: Array<{ id: string }>
+      jsonBodyText: string
+      applyStepJsonBodyTemplate: (id: string) => void
+    }
+
+    expect(vm.stepBodyTemplates.some((item) => item.id === 'schema_asset_5')).toBe(true)
+    vm.applyStepJsonBodyTemplate('schema_asset_5')
+    expect(JSON.parse(vm.jsonBodyText)).toEqual({
+      email: '{{$random_email}}',
+      active: true,
+    })
+
+    wrapper.unmount()
+  })
 })

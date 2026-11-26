@@ -23,30 +23,37 @@
       <a-dropdown :trigger="['click']">
         <template #overlay>
           <a-menu @click="handleApplyRequestTemplate">
-            <a-menu-item key="rest_json_get">
+            <a-menu-item v-for="tpl in API_REQUEST_TEMPLATES" :key="tpl.id">
               <div class="preset-menu-item">
-                <span class="preset-label">标准 REST 查询 (GET + Accept JSON)</span>
-                <small class="preset-code">仅配置 GET 方式、Accept 请求头与分页参数</small>
+                <span class="preset-label">{{ tpl.label }}</span>
+                <small class="preset-code">{{ tpl.description }}</small>
               </div>
             </a-menu-item>
-            <a-menu-item key="jwt_form_login">
-              <div class="preset-menu-item">
-                <span class="preset-label">表单登录获取 Token (POST + urlencoded)</span>
-                <small class="preset-code">仅配置 POST、urlencoded 头与表单凭据</small>
-              </div>
-            </a-menu-item>
-            <a-menu-item key="auth_json_post">
-              <div class="preset-menu-item">
-                <span class="preset-label">鉴权业务调用 (POST + Bearer Token)</span>
-                <small class="preset-code">仅配置 POST、JSON 头、Authorization 头与 Body</small>
-              </div>
-            </a-menu-item>
-            <a-menu-item key="healthcheck_get">
-              <div class="preset-menu-item">
-                <span class="preset-label">服务探活配置 (GET)</span>
-                <small class="preset-code">仅配置 GET 方式</small>
-              </div>
-            </a-menu-item>
+            <template v-if="customTemplates.length">
+              <a-menu-divider />
+              <a-menu-item key="__custom_header" disabled>
+                {{ t('smart_json.custom_templates_label') }}
+              </a-menu-item>
+              <a-menu-item v-for="tpl in customTemplates" :key="tpl.id">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+                  <div class="preset-menu-item">
+                    <span class="preset-label">{{ tpl.label }}</span>
+                    <small class="preset-code">{{ tpl.description }}</small>
+                  </div>
+                  <MinusCircleOutlined
+                    v-if="canModify"
+                    style="color: var(--c-text-tertiary); flex-shrink: 0"
+                    @click.stop="handleDeleteCustomTemplate(tpl.id)"
+                  />
+                </div>
+              </a-menu-item>
+            </template>
+            <template v-if="canModify">
+              <a-menu-divider />
+              <a-menu-item key="__save_current__">
+                <span style="color: var(--c-primary); font-weight: 600">+ {{ t('smart_json.save_as_template') }}</span>
+              </a-menu-item>
+            </template>
           </a-menu>
         </template>
         <a-button class="template-quick-btn" :title="t('api_scenario.request_template_label')">
@@ -125,12 +132,13 @@
             </a-space>
           </div>
         </div>
-        <KvEditor v-if="draft.body_type === 'form'" v-model:value="formBody" />
+        <KvEditor v-if="draft.body_type === 'form'" v-model:value="formBody" show-dynamic-vars />
         <SmartJsonEditor
           v-else-if="draft.body_type === 'json'"
           v-model:value="bodyText"
           allow-templates
-          :templates="API_BODY_TEMPLATES"
+          show-dynamic-vars
+          :templates="bodyTemplates"
           :rows="8"
           :placeholder="jsonBodyPlaceholder"
           :disabled="!canModify"
@@ -168,7 +176,7 @@
           <a-alert v-if="authType === 'oauth2_client_credentials'" type="info" :message="t('api_workbench.console.advanced_auth_hint')" />
         </div>
       </a-tab-pane>
-      <a-tab-pane key="cookies" :tab="t('api_workbench.console.cookies')"><KvEditor v-model:value="draft.cookies" /></a-tab-pane>
+      <a-tab-pane key="cookies" :tab="t('api_workbench.console.cookies')"><KvEditor v-model:value="draft.cookies" preset-kind="cookies" /></a-tab-pane>
     </a-tabs>
 
     <div class="response-divider">
@@ -240,28 +248,67 @@
       <span class="response-empty-icon">↳</span>
       <strong>{{ t('api_workbench.console.empty_response_title') }}</strong>
     </div>
+
+    <a-modal
+      v-model:open="saveTemplateOpen"
+      :title="t('smart_json.save_template_title')"
+      width="420px"
+      centered
+      @ok="confirmSaveCustomTemplate"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('smart_json.save_template_name')" required>
+          <a-input v-model:value="saveTemplateForm.label" :placeholder="t('smart_json.save_template_name')" />
+        </a-form-item>
+        <a-form-item :label="t('smart_json.save_template_desc')" style="margin-bottom: 0">
+          <a-input v-model:value="saveTemplateForm.description" :placeholder="t('smart_json.save_template_desc')" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import { FormatPainterOutlined, ThunderboltOutlined, DownOutlined } from '@ant-design/icons-vue'
+import { FormatPainterOutlined, MinusCircleOutlined, ThunderboltOutlined, DownOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { caseApi, type ApiRequestPreviewPayload, type ApiRequestPreviewResult, type CaseDetailItem } from '@/api'
+import {
+  caseApi,
+  type ApiContractAssetItem,
+  type ApiRequestPreviewPayload,
+  type ApiRequestPreviewResult,
+  type ApiSchemaAssetItem,
+  type CaseDetailItem,
+} from '@/api'
 import { tryFormatJson, tryCompressJson } from '@/utils/jsonFormat'
 import { API_BODY_TEMPLATES } from '@/utils/smartJson'
+import { API_REQUEST_TEMPLATES, type ApiRequestTemplate } from '@/utils/apiTemplates'
+import { buildSchemaDerivedTemplates } from '@/utils/schemaSampleGenerator'
+import {
+  deleteCustomRequestTemplate,
+  loadCustomRequestTemplates,
+  saveCustomRequestTemplate,
+} from '@/utils/customApiTemplates'
 import KvEditor from '@/components/common/KvEditor.vue'
 import SmartJsonEditor from '@/components/common/SmartJsonEditor.vue'
 import ResponseBodyViewer from './ResponseBodyViewer.vue'
 
-const props = defineProps<{
-  projectId: number | null
-  moduleId: number | null
-  canModify: boolean
-  caseDetail: CaseDetailItem | null
-  resetKey: number
-}>()
+const props = withDefaults(
+  defineProps<{
+    projectId: number | null
+    moduleId: number | null
+    canModify: boolean
+    caseDetail: CaseDetailItem | null
+    schemaAssets?: ApiSchemaAssetItem[]
+    contractAssets?: ApiContractAssetItem[]
+    resetKey: number
+  }>(),
+  {
+    schemaAssets: () => [],
+    contractAssets: () => [],
+  },
+)
 const emit = defineEmits<{
   'save-draft': [value: ApiRequestPreviewPayload]
   edit: []
@@ -285,48 +332,107 @@ const draft = reactive<ApiRequestPreviewPayload>({
 })
 let controller: AbortController | null = null
 
-function handleApplyRequestTemplate({ key }: { key: string | number }) {
-  if (key === 'rest_json_get') {
-    draft.method = 'GET'
-    draft.headers = { ...draft.headers, Accept: 'application/json' }
-    draft.params = { ...draft.params, page: '1', page_size: '20' }
-    message.success(t('api_scenario.template_applied', { name: '标准 REST 查询' }))
-  } else if (key === 'jwt_form_login') {
-    draft.method = 'POST'
-    draft.headers = { ...draft.headers, 'Content-Type': 'application/x-www-form-urlencoded' }
-    draft.body_type = 'form'
-    formBody.value = { username: 'admin', password: 'password' }
-    message.success(t('api_scenario.template_applied', { name: '表单登录获取 Token' }))
-  } else if (key === 'auth_json_post') {
-    draft.method = 'POST'
-    draft.headers = {
-      ...draft.headers,
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer {{token}}',
-    }
-    draft.body_type = 'json'
-    bodyText.value = JSON.stringify({ name: 'demo', status: 'active' }, null, 2)
-    message.success(t('api_scenario.template_applied', { name: '鉴权业务调用' }))
-  } else if (key === 'healthcheck_get') {
-    draft.method = 'GET'
-    message.success(t('api_scenario.template_applied', { name: '服务探活心跳' }))
+const bodyTemplates = computed(() => [
+  ...API_BODY_TEMPLATES,
+  ...buildSchemaDerivedTemplates(props.schemaAssets, props.contractAssets),
+])
+const customTemplates = ref<ApiRequestTemplate[]>(loadCustomRequestTemplates(props.projectId))
+const saveTemplateOpen = ref(false)
+const saveTemplateForm = reactive({ label: '', description: '' })
+
+watch(
+  () => props.projectId,
+  (nextProjectId) => {
+    customTemplates.value = loadCustomRequestTemplates(nextProjectId)
+  },
+)
+
+function openSaveCustomTemplateModal() {
+  saveTemplateForm.label = props.caseDetail?.name || `${draft.method} ${draft.url || '请求模板'}`
+  saveTemplateForm.description = `${draft.method} · ${draft.body_type}`
+  saveTemplateOpen.value = true
+}
+
+function confirmSaveCustomTemplate() {
+  const label = saveTemplateForm.label.trim()
+  if (!label) {
+    message.warning(t('smart_json.save_template_name'))
+    return
   }
+  let parsedJsonBody: Record<string, unknown> | unknown[] | undefined
+  if (draft.body_type === 'json' && bodyText.value.trim()) {
+    try {
+      const parsed = JSON.parse(bodyText.value)
+      if (parsed && typeof parsed === 'object') {
+        parsedJsonBody = parsed as Record<string, unknown> | unknown[]
+      }
+    } catch {
+      // Save fallback as raw text if body is currently non-strict template JSON
+    }
+  }
+  customTemplates.value = saveCustomRequestTemplate(props.projectId, {
+    label,
+    description: saveTemplateForm.description.trim() || `${draft.method} · ${draft.body_type}`,
+    method: (['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(draft.method)
+      ? draft.method
+      : 'POST') as ApiRequestTemplate['method'],
+    url: draft.url || undefined,
+    headers: Object.keys(draft.headers || {}).length ? { ...draft.headers } : undefined,
+    params: Object.keys(draft.params || {}).length ? { ...draft.params } : undefined,
+    cookies: Object.keys(draft.cookies || {}).length ? { ...draft.cookies } : undefined,
+    bodyType:
+      draft.body_type === 'form'
+        ? 'form'
+        : draft.body_type === 'xml'
+          ? 'xml'
+          : draft.body_type === 'json'
+            ? (parsedJsonBody ? 'json' : 'raw')
+            : draft.body_type === 'none'
+              ? 'none'
+              : 'raw',
+    jsonBody: parsedJsonBody,
+    formBody: draft.body_type === 'form' ? { ...formBody.value } : undefined,
+    rawBody: !parsedJsonBody && (draft.body_type === 'raw' || draft.body_type === 'xml' || draft.body_type === 'json') ? bodyText.value : undefined,
+  })
+  saveTemplateOpen.value = false
+  message.success(t('smart_json.save_template_success', { name: label }))
+}
+
+function handleDeleteCustomTemplate(id: string) {
+  customTemplates.value = deleteCustomRequestTemplate(props.projectId, id)
+  message.success(t('smart_json.delete_template_success'))
+}
+
+function handleApplyRequestTemplate({ key }: { key: string | number }) {
+  const keyStr = String(key)
+  if (keyStr === '__save_current__') {
+    openSaveCustomTemplateModal()
+    return
+  }
+  const tpl = [...API_REQUEST_TEMPLATES, ...customTemplates.value].find((item) => item.id === keyStr)
+  if (!tpl) return
+  draft.method = tpl.method
+  if (tpl.url && !draft.url.trim()) draft.url = tpl.url
+  if (tpl.headers) draft.headers = { ...draft.headers, ...tpl.headers }
+  if (tpl.params) draft.params = { ...draft.params, ...tpl.params }
+  if (tpl.cookies) draft.cookies = { ...draft.cookies, ...tpl.cookies }
+  if (tpl.bodyType) draft.body_type = tpl.bodyType
+  if (tpl.bodyType === 'form' && tpl.formBody) {
+    formBody.value = { ...tpl.formBody }
+  } else if (tpl.bodyType === 'json' && tpl.jsonBody !== undefined) {
+    bodyText.value = JSON.stringify(tpl.jsonBody, null, 2)
+  } else if ((tpl.bodyType === 'raw' || tpl.bodyType === 'xml') && tpl.rawBody !== undefined) {
+    bodyText.value = tpl.rawBody
+  }
+  message.success(t('api_scenario.template_applied', { name: tpl.label }))
 }
 
 function handleApplyBodyTemplate({ key }: { key: string | number }) {
+  const tpl = bodyTemplates.value.find((item) => item.id === String(key))
+  if (!tpl) return
   draft.body_type = 'json'
-  if (key === 'empty_object') {
-    bodyText.value = '{\n  \n}'
-  } else if (key === 'pagination') {
-    bodyText.value = JSON.stringify({ page: 1, page_size: 20, keyword: '' }, null, 2)
-  } else if (key === 'login_credentials') {
-    bodyText.value = JSON.stringify({ username: 'admin', password: 'password' }, null, 2)
-  } else if (key === 'id_update') {
-    bodyText.value = JSON.stringify({ id: '{{id}}', status: 'active' }, null, 2)
-  } else if (key === 'object_array') {
-    bodyText.value = JSON.stringify([{ name: 'item1' }], null, 2)
-  }
-  message.success(t('api_scenario.template_applied', { name: 'Body 结构' }))
+  bodyText.value = tpl.value
+  message.success(t('api_scenario.template_applied', { name: tpl.label }))
 }
 
 const authType = computed({

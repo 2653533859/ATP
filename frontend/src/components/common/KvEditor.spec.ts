@@ -89,4 +89,45 @@ describe('KvEditor', () => {
     expect(emitted![emitted!.length - 1]?.[0]).toEqual({ existing: '1', Authorization: 'value-first' })
     wrapper.unmount()
   })
+
+  it('supports cookie presets and quick dynamic variable insertion', async () => {
+    const wrapper = mount(KvEditor, {
+      props: { value: {}, presetKind: 'cookies' },
+      global: {
+        stubs: {
+          AAutoComplete: inputStub('kv-input'),
+          AInput: inputStub('kv-input'),
+          AButton: buttonStub,
+          ADropdown: passthrough('ADropdown'),
+          AMenu: passthrough('AMenu'),
+          AMenuItem: passthrough('AMenuItem'),
+          PlusOutlined: true,
+          DeleteOutlined: true,
+          ThunderboltOutlined: true,
+          DownOutlined: true,
+        },
+      },
+    })
+
+    const vm = wrapper.vm as unknown as {
+      currentPresets: Array<{ id: string }>
+      handleApplyPreset: (payload: { key: string }) => void
+      handleInsertDynamicVar: (payload: { key: string }) => void
+      getKeyOptions: () => Array<{ value: string }>
+    }
+
+    expect(vm.currentPresets.some((p) => p.id === 'session_id')).toBe(true)
+    expect(vm.getKeyOptions().some((opt) => opt.value === 'session_id')).toBe(true)
+
+    vm.handleApplyPreset({ key: 'session_id' })
+    vm.handleInsertDynamicVar({ key: 'timestamp' })
+    await flushPromises()
+
+    const emitted = wrapper.emitted('update:value')!
+    expect(emitted[emitted.length - 1][0]).toEqual({
+      session_id: '{{session_id}}',
+      timestamp: '{{$timestamp}}',
+    })
+    wrapper.unmount()
+  })
 })

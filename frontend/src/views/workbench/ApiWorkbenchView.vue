@@ -235,6 +235,8 @@
           :cases="filteredCases"
           :scenarios="scenarios"
           :environments="environments"
+          :schema-assets="schemaAssets"
+          :contract-assets="contractAssets"
           :initial-steps="initialScenarioSteps"
           :initial-scenario="activeScenarioRecord"
           :initial-step-index="linkedStepIndex"
@@ -249,6 +251,8 @@
           :module-id="selectedModuleId"
           :can-modify="canModify"
           :case-detail="selectedCaseDetail"
+          :schema-assets="schemaAssets"
+          :contract-assets="contractAssets"
           :reset-key="consoleResetKey"
           @save-draft="saveDraftAsCase"
           @edit="editSelectedCase"
@@ -391,13 +395,17 @@ import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  apiContractAssetApi,
   apiScenarioApi,
+  apiSchemaAssetApi,
   caseApi,
   environmentApi,
   projectApi,
   runApi,
+  type ApiContractAssetItem,
   type ApiRequestPreviewPayload,
   type ApiScenarioRecord,
+  type ApiSchemaAssetItem,
   type CaseDetailItem,
   type CaseSummaryItem,
   type CaseType,
@@ -440,6 +448,8 @@ const linkedStepIndex = ref<number | null>(null)
 const cases = ref<CaseSummaryItem[]>([])
 const recentRuns = ref<RunDetailItem[]>([])
 const environments = ref<EnvironmentItem[]>([])
+const schemaAssets = ref<ApiSchemaAssetItem[]>([])
+const contractAssets = ref<ApiContractAssetItem[]>([])
 const keyword = ref('')
 const protocolFilter = ref<ProtocolFilter>('all')
 const loading = ref(false)
@@ -766,6 +776,7 @@ async function confirmBatchRun() {
 let loadSequence = 0
 let detailSequence = 0
 let environmentSequence = 0
+let schemaAssetsSequence = 0
 let projectSequence = 0
 function errorMessage(error: unknown, fallback: string) {
   return extractApiError(error, fallback)
@@ -798,6 +809,23 @@ async function loadEnvironments() {
   } finally {
     if (sequence === environmentSequence) environmentsLoading.value = false
   }
+}
+
+async function loadSchemaAndContractAssets() {
+  const projectId = selectedProjectId.value
+  const sequence = ++schemaAssetsSequence
+  if (!projectId) {
+    schemaAssets.value = []
+    contractAssets.value = []
+    return
+  }
+  const [schemaRes, contractRes] = await Promise.allSettled([
+    apiSchemaAssetApi?.list ? apiSchemaAssetApi.list(projectId) : Promise.resolve([]),
+    apiContractAssetApi?.list ? apiContractAssetApi.list(projectId) : Promise.resolve([]),
+  ])
+  if (sequence !== schemaAssetsSequence || selectedProjectId.value !== projectId) return
+  schemaAssets.value = schemaRes.status === 'fulfilled' && Array.isArray(schemaRes.value) ? schemaRes.value : []
+  contractAssets.value = contractRes.status === 'fulfilled' && Array.isArray(contractRes.value) ? contractRes.value : []
 }
 
 async function loadRecentRuns(caseIds: number[], sequence?: number) {
@@ -852,7 +880,7 @@ async function loadProjects() {
     if (!selectedProjectId.value || !projects.value.some((item) => item.id === selectedProjectId.value)) {
       selectedProjectId.value = projects.value[0]?.id ?? null
     }
-    await Promise.all([loadEnvironments(), loadCases()])
+    await Promise.all([loadEnvironments(), loadCases(), loadSchemaAndContractAssets()])
     if (sequence !== projectSequence) return
     const linkedScenarioId = positiveInt(route.query.scenario_id)
     if (linkedScenarioId) {
@@ -879,7 +907,7 @@ async function handleProjectChange(value: unknown) {
   initialScenarioSteps.value = null
   scenarios.value = []
   startNewRequest()
-  const tasks: Promise<unknown>[] = [loadEnvironments(), loadCases()]
+  const tasks: Promise<unknown>[] = [loadEnvironments(), loadCases(), loadSchemaAndContractAssets()]
   if (isAutomationMode.value) {
     tasks.push(loadScenarios())
   }
