@@ -233,6 +233,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { BarChartOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute, useRouter } from 'vue-router'
 import VChart from 'vue-echarts'
 import { statisticsApi, projectApi, reportApi, type ProjectItem, type ReportCompareItem, type ReportOverviewItem } from '@/api'
@@ -355,7 +356,7 @@ function filterProject(input: string, option: any) {
 }
 
 function formatTime(value?: string | null) {
-  return value ? value.slice(0, 19).replace('T', ' ') : '-'
+  return formatLocalDateTime(value)
 }
 
 function formatDuration(value?: number | null) {
@@ -426,7 +427,11 @@ function syncBaselineRun() {
 }
 
 function openRun(runId: number) {
-  void router.push({ name: 'run-detail', params: { runId } })
+  void router.push({
+    name: 'run-detail',
+    params: { runId },
+    query: projectId.value ? { project_id: String(projectId.value) } : undefined,
+  })
 }
 
 function openAsset(path: '/cases' | '/suites' | '/plans') {

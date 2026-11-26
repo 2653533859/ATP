@@ -144,12 +144,15 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import type { AxiosError } from 'axios'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { bugTrackerApi, projectApi, type BugTrackerItem, type BugTrackerType, type ProjectItem } from '@/api'
 import { BUG_TRACKER_MAPPING_TEMPLATES } from '@/utils/smartJson'
+import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import SmartJsonEditor from '@/components/common/SmartJsonEditor.vue'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asTracker = (record: unknown) => record as BugTrackerItem
@@ -193,7 +196,7 @@ const columns = computed(() => [
   { title: t('system_pages.bug_tracker.platform'), key: 'tracker_type', width: 100 },
   { title: t('common.status'), key: 'is_enabled', width: 80 },
   { title: t('common.updated_at'), dataIndex: 'updated_at', width: 170,
-    customRender: ({ text }: { text?: string | null }) => text?.slice(0, 19).replace('T', ' ') ?? '-' },
+    customRender: ({ text }: { text?: string | null }) => formatLocalDateTime(text) },
   { title: t('common.action'), key: 'action', width: 140, fixed: 'right' as const },
 ])
 
@@ -213,10 +216,17 @@ function typeColor(type: string) {
   return { jira: 'blue', zentao: 'green', github: 'black', gitlab: 'orange' }[type] ?? 'default'
 }
 
+const route = useRoute()
+
 onMounted(async () => {
   try {
     const projects = await projectApi.list()
     projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
+    const initialProjectId = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects)
+    if (initialProjectId !== undefined) {
+      projectId.value = initialProjectId
+      await loadTrackers()
+    }
   } catch { /* ignore */ }
 })
 

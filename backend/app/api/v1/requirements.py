@@ -408,6 +408,7 @@ async def update_requirement(
             detail=f"更新需求版本: {requirement.version}",
         )
     await db.commit()
+    await db.refresh(requirement)
     rows = await _load_links(db, requirement.id)
     links = [link for link, case, module in rows]
     return RequirementDetailOut(
@@ -496,7 +497,10 @@ async def link_requirement_case(
         detail=f"需求 {requirement.id} 关联用例 {case.id}",
     )
     await db.commit()
-    return _link_item(link, case, module)
+    await db.refresh(link)
+    refreshed_case = await db.get(TestCase, link.case_id) or case
+    refreshed_module = await db.get(Module, refreshed_case.module_id) or module
+    return _link_item(link, refreshed_case, refreshed_module)
 
 
 @router.delete("/requirements/{requirement_id}/case-links/{link_id}")

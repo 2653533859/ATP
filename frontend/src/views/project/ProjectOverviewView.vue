@@ -83,6 +83,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import {
   apiContractAssetApi,
   apiSchemaAssetApi,
@@ -150,7 +151,7 @@ function llmConfigLabel(id?: number | null) {
 }
 
 function formatDate(value?: string) {
-  return value ? value.slice(0, 19).replace('T', ' ') : '-'
+  return formatLocalDateTime(value)
 }
 
 function openResource(resource: (typeof resources)[number]) {

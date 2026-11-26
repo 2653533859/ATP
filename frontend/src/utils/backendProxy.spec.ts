@@ -8,6 +8,7 @@ describe('backend dev proxy', () => {
     const proxy = createBackendProxy(origin)
 
     expect(proxy['^/api(?:[/?#]|$)'].target).toBe('http://192.168.3.196:8000')
+    expect(proxy['^/mock(?:[/?#]|$)'].target).toBe('http://192.168.3.196:8000')
     expect(proxy['^/ws(?:[/?#]|$)'].target).toBe('ws://192.168.3.196:8000')
     expect(proxy['^/ws(?:[/?#]|$)'].ws).toBe(true)
   })

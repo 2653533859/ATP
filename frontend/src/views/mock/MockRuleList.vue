@@ -286,6 +286,7 @@ import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, ThunderboltOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute, useRouter } from 'vue-router'
 import { mockRuleApi, projectApi, type MockAIGeneratedRule, type MockRuleItem, type ProjectItem } from '@/api'
 import { getBackendOrigin } from '@/api/http'
@@ -387,7 +388,7 @@ const columns = computed(() => [
   { title: t('mock.columns.delay'), dataIndex: 'delay_ms', width: 80, customRender: ({ text }: TableTextRender) => `${text ?? 0}ms` },
   { title: t('mock.columns.status'), key: 'is_enabled', width: 70 },
   { title: t('mock.columns.updated_at'), dataIndex: 'updated_at', width: 170,
-    customRender: ({ text }: TableTextRender) => typeof text === 'string' ? text.slice(0, 19).replace('T', ' ') : '-' },
+    customRender: ({ text }: TableTextRender) => typeof text === 'string' ? formatLocalDateTime(text) : '-' },
   { title: t('mock.columns.action'), key: 'action', width: 420, fixed: 'right' as const },
 ])
 

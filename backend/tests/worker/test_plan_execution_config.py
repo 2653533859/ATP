@@ -198,3 +198,52 @@ def test_execute_plan_suite_returns_error_when_suite_missing(monkeypatch):
         "error": "套件不存在",
     }
     assert fake_session.added == []
+
+
+def test_plan_orchestrator_propagates_failed_suite_error_message():
+    from app.services import plan_orchestrator
+
+    plan_run = types.SimpleNamespace(
+        id=90,
+        status=None,
+        duration_ms=0,
+        suite_run_ids=[],
+        result_summary={},
+        error_message=None,
+        identity_token="plan-tok",
+        triggered_by=1,
+        trace_id="trace-plan-err",
+    )
+    plan = types.SimpleNamespace(
+        id=9,
+        creator_id=1,
+        suite_ids=[{"suite_id": 12, "sort": 0}],
+        config={"execution_mode": "sequential"},
+    )
+
+    async def fake_execute_plan_suite(**_kwargs):
+        return {
+            "suite_id": 12,
+            "suite_name": "核心冒烟套件",
+            "suite_run_id": 13,
+            "status": "failed",
+            "error": "登录接口: URL 缺少变量配置",
+        }
+
+    class _NoopDB:
+        async def commit(self):
+            return None
+
+    asyncio.run(
+        plan_orchestrator.execute_plan_suites(
+            _NoopDB(),
+            plan_run,
+            plan,
+            {},
+            execute_plan_suite_fn=fake_execute_plan_suite,
+            is_cancelled_fn=lambda *_a, **_kw: False,
+        )
+    )
+
+    assert plan_run.error_message == "核心冒烟套件: 登录接口: URL 缺少变量配置"
+    assert plan_run.suite_run_ids[0]["error"] == "登录接口: URL 缺少变量配置"

@@ -222,6 +222,7 @@ LABEL org.opencontainers.image.revision=$currentCommit
 ' > Dockerfile.overlay",
     "printf 'FROM registry.local/atp/frontend:42b8558f
 RUN rm -rf /usr/share/nginx/html/*
+COPY deploy/cloud-web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY dist/ /usr/share/nginx/html/
 LABEL org.opencontainers.image.revision=$currentCommit
 ' > Dockerfile.frontend",

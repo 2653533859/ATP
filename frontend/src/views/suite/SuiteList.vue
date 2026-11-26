@@ -543,6 +543,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { FolderOpenOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute } from 'vue-router'
 import draggable from 'vuedraggable'
 import type {
@@ -883,7 +884,7 @@ const caseRowSelection = computed(() => ({
 }))
 
 function formatTime(t: string) {
-  return t?.slice(0, 19).replace('T', ' ')
+  return formatLocalDateTime(t, '')
 }
 
 function getProjectName(id: number) {

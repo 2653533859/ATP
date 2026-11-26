@@ -26,6 +26,7 @@ from app.models.project import Module
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.schemas.case import TestCaseCreate, TestCaseDetailOut, TestCaseOut, TestCaseUpdate
+from app.services.case_review import build_review_audit_detail
 from app.services.project_scope import scope_to_visible_projects
 from app.services.local_artifact_cleanup import case_run_ids, delete_run_artifacts
 
@@ -325,12 +326,25 @@ async def update_case(
             db, case, _cases._normalize_steps([], case.case_type, case.config or {}, case.name)
         )
 
-    if auto_approve is True:
+    if auto_approve is True and case.review_status != "rejected":
         case.review_status = "approved"
         case.status = CaseStatus.active
         case.reviewed_at = datetime.now(timezone.utc)
         case.reviewed_by = current_user.id
         case.review_comment = "修改并直接生效免审"
+        await _cases.write_audit_log(
+            db,
+            action="case_review_approve",
+            resource_type="test_case",
+            resource_id=case.id,
+            user_id=current_user.id,
+            username=getattr(current_user, "username", ""),
+            project_id=module.project_id if module else None,
+            detail=build_review_audit_detail(action="approve", status="approved", comment=case.review_comment),
+        )
+    elif case.review_status == "rejected":
+        # 已驳回用例编辑后仍保持驳回态（草稿），需显式重新提审并批准后才可生效。
+        case.status = CaseStatus.draft
     elif case.review_status == "approved":
         _cases._reset_review_after_edit(case)
     await db.commit()

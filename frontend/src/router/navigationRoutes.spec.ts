@@ -37,4 +37,10 @@ describe('product navigation routes', () => {
     expect(router.hasRoute('system-performance')).toBe(true)
     expect(router.hasRoute('system-api-contract-assets')).toBe(true)
   })
+
+  it('redirects root path / directly to dashboard rather than blank hub shell', async () => {
+    const resolved = router.resolve('/')
+    expect(resolved.redirectedFrom ?? resolved.fullPath).toBeTruthy()
+    expect(resolved.matched[resolved.matched.length - 1]?.redirect).toBe('/dashboard')
+  })
 })

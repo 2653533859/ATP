@@ -223,6 +223,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute, useRouter } from 'vue-router'
 import {
   aiCaseGenerationApi,
@@ -340,7 +341,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 function formatTime(value?: string | null) {
-  return value ? value.slice(0, 19).replace('T', ' ') : '—'
+  return formatLocalDateTime(value, '—')
 }
 
 function funnelWidth(value: number) {

@@ -183,3 +183,67 @@ def test_invalid_transition_raises_conflict(monkeypatch):
         )
 
     assert exc_info.value.status_code == 409
+
+
+def test_editing_rejected_case_cannot_silently_auto_approve(monkeypatch):
+    from app.api.v1.cases import crud as cases_crud
+    from app.schemas.case import TestCaseUpdate
+
+    load_all_models()
+    audit_calls = []
+
+    async def fake_write_audit(_db, **kwargs):
+        audit_calls.append(kwargs)
+
+    async def fake_next_ver(_db, _case_id):
+        return 2
+
+    rejected = _case(CaseStatus.draft, "rejected")
+    pending = _case(CaseStatus.draft, "pending")
+    pending.id = 6
+
+    class _CrudDB:
+        def __init__(self, obj):
+            self.obj = obj
+            self.added = []
+
+        async def get(self, model, pk):
+            if getattr(model, "__name__", "") == "Module":
+                return types.SimpleNamespace(id=pk, project_id=1)
+            return None
+
+        def add(self, value):
+            self.added.append(value)
+
+        async def commit(self):
+            self.obj.updated_at = datetime.now(timezone.utc)
+
+    monkeypatch.setattr(cases, "write_audit_log", fake_write_audit)
+    monkeypatch.setattr(cases, "_next_snapshot_version", fake_next_ver)
+
+    monkeypatch.setattr(cases, "_get_case_detail_or_404", lambda *_a, **_kw: asyncio.sleep(0, result=rejected))
+    asyncio.run(
+        cases_crud.update_case(
+            case_id=5,
+            body=TestCaseUpdate(description="edited after rejection", auto_approve=True),
+            db=_CrudDB(rejected),
+            current_user=types.SimpleNamespace(id=7, username="admin"),
+        )
+    )
+    assert rejected.review_status == "rejected"
+    assert rejected.status == CaseStatus.draft
+    assert audit_calls == []
+
+    monkeypatch.setattr(cases, "_get_case_detail_or_404", lambda *_a, **_kw: asyncio.sleep(0, result=pending))
+    asyncio.run(
+        cases_crud.update_case(
+            case_id=6,
+            body=TestCaseUpdate(description="admin direct approve", auto_approve=True),
+            db=_CrudDB(pending),
+            current_user=types.SimpleNamespace(id=7, username="admin"),
+        )
+    )
+    assert pending.review_status == "approved"
+    assert pending.status == CaseStatus.active
+    assert len(audit_calls) == 1
+    assert audit_calls[0]["action"] == "case_review_approve"

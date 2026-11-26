@@ -22,6 +22,15 @@ from app.schemas.api_schema import ApiSchemaAssetCreate, ApiSchemaAssetOut, ApiS
 
 router = APIRouter(tags=["API Schema 资产"])
 
+
+def _is_unique_violation(exc: IntegrityError) -> bool:
+    orig = getattr(exc, "orig", None)
+    if getattr(orig, "pgcode", None) == "23505":
+        return True
+    detail = f"{orig or ''} {exc}".lower()
+    return "unique" in detail or "uq_api_schema_assets" in detail
+
+
 _GRAPHQL_INTROSPECTION_QUERY = """
 query ATPIntrospection {
   __schema {
@@ -161,7 +170,9 @@ async def create_api_schema_asset(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=409, detail="Schema 资产名称已存在") from exc
+        if _is_unique_violation(exc):
+            raise HTTPException(status_code=409, detail="Schema 资产名称已存在") from exc
+        raise
     await db.refresh(item)
     return item
 
@@ -185,7 +196,9 @@ async def update_api_schema_asset(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=409, detail="Schema 资产名称已存在") from exc
+        if _is_unique_violation(exc):
+            raise HTTPException(status_code=409, detail="Schema 资产名称已存在") from exc
+        raise
     await db.refresh(item)
     return item
 

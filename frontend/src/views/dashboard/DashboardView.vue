@@ -312,6 +312,7 @@ import { caseApi, dashboardAlertApi, projectApi, remoteToolboxApi, runApi, stati
 import { useAuthStore } from '@/stores/auth'
 import { hasAnyRole } from '@/utils/permissions'
 import { getRuntimeMode, supportsFeature } from '@/runtimeMode'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import {
   cloneDefaultDashboardLayout,
   fillTrendGaps,
@@ -804,12 +805,7 @@ function runStatusLabel(status: string) {
 }
 
 function formatRunTime(value?: string | null) {
-  if (!value) return '-'
-  try {
-    return new Date(value).toLocaleString()
-  } catch {
-    return value
-  }
+  return formatLocalDateTime(value)
 }
 
 function formatDuration(value?: number | null) {
@@ -1416,12 +1412,7 @@ async function loadDashboardAlerts() {
 }
 
 function formatAlertTime(value?: string | null) {
-  if (!value) return '-'
-  try {
-    return new Date(value).toLocaleString()
-  } catch {
-    return value
-  }
+  return formatLocalDateTime(value)
 }
 </script>
 
@@ -1430,9 +1421,10 @@ function formatAlertTime(value?: string | null) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  height: 48px;
-  padding: 0 16px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-height: 48px;
+  padding: 8px 16px;
   margin-bottom: 16px;
   background: var(--c-bg-elevated);
   border: 1px solid var(--c-border);
@@ -1442,8 +1434,10 @@ function formatAlertTime(value?: string | null) {
 .toolbar-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
+  max-width: 100%;
 }
 .toolbar-icon {
   color: var(--c-primary);
@@ -1480,8 +1474,18 @@ function formatAlertTime(value?: string | null) {
 .toolbar-right {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  max-width: 100%;
+}
+@media (max-width: 640px) {
+  .dashboard-toolbar {
+    padding: 10px 12px;
+  }
+  .toolbar-right {
+    width: 100%;
+  }
 }
 .layout-row {
   min-height: 44px;

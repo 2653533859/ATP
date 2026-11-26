@@ -134,6 +134,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import {
   dashboardAlertApi,
   notificationApi,
@@ -248,8 +249,7 @@ function notificationName(id?: number | null): string {
 }
 
 function formatTime(value?: string | null): string {
-  if (!value) return '-'
-  return value.slice(0, 19).replace('T', ' ')
+  return formatLocalDateTime(value)
 }
 
 function resetForm() {

@@ -27,6 +27,8 @@ const {
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+const { routeQuery } = vi.hoisted(() => ({ routeQuery: { value: {} as Record<string, unknown> } }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: routeQuery.value }) }))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
 }))
@@ -204,5 +206,21 @@ describe('BugTrackerList mount', () => {
     await vm.handleDelete(5)
     expect(trackerDelete).toHaveBeenCalledWith(5)
     expect(messageSuccess).toHaveBeenCalledWith('system_pages.bug_tracker.msg.delete_success')
+  })
+
+  it('auto-selects project from route query project_id and loads trackers immediately', async () => {
+    routeQuery.value = { project_id: '2' }
+    projectList.mockResolvedValueOnce([
+      { id: 1, name: 'Other' },
+      { id: 2, name: 'Target' },
+    ])
+    trackerList.mockResolvedValueOnce([])
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect((wrapper.vm as any).projectId).toBe(2)
+    expect(trackerList).toHaveBeenCalledWith({ project_id: 2 })
+    routeQuery.value = {}
   })
 })

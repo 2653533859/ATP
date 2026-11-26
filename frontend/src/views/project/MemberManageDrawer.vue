@@ -68,7 +68,7 @@
           </a-popconfirm>
         </template>
         <template v-else-if="column.dataIndex === 'created_at'">
-          {{ record.created_at?.slice(0, 19).replace('T', ' ') }}
+          {{ formatLocalDateTime(record.created_at) }}
         </template>
       </template>
     </a-table>
@@ -79,6 +79,7 @@
 import { computed, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { projectMemberApi, type ProjectMemberItem, type ProjectRoleType, type ProjectStatus } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import http from '@/api/http'

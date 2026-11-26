@@ -33,6 +33,8 @@ const {
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+const { routeQuery } = vi.hoisted(() => ({ routeQuery: { value: {} as Record<string, unknown> } }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: routeQuery.value }) }))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
 }))
@@ -227,7 +229,7 @@ describe('NotificationList mount', () => {
     notificationTest.mockRejectedValueOnce(new Error('webhook failed'))
     await vm.handleTest(NOTIFICATION)
     expect(messageError).toHaveBeenCalledWith('webhook failed')
-    expect(notificationDeliveries).toHaveBeenCalledTimes(2)
+    expect(notificationDeliveries).toHaveBeenCalledWith({ project_id: 10, limit: 20 })
   })
 
   it('surfaces backend validation details when saving fails', async () => {
@@ -245,5 +247,24 @@ describe('NotificationList mount', () => {
     await vm.handleSave()
 
     expect(messageError).toHaveBeenCalledWith('Webhook 通知需要 webhook_url')
+  })
+
+  it('auto-selects project from route query project_id and loads notification configs', async () => {
+    routeQuery.value = { project_id: '2' }
+    projectList.mockResolvedValueOnce([
+      { id: 1, name: 'P1' },
+      { id: 2, name: 'P2' },
+    ])
+    notificationList.mockResolvedValueOnce([])
+    suiteList.mockResolvedValueOnce([])
+    planList.mockResolvedValueOnce([])
+    notificationDeliveries.mockResolvedValueOnce([])
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect((wrapper.vm as any).projectId).toBe(2)
+    expect(notificationList).toHaveBeenCalledWith({ project_id: 2 })
+    routeQuery.value = {}
   })
 })

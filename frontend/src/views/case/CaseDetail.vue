@@ -274,6 +274,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
 import { DownOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { caseApi, environmentApi, projectApi } from '@/api'
 import type {
   AutomationStatus,
@@ -437,7 +438,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 function formatDateTime(value?: string | null) {
-  return value ? value.slice(0, 19).replace('T', ' ') : '-'
+  return formatLocalDateTime(value)
 }
 
 function caseTypeLabel(type: CaseType) {

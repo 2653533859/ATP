@@ -90,7 +90,7 @@
             {{ run.duration_ms != null ? `${run.duration_ms} ms` : (isRunning ? t('common.running') : '-') }}
           </a-descriptions-item>
           <a-descriptions-item :label="t('run.labels.triggered_at')" :span="2">
-            {{ run.created_at?.slice(0, 19).replace('T', ' ') }}
+            {{ formatTime(run.created_at) }}
           </a-descriptions-item>
           <a-descriptions-item v-if="run.parent_run_id != null" :label="t('run.labels.parent_run')">
             <router-link :to="{ name: 'run-detail', params: { id: run.parent_run_id } }">#{{ run.parent_run_id }}</router-link>
@@ -111,7 +111,7 @@
             <a-space size="small">
               <a-tag :color="syncColor">{{ syncLabel }}</a-tag>
               <span v-if="syncStatus.synced_at" style="font-size: 12px; color: var(--c-text-tertiary)">
-                {{ syncStatus.synced_at.slice(0, 19).replace('T', ' ') }}
+                {{ formatTime(syncStatus.synced_at) }}
               </span>
               <span v-if="syncStatus.last_error" style="color: #ff4d4f; font-size: 12px">
                 {{ syncStatus.last_error }}
@@ -847,19 +847,19 @@
               <a-select v-model:value="defectForm.severity">
                 <a-select-option value="blocker">Blocker</a-select-option>
                 <a-select-option value="critical">Critical</a-select-option>
-                <a-select-option value="high">High</a-select-option>
-                <a-select-option value="medium">Medium</a-select-option>
-                <a-select-option value="low">Low</a-select-option>
+                <a-select-option value="major">Major</a-select-option>
+                <a-select-option value="minor">Minor</a-select-option>
+                <a-select-option value="trivial">Trivial</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
           <a-col :span="12">
             <a-form-item :label="t('run.defect_priority')">
               <a-select v-model:value="defectForm.priority">
-                <a-select-option value="urgent">Urgent</a-select-option>
-                <a-select-option value="high">High</a-select-option>
-                <a-select-option value="medium">Medium</a-select-option>
-                <a-select-option value="low">Low</a-select-option>
+                <a-select-option value="P0">P0</a-select-option>
+                <a-select-option value="P1">P1</a-select-option>
+                <a-select-option value="P2">P2</a-select-option>
+                <a-select-option value="P3">P3</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -888,6 +888,8 @@ import { getRuntimeMode } from '@/runtimeMode'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
 import { canEditProjectByRole, type ProjectRole } from '@/utils/permissions'
+import { extractApiError } from '@/utils/apiError'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 import { renderMarkdown } from '@/utils/markdown'
 import {
@@ -1310,17 +1312,16 @@ function errorMessage(error: unknown, fallback = '') {
 }
 
 function formatTime(value?: string | null) {
-  if (!value) return '-'
-  return value.slice(0, 19).replace('T', ' ')
+  return formatLocalDateTime(value)
 }
 
 function openInternalDefect() {
   if (!run.value) return
   defectForm.title = `[用例失败] ${caseDisplayName.value || '用例'} (Run #${runId})`
-  defectForm.severity = 'high'
-  defectForm.priority = 'high'
+  defectForm.severity = 'major'
+  defectForm.priority = 'P1'
   const stepErrs = failedOrErrorSteps.value
-    .map((s) => `• 步骤 ${s.step_index} (${s.name}): ${s.error_message || '执行异常'}`)
+    .map((s) => `• 步骤 ${Number(s.step_index) + 1} (${s.name}): ${s.error_message || '执行异常'}`)
     .join('\n')
   defectForm.description = [
     `【关联用例】: ${caseDisplayName.value || '-'} (ID: ${run.value.case_id})`,
@@ -1385,7 +1386,7 @@ async function handleTriageSubmit() {
     message.success(t('run.triage_success'))
     closeTriageModal()
   } catch (err: any) {
-    message.error(err?.message || t('common.action_failed', '操作失败'))
+    message.error(extractApiError(err, t('common.action_failed', '操作失败')))
   } finally {
     triageSubmitting.value = false
   }
@@ -1395,8 +1396,8 @@ const defectModalVisible = ref(false)
 const defectSubmitting = ref(false)
 const defectForm = reactive({
   title: '',
-  severity: 'high',
-  priority: 'high',
+  severity: 'major',
+  priority: 'P1',
   description: '',
 })
 
@@ -1421,7 +1422,7 @@ async function handleDefectSubmit() {
     closeDefectModal()
     await loadInternalDefects()
   } catch (err: any) {
-    message.error(err?.message || t('common.action_failed', '操作失败'))
+    message.error(extractApiError(err, t('common.action_failed', '操作失败')))
   } finally {
     defectSubmitting.value = false
   }

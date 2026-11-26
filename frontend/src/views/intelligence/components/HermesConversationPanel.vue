@@ -121,6 +121,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { ArrowRightOutlined } from '@ant-design/icons-vue'
 import type { HermesMessage, HermesPromptKey, HermesPromptOption, HermesSource } from './hermesPanelTypes'
 import { renderMarkdown } from '@/utils/markdown'
@@ -221,7 +222,7 @@ function handleComposerKeydown(event: KeyboardEvent) {
 }
 
 function formatTime(value?: string | null) {
-  return value ? value.slice(0, 19).replace('T', ' ') : t('hermes.not_available')
+  return formatLocalDateTime(value, t('hermes.not_available'))
 }
 </script>
 

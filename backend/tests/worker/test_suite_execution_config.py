@@ -492,3 +492,45 @@ def test_device_suite_stays_inline_on_matching_parent_queue(monkeypatch):
 
     assert routed == [False]
     assert suite_run.status == "passed"
+
+
+def test_suite_orchestrator_propagates_child_case_failure_reason_to_suite_run():
+    from app.services import suite_orchestrator
+
+    class _FakeStatus:
+        def __init__(self, value: str):
+            self.value = value
+
+    suite_run = _FakeSuiteRun()
+    suite = _FakeSuite(
+        case_ids=[{"case_id": 1, "sort": 0}],
+        config={"execution_mode": "sequential", "fail_strategy": "continue"},
+    )
+    db = _FakeDB({1: types.SimpleNamespace(id=1, name="登录接口", case_type="api", timeout=30, config={})})
+
+    async def fake_execute_case(_db, _suite_run, case, _extra_vars, **_kwargs):
+        return {
+            "case_id": case.id,
+            "case_name": case.name,
+            "run_id": 234,
+            "status": "failed",
+            "error": "URL 缺少变量配置",
+        }
+
+    async def fake_mark_flaky(_db, _results):
+        return None
+
+    asyncio.run(
+        suite_orchestrator.execute_suite_cases(
+            db,
+            suite_run,
+            suite,
+            {},
+            execute_case_fn=fake_execute_case,
+            mark_flaky_fn=fake_mark_flaky,
+            is_cancelled_fn=lambda *_a, **_kw: False,
+        )
+    )
+
+    assert suite_run.error_message == "登录接口: URL 缺少变量配置"
+    assert suite_run.case_run_ids[0]["error"] == "URL 缺少变量配置"

@@ -271,6 +271,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { BugOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -403,7 +404,7 @@ function asDefect(value: unknown) {
 }
 
 function formatTime(value?: string | null) {
-  return value ? value.slice(0, 19).replace('T', ' ') : '-'
+  return formatLocalDateTime(value)
 }
 
 function formatEvidence(value: Record<string, unknown>) {

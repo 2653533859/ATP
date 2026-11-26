@@ -799,3 +799,47 @@ def test_delete_dataset_succeeds_when_no_refs():
     db = _FakeDB({5: _make_dataset(5)})
     asyncio.run(ds_api.delete_dataset(dataset_id=5, db=db, user=_FakeUser()))
     assert 5 in db.deleted
+
+
+def test_online_create_and_update_enforce_strict_schema_policy():
+    schema_fields = [{"name": "city", "type": "string", "required": True}]
+    bad_rows = [{"name": "Alice"}]
+    try:
+        asyncio.run(
+            ds_api.create_dataset(
+                TestDatasetCreate(
+                    name="strict-ds",
+                    project_id=1,
+                    format="json",
+                    rows=bad_rows,
+                    schema_fields=schema_fields,
+                    validation_policy="hard",
+                ),
+                db=_FakeDB(),
+                user=_FakeUser(),
+            )
+        )
+    except HTTPException as exc:
+        assert exc.status_code == 400
+        assert "hard-block" in exc.detail
+    else:
+        raise AssertionError("expected 400 on hard online create with missing required field")
+
+    soft_ds = _make_dataset(6, rows=[{"name": "Alice", "city": "Shanghai"}])
+    soft_ds.schema_fields = schema_fields
+    soft_ds.validation_policy = "hard"
+    db = _FakeDB({6: soft_ds})
+    try:
+        asyncio.run(
+            ds_api.update_dataset(
+                dataset_id=6,
+                body=TestDatasetUpdate(rows=bad_rows),
+                db=db,
+                user=_FakeUser(),
+            )
+        )
+    except HTTPException as exc:
+        assert exc.status_code == 400
+        assert "hard-block" in exc.detail
+    else:
+        raise AssertionError("expected 400 on strict online update with missing required field")

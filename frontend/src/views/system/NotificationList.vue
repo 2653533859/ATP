@@ -197,6 +197,9 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
@@ -278,7 +281,7 @@ const columns = computed(() => [
   { title: t('system_pages.notification.columns.channel'), key: 'channel', width: 130 },
   { title: t('system_pages.notification.columns.status'), key: 'is_enabled', width: 80 },
   { title: t('system_pages.notification.columns.updated_at'), dataIndex: 'updated_at', width: 170,
-    customRender: ({ text }: { text?: string | null }) => text?.slice(0, 19).replace('T', ' ') ?? '-' },
+    customRender: ({ text }: { text?: string | null }) => formatLocalDateTime(text) },
   { title: t('system_pages.notification.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
 ])
 
@@ -334,13 +337,20 @@ function deliveryStatusLabel(status: string) {
 }
 
 function formatDate(value?: string | null) {
-  return value?.slice(0, 19).replace('T', ' ') ?? '-'
+  return formatLocalDateTime(value)
 }
+
+const route = useRoute()
 
 onMounted(async () => {
   try {
     const projects = await projectApi.list()
     projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
+    const initialProjectId = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects)
+    if (initialProjectId !== undefined) {
+      projectId.value = initialProjectId
+      await handleProjectChange()
+    }
   } catch { /* ignore */ }
 })
 

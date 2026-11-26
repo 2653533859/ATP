@@ -56,7 +56,7 @@
             <a-tag :color="actionColor(record.action)">{{ record.action }}</a-tag>
           </template>
           <template v-else-if="column.dataIndex === 'created_at'">
-            {{ record.created_at?.slice(0, 19).replace('T', ' ') }}
+            {{ formatLocalDateTime(record.created_at) }}
           </template>
           <template v-else-if="column.dataIndex === 'detail'">
             <span style="font-size: 12px; color: var(--c-text-secondary); white-space: pre-wrap">{{ record.detail || '-' }}</span>
@@ -80,6 +80,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import type { Dayjs } from 'dayjs'
 import { auditLogApi, type AuditLogItem } from '@/api'
 

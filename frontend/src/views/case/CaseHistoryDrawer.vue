@@ -108,6 +108,7 @@
 import { ref, computed, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { caseApi, type CaseSnapshotItem } from '@/api'
 
 const props = defineProps<{
@@ -209,7 +210,7 @@ async function loadSnapshots() {
 }
 
 function formatTime(t: string) {
-  return t?.slice(0, 19).replace('T', ' ') ?? ''
+  return formatLocalDateTime(t, '')
 }
 
 async function handleRollback(snapshotId: number) {

@@ -101,7 +101,7 @@ vi.mock('@/utils/chartTheme', () => ({
 }))
 
 const passthrough = defineComponent({
-  setup: (_props, { slots }) => () => h('div', slots.default?.()),
+  setup: (_props, { slots }) => () => h('div', [slots.default?.(), slots.footer?.()]),
 })
 
 function mountPage() {
@@ -483,6 +483,35 @@ describe('PerformanceCenterView', () => {
     await vm.triggerRun()
 
     expect(messageError).toHaveBeenCalledWith('性能节点容量不足')
+    wrapper.unmount()
+  })
+
+  it('renders save action button in the test editor drawer footer and submits saveTest', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      editorOpen: boolean
+      testForm: { name: string; mode: string; executor: string; script_object_name: string }
+    }
+    vm.editorOpen = true
+    vm.testForm.name = '压测场景 A'
+    vm.testForm.mode = 'script'
+    vm.testForm.executor = 'k6'
+    vm.testForm.script_object_name = 'scripts/demo.js'
+    testCreate.mockResolvedValueOnce({ id: 99, name: '压测场景 A' })
+    await flushPromises()
+
+    const saveBtn = wrapper.find('[data-test="performance-save-btn"]')
+    expect(saveBtn.exists()).toBe(true)
+    await saveBtn.trigger('click')
+    await flushPromises()
+
+    expect(testCreate).toHaveBeenCalledWith(expect.objectContaining({
+      project_id: 1,
+      name: '压测场景 A',
+      script_object_name: 'scripts/demo.js',
+    }))
     wrapper.unmount()
   })
 })

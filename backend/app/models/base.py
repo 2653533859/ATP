@@ -1,7 +1,7 @@
 from sqlalchemy import inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import DateTime, func
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 class Base(DeclarativeBase):
@@ -9,9 +9,16 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
     )
 
     def to_dict(self) -> dict:

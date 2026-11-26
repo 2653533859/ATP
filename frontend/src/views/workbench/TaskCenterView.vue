@@ -256,6 +256,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute, useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import { PlusOutlined, ReloadOutlined, ScheduleOutlined } from '@ant-design/icons-vue'
@@ -356,8 +357,7 @@ function toPage(value: unknown) {
 }
 
 function formatTime(value?: string | null) {
-  if (!value) return t('task_center.not_available')
-  return value.slice(0, 19).replace('T', ' ')
+  return formatLocalDateTime(value, t('task_center.not_available'))
 }
 
 function isSafeScreenshotUrl(value?: string | null) {

@@ -207,9 +207,6 @@
       v-model:open="editorOpen"
       :title="editing ? t('performance.edit_title') : t('performance.create_title')"
       :width="680"
-      :ok-text="t('common.save')"
-      :cancel-text="t('common.cancel')"
-      @ok="saveTest"
     >
       <a-form layout="vertical">
         <a-form-item :label="t('performance.name')" required>
@@ -483,6 +480,21 @@
           </template>
         </div>
       </a-form>
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end">
+          <a-space>
+            <a-button @click="editorOpen = false">{{ t('common.cancel') }}</a-button>
+            <a-button
+              type="primary"
+              data-test="performance-save-btn"
+              :loading="testSaving || scriptUploading"
+              @click="saveTest"
+            >
+              {{ t('common.save') }}
+            </a-button>
+          </a-space>
+        </div>
+      </template>
     </a-drawer>
 
     <a-modal
@@ -943,6 +955,7 @@ const scheduleSaving = ref(false)
 const stoppingRunId = ref<number | null>(null)
 const exportingFormat = ref<'json' | 'csv' | null>(null)
 const scriptUploading = ref(false)
+const testSaving = ref(false)
 const editing = ref<PerformanceTestItem | null>(null)
 const runTarget = ref<PerformanceTestItem | null>(null)
 const selectedRun = ref<PerformanceRunItem | null>(null)
@@ -1798,6 +1811,7 @@ async function saveTest() {
   }
   if (!defaultOptions) return
 
+  testSaving.value = true
   try {
     if (editing.value) {
       await performanceApi.updateTest(editing.value.id, {
@@ -1825,6 +1839,8 @@ async function saveTest() {
     await loadTests()
   } catch (error) {
     message.error(getErrorMessage(error, t('performance.msg.save_failed')))
+  } finally {
+    testSaving.value = false
   }
 }
 

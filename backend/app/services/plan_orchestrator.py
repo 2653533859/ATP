@@ -65,6 +65,19 @@ def plan_run_should_stop(counts: dict, total: int, fail_strategy: str, min_pass_
     return suite_run_should_stop(counts, total, fail_strategy, min_pass_rate)
 
 
+def _extract_suite_run_error(suite_run) -> str | None:
+    direct = getattr(suite_run, "error_message", None)
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()[:500]
+    for item in getattr(suite_run, "case_run_ids", None) or []:
+        if isinstance(item, dict) and item.get("status") in {"failed", "error"}:
+            err = item.get("error") or item.get("error_message")
+            if isinstance(err, str) and err.strip():
+                case_label = item.get("case_name") or f"用例 #{item.get('case_id')}"
+                return f"{case_label}: {err.strip()}"[:500]
+    return None
+
+
 async def execute_plan_suite(
     *,
     plan_meta: dict,
@@ -151,12 +164,17 @@ async def execute_plan_suite(
             _record_run_outcome("suite", suite_run.status)
 
         await db.refresh(suite_run)
-        return {
+        result: dict = {
             "suite_id": suite_id,
             "suite_name": suite.name,
             "suite_run_id": suite_run.id,
             "status": suite_run.status.value,
         }
+        if suite_run.status in {SuiteRunStatus.failed, SuiteRunStatus.error}:
+            error_text = _extract_suite_run_error(suite_run)
+            if error_text:
+                result["error"] = error_text
+        return result
 
 
 async def execute_plan_suites(
@@ -272,6 +290,19 @@ async def execute_plan_suites(
     if is_cancelled_fn("plan", plan_run.id, plan_run.identity_token):
         plan_run.status = PlanRunStatus.error
         plan_run.error_message = "计划已请求停止或执行归属无法确认；当前批次已结束，后续套件未继续执行"
+    elif not all_passed and not getattr(plan_run, "error_message", None):
+        first_failure = next(
+            (
+                item
+                for item in suite_run_results
+                if item.get("status") in {"failed", "error"} and (item.get("error") or item.get("error_message"))
+            ),
+            None,
+        )
+        if first_failure:
+            err_msg = str(first_failure.get("error") or first_failure.get("error_message"))
+            suite_label = first_failure.get("suite_name") or f"套件 #{first_failure.get('suite_id')}"
+            plan_run.error_message = f"{suite_label}: {err_msg}"[:500]
     plan_run.duration_ms = total_ms
     plan_run.suite_run_ids = suite_run_results
     plan_run.result_summary = {**counts, **plan_config}

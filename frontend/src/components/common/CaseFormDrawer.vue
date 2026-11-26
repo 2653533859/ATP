@@ -1659,7 +1659,7 @@ type CaseConfigStep = ApiScenarioStep & {
   post_actions?: HookAction[]
 }
 type EditableCase = Pick<CaseSummaryItem, 'id' | 'name' | 'description' | 'case_type' | 'tags' | 'dataset_id' | 'dataset_version' | 'priority' | 'case_level'> &
-  Partial<Pick<CaseDetailItem, 'config'>>
+  Partial<Pick<CaseDetailItem, 'config' | 'review_status'>>
 
 const props = defineProps<{
   open: boolean
@@ -2757,7 +2757,7 @@ async function handleSave() {
       config,
       dataset_id: form.dataset_id,
       dataset_version: form.dataset_version,
-      auto_approve: true,
+      auto_approve: !(isEdit.value && props.editCase?.review_status === 'rejected'),
     }
     if (isEdit.value && props.editCase) {
       await caseApi.update(props.editCase.id, payload)

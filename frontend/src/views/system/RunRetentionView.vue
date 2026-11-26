@@ -201,6 +201,7 @@
 import { computed, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import {
   adminRunRetentionApi,
   type RunRetentionExecuteResult,
@@ -292,8 +293,7 @@ const projectResultColumns = computed(() => [
 ])
 
 function formatTime(value: string | undefined | null): string {
-  if (!value) return '-'
-  return value.slice(0, 19).replace('T', ' ')
+  return formatLocalDateTime(value)
 }
 
 async function loadPreview() {

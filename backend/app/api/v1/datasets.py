@@ -550,6 +550,27 @@ async def reconcile_project_dataset_storage(
     return DatasetStorageReconcileOut(**result)
 
 
+def _enforce_schema_policy(
+    rows: list[dict],
+    schema_fields: list[dict],
+    policy: str,
+    *,
+    action_label: str,
+) -> None:
+    if policy == "soft" or not schema_fields:
+        return
+    validation = validate_dataset_rows(
+        rows=rows,
+        schema=_schema_fields_from_payload(schema_fields),
+        preview_limit=0,
+    )
+    if not _can_upload_with_policy(validation.valid, policy):
+        raise HTTPException(
+            status_code=400,
+            detail=f"数据集 schema 校验失败，hard-block 策略已拒绝{action_label}；共 {len(validation.issues)} 个问题",
+        )
+
+
 @router.post("/datasets", response_model=TestDatasetOut, status_code=status.HTTP_201_CREATED)
 async def create_dataset(
     body: TestDatasetCreate,
@@ -558,6 +579,8 @@ async def create_dataset(
 ):
     await assert_project_access(db, user, body.project_id, ProjectRole.editor)
     _validate_rows(body.rows, body.storage_mode)
+    schema_payload = _schema_fields_to_json(body.schema_fields)
+    _enforce_schema_policy(body.rows, schema_payload, body.validation_policy, action_label="保存")
     dataset = TestDataset(
         name=body.name,
         description=body.description,
@@ -565,7 +588,7 @@ async def create_dataset(
         format=body.format,
         rows=[],
         storage_mode=body.storage_mode,
-        schema_fields=_schema_fields_to_json(body.schema_fields),
+        schema_fields=schema_payload,
         validation_policy=body.validation_policy,
         creator_id=user.id,
     )
@@ -648,6 +671,22 @@ async def update_dataset(
             raise HTTPException(status_code=503, detail=f"MinIO 数据集读取失败: {exc}") from exc
     if rows_to_store is not None:
         _validate_rows(rows_to_store, target_storage_mode)
+    target_schema = (
+        _schema_fields_to_json(body.schema_fields) if body.schema_fields is not None else (dataset.schema_fields or [])
+    )
+    target_policy = body.validation_policy or _validation_policy(dataset)
+    if (
+        target_policy != "soft"
+        and target_schema
+        and (rows_to_store is not None or body.schema_fields is not None or body.validation_policy is not None)
+    ):
+        rows_for_validation = rows_to_store
+        if rows_for_validation is None:
+            try:
+                rows_for_validation = rows_from_source(dataset)
+            except DatasetStorageError as exc:
+                raise HTTPException(status_code=503, detail=f"MinIO 数据集读取失败: {exc}") from exc
+        _enforce_schema_policy(rows_for_validation, target_schema, target_policy, action_label="保存")
     uploaded_object_names: list[str] = []
     try:
         if rows_to_store is not None:
@@ -891,17 +930,7 @@ async def upload_dataset(
     rows, new_format = _parse_dataset_file(await file.read(), file.filename or "", dataset.format)
 
     _validate_rows(rows, _storage_mode(dataset))
-    validation = validate_dataset_rows(
-        rows=rows,
-        schema=_schema_fields_from_payload(dataset.schema_fields or []),
-        preview_limit=0,
-    )
-    policy = _validation_policy(dataset)
-    if not _can_upload_with_policy(validation.valid, policy):
-        raise HTTPException(
-            status_code=400,
-            detail=f"数据集 schema 校验失败，hard-block 策略已拒绝覆盖；共 {len(validation.issues)} 个问题",
-        )
+    _enforce_schema_policy(rows, dataset.schema_fields or [], _validation_policy(dataset), action_label="覆盖")
     previous_object_name = getattr(dataset, "object_name", None)
     uploaded_object_names: list[str] = []
     try:

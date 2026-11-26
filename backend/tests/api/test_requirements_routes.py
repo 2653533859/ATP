@@ -343,6 +343,7 @@ def test_requirement_update_changes_version_only_when_content_changes(monkeypatc
     assert changed.version == unchanged.version == 2
     assert audit_actions == ["requirement_update"]
     assert db.commits == 2
+    assert db.refreshes == 2
 
 
 def test_requirement_detail_and_delete_keep_project_access_and_audit(monkeypatch):

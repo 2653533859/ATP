@@ -413,6 +413,7 @@ async def create_knowledge(
         detail=f"创建知识条目: {entry.title}",
     )
     await db.commit()
+    await db.refresh(entry)
     project_name = None
     if entry.project_id is not None:
         project_name = await db.scalar(select(Project.name).where(Project.id == entry.project_id))
@@ -461,6 +462,7 @@ async def update_knowledge(
             detail=f"更新知识条目版本: {entry.version}",
         )
     await db.commit()
+    await db.refresh(entry)
     project_name = None
     if entry.project_id is not None:
         project_name = await db.scalar(select(Project.name).where(Project.id == entry.project_id))

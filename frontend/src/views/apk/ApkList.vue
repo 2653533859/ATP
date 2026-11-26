@@ -168,6 +168,7 @@ import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { UploadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute } from 'vue-router'
 import type { UploadFile } from 'ant-design-vue'
 import { apkApi, projectApi } from '@/api'
@@ -260,7 +261,7 @@ function formatSize(bytes: number) {
 }
 
 function formatTime(t: string) {
-  return t?.slice(0, 19).replace('T', ' ')
+  return formatLocalDateTime(t, '')
 }
 
 function getProjectName(projectId: number) {

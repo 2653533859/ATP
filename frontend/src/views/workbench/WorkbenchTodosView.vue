@@ -272,6 +272,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { CheckSquareOutlined, ReloadOutlined } from '@ant-design/icons-vue'
@@ -355,8 +356,7 @@ function priorityColor(priority: string) {
 }
 
 function formatTime(value?: string | null) {
-  if (!value) return t('workbench.not_available')
-  return value.slice(0, 19).replace('T', ' ')
+  return formatLocalDateTime(value, t('workbench.not_available'))
 }
 
 async function loadProjects() {

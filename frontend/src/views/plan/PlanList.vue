@@ -438,6 +438,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { CalendarOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute, useRouter } from 'vue-router'
 import type {
   EnvironmentItem,
@@ -534,7 +535,7 @@ function positiveInt(value: unknown) {
 }
 
 function formatTime(t: string) {
-  return t?.slice(0, 19).replace('T', ' ') ?? '-'
+  return formatLocalDateTime(t)
 }
 
 function validateCronExpression(expression: string) {

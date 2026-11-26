@@ -215,6 +215,14 @@ describe('ReportCenterView', () => {
     vm.currentRunId = 59
     vm.syncBaselineRun()
     expect(vm.baselineRunId).toBe(58)
+
+    vm.projectId = 1
+    vm.openRun(44)
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'run-detail',
+      params: { runId: 44 },
+      query: { project_id: '1' },
+    })
     wrapper.unmount()
   })
 })

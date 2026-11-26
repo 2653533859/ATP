@@ -13,6 +13,10 @@ export function createBackendProxy(backendOrigin: string) {
       target: normalizedOrigin,
       changeOrigin: true,
     },
+    '^/mock(?:[/?#]|$)': {
+      target: normalizedOrigin,
+      changeOrigin: true,
+    },
     '^/ws(?:[/?#]|$)': {
       target: websocketOrigin,
       changeOrigin: true,

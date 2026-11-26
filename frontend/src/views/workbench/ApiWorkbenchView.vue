@@ -393,6 +393,7 @@ import {
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute, useRouter } from 'vue-router'
 import {
   apiContractAssetApi,
@@ -475,7 +476,7 @@ function requestMethod(item: CaseSummaryItem) {
 }
 
 function formatTime(value?: string | null) {
-  return value ? value.slice(0, 19).replace('T', ' ') : '—'
+  return formatLocalDateTime(value, '—')
 }
 
 function formatDuration(value?: number | null) {

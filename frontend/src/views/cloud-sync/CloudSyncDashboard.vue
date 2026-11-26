@@ -245,6 +245,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { message } from 'ant-design-vue'
 import {
   CloudServerOutlined,
@@ -333,8 +334,7 @@ function statusTagColor(status: string): string {
 }
 
 function formatTimestamp(ts?: string | null): string {
-  if (!ts) return '-'
-  return ts.slice(0, 19).replace('T', ' ')
+  return formatLocalDateTime(ts)
 }
 
 async function loadStats() {

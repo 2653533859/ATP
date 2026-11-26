@@ -101,6 +101,7 @@ import { computed, ref, reactive, onMounted } from 'vue'
 import { PlayCircleOutlined, ReloadOutlined, SyncOutlined } from '@ant-design/icons-vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { message } from 'ant-design-vue'
 import { runApi, cloudSyncApi, type RunDetailItem } from '@/api'
 import { getRuntimeMode } from '@/runtimeMode'
@@ -195,7 +196,7 @@ function formatDuration(duration?: number | null) {
 }
 
 function formatTime(value: string) {
-  return value?.slice(0, 19).replace('T', ' ') || '-'
+  return formatLocalDateTime(value)
 }
 
 async function loadRuns() {

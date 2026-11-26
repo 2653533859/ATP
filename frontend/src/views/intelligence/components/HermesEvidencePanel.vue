@@ -56,6 +56,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { ArrowRightOutlined } from '@ant-design/icons-vue'
 import type { WorkbenchTaskItem } from '@/api'
 
@@ -80,7 +81,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 function formatTime(value?: string | null) {
-  return value ? value.slice(0, 19).replace('T', ' ') : t('hermes.not_available')
+  return formatLocalDateTime(value, t('hermes.not_available'))
 }
 </script>
 

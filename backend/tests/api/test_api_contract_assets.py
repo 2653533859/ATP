@@ -136,3 +136,32 @@ def test_contract_asset_update_rejects_explicit_null_required_fields():
 
     valid = ApiContractAssetUpdate(description=None)
     assert valid.model_dump(exclude_unset=True) == {"description": None}
+
+
+def test_non_unique_integrity_error_is_not_masked_as_409(monkeypatch):
+    from sqlalchemy.exc import IntegrityError
+
+    _allow_access(monkeypatch)
+
+    class _Orig(Exception):
+        pgcode = "23502"
+
+    class _FailDB(_DB):
+        async def commit(self):
+            raise IntegrityError("INSERT", {}, _Orig("null value in column created_at"))
+
+    db = _FailDB(objects={("Project", 1): types.SimpleNamespace(id=1)})
+    with pytest.raises(IntegrityError):
+        asyncio.run(
+            api_contract_assets.create_api_contract_asset(
+                1,
+                ApiContractAssetCreate(
+                    name="orders-provider",
+                    role="provider",
+                    format="openapi",
+                    definition={"openapi": "3.0.0", "paths": {}},
+                ),
+                db,
+                types.SimpleNamespace(id=8),
+            )
+        )

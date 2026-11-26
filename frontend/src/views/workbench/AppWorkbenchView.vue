@@ -693,6 +693,7 @@ import {
   WifiOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute, useRouter } from 'vue-router'
 import {
   apkApi,
@@ -999,7 +1000,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 function formatTime(value?: string | null) {
-  return value ? value.slice(0, 19).replace('T', ' ') : '—'
+  return formatLocalDateTime(value, '—')
 }
 
 function formatSize(bytes: number) {

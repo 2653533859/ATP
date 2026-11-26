@@ -22,6 +22,7 @@ class _DB:
     def __init__(self):
         self.added = []
         self.commits = 0
+        self.refreshes = 0
 
     def add(self, value):
         self.added.append(value)
@@ -33,6 +34,9 @@ class _DB:
 
     async def commit(self):
         self.commits += 1
+
+    async def refresh(self, _value):
+        self.refreshes += 1
 
     async def scalar(self, _statement):
         return None
@@ -277,6 +281,7 @@ def test_knowledge_detail_update_and_delete_enforce_editability(monkeypatch):
     assert entry.tags == ["登录"]
     assert removed == {"deleted": True, "id": 12}
     assert db.deleted == [entry]
+    assert db.refreshes == 1
     assert access_roles == [knowledge.ProjectRole.viewer, knowledge.ProjectRole.editor, knowledge.ProjectRole.editor]
     assert audits == ["knowledge_update", "knowledge_delete"]
 

@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import RunDetail from './RunDetail.vue'
 
-const { createRunWebSocket, messageError, routerBack, runExportHtml, runExportJunit, runGet, runStop, tracingGetConfig } = vi.hoisted(() => ({
+const { createRunWebSocket, defectCreateFromRun, messageError, routerBack, runExportHtml, runExportJunit, runGet, runStop, tracingGetConfig } = vi.hoisted(() => ({
   createRunWebSocket: vi.fn(),
+  defectCreateFromRun: vi.fn(),
   messageError: vi.fn(),
   routerBack: vi.fn(),
   runExportHtml: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock('@/api', () => ({
   aiHealingPatchApi: { apply: vi.fn(), preview: vi.fn() },
   bugTrackerApi: { createBug: vi.fn(), list: vi.fn().mockResolvedValue([]), linkBug: vi.fn(), refreshStatus: vi.fn() },
   caseApi: { get: vi.fn().mockResolvedValue(null) },
+  defectApi: { createFromRun: defectCreateFromRun, list: vi.fn().mockResolvedValue({ items: [], total: 0 }) },
   projectApi: { list: vi.fn().mockResolvedValue([{ id: 1, name: 'Demo', current_user_role: 'editor' }]), getModules: vi.fn().mockResolvedValue([]) },
   runApi: { exportHtml: runExportHtml, exportPdf: vi.fn(), exportJunit: runExportJunit, get: runGet, stop: runStop, generateGif: vi.fn() },
   tracingApi: { getConfig: tracingGetConfig },
@@ -341,5 +343,43 @@ describe('RunDetail mount', () => {
 
     expect(wrapper.find('.repair-record-btn').exists()).toBe(false)
     expect(wrapper.html()).toContain('/api/v1/storage/media/visual-diffs/runs/42/step_0.png')
+  })
+
+  it('submits valid backend DefectPriority and DefectSeverity values when creating an internal defect', async () => {
+    defectCreateFromRun.mockResolvedValueOnce({ defect: { id: 9, title: 'Defect' }, created: true, duplicate_of: null })
+    runGet.mockResolvedValueOnce({
+      id: 42,
+      case_id: 100,
+      case_type: 'api',
+      status: 'failed',
+      trace_id: null,
+      environment: 'staging',
+      duration_ms: 150,
+      created_at: '2026-11-26T06:50:00Z',
+      error_message: 'HTTP 500',
+      result_summary: {},
+      steps: [{ step_index: 0, name: 'Step 1', status: 'failed', error_message: 'timeout' }],
+    })
+
+    const wrapper = mountRunDetail()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      defectForm: { severity: string; priority: string; title: string; description: string }
+      openInternalDefect: () => void
+      handleDefectSubmit: () => Promise<void>
+    }
+    vm.openInternalDefect()
+    expect(vm.defectForm.severity).toBe('major')
+    expect(vm.defectForm.priority).toBe('P1')
+    expect(vm.defectForm.description).toContain('步骤 1 (Step 1)')
+    expect(vm.defectForm.description).not.toContain('步骤 0')
+
+    await vm.handleDefectSubmit()
+    expect(defectCreateFromRun).toHaveBeenCalledWith('case', 42, expect.objectContaining({
+      severity: 'major',
+      priority: 'P1',
+    }))
+    wrapper.unmount()
   })
 })

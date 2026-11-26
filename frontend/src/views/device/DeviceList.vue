@@ -522,6 +522,7 @@ import {
   DownloadOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import { deviceApi } from '@/api'
 import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import type { AndroidWorkerItem, DeviceGroupItem, DeviceItem, DeviceStatus, RemoteAgentItem } from '@/api'
@@ -803,7 +804,7 @@ function statusLabel(s: DeviceStatus) {
 }
 
 function formatTime(t: string) {
-  return t?.slice(0, 19).replace('T', ' ')
+  return formatLocalDateTime(t, '')
 }
 
 // 后台已定时扫描 ADB 并更新数据库，页面可见期间定时重读列表让状态跟上

@@ -20,6 +20,14 @@ from app.schemas.api_contract_asset import ApiContractAssetCreate, ApiContractAs
 router = APIRouter(tags=["API Provider/Consumer 契约"])
 
 
+def _is_unique_violation(exc: IntegrityError) -> bool:
+    orig = getattr(exc, "orig", None)
+    if getattr(orig, "pgcode", None) == "23505":
+        return True
+    detail = f"{orig or ''} {exc}".lower()
+    return "unique" in detail or "uq_api_contract_assets" in detail
+
+
 async def _ensure_project(db: AsyncSession, user: User, project_id: int, role: ProjectRole) -> None:
     await assert_project_access(db, user, project_id, role)
     if await db.get(Project, project_id) is None:
@@ -59,7 +67,9 @@ async def create_api_contract_asset(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=409, detail="同一 Provider/Consumer 下契约名称已存在") from exc
+        if _is_unique_violation(exc):
+            raise HTTPException(status_code=409, detail="同一 Provider/Consumer 下契约名称已存在") from exc
+        raise
     await db.refresh(item)
     return item
 
@@ -84,7 +94,9 @@ async def update_api_contract_asset(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=409, detail="同一 Provider/Consumer 下契约名称已存在") from exc
+        if _is_unique_violation(exc):
+            raise HTTPException(status_code=409, detail="同一 Provider/Consumer 下契约名称已存在") from exc
+        raise
     await db.refresh(item)
     return item
 

@@ -93,6 +93,31 @@ async def create_case_run(db, suite_run, case_id: int):
     return case_run
 
 
+async def _extract_case_run_error(db, case_run) -> str | None:
+    direct = getattr(case_run, "error_message", None)
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()[:500]
+    status_val = getattr(getattr(case_run, "status", None), "value", getattr(case_run, "status", None))
+    run_id = getattr(case_run, "id", None)
+    if status_val in {"failed", "error"} and run_id and hasattr(db, "execute"):
+        try:
+            from sqlalchemy import select
+            from app.models.case import StepResult
+
+            stmt = (
+                select(StepResult.error_message)
+                .where(StepResult.run_id == run_id, StepResult.error_message.isnot(None))
+                .order_by(StepResult.step_index.asc())
+                .limit(1)
+            )
+            step_err = (await db.execute(stmt)).scalar_one_or_none()
+            if isinstance(step_err, str) and step_err.strip():
+                return step_err.strip()[:500]
+        except Exception:
+            logger.debug("Failed to inspect StepResult error for case_run %s", run_id, exc_info=True)
+    return None
+
+
 async def execute_case_run(
     db,
     suite_run,
@@ -195,12 +220,16 @@ async def execute_case_run(
         (record_outcome_fn or _record_run_outcome)("case", case_run.status)
 
     await db.refresh(case_run)
-    return {
+    error_text = await _extract_case_run_error(db, case_run)
+    payload: dict = {
         "case_id": case.id,
         "case_name": case.name,
         "run_id": case_run.id,
         "status": case_run.status.value,
     }
+    if error_text:
+        payload["error"] = error_text
+    return payload
 
 
 async def mark_flaky_case_results(db, case_run_results: list[dict]) -> None:
@@ -472,6 +501,21 @@ async def execute_suite_cases(
     if is_cancelled_fn("suite", suite_run.id, suite_run.identity_token):
         suite_run.status = SuiteRunStatus.error
         suite_run.error_message = "套件已请求停止或执行归属无法确认；已启动子任务/批次已结束，后续用例未继续执行"
+    elif not all_passed and not getattr(suite_run, "error_message", None):
+        first_failure = next(
+            (
+                item
+                for item in case_run_results
+                if item.get("status") in {"failed", "error"} and (item.get("error") or item.get("error_message"))
+            ),
+            None,
+        )
+        if fixture_error:
+            suite_run.error_message = fixture_error[:500]
+        elif first_failure:
+            err_msg = str(first_failure.get("error") or first_failure.get("error_message"))
+            case_label = first_failure.get("case_name") or f"用例 #{first_failure.get('case_id')}"
+            suite_run.error_message = f"{case_label}: {err_msg}"[:500]
     await mark_flaky_fn(db, case_run_results)
     suite_run.case_run_ids = case_run_results
     suite_run.result_summary = {
