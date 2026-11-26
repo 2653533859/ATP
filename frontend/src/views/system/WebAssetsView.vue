@@ -113,14 +113,29 @@
       :title="editingElement ? t('web_assets.edit_element') : t('web_assets.new_element')"
       :confirm-loading="saving"
       :mask-closable="false"
+      width="680px"
       @ok="saveElement"
       @cancel="resetElementModal"
     >
       <a-form layout="vertical">
         <a-form-item :label="t('web_assets.name')" required><a-input v-model:value="elementForm.name" /></a-form-item>
         <a-form-item :label="t('web_assets.page_url')"><a-input v-model:value="elementForm.page_url" /></a-form-item>
-        <a-form-item :label="t('web_assets.locator')" required><a-textarea v-model:value="elementForm.locatorText" class="mono" :rows="4" placeholder="{&quot;strategy&quot;:&quot;role&quot;,&quot;value&quot;:&quot;button&quot;}" /></a-form-item>
-        <a-form-item :label="t('web_assets.fallback_locators')"><a-textarea v-model:value="elementForm.fallbackText" class="mono" :rows="3" placeholder="[]" /></a-form-item>
+        <a-form-item :label="t('web_assets.locator')" required>
+          <WebAssetFieldEditor
+            v-model:value="elementForm.locatorText"
+            kind="locator"
+            :rows="4"
+            placeholder='{"strategy":"role","value":"button"}'
+          />
+        </a-form-item>
+        <a-form-item :label="t('web_assets.fallback_locators')">
+          <WebAssetFieldEditor
+            v-model:value="elementForm.fallbackText"
+            kind="fallbacks"
+            :rows="3"
+            placeholder="[]"
+          />
+        </a-form-item>
         <a-form-item :label="t('common.description')"><a-textarea v-model:value="elementForm.description" :rows="2" /></a-form-item>
       </a-form>
     </a-modal>
@@ -130,14 +145,31 @@
       :title="editingPageObject ? t('web_assets.edit_page_object') : t('web_assets.new_page_object')"
       :confirm-loading="saving"
       :mask-closable="false"
+      width="720px"
       @ok="savePageObject"
       @cancel="resetPageObjectModal"
     >
       <a-form layout="vertical">
         <a-form-item :label="webAssetsLabel('name')" required><a-input v-model:value="pageObjectForm.name" /></a-form-item>
         <a-form-item :label="t('web_assets.url_pattern')"><a-input v-model:value="pageObjectForm.url_pattern" /></a-form-item>
-        <a-form-item :label="t('web_assets.element_refs')"><a-textarea v-model:value="pageObjectForm.elementRefsText" class="mono" :rows="4" placeholder="[{&quot;asset_id&quot;:1,&quot;alias&quot;:&quot;submit&quot;}]" /></a-form-item>
-        <a-form-item :label="t('web_assets.actions')"><a-textarea v-model:value="pageObjectForm.actionsText" class="mono" :rows="4" placeholder="[{&quot;name&quot;:&quot;submit&quot;,&quot;step&quot;:&quot;click&quot;}]" /></a-form-item>
+        <a-form-item :label="t('web_assets.element_refs')">
+          <WebAssetFieldEditor
+            v-model:value="pageObjectForm.elementRefsText"
+            kind="element_refs"
+            :elements="elements"
+            :rows="4"
+            placeholder='[{"asset_id":1,"alias":"submit"}]'
+          />
+        </a-form-item>
+        <a-form-item :label="t('web_assets.actions')">
+          <WebAssetFieldEditor
+            v-model:value="pageObjectForm.actionsText"
+            kind="actions"
+            :element-refs-text="pageObjectForm.elementRefsText"
+            :rows="4"
+            placeholder='[{"name":"submit","step":"click"}]'
+          />
+        </a-form-item>
         <a-form-item :label="t('common.description')"><a-textarea v-model:value="pageObjectForm.description" :rows="2" /></a-form-item>
       </a-form>
     </a-modal>
@@ -147,6 +179,7 @@
       :title="editingVisualBaseline ? t('web_assets.edit_visual_baseline') : (visualBaselineFromRecorder ? t('web_assets.capture_baseline_title') : t('web_assets.new_visual_baseline'))"
       :confirm-loading="saving"
       :mask-closable="false"
+      width="640px"
       @ok="saveVisualBaseline"
       @cancel="resetVisualBaselineModal"
     >
@@ -155,7 +188,14 @@
         <a-form-item :label="t('web_assets.page_url')"><a-input v-model:value="visualBaselineForm.page_url" :disabled="Boolean(editingVisualBaseline)" /></a-form-item>
         <a-form-item :label="t('web_assets.visual_threshold')"><a-input-number v-model:value="visualBaselineForm.threshold" :min="0" :max="1" :step="0.001" /></a-form-item>
         <a-form-item :label="t('web_assets.pixel_threshold')"><a-input-number v-model:value="visualBaselineForm.pixel_threshold" :min="0" :max="255" /></a-form-item>
-        <a-form-item :label="t('web_assets.ignore_regions')"><a-textarea v-model:value="visualBaselineForm.ignoreText" class="mono" :rows="3" placeholder="[]" /></a-form-item>
+        <a-form-item :label="t('web_assets.ignore_regions')">
+          <WebAssetFieldEditor
+            v-model:value="visualBaselineForm.ignoreText"
+            kind="ignore_regions"
+            :rows="3"
+            placeholder="[]"
+          />
+        </a-form-item>
         <a-upload
           v-if="!editingVisualBaseline"
           :file-list="visualBaselineFileList"
@@ -213,6 +253,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { projectApi, webAssetsApi, webVisualApi, type ProjectItem, type WebElementAssetItem, type WebLocatorRepairCandidate, type WebPageObjectItem, type WebRecordingStep, type WebVisualBaselineItem } from '@/api'
 import WebRecorderModal from '@/components/common/WebRecorderModal.vue'
+import WebAssetFieldEditor from '@/components/common/WebAssetFieldEditor.vue'
 import { useAuthStore } from '@/stores/auth'
 import { extractApiError } from '@/utils/apiError'
 import { canEditProjectByRole } from '@/utils/permissions'

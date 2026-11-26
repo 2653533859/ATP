@@ -212,46 +212,32 @@
 
         <a-divider orientation="left" style="font-size: 13px">{{ t('mock.form.conditional_response') }}</a-divider>
         <a-form-item :label="t('mock.form.query_conditions')">
-          <template #extra>
-            <a-button size="small" type="link" style="padding: 0" @click="queryConditionsText = tryFormatJson(queryConditionsText)">{{ t('mock.format_json') }}</a-button>
-          </template>
-          <a-textarea v-model:value="queryConditionsText" :rows="2" class="code-textarea" placeholder='{"scene": "success"}' />
+          <SmartJsonEditor v-model:value="queryConditionsText" compact :rows="2" placeholder='{"scene": "success"}' />
         </a-form-item>
         <a-form-item :label="t('mock.form.header_conditions')">
-          <template #extra>
-            <a-button size="small" type="link" style="padding: 0" @click="headerConditionsText = tryFormatJson(headerConditionsText)">{{ t('mock.format_json') }}</a-button>
-          </template>
-          <a-textarea v-model:value="headerConditionsText" :rows="2" class="code-textarea" placeholder='{"x-env": "test"}' />
+          <SmartJsonEditor v-model:value="headerConditionsText" compact preset-kind="headers" :rows="2" placeholder='{"x-env": "test"}' />
         </a-form-item>
         <a-form-item :label="t('mock.form.body_conditions')">
-          <template #extra>
-            <a-button size="small" type="link" style="padding: 0" @click="bodyConditionsText = tryFormatJson(bodyConditionsText)">{{ t('mock.format_json') }}</a-button>
-          </template>
-          <a-textarea v-model:value="bodyConditionsText" :rows="2" class="code-textarea" placeholder='{"status": "paid"}' />
+          <SmartJsonEditor v-model:value="bodyConditionsText" compact :rows="2" placeholder='{"status": "paid"}' />
         </a-form-item>
         <div class="condition-hint">{{ t('mock.form.condition_hint') }}</div>
 
         <a-form-item :label="t('mock.form.response_headers')">
-          <template #extra>
-            <a-button size="small" type="link" style="padding: 0" @click="headersText = tryFormatJson(headersText)">{{ t('mock.format_json') }}</a-button>
-          </template>
-          <a-textarea
+          <SmartJsonEditor
             v-model:value="headersText"
+            compact
+            preset-kind="headers"
             :rows="2"
-            class="code-textarea"
             placeholder='{"Content-Type": "application/json"}'
           />
         </a-form-item>
 
-        <a-form-item>
-          <template #label>
-            <span>{{ t('mock.form.response_body') }}</span>
-            <a-button type="link" size="small" style="margin-left: 8px" @click="formatResponseBody">{{ t('mock.format_json') }}</a-button>
-          </template>
-          <a-textarea
-            v-model:value="(form.response_body as string | undefined)"
+        <a-form-item :label="t('mock.form.response_body')">
+          <SmartJsonEditor
+            v-model:value="responseBodyModel"
+            allow-templates
+            :templates="MOCK_BODY_TEMPLATES"
             :rows="8"
-            class="code-textarea"
             placeholder='{"code": 0, "message": "success"}'
           />
           <div style="margin-top: 8px; color: var(--c-text-tertiary); font-size: 12px">
@@ -299,7 +285,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, ThunderboltOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
-import { tryFormatJson } from '@/utils/jsonFormat'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { mockRuleApi, projectApi, type MockAIGeneratedRule, type MockRuleItem, type ProjectItem } from '@/api'
@@ -309,6 +294,8 @@ import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectCon
 import { extractApiError } from '@/utils/apiError'
 import { canEditProjectByRole } from '@/utils/permissions'
 import { useAuthStore } from '@/stores/auth'
+import { MOCK_BODY_TEMPLATES } from '@/utils/smartJson'
+import SmartJsonEditor from '@/components/common/SmartJsonEditor.vue'
 
 const auth = useAuthStore()
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
@@ -373,6 +360,12 @@ const headersText = ref('{}')
 const queryConditionsText = ref('{}')
 const headerConditionsText = ref('{}')
 const bodyConditionsText = ref('{}')
+const responseBodyModel = computed({
+  get: () => form.value.response_body ?? '',
+  set: (value: string) => {
+    form.value.response_body = value || null
+  },
+})
 
 const logsOpen = ref(false)
 const logs = ref<MockLogRecord[]>([])
@@ -424,16 +417,6 @@ function formatConditions(conditions?: MatchConditions) {
   if (conditions?.headers && Object.keys(conditions.headers).length) parts.push(`H:${Object.keys(conditions.headers).length}`)
   if (conditions?.body && Object.keys(conditions.body).length) parts.push(`B:${Object.keys(conditions.body).length}`)
   return parts.length ? parts.join(' / ') : t('mock.no_conditions')
-}
-
-function formatResponseBody() {
-  if (!form.value.response_body) return
-  try {
-    const parsed = JSON.parse(form.value.response_body)
-    form.value.response_body = JSON.stringify(parsed, null, 2)
-  } catch {
-    message.warning(t('mock.msg.response_body_invalid_json'))
-  }
 }
 
 function parseJsonObject(text: string, fieldName: string) {

@@ -174,38 +174,25 @@
           <a-collapse-panel key="fixtures" :header="t('suite.form.fixtures_label')">
             <a-alert :message="t('suite.form.fixtures_hint')" type="info" show-icon style="margin-bottom: 12px" />
             <a-form-item :label="t('suite.form.shared_variables_label')">
-              <template #extra>
-                <div style="display: flex; justify-content: flex-end; margin-top: 4px">
-                  <a-button size="small" type="link" style="padding: 0" @click="form.sharedVariablesText = tryFormatJson(form.sharedVariablesText)">
-                    <FormatPainterOutlined /> 格式化 JSON
-                  </a-button>
-                </div>
-              </template>
-              <a-textarea v-model:value="form.sharedVariablesText" :rows="4" placeholder='{"tenant":"staging"}' />
+              <SmartJsonEditor v-model:value="form.sharedVariablesText" compact allow-templates :rows="4" placeholder='{"tenant":"staging"}' />
             </a-form-item>
             <a-row :gutter="16">
               <a-col :span="12">
                 <a-form-item :label="t('suite.form.fixture_setup_label')">
-                  <template #extra>
-                    <div style="display: flex; justify-content: flex-end; margin-top: 4px">
-                      <a-button size="small" type="link" style="padding: 0" @click="form.fixtureSetupText = tryFormatJson(form.fixtureSetupText)">
-                        <FormatPainterOutlined /> 格式化 JSON
-                      </a-button>
-                    </div>
-                  </template>
-                  <a-textarea v-model:value="form.fixtureSetupText" :rows="6" placeholder='[{"action":"set_variable","variable":"token","value":"demo"}]' />
+                  <FixtureActionsEditor
+                    v-model:value="form.fixtureSetupText"
+                    :rows="6"
+                    placeholder='[{"action":"set_variable","variable":"token","value":"demo"}]'
+                  />
                 </a-form-item>
               </a-col>
               <a-col :span="12">
                 <a-form-item :label="t('suite.form.fixture_teardown_label')">
-                  <template #extra>
-                    <div style="display: flex; justify-content: flex-end; margin-top: 4px">
-                      <a-button size="small" type="link" style="padding: 0" @click="form.fixtureTeardownText = tryFormatJson(form.fixtureTeardownText)">
-                        <FormatPainterOutlined /> 格式化 JSON
-                      </a-button>
-                    </div>
-                  </template>
-                  <a-textarea v-model:value="form.fixtureTeardownText" :rows="6" placeholder='[{"action":"delete_variable","variable":"token"}]' />
+                  <FixtureActionsEditor
+                    v-model:value="form.fixtureTeardownText"
+                    :rows="6"
+                    placeholder='[{"action":"delete_variable","variable":"token"}]'
+                  />
                 </a-form-item>
               </a-col>
             </a-row>
@@ -554,8 +541,7 @@ import { getRuntimeMode } from '@/runtimeMode'
 const localMode = getRuntimeMode()?.mode === 'local'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
-import { FolderOpenOutlined, HolderOutlined, PlusOutlined, FormatPainterOutlined } from '@ant-design/icons-vue'
-import { tryFormatJson } from '@/utils/jsonFormat'
+import { FolderOpenOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import draggable from 'vuedraggable'
@@ -577,7 +563,9 @@ import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
 import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { buildRunPayload } from '@/utils/caseExecution'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
+import FixtureActionsEditor from '@/components/common/FixtureActionsEditor.vue'
 import GroupRecoveryPanel from '@/components/common/GroupRecoveryPanel.vue'
+import SmartJsonEditor from '@/components/common/SmartJsonEditor.vue'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 import {
   createDefaultSuiteConfig,

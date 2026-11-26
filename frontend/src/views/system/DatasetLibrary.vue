@@ -171,11 +171,11 @@
             {{ t('dataset.add_schema_field') }}
           </a-button>
         </a-form-item>
-        <a-form-item :label="t('dataset.rows_editor') + ` (${form.rows.length})`">
-          <a-textarea
+        <a-form-item :label="t('dataset.rows_editor') + ` (${liveRowCount})`">
+          <DatasetRowsEditor
             v-model:value="rowsText"
-            :rows="10"
-            class="rows-editor"
+            :schema-fields="form.schema_fields"
+            :rows-count="10"
             :placeholder="t('dataset.rows_editor_placeholder')"
           />
           <div v-if="rowsTextError" class="input-error">{{ rowsTextError }}</div>
@@ -404,6 +404,8 @@ import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectCon
 import { canEditProjectByRole } from '@/utils/permissions'
 import { extractApiError } from '@/utils/apiError'
 import { useAuthStore } from '@/stores/auth'
+import { parseDatasetRowsText } from '@/utils/datasetTable'
+import DatasetRowsEditor from '@/components/common/DatasetRowsEditor.vue'
 
 const auth = useAuthStore()
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
@@ -452,6 +454,10 @@ const activeImpactDataset = ref<DatasetListItem | null>(null)
 const keyword = ref('')
 const rowsText = ref('[]')
 const rowsTextError = ref('')
+const liveRowCount = computed(() => {
+  const parsed = parseDatasetRowsText(rowsText.value)
+  return parsed.valid ? parsed.rows.length : form.value.rows.length
+})
 
 type SchemaFieldForm = {
   name: string

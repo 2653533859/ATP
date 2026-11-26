@@ -212,7 +212,7 @@
 
         <template v-if="form.task_type === 'fluency'">
           <a-form-item :label="t('mobile_special.form.stages')">
-            <a-textarea
+            <FluencyStagesEditor
               v-model:value="form.config_stages"
               :rows="4"
               :placeholder="t('mobile_special.form.stages_placeholder')"
@@ -292,6 +292,7 @@ import { getRuntimeMode } from '@/runtimeMode'
 import { useAuthStore } from '@/stores/auth'
 import { extractApiError } from '@/utils/apiError'
 import { canEditProjectByRole } from '@/utils/permissions'
+import FluencyStagesEditor from '@/components/common/FluencyStagesEditor.vue'
 
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asTask = (record: unknown) => record as MobileSpecialTaskItem

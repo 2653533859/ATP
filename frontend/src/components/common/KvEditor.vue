@@ -1,7 +1,7 @@
 <template>
   <div class="kv-editor">
     <!-- 顶部预设快捷操作栏 -->
-    <div v-if="presetKind !== 'none'" class="kv-toolbar">
+    <div v-if="!disabled && presetKind !== 'none'" class="kv-toolbar">
       <span class="kv-hint-tag">
         {{ presetKind === 'headers' ? t('api_scenario.headers_presets_hint') : t('api_scenario.params_presets_hint') }}
       </span>
@@ -46,6 +46,7 @@
         :options="getKeyOptions()"
         :placeholder="t('common.key')"
         class="kv-input kv-key-input"
+        :disabled="disabled"
         @change="handleRowChange"
       />
 
@@ -55,13 +56,14 @@
         :options="getValueOptions(row.key)"
         :placeholder="t('common.value')"
         class="kv-input kv-val-input"
+        :disabled="disabled"
         @change="handleRowChange"
       />
 
-      <MinusCircleOutlined class="kv-remove" @click="removeRow(i)" />
+      <MinusCircleOutlined v-if="!disabled" class="kv-remove" @click="removeRow(i)" />
     </div>
 
-    <a-button type="dashed" block size="small" class="add-row-btn" @click="addRow">
+    <a-button v-if="!disabled" type="dashed" block size="small" class="add-row-btn" @click="addRow">
       <PlusOutlined /> {{ t('common.add') }}
     </a-button>
   </div>
@@ -88,9 +90,11 @@ const props = withDefaults(
   defineProps<{
     value: Record<string, string>
     presetKind?: 'headers' | 'params' | 'cookies' | 'none'
+    disabled?: boolean
   }>(),
   {
     presetKind: 'none',
+    disabled: false,
   },
 )
 

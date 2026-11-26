@@ -242,8 +242,15 @@
               </a-button>
               <div class="form-hint">{{ t('case_form.multipart.hint') }}</div>
             </template>
+            <SmartJsonEditor
+              v-else-if="cfg.body_type === 'json'"
+              v-model:value="cfg.body"
+              allow-templates
+              :templates="API_BODY_TEMPLATES"
+              :rows="8"
+            />
             <template v-else-if="cfg.body_type !== 'none'">
-              <div v-if="cfg.body_type === 'json' || cfg.body_type === 'raw'" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+              <div v-if="cfg.body_type === 'raw'" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
                 <a-dropdown :trigger="['click']">
                   <template #overlay>
                     <a-menu @click="handleApplyBodyTemplate">
@@ -673,16 +680,12 @@
         </a-form-item>
 
         <a-form-item :label="t('case_form.graphql.variables_label')">
-          <template #extra>
-            <a-button size="small" type="link" style="padding: 0" @click="gqlCfg.variables_text = tryFormatJson(gqlCfg.variables_text)">
-              <FormatPainterOutlined /> 格式化 JSON
-            </a-button>
-          </template>
-          <a-textarea
+          <SmartJsonEditor
             v-model:value="gqlCfg.variables_text"
+            compact
+            allow-templates
             :rows="4"
             placeholder='{"id": "123"}'
-            style="font-family: monospace; font-size: 13px"
           />
         </a-form-item>
 
@@ -691,12 +694,13 @@
             <a-input v-model:value="gqlCfg.subscription_url" placeholder="wss://api.example.com/graphql" />
           </a-form-item>
           <a-form-item :label="t('case_form.graphql.connection_payload_label')">
-            <template #extra>
-              <a-button size="small" type="link" style="padding: 0" @click="gqlCfg.connection_payload_text = tryFormatJson(gqlCfg.connection_payload_text)">
-                <FormatPainterOutlined /> 格式化 JSON
-              </a-button>
-            </template>
-            <a-textarea v-model:value="gqlCfg.connection_payload_text" :rows="3" placeholder='{"authToken":"{{token}}"}' />
+            <SmartJsonEditor
+              v-model:value="gqlCfg.connection_payload_text"
+              compact
+              allow-templates
+              :rows="3"
+              placeholder='{"authToken":"{{token}}"}'
+            />
           </a-form-item>
           <a-row :gutter="16">
             <a-col :span="8"><a-form-item :label="t('case_form.graphql.max_messages_label')"><a-input-number v-model:value="gqlCfg.max_messages" :min="1" :max="100" /></a-form-item></a-col>
@@ -893,7 +897,16 @@
                 </a-select>
               </a-col>
               <a-col :span="18">
+                <SmartJsonEditor
+                  v-if="m.data_type === 'json'"
+                  v-model:value="m.data"
+                  compact
+                  allow-templates
+                  :rows="3"
+                  :placeholder="t('case_form.websocket.data_placeholder', { variable: '{{variable}}' })"
+                />
                 <a-textarea
+                  v-else
                   v-model:value="m.data"
                   :rows="2"
                   :placeholder="t('case_form.websocket.data_placeholder', { variable: '{{variable}}' })"
@@ -1045,16 +1058,11 @@
         </a-form-item>
 
         <a-form-item :label="t('case_form.grpc.request_json_label')">
-          <template #extra>
-            <a-button size="small" type="link" style="padding: 0" @click="grpcCfg.request_json = tryFormatJson(grpcCfg.request_json)">
-              <FormatPainterOutlined /> 格式化 JSON
-            </a-button>
-          </template>
-          <a-textarea
+          <SmartJsonEditor
             v-model:value="grpcCfg.request_json"
+            allow-templates
             :rows="5"
             placeholder='{"user_id": "123"}'
-            style="font-family: monospace; font-size: 13px"
           />
           <div class="field-hint">{{ t('case_form.grpc.request_json_hint') }}</div>
         </a-form-item>
@@ -1277,6 +1285,7 @@ import ApiLibraryPickerDrawer from '@/components/common/ApiLibraryPickerDrawer.v
 import ApiScenarioPipeline from '@/components/common/ApiScenarioPipeline.vue'
 import type { ApiScenarioStep } from '@/types/apiScenario'
 import { tryFormatJson, tryCompressJson } from '@/utils/jsonFormat'
+import { API_BODY_TEMPLATES } from '@/utils/smartJson'
 import { apiSchemaAssetApi, caseApi, projectApi, datasetApi, type AIAssertionSuggestion, type AIExtractionSuggestion, type ApiRequestPreviewPayload, type ApiRequestPreviewResult, type ApiSchemaAssetItem, type GraphqlIntrospectionField } from '@/api'
 import type { CaseDetailItem, CaseLevel, CasePriority, CaseSavePayload, CaseSummaryItem, CaseType } from '@/api'
 import {
@@ -1290,6 +1299,7 @@ import {
 import { GrpcProtoFileError, readGrpcProtoFile, validateGrpcProtoBundle } from '@/utils/grpcProtoFile'
 import { extractApiError } from '@/utils/apiError'
 import KvEditor from '@/components/common/KvEditor.vue'
+import SmartJsonEditor from '@/components/common/SmartJsonEditor.vue'
 
 const localMode = getRuntimeMode()?.mode === 'local'
 const { t } = useI18n()

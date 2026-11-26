@@ -125,9 +125,11 @@
         </template>
 
         <a-form-item :label="t('system_pages.bug_tracker.field_mapping')">
-          <a-textarea
+          <SmartJsonEditor
             v-model:value="fieldMappingText"
-            :rows="6"
+            compact
+            :templates="BUG_TRACKER_MAPPING_TEMPLATES"
+            :rows="5"
             placeholder='{"priority":"High","labels":["automation"],"components":["QA"],"custom_fields":{}}'
           />
         </a-form-item>
@@ -147,6 +149,8 @@ import type { AxiosError } from 'axios'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { bugTrackerApi, projectApi, type BugTrackerItem, type BugTrackerType, type ProjectItem } from '@/api'
+import { BUG_TRACKER_MAPPING_TEMPLATES } from '@/utils/smartJson'
+import SmartJsonEditor from '@/components/common/SmartJsonEditor.vue'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asTracker = (record: unknown) => record as BugTrackerItem
 

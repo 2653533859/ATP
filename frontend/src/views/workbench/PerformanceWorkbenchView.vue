@@ -202,7 +202,13 @@
               </div>
             </div>
             <label>{{ t('performance.run_options') }}</label>
-            <a-textarea v-model:value="launchOptionsText" class="mono" :rows="4" :disabled="!selectedTest" />
+            <PerformanceOptionsEditor
+              v-model:value="launchOptionsText"
+              :executor="selectedTest?.executor"
+              compact
+              :rows="4"
+              :disabled="!selectedTest"
+            />
             <div class="launch-actions">
               <a-button type="primary" :disabled="!canLaunch" :loading="launching" @click="launchRun">
                 <PlayCircleOutlined /> {{ t('performance_workbench.launch_run') }}
@@ -338,7 +344,14 @@
         <a-form-item :label="t('performance.name')" required><a-input v-model:value="quickForm.name" :placeholder="t('performance.name_placeholder')" /></a-form-item>
         <a-form-item :label="t('performance.executor')" required><a-select v-model:value="quickForm.executor" :options="executorOptions" /></a-form-item>
         <a-form-item :label="t('performance.script_object_name')" required><a-input v-model:value="quickForm.script_object_name" class="mono" :placeholder="t('performance.script_placeholder')" /></a-form-item>
-        <a-form-item :label="t('performance.default_options')"><a-textarea v-model:value="quickForm.optionsText" class="mono" :rows="9" /></a-form-item>
+        <a-form-item :label="t('performance.default_options')">
+          <PerformanceOptionsEditor
+            v-model:value="quickForm.optionsText"
+            :executor="quickForm.executor"
+            compact
+            :rows="8"
+          />
+        </a-form-item>
         <a-alert type="info" show-icon :message="t('performance_workbench.quick_create_hint')" />
       </a-form>
       <template #footer>
@@ -387,6 +400,7 @@ import { useChartTheme } from '@/utils/chartTheme'
 import { useVisiblePolling } from '@/composables/useVisiblePolling'
 import { canEditProjectByRole } from '@/utils/permissions'
 import { useAuthStore } from '@/stores/auth'
+import PerformanceOptionsEditor from '@/components/common/PerformanceOptionsEditor.vue'
 
 type ErrorLike = { response?: { data?: { detail?: unknown } }; message?: unknown }
 

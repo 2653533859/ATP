@@ -75,7 +75,7 @@
             <a-radio-button value="xml">XML</a-radio-button>
             <a-radio-button value="multipart">Multipart</a-radio-button>
           </a-radio-group>
-          <div v-if="draft.body_type === 'json' || draft.body_type === 'raw'" class="body-format-actions">
+          <div v-if="draft.body_type === 'raw'" class="body-format-actions">
             <a-dropdown :trigger="['click']">
               <template #overlay>
                 <a-menu @click="handleApplyBodyTemplate">
@@ -126,12 +126,21 @@
           </div>
         </div>
         <KvEditor v-if="draft.body_type === 'form'" v-model:value="formBody" />
+        <SmartJsonEditor
+          v-else-if="draft.body_type === 'json'"
+          v-model:value="bodyText"
+          allow-templates
+          :templates="API_BODY_TEMPLATES"
+          :rows="8"
+          :placeholder="jsonBodyPlaceholder"
+          :disabled="!canModify"
+        />
         <a-textarea
           v-else-if="draft.body_type !== 'none' && draft.body_type !== 'multipart'"
           v-model:value="bodyText"
           class="body-editor"
           :rows="8"
-          :placeholder="draft.body_type === 'json' ? jsonBodyPlaceholder : t('api_workbench.console.body_placeholder')"
+          :placeholder="t('api_workbench.console.body_placeholder')"
         />
         <a-alert v-else-if="draft.body_type === 'multipart'" type="info" :message="t('api_workbench.console.multipart_hint')" />
         <div v-else class="option-empty">{{ t('api_workbench.console.no_body') }}</div>
@@ -241,7 +250,9 @@ import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { caseApi, type ApiRequestPreviewPayload, type ApiRequestPreviewResult, type CaseDetailItem } from '@/api'
 import { tryFormatJson, tryCompressJson } from '@/utils/jsonFormat'
+import { API_BODY_TEMPLATES } from '@/utils/smartJson'
 import KvEditor from '@/components/common/KvEditor.vue'
+import SmartJsonEditor from '@/components/common/SmartJsonEditor.vue'
 import ResponseBodyViewer from './ResponseBodyViewer.vue'
 
 const props = defineProps<{

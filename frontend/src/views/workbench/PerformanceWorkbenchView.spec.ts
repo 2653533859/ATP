@@ -56,13 +56,16 @@ vi.mock('vue-echarts', () => ({
   default: defineComponent({ setup: (_props, { slots }) => () => h('div', slots.default?.()) }),
 }))
 vi.mock('@ant-design/icons-vue', () => ({
+  DownOutlined: true,
   LineChartOutlined: true,
+  MinusCircleOutlined: true,
   PlayCircleOutlined: true,
   PlusOutlined: true,
   ReloadOutlined: true,
   SafetyCertificateOutlined: true,
   SettingOutlined: true,
   StopOutlined: true,
+  ThunderboltOutlined: true,
 }))
 vi.mock('@/api', () => ({
   datasetApi: { list: vi.fn() },
@@ -87,8 +90,8 @@ const passthrough = defineComponent({
 })
 
 const globalStubs = Object.fromEntries([
-  'AAlert', 'AButton', 'ADrawer', 'AEmpty', 'AForm', 'AFormItem', 'AInput', 'ASelect', 'ASpin',
-  'ASpace', 'ATag', 'ATextarea',
+  'AAlert', 'AAutoComplete', 'AButton', 'ACol', 'ADrawer', 'ADropdown', 'AEmpty', 'AForm', 'AFormItem',
+  'AInput', 'AInputNumber', 'AMenu', 'AMenuItem', 'ARow', 'ASelect', 'ASpin', 'ASpace', 'ATag', 'ATextarea',
 ].map((name) => [name, passthrough]))
 
 const testItem = {

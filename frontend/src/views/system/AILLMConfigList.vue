@@ -176,25 +176,13 @@
             </a-col>
           </a-row>
 
-          <a-form-item>
-            <template #label>
-              <div class="label-with-action">
-                <span>{{ t('system_pages.ai_llm.default_params') }}</span>
-                <a-button
-                  size="small"
-                  type="link"
-                  style="padding: 0; height: auto"
-                  @click="defaultParamsText = tryFormatJson(defaultParamsText)"
-                >
-                  <FormatPainterOutlined /> 格式化 JSON
-                </a-button>
-              </div>
-            </template>
-            <a-textarea
+          <a-form-item :label="t('system_pages.ai_llm.default_params')">
+            <SmartJsonEditor
               v-model:value="defaultParamsText"
+              compact
+              :templates="LLM_PARAMS_TEMPLATES"
               :rows="3"
               placeholder='{"temperature": 0.4}'
-              class="json-textarea"
             />
             <span v-if="defaultParamsError" style="color: var(--c-error); font-size: 12px">
               {{ defaultParamsError }}
@@ -219,9 +207,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { FormatPainterOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { tryFormatJson } from '@/utils/jsonFormat'
+import { LLM_PARAMS_TEMPLATES } from '@/utils/smartJson'
+import SmartJsonEditor from '@/components/common/SmartJsonEditor.vue'
 import {
   aiLLMConfigApi,
   type AILLMConfigItem,

@@ -425,7 +425,11 @@
             </a-space-compact>
           </a-form-item>
           <a-form-item :label="t('performance.default_options')">
-            <a-textarea v-model:value="testForm.defaultOptionsText" class="mono" :rows="10" />
+            <PerformanceOptionsEditor
+              v-model:value="testForm.defaultOptionsText"
+              :executor="testForm.executor"
+              :rows="8"
+            />
           </a-form-item>
         </template>
         <div class="target-metrics-editor">
@@ -596,7 +600,12 @@
           class="form-alert"
         />
         <a-form-item :label="t('performance.run_options')">
-          <a-textarea v-model:value="runForm.optionsText" class="mono" :rows="8" />
+          <PerformanceOptionsEditor
+            v-model:value="runForm.optionsText"
+            :executor="runTarget?.executor"
+            compact
+            :rows="7"
+          />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -680,7 +689,12 @@
           <div class="field-hint">{{ t('performance.node_selector_hint') }}</div>
         </a-form-item>
         <a-form-item :label="t('performance.schedule_options')">
-          <a-textarea v-model:value="scheduleForm.optionsText" class="mono" :rows="6" />
+          <PerformanceOptionsEditor
+            v-model:value="scheduleForm.optionsText"
+            :executor="scheduleTarget?.executor"
+            compact
+            :rows="5"
+          />
         </a-form-item>
         <a-alert v-if="scheduleTarget?.next_run_at" type="info" show-icon :message="t('performance.next_run_at', { value: formatDateLabel(scheduleTarget.next_run_at) })" />
       </a-form>
@@ -868,6 +882,7 @@ import {
   type ProjectItem,
 } from '@/api'
 import KvEditor from '@/components/common/KvEditor.vue'
+import PerformanceOptionsEditor from '@/components/common/PerformanceOptionsEditor.vue'
 import PerformanceNodePanel from './components/PerformanceNodePanel.vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { useVisiblePolling } from '@/composables/useVisiblePolling'
