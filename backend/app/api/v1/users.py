@@ -3,7 +3,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,6 +56,67 @@ async def _assert_active_admin_remains(
     )
     if not count:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能停用或降级最后一个管理员")
+
+
+async def _collect_blocking_user_assets(db: AsyncSession, user_id: int) -> list[str]:
+    """统计会阻塞物理删除的核心业务外键引用，返回可读摘要列表。"""
+    from app.models import load_all_models
+    from app.models.apk import Apk
+    from app.models.case import CaseSnapshot, TestCase, TestRun
+    from app.models.dataset import TestDataset
+    from app.models.ios import IosApp
+    from app.models.mock import MockRule
+    from app.models.mock_snapshot import MockRuleSnapshot
+    from app.models.plan import TestPlan
+    from app.models.project import Project
+    from app.models.requirement import TestRequirement
+    from app.models.suite import SuiteRun, TestSuite
+
+    load_all_models()
+    asset_groups: list[tuple[str, str, list[tuple[object, object]]]] = [
+        ("项目", "个", [(Project.id, Project.owner_id)]),
+        ("测试用例", "条", [(TestCase.id, TestCase.creator_id)]),
+        ("用例快照", "条", [(CaseSnapshot.id, CaseSnapshot.updated_by)]),
+        ("执行记录", "条", [(TestRun.id, TestRun.triggered_by)]),
+        ("测试套件与运行", "条", [(TestSuite.id, TestSuite.creator_id), (SuiteRun.id, SuiteRun.triggered_by)]),
+        ("测试计划", "个", [(TestPlan.id, TestPlan.creator_id)]),
+        ("测试数据集", "个", [(TestDataset.id, TestDataset.creator_id)]),
+        (
+            "Mock 规则与快照",
+            "条",
+            [(MockRule.id, MockRule.creator_id), (MockRuleSnapshot.id, MockRuleSnapshot.changed_by)],
+        ),
+        ("需求文档", "条", [(TestRequirement.id, TestRequirement.creator_id)]),
+        ("安装包资产", "个", [(Apk.id, Apk.uploaded_by), (IosApp.id, IosApp.uploaded_by)]),
+    ]
+    blocking: list[str] = []
+    for label, unit, pairs in asset_groups:
+        total = 0
+        for id_col, fk_col in pairs:
+            total += int((await db.scalar(select(func.count(id_col)).where(fk_col == user_id))) or 0)
+        if total > 0:
+            blocking.append(f"{label} {total} {unit}")
+    return blocking
+
+
+async def _detach_deletable_user_references(db: AsyncSession, user_id: int) -> None:
+    """删除用户前清理个人偏好记录并将未配置级联的可空外键置空。"""
+    from app.models import load_all_models
+    from app.models.case import TestCase
+    from app.models.dataset import TestDatasetVersion
+    from app.models.healing_prompt_example import HealingPromptExample
+    from app.models.plan import PlanRun
+    from app.models.user_setting import UserSetting
+
+    load_all_models()
+    await db.execute(delete(UserSetting).where(UserSetting.user_id == user_id))
+    await db.execute(update(TestCase).where(TestCase.owner_id == user_id).values(owner_id=None))
+    await db.execute(update(TestCase).where(TestCase.reviewed_by == user_id).values(reviewed_by=None))
+    await db.execute(update(TestDatasetVersion).where(TestDatasetVersion.created_by == user_id).values(created_by=None))
+    await db.execute(
+        update(HealingPromptExample).where(HealingPromptExample.marked_by == user_id).values(marked_by=None)
+    )
+    await db.execute(update(PlanRun).where(PlanRun.triggered_by == user_id).values(triggered_by=None))
 
 
 @router.get("/lookup", response_model=list[UserLookupOut])
@@ -193,6 +254,16 @@ async def update_user(
     email = str(body.email) if body.email is not None else user.email
     new_role = _role(body.role) if body.role is not None else user.role
     new_is_active = body.is_active if body.is_active is not None else user.is_active
+    if user.id == current_user.id:
+        if not new_is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能停用当前登录账号")
+        if new_role != UserRole.admin:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能降级当前登录管理员角色")
+        if username != user.username:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="请前往「账号设置」修改当前登录账号的用户名",
+            )
     await _assert_unique(db, username, email, user_id=user.id)
     await _assert_active_admin_remains(db, user, new_role, new_is_active)
 
@@ -233,8 +304,16 @@ async def delete_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
     await _assert_active_admin_remains(db, user, user.role, False)
+    blocking_assets = await _collect_blocking_user_assets(db, user_id)
+    if blocking_assets:
+        summary = "、".join(blocking_assets)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"该用户仍关联历史业务资产（{summary}），无法直接删除，请通过禁用账号保留审计完整",
+        )
     username = user.username
     try:
+        await _detach_deletable_user_references(db, user_id)
         await db.delete(user)
         await db.flush()
         await write_audit_log(

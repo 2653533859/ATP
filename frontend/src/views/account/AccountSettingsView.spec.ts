@@ -19,7 +19,7 @@ vi.mock('ant-design-vue', () => ({
 vi.mock('@/api', () => ({ authApi: { updateMe } }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
-    user: { username: 'admin', email: 'admin@example.com' },
+    user: { id: 2, username: 'tester', email: 'tester@example.com', role: 'tester', is_active: true },
     fetchMe,
   }),
 }))
@@ -28,10 +28,20 @@ const passthrough = defineComponent({
   setup: (_props, { slots }) => () => h('div', slots.default?.()),
 })
 
+const AlertStub = defineComponent({
+  props: { message: { type: String, default: '' } },
+  setup: (props) => () => h('div', { class: 'alert-stub' }, props.message),
+})
+
 function mountPage() {
-  const names = ['AButton', 'ACard', 'AForm', 'AFormItem', 'AInput', 'AInputPassword', 'ADivider']
+  const names = ['AButton', 'ACard', 'AForm', 'AFormItem', 'AInput', 'AInputPassword', 'ADivider', 'ATag']
   return mount(AccountSettingsView, {
-    global: { stubs: Object.fromEntries(names.map((name) => [name, passthrough])) },
+    global: {
+      stubs: {
+        ...Object.fromEntries(names.map((name) => [name, passthrough])),
+        AAlert: AlertStub,
+      },
+    },
   })
 }
 
@@ -42,21 +52,23 @@ beforeEach(() => {
 })
 
 describe('AccountSettingsView', () => {
-  it('initializes the form from the current user and validates required fields', async () => {
+  it('initializes the form from the current user, shows role badge, and validates required fields', async () => {
     const wrapper = mountPage()
     await flushPromises()
     const vm = wrapper.vm as any
 
-    expect(vm.form.username).toBe('admin')
-    expect(vm.form.email).toBe('admin@example.com')
+    expect(wrapper.text()).toContain('user_management.roles.tester')
+    expect(wrapper.text()).toContain('account.self_manage_hint')
+    expect(vm.form.username).toBe('tester')
+    expect(vm.form.email).toBe('tester@example.com')
     await vm.handleSave()
     expect(messageWarning).toHaveBeenCalledWith('account.required_hint')
     expect(updateMe).not.toHaveBeenCalled()
 
-    vm.form.username = 'admin'
+    vm.form.username = 'tester'
     await vm.handleSave()
     expect(messageWarning).toHaveBeenLastCalledWith('account.required_hint')
-    vm.form.email = 'admin@example.com'
+    vm.form.email = 'tester@example.com'
     await vm.handleSave()
     expect(messageWarning).toHaveBeenLastCalledWith('account.required_hint')
 

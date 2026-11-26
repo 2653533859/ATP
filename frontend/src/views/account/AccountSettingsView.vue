@@ -4,7 +4,20 @@
       <div>
         <h2 class="page-title">{{ t('account.title') }}</h2>
       </div>
+      <div v-if="auth.user" class="account-badges">
+        <a-tag color="blue">{{ t('account.role') }}：{{ t(`user_management.roles.${auth.user.role || 'tester'}`) }}</a-tag>
+        <a-tag :color="auth.user.is_active === false ? 'default' : 'green'">
+          {{ t('account.status') }}：{{ auth.user.is_active === false ? t('common.disabled') : t('common.enabled') }}
+        </a-tag>
+      </div>
     </div>
+
+    <a-alert
+      class="account-hint"
+      type="info"
+      show-icon
+      :message="t('account.self_manage_hint')"
+    />
 
     <a-card class="account-card" :bordered="false">
       <a-form :model="form" layout="vertical" @finish="handleSave">
@@ -106,6 +119,17 @@ async function handleSave() {
 </script>
 
 <style scoped>
+.account-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account-hint {
+  max-width: 640px;
+  margin-bottom: 16px;
+}
+
 .account-card {
   max-width: 640px;
 }

@@ -4,12 +4,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import UserManagementView from './UserManagementView.vue'
 
-const { userList, userCreate, userUpdate, initialPassword, updateInitialPassword, messageError, messageSuccess, messageWarning } = vi.hoisted(() => ({
+const {
+  userList,
+  userCreate,
+  userUpdate,
+  userDelete,
+  initialPassword,
+  updateInitialPassword,
+  authUserState,
+  messageError,
+  messageSuccess,
+  messageWarning,
+} = vi.hoisted(() => ({
   userList: vi.fn(),
   userCreate: vi.fn(),
   userUpdate: vi.fn(),
+  userDelete: vi.fn(),
   initialPassword: vi.fn(),
   updateInitialPassword: vi.fn(),
+  authUserState: { value: { id: 99, username: 'current-admin', role: 'admin' } },
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
@@ -21,7 +34,21 @@ vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
 }))
 vi.mock('@/api', () => ({
-  userApi: { list: userList, create: userCreate, update: userUpdate, initialPassword, updateInitialPassword },
+  userApi: {
+    list: userList,
+    create: userCreate,
+    update: userUpdate,
+    delete: userDelete,
+    initialPassword,
+    updateInitialPassword,
+  },
+}))
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({
+    get user() {
+      return authUserState.value
+    },
+  }),
 }))
 
 const passthrough = defineComponent({
@@ -29,14 +56,14 @@ const passthrough = defineComponent({
 })
 
 const USERS = [
-  { id: 1, username: 'admin', email: 'admin@example.com', role: 'admin', is_active: true },
-  { id: 2, username: 'tester', email: 'tester@example.com', role: 'tester', is_active: false },
+  { id: 1, username: 'admin', email: 'admin@example.com', role: 'admin' as const, is_active: true },
+  { id: 2, username: 'tester', email: 'tester@example.com', role: 'tester' as const, is_active: false },
 ]
 
 function mountPage() {
   const names = [
-    'AButton', 'ACard', 'AForm', 'AFormItem', 'AInput', 'AInputSearch', 'AInputPassword', 'AModal',
-    'ASelect', 'ASelectOption', 'ASwitch', 'ATable', 'ATag',
+    'AAlert', 'AButton', 'ACard', 'AForm', 'AFormItem', 'AInput', 'AInputSearch', 'AInputPassword', 'AModal',
+    'APopconfirm', 'ASelect', 'ASelectOption', 'ASpace', 'ASwitch', 'ATable', 'ATag', 'ATooltip',
   ]
   return mount(UserManagementView, {
     global: { stubs: Object.fromEntries(names.map((name) => [name, passthrough])) },
@@ -45,9 +72,11 @@ function mountPage() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  authUserState.value = { id: 99, username: 'current-admin', role: 'admin' }
   userList.mockResolvedValue(USERS)
   userCreate.mockResolvedValue(USERS[0])
   userUpdate.mockResolvedValue(USERS[0])
+  userDelete.mockResolvedValue(undefined)
   initialPassword.mockResolvedValue({ password: 'example-default' })
   updateInitialPassword.mockResolvedValue({ success: true })
 })
@@ -208,6 +237,72 @@ describe('UserManagementView', () => {
     resolvePassword({ password: 'example-default' })
     await opening
     expect(vm.form.password).toBe('custom-password')
+    wrapper.unmount()
+  })
+
+  it('deletes unused users and disables self or last active admin deletion', async () => {
+    authUserState.value = { id: 1, username: 'admin', role: 'admin' }
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.deleteDisabledReason(USERS[0])).toBe('user_management.cannot_delete_self')
+    expect(vm.deleteDisabledReason(USERS[1])).toBe('')
+
+    await vm.handleDelete(USERS[0])
+    expect(userDelete).not.toHaveBeenCalled()
+    expect(messageWarning).toHaveBeenCalledWith('user_management.cannot_delete_self')
+
+    await vm.handleDelete(USERS[1])
+    expect(userDelete).toHaveBeenCalledWith(2)
+    expect(messageSuccess).toHaveBeenCalledWith('user_management.deleted')
+
+    authUserState.value = { id: 99, username: 'other', role: 'admin' }
+    expect(vm.deleteDisabledReason(USERS[0])).toBe('user_management.cannot_delete_last_admin')
+    wrapper.unmount()
+  })
+
+  it('guides disabling the account when delete hits a 409 historical asset conflict', async () => {
+    const activeEngineer = { id: 3, username: 'eng', email: 'eng@example.com', role: 'engineer' as const, is_active: true }
+    userList.mockResolvedValue([...USERS, activeEngineer])
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    userDelete.mockRejectedValueOnce('该用户仍关联历史业务资产（项目 1 个），无法直接删除，请通过禁用账号保留审计完整')
+    await vm.handleDelete(activeEngineer)
+
+    expect(vm.deleteConflictOpen).toBe(true)
+    expect(vm.conflictUser).toEqual(activeEngineer)
+    expect(vm.conflictDetail).toContain('项目 1 个')
+
+    await vm.disableConflictUser()
+    expect(userUpdate).toHaveBeenCalledWith(3, { is_active: false })
+    expect(messageSuccess).toHaveBeenCalledWith('user_management.disabled_success')
+    expect(vm.deleteConflictOpen).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('restricts editing current signed-in admin to email and password only', async () => {
+    authUserState.value = { id: 1, username: 'admin', role: 'admin' }
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openEdit(USERS[0])
+    expect(vm.editingSelf).toBe(true)
+    vm.form.email = 'self-new@example.com'
+    await vm.handleSave()
+
+    expect(userUpdate).toHaveBeenCalledWith(1, { email: 'self-new@example.com' })
+    wrapper.unmount()
+  })
+
+  it('skips loading user list when mounted by a non-admin user', async () => {
+    authUserState.value = { id: 2, username: 'tester', role: 'tester' }
+    const wrapper = mountPage()
+    await flushPromises()
+    expect(userList).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })
