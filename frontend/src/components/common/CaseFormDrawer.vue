@@ -152,43 +152,20 @@
         <div class="url-config-section">
           <div class="url-label-row">
             <span class="url-label-title"><span class="required-star">*</span> {{ t('case_form.api.url_label') }}</span>
-            <a-dropdown :trigger="['click']">
-              <template #overlay>
-                <a-menu @click="handleApplyRequestTemplate">
-                  <a-menu-item v-for="tpl in API_REQUEST_TEMPLATES" :key="tpl.id">
-                    <div class="preset-menu-item">
-                      <span class="preset-label">{{ tpl.label }}</span>
-                      <small class="preset-code">{{ tpl.description }}</small>
-                    </div>
-                  </a-menu-item>
-                  <template v-if="customRequestTemplates.length">
-                    <a-menu-divider />
-                    <a-menu-item key="__custom_header" disabled>
-                      {{ t('smart_json.custom_templates_label') }}
-                    </a-menu-item>
-                    <a-menu-item v-for="tpl in customRequestTemplates" :key="tpl.id">
-                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
-                        <div class="preset-menu-item">
-                          <span class="preset-label">{{ tpl.label }}</span>
-                          <small class="preset-code">{{ tpl.description }}</small>
-                        </div>
-                        <MinusCircleOutlined
-                          style="color: var(--c-text-tertiary); flex-shrink: 0"
-                          @click.stop="handleDeleteCustomRequestTemplate(tpl.id)"
-                        />
-                      </div>
-                    </a-menu-item>
-                  </template>
-                  <a-menu-divider />
-                  <a-menu-item key="__save_current__">
-                    <span style="color: var(--c-primary); font-weight: 600">+ {{ t('smart_json.save_as_template') }}</span>
-                  </a-menu-item>
-                </a-menu>
-              </template>
+            <TemplatePickerPopover
+              :items="requestTemplatePickerItems"
+              :width="390"
+              placement="bottomRight"
+              searchable
+              :footer-action-label="`+ ${t('smart_json.save_as_template')}`"
+              @select="(item) => handleApplyRequestTemplate({ key: item.id })"
+              @delete="handleDeleteCustomRequestTemplate"
+              @footer-action="openSaveCustomRequestTemplateModal"
+            >
               <a-button size="small" class="request-template-pill-btn">
                 <ThunderboltOutlined /> {{ t('api_scenario.request_template_label') }} <DownOutlined style="font-size: 9px" />
               </a-button>
-            </a-dropdown>
+            </TemplatePickerPopover>
           </div>
 
           <a-form-item :rules="[{ required: true, message: t('case_form.api.url_required') }]" style="margin-bottom: 14px">
@@ -256,21 +233,16 @@
             />
             <template v-else-if="cfg.body_type !== 'none'">
               <div v-if="cfg.body_type === 'raw'" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
-                <a-dropdown :trigger="['click']">
-                  <template #overlay>
-                    <a-menu @click="handleApplyBodyTemplate">
-                      <a-menu-item v-for="tpl in apiBodyTemplates" :key="tpl.id">
-                        <div class="preset-menu-item">
-                          <span class="preset-label">{{ tpl.label }}</span>
-                          <code class="preset-code">{{ tpl.preview }}</code>
-                        </div>
-                      </a-menu-item>
-                    </a-menu>
-                  </template>
+                <TemplatePickerPopover
+                  :items="rawBodyPickerItems"
+                  :width="380"
+                  searchable
+                  @select="(item) => handleApplyBodyTemplate({ key: item.id })"
+                >
                   <a-button size="small">
                     <ThunderboltOutlined /> {{ t('api_scenario.body_template_label') }} <DownOutlined style="font-size: 9px" />
                   </a-button>
-                </a-dropdown>
+                </TemplatePickerPopover>
 
                 <a-space size="small">
                   <a-button size="small" @click="cfg.body = tryFormatJson(cfg.body)">
@@ -429,21 +401,16 @@
             <span class="section-header-line" />
           </div>
           <a-space size="small">
-            <a-dropdown :trigger="['click']">
-              <template #overlay>
-                <a-menu @click="handleApplyAssertionPreset">
-                  <a-menu-item v-for="ap in ASSERTION_PRESETS" :key="ap.id">
-                    <div class="preset-menu-item">
-                      <span class="preset-label">{{ ap.label }}</span>
-                      <code class="preset-code">{{ ap.preview }}</code>
-                    </div>
-                  </a-menu-item>
-                </a-menu>
-              </template>
+            <TemplatePickerPopover
+              :items="assertionPickerItems"
+              :width="340"
+              :searchable="false"
+              @select="(item) => handleApplyAssertionPreset({ key: item.id })"
+            >
               <a-button size="small">
                 {{ t('smart_json.templates') }} <DownOutlined style="font-size: 9px" />
               </a-button>
-            </a-dropdown>
+            </TemplatePickerPopover>
             <a-button
               type="primary"
               ghost
@@ -524,21 +491,16 @@
             <span class="section-header-title">{{ t('case_form.sections.extractions') }}</span>
             <span class="section-header-line" />
           </div>
-          <a-dropdown :trigger="['click']">
-            <template #overlay>
-              <a-menu @click="handleApplyExtractionPreset">
-                <a-menu-item v-for="ep in EXTRACTION_PRESETS" :key="ep.id">
-                  <div class="preset-menu-item">
-                    <span class="preset-label">{{ ep.label }}</span>
-                    <code class="preset-code">{{ ep.preview }}</code>
-                  </div>
-                </a-menu-item>
-              </a-menu>
-            </template>
+          <TemplatePickerPopover
+            :items="extractionPickerItems"
+            :width="340"
+            :searchable="false"
+            @select="(item) => handleApplyExtractionPreset({ key: item.id })"
+          >
             <a-button size="small">
               {{ t('smart_json.templates') }} <DownOutlined style="font-size: 9px" />
             </a-button>
-          </a-dropdown>
+          </TemplatePickerPopover>
         </div>
         <div v-for="(e, i) in cfg.extractions" :key="i" class="assertion-row">
           <a-input v-model:value="e.variable" :placeholder="t('case_form.extraction.variable_placeholder')" style="width: 140px" />
@@ -1354,6 +1316,8 @@ import { GrpcProtoFileError, readGrpcProtoFile, validateGrpcProtoBundle } from '
 import { extractApiError } from '@/utils/apiError'
 import KvEditor from '@/components/common/KvEditor.vue'
 import SmartJsonEditor from '@/components/common/SmartJsonEditor.vue'
+import TemplatePickerPopover from '@/components/common/TemplatePickerPopover.vue'
+import { toBodyTemplatePickerItems, toRequestTemplatePickerItems } from '@/utils/templatePickerItems'
 
 const localMode = getRuntimeMode()?.mode === 'local'
 const { t } = useI18n()
@@ -1764,6 +1728,33 @@ const apiBodyTemplates = computed(() => [
   ...buildSchemaDerivedTemplates(schemaAssets.value, contractAssets.value),
 ])
 const customRequestTemplates = ref<ApiRequestTemplate[]>(loadCustomRequestTemplates(props.projectId ?? null))
+const rawBodyPickerItems = computed(() =>
+  toBodyTemplatePickerItems(apiBodyTemplates.value, {
+    builtin: t('smart_json.templates_builtin'),
+    schema: t('smart_json.templates_schema'),
+  }),
+)
+const requestTemplatePickerItems = computed(() =>
+  toRequestTemplatePickerItems(
+    API_REQUEST_TEMPLATES,
+    customRequestTemplates.value,
+    {
+      builtin: t('smart_json.templates_builtin'),
+      custom: t('smart_json.custom_templates_label'),
+    },
+    true,
+  ),
+)
+const assertionPickerItems = ASSERTION_PRESETS.map((ap) => ({
+  id: ap.id,
+  label: ap.label,
+  preview: ap.preview,
+}))
+const extractionPickerItems = EXTRACTION_PRESETS.map((ep) => ({
+  id: ep.id,
+  label: ep.label,
+  preview: ep.preview,
+}))
 const saveCustomTemplateOpen = ref(false)
 const saveCustomTemplateForm = reactive({ label: '', description: '' })
 const savingSchemaAssetIndex = ref<number | null>(null)
@@ -3089,24 +3080,5 @@ async function handleSave() {
   background: var(--c-primary-soft, #f0f7ff);
   border: 1px solid var(--c-primary-soft, #bae0ff);
   border-radius: 4px;
-}
-
-.preset-menu-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 2px 0;
-}
-
-.preset-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--c-text, #1e293b);
-}
-
-.preset-code {
-  font-size: 11px;
-  color: var(--c-text-tertiary, #94a3b8);
-  font-family: monospace;
 }
 </style>

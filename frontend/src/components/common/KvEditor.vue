@@ -7,40 +7,32 @@
       </span>
 
       <div class="kv-toolbar-actions">
-        <a-dropdown v-if="currentPresets.length" :trigger="['click']">
-          <template #overlay>
-            <a-menu @click="handleApplyPreset">
-              <a-menu-item v-for="item in currentPresets" :key="item.id">
-                <div class="preset-menu-item">
-                  <span class="preset-label">{{ item.label }}</span>
-                  <code class="preset-code">{{ item.preview }}</code>
-                </div>
-              </a-menu-item>
-            </a-menu>
-          </template>
+        <TemplatePickerPopover
+          v-if="currentPresets.length"
+          :items="presetPickerItems"
+          :width="360"
+          :searchable="currentPresets.length >= 6"
+          @select="(item) => handleApplyPreset({ key: item.id })"
+        >
           <a-button size="small" class="preset-btn">
             <ThunderboltOutlined />
             <span>{{ presetButtonLabel }}</span>
             <DownOutlined class="dropdown-arrow" />
           </a-button>
-        </a-dropdown>
+        </TemplatePickerPopover>
 
-        <a-dropdown v-if="presetKind !== 'none' || showDynamicVars" :trigger="['click']">
-          <template #overlay>
-            <a-menu @click="handleInsertDynamicVar">
-              <a-menu-item v-for="dv in DYNAMIC_VARIABLE_PRESETS" :key="dv.id">
-                <div class="preset-menu-item">
-                  <span class="preset-label">{{ dv.label }}</span>
-                  <code class="preset-code">{{ dv.token }}</code>
-                </div>
-              </a-menu-item>
-            </a-menu>
-          </template>
+        <TemplatePickerPopover
+          v-if="presetKind !== 'none' || showDynamicVars"
+          :items="dynamicVarPickerItems"
+          :width="350"
+          searchable
+          @select="(item) => handleInsertDynamicVar({ key: item.id })"
+        >
           <a-button size="small" class="preset-btn">
             <span>{{ t('smart_json.dynamic_vars') }}</span>
             <DownOutlined class="dropdown-arrow" />
           </a-button>
-        </a-dropdown>
+        </TemplatePickerPopover>
 
         <a-button
           v-if="hasActiveRows"
@@ -105,6 +97,8 @@ import {
   PARAM_KEY_SUGGESTIONS,
   PARAM_PRESETS,
 } from '@/utils/apiTemplates'
+import TemplatePickerPopover from '@/components/common/TemplatePickerPopover.vue'
+import { toDynamicVarPickerItems, toKvPresetPickerItems } from '@/utils/templatePickerItems'
 
 const props = withDefaults(
   defineProps<{
@@ -164,6 +158,15 @@ const currentPresets = computed(() => {
   if (props.presetKind === 'cookies') return COOKIE_PRESETS
   return []
 })
+
+const presetPickerItems = computed(() => toKvPresetPickerItems(currentPresets.value))
+const dynamicVarPickerItems = computed(() =>
+  toDynamicVarPickerItems({
+    id: t('smart_json.picker_group_id'),
+    time: t('smart_json.picker_group_time'),
+    random: t('smart_json.picker_group_random'),
+  }),
+)
 
 const toolbarHint = computed(() => {
   if (props.presetKind === 'headers') return t('api_scenario.headers_presets_hint')
@@ -365,25 +368,6 @@ function toObject(): Record<string, string> {
 .clear-btn {
   font-size: 11px;
   padding: 0 4px;
-}
-
-.preset-menu-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 2px 0;
-}
-
-.preset-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--c-text, #1e293b);
-}
-
-.preset-code {
-  font-size: 11px;
-  color: var(--c-text-tertiary, #94a3b8);
-  font-family: monospace;
 }
 
 .kv-row {

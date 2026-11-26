@@ -20,46 +20,20 @@
         <a-select-option v-for="method in methods" :key="method" :value="method">{{ method }}</a-select-option>
       </a-select>
       <a-input v-model:value="draft.url" class="url-input" :placeholder="t('api_workbench.console.url_placeholder')" @pressEnter="sendRequest" />
-      <a-dropdown :trigger="['click']">
-        <template #overlay>
-          <a-menu @click="handleApplyRequestTemplate">
-            <a-menu-item v-for="tpl in API_REQUEST_TEMPLATES" :key="tpl.id">
-              <div class="preset-menu-item">
-                <span class="preset-label">{{ tpl.label }}</span>
-                <small class="preset-code">{{ tpl.description }}</small>
-              </div>
-            </a-menu-item>
-            <template v-if="customTemplates.length">
-              <a-menu-divider />
-              <a-menu-item key="__custom_header" disabled>
-                {{ t('smart_json.custom_templates_label') }}
-              </a-menu-item>
-              <a-menu-item v-for="tpl in customTemplates" :key="tpl.id">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
-                  <div class="preset-menu-item">
-                    <span class="preset-label">{{ tpl.label }}</span>
-                    <small class="preset-code">{{ tpl.description }}</small>
-                  </div>
-                  <MinusCircleOutlined
-                    v-if="canModify"
-                    style="color: var(--c-text-tertiary); flex-shrink: 0"
-                    @click.stop="handleDeleteCustomTemplate(tpl.id)"
-                  />
-                </div>
-              </a-menu-item>
-            </template>
-            <template v-if="canModify">
-              <a-menu-divider />
-              <a-menu-item key="__save_current__">
-                <span style="color: var(--c-primary); font-weight: 600">+ {{ t('smart_json.save_as_template') }}</span>
-              </a-menu-item>
-            </template>
-          </a-menu>
-        </template>
+      <TemplatePickerPopover
+        :items="requestTemplatePickerItems"
+        :width="390"
+        placement="bottomRight"
+        searchable
+        :footer-action-label="canModify ? `+ ${t('smart_json.save_as_template')}` : ''"
+        @select="(item) => handleApplyRequestTemplate({ key: item.id })"
+        @delete="handleDeleteCustomTemplate"
+        @footer-action="openSaveCustomTemplateModal"
+      >
         <a-button class="template-quick-btn" :title="t('api_scenario.request_template_label')">
           <ThunderboltOutlined />
         </a-button>
-      </a-dropdown>
+      </TemplatePickerPopover>
       <a-button v-if="sending" class="cancel-button" @click="cancelRequest">{{ t('api_workbench.console.cancel') }}</a-button>
       <a-button type="primary" class="send-button" :loading="sending" :disabled="!canModify || !draft.url.trim()" @click="sendRequest">
         {{ t('api_workbench.console.send') }}
@@ -83,45 +57,16 @@
             <a-radio-button value="multipart">Multipart</a-radio-button>
           </a-radio-group>
           <div v-if="draft.body_type === 'raw'" class="body-format-actions">
-            <a-dropdown :trigger="['click']">
-              <template #overlay>
-                <a-menu @click="handleApplyBodyTemplate">
-                  <a-menu-item key="empty_object">
-                    <div class="preset-menu-item">
-                      <span class="preset-label">空 JSON 对象</span>
-                      <code class="preset-code">{}</code>
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="pagination">
-                    <div class="preset-menu-item">
-                      <span class="preset-label">分页检索参数</span>
-                      <code class="preset-code">{"page": 1, "page_size": 20, "keyword": ""}</code>
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="login_credentials">
-                    <div class="preset-menu-item">
-                      <span class="preset-label">登录凭证结构</span>
-                      <code class="preset-code">{"username": "admin", "password": "password"}</code>
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="id_update">
-                    <div class="preset-menu-item">
-                      <span class="preset-label">状态更新模板</span>
-                      <code class="preset-code">&#123;&quot;id&quot;: &quot;&#123;&#123;id&#125;&#125;&quot;, &quot;status&quot;: &quot;active&quot;&#125;</code>
-                    </div>
-                  </a-menu-item>
-                  <a-menu-item key="object_array">
-                    <div class="preset-menu-item">
-                      <span class="preset-label">对象数组结构</span>
-                      <code class="preset-code">[{"name": "item1"}]</code>
-                    </div>
-                  </a-menu-item>
-                </a-menu>
-              </template>
+            <TemplatePickerPopover
+              :items="rawBodyPickerItems"
+              :width="380"
+              searchable
+              @select="(item) => handleApplyBodyTemplate({ key: item.id })"
+            >
               <a-button size="small">
                 <ThunderboltOutlined /> {{ t('api_scenario.body_template_label') }} <DownOutlined style="font-size: 9px" />
               </a-button>
-            </a-dropdown>
+            </TemplatePickerPopover>
             <a-space size="small">
               <a-button size="small" @click="handleFormatBody">
                 <FormatPainterOutlined /> 格式化 JSON
@@ -270,7 +215,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import { FormatPainterOutlined, MinusCircleOutlined, ThunderboltOutlined, DownOutlined } from '@ant-design/icons-vue'
+import { FormatPainterOutlined, ThunderboltOutlined, DownOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -292,6 +237,8 @@ import {
 } from '@/utils/customApiTemplates'
 import KvEditor from '@/components/common/KvEditor.vue'
 import SmartJsonEditor from '@/components/common/SmartJsonEditor.vue'
+import TemplatePickerPopover from '@/components/common/TemplatePickerPopover.vue'
+import { toBodyTemplatePickerItems, toRequestTemplatePickerItems } from '@/utils/templatePickerItems'
 import ResponseBodyViewer from './ResponseBodyViewer.vue'
 
 const props = withDefaults(
@@ -336,7 +283,24 @@ const bodyTemplates = computed(() => [
   ...API_BODY_TEMPLATES,
   ...buildSchemaDerivedTemplates(props.schemaAssets, props.contractAssets),
 ])
+const rawBodyPickerItems = computed(() =>
+  toBodyTemplatePickerItems(bodyTemplates.value, {
+    builtin: t('smart_json.templates_builtin'),
+    schema: t('smart_json.templates_schema'),
+  }),
+)
 const customTemplates = ref<ApiRequestTemplate[]>(loadCustomRequestTemplates(props.projectId))
+const requestTemplatePickerItems = computed(() =>
+  toRequestTemplatePickerItems(
+    API_REQUEST_TEMPLATES,
+    customTemplates.value,
+    {
+      builtin: t('smart_json.templates_builtin'),
+      custom: t('smart_json.custom_templates_label'),
+    },
+    props.canModify,
+  ),
+)
 const saveTemplateOpen = ref(false)
 const saveTemplateForm = reactive({ label: '', description: '' })
 
@@ -699,24 +663,5 @@ const formattedHeaders = computed(() =>
   justify-content: center;
   color: var(--c-primary, #1677ff);
   background: var(--c-primary-soft, #f0f7ff);
-}
-
-.preset-menu-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 2px 0;
-}
-
-.preset-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--c-text, #1e293b);
-}
-
-.preset-code {
-  font-size: 11px;
-  color: var(--c-text-tertiary, #94a3b8);
-  font-family: monospace;
 }
 </style>

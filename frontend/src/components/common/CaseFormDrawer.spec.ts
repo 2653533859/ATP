@@ -82,6 +82,7 @@ const globalStubs = {
   AMenuDivider: passthrough('AMenuDivider'),
   AMenuItem: passthrough('AMenuItem'),
   AModal: passthrough('AModal'),
+  APopover: passthrough('APopover'),
   ARadioButton: passthrough('ARadioButton'),
   ARadioGroup: passthrough('ARadioGroup'),
   ARow: passthrough('ARow'),

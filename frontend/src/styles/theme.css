@@ -224,3 +224,40 @@ body {
   font-weight: 500;
   padding: 1px 6px;
 }
+
+/* 模板选择器 & 受限下拉浮层（AntD Portal 渲染在 body 下，需全局样式控制） */
+.atp-template-picker-overlay .ant-popover-inner {
+  padding: 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--c-border);
+  background: var(--c-bg-elevated);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.atp-template-picker-overlay .ant-popover-inner-content {
+  padding: 0;
+}
+
+.atp-template-picker-overlay .ant-popover-arrow {
+  display: none;
+}
+
+.atp-compact-dropdown .ant-dropdown-menu {
+  max-height: 320px;
+  max-width: 380px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.atp-compact-dropdown .ant-dropdown-menu-item {
+  border-radius: var(--radius-xs);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -23,7 +23,7 @@ Android 工具说明：Windows 启动脚本和 `android-network-doctor.ps1` 会�
 
 - 前端、后端、Celery Worker、Celery Beat 运行在 Windows 本机
 - PostgreSQL、Redis、MinIO 运行在 WSL / Linux Docker 主机
-- 远端主机地址由 `.env` 或启动档案提供；文档不固化环境地址。当前根目录 `.env` 目标为 `172.31.27.133`，若该主机不可用，可临时使用已验收的 `remote-infra.env`，但必须明确记录实际运行数据源。
+- 远端主机地址由 `.env` 或启动档案提供；文档不固化环境地址。当前根目录 `.env` 目标为 `192.168.3.196`，若该主机不可用，可临时使用已验收的 `remote-infra.env`，但必须明确记录实际运行数据源。
 - Android 真机通过 Windows 本机 `adb` 直连
 
 Web 录制默认使用 `WEB_RECORDER_MODE=local`，浏览器在 API 进程内启动。如果配置为 `WEB_RECORDER_MODE=worker`，`local-dev.cmd up` 会额外托管 `python -m app.web_recording_worker`；可通过 `local-dev.cmd status` 和 `local-dev.cmd logs` 检查录制 Worker。Windows 桌面模式不需要 `WEB_RECORDER_DISPLAY`。
@@ -512,7 +512,7 @@ Get-NetTCPConnection -LocalPort 8000,5173 -ErrorAction SilentlyContinue | Select
 优先检查 Windows 到 WSL / Linux 主机网络是否可达：
 
 ```powershell
-$RemoteHost = '<server-host>' # 替换为当前 Linux 主机地址，例如 172.31.27.133
+$RemoteHost = '<server-host>' # 替换为当前 Linux 主机地址，例如 192.168.3.196
 Test-NetConnection $RemoteHost -Port 5432
 Test-NetConnection $RemoteHost -Port 6379
 Test-NetConnection $RemoteHost -Port 9000

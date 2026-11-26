@@ -33,49 +33,29 @@
           {{ validation.valid ? t('smart_json.status_valid') : t('smart_json.status_invalid') }}
         </span>
 
-        <a-dropdown v-if="templates.length && !disabled" :trigger="['click']">
-          <template #overlay>
-            <a-menu @click="handleSelectTemplate">
-              <a-menu-item v-for="tpl in builtinTemplates" :key="tpl.id">
-                <div class="preset-menu-item">
-                  <span class="preset-label">{{ tpl.label }}</span>
-                  <code class="preset-code">{{ tpl.preview }}</code>
-                </div>
-              </a-menu-item>
-              <template v-if="derivedTemplates.length">
-                <a-menu-divider v-if="builtinTemplates.length" />
-                <a-menu-item key="__schema_header" disabled>
-                  {{ t('smart_json.templates_schema') }}
-                </a-menu-item>
-                <a-menu-item v-for="tpl in derivedTemplates" :key="tpl.id">
-                  <div class="preset-menu-item">
-                    <span class="preset-label">{{ tpl.label }}</span>
-                    <code class="preset-code">{{ tpl.preview }}</code>
-                  </div>
-                </a-menu-item>
-              </template>
-            </a-menu>
-          </template>
+        <TemplatePickerPopover
+          v-if="templates.length && !disabled"
+          :items="templatePickerItems"
+          :width="380"
+          :searchable="templates.length >= 6"
+          @select="(item) => handleSelectTemplate({ key: item.id })"
+        >
           <a-button size="small" type="text">
             <ThunderboltOutlined /> {{ t('smart_json.templates') }}
           </a-button>
-        </a-dropdown>
+        </TemplatePickerPopover>
 
-        <a-dropdown v-if="showDynamicVars && !disabled" :trigger="['click']">
-          <template #overlay>
-            <a-menu @click="handleInsertDynamicVar">
-              <a-menu-item v-for="dv in DYNAMIC_VARIABLE_PRESETS" :key="dv.id">
-                <div class="preset-menu-item">
-                  <span class="preset-label">{{ dv.label }}</span>
-                  <code class="preset-code">{{ dv.token }}</code>
-                </div>
-              </a-menu-item>
-            </a-menu>
-          </template>
+        <TemplatePickerPopover
+          v-if="showDynamicVars && !disabled"
+          :items="dynamicVarPickerItems"
+          :width="350"
+          searchable
+          @select="(item) => handleInsertDynamicVar({ key: item.id })"
+        >
           <a-button size="small" type="text">
             <PlusOutlined /> {{ t('smart_json.dynamic_vars') }}
           </a-button>
-        </a-dropdown>
+        </TemplatePickerPopover>
 
         <template v-if="mode === 'raw' && !disabled">
           <a-button size="small" type="text" @click="formatRaw">
@@ -200,6 +180,8 @@ import { FormatPainterOutlined, MinusCircleOutlined, PlusOutlined, ThunderboltOu
 import { useI18n } from 'vue-i18n'
 import { tryCompressJson, tryFormatJson } from '@/utils/jsonFormat'
 import { DYNAMIC_VARIABLE_PRESETS } from '@/utils/apiTemplates'
+import TemplatePickerPopover from '@/components/common/TemplatePickerPopover.vue'
+import { toBodyTemplatePickerItems, toDynamicVarPickerItems } from '@/utils/templatePickerItems'
 import {
   HEADER_KEY_SUGGESTIONS,
   jsonTextToRows,
@@ -246,6 +228,19 @@ const mode = ref<'visual' | 'raw'>(props.defaultMode)
 const headerOptions = HEADER_KEY_SUGGESTIONS.map((item) => ({ value: item }))
 const builtinTemplates = computed(() => props.templates.filter((tpl) => !tpl.group || tpl.group === 'builtin'))
 const derivedTemplates = computed(() => props.templates.filter((tpl) => tpl.group === 'schema' || tpl.group === 'contract'))
+const templatePickerItems = computed(() =>
+  toBodyTemplatePickerItems([...builtinTemplates.value, ...derivedTemplates.value], {
+    builtin: t('smart_json.templates_builtin'),
+    schema: t('smart_json.templates_schema'),
+  }),
+)
+const dynamicVarPickerItems = computed(() =>
+  toDynamicVarPickerItems({
+    id: t('smart_json.picker_group_id'),
+    time: t('smart_json.picker_group_time'),
+    random: t('smart_json.picker_group_random'),
+  }),
+)
 const defaultPlaceholder = '{\n  "key": "value"\n}'
 const rowsCount = computed(() => Math.max(props.rows, props.compact ? 2 : 4))
 const validation = computed(() => validateJsonText(rawText.value, props.allowTemplates))
@@ -575,21 +570,5 @@ function handleInsertDynamicVar({ key }: { key: string | number }) {
 
 .smart-json-notice.is-error {
   color: var(--c-error);
-}
-
-.preset-menu-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.preset-label {
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.preset-code {
-  font-size: 11px;
-  color: var(--c-text-tertiary);
 }
 </style>

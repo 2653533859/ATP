@@ -41,7 +41,7 @@
         >
           <PlayCircleOutlined /> 运行场景
         </a-button>
-        <a-dropdown :trigger="['click']">
+        <a-dropdown :trigger="['click']" overlay-class-name="atp-compact-dropdown">
           <a-button size="small">
             更多 <DownOutlined />
           </a-button>
@@ -186,7 +186,7 @@
                   class="url-input"
                   @change="markDirty"
                 />
-                <a-dropdown :trigger="['click']">
+                <a-dropdown :trigger="['click']" overlay-class-name="atp-compact-dropdown">
                   <a-button class="var-picker-btn">
                     取值 <DownOutlined />
                   </a-button>
@@ -242,16 +242,13 @@
                     <div class="kv-header">
                       <span>查询参数 (Query Params)</span>
                       <a-space size="small">
-                        <a-dropdown :trigger="['click']">
-                          <template #overlay>
-                            <a-menu @click="({ key }) => applyStepParamPreset(String(key))">
-                              <a-menu-item v-for="preset in PARAM_PRESETS" :key="preset.id">
-                                {{ preset.label }}
-                              </a-menu-item>
-                            </a-menu>
-                          </template>
+                        <TemplatePickerPopover
+                          :items="stepParamPickerItems"
+                          :width="350"
+                          @select="(item) => applyStepParamPreset(item.id)"
+                        >
                           <a-button type="link" size="small">常用参数 <DownOutlined /></a-button>
-                        </a-dropdown>
+                        </TemplatePickerPopover>
                         <a-button type="link" size="small" @click="addQueryParamRow">+ 添加参数</a-button>
                       </a-space>
                     </div>
@@ -310,16 +307,14 @@
                         </button>
                       </div>
                       <a-space size="small">
-                        <a-dropdown :trigger="['click']">
-                          <template #overlay>
-                            <a-menu @click="({ key }) => applyStepJsonBodyTemplate(String(key))">
-                              <a-menu-item v-for="tpl in stepBodyTemplates" :key="tpl.id">
-                                {{ tpl.label }}
-                              </a-menu-item>
-                            </a-menu>
-                          </template>
+                        <TemplatePickerPopover
+                          :items="stepBodyPickerItems"
+                          :width="380"
+                          searchable
+                          @select="(item) => applyStepJsonBodyTemplate(item.id)"
+                        >
                           <a-button type="link" size="small">Body 模板 <DownOutlined /></a-button>
-                        </a-dropdown>
+                        </TemplatePickerPopover>
                         <a-button type="link" size="small" @click="formatCurrentJsonBody">格式化</a-button>
                       </a-space>
                     </div>
@@ -343,7 +338,7 @@
                         <div v-for="(fRow, fIdx) in jsonFieldRows" :key="fIdx" class="json-field-row">
                           <a-input v-model:value="fRow.key" placeholder="字段名" size="small" @change="syncJsonFieldsToStep" />
                           <a-input v-model:value="fRow.value" placeholder="字段值或 {{变量}}" size="small" @change="syncJsonFieldsToStep" />
-                          <a-dropdown :trigger="['click']">
+                          <a-dropdown :trigger="['click']" overlay-class-name="atp-compact-dropdown">
                             <a-button size="small">取值 <DownOutlined /></a-button>
                             <template #overlay>
                               <a-menu @click="({ key }) => setJsonFieldVar(fIdx, String(key))">
@@ -407,16 +402,13 @@
                     <div class="kv-header">
                       <span>HTTP 请求头 (Headers)</span>
                       <a-space size="small">
-                        <a-dropdown :trigger="['click']">
-                          <template #overlay>
-                            <a-menu @click="({ key }) => applyStepHeaderPreset(String(key))">
-                              <a-menu-item v-for="preset in HEADER_PRESETS" :key="preset.id">
-                                {{ preset.label }}
-                              </a-menu-item>
-                            </a-menu>
-                          </template>
+                        <TemplatePickerPopover
+                          :items="stepHeaderPickerItems"
+                          :width="350"
+                          @select="(item) => applyStepHeaderPreset(item.id)"
+                        >
                           <a-button type="link" size="small">常用请求头 <DownOutlined /></a-button>
-                        </a-dropdown>
+                        </TemplatePickerPopover>
                         <a-button type="link" size="small" @click="addHeaderRow">+ 添加请求头</a-button>
                       </a-space>
                     </div>
@@ -465,16 +457,14 @@
                 <div class="kv-header">
                   <span>响应断言校验规则</span>
                   <a-space size="small">
-                    <a-dropdown :trigger="['click']">
-                      <template #overlay>
-                        <a-menu @click="({ key }) => applyStepAssertionPreset(String(key))">
-                          <a-menu-item v-for="ap in ASSERTION_PRESETS" :key="ap.id">
-                            {{ ap.label }}
-                          </a-menu-item>
-                        </a-menu>
-                      </template>
+                    <TemplatePickerPopover
+                      :items="stepAssertionPickerItems"
+                      :width="340"
+                      :searchable="false"
+                      @select="(item) => applyStepAssertionPreset(item.id)"
+                    >
                       <a-button size="small">断言模板 <DownOutlined /></a-button>
-                    </a-dropdown>
+                    </TemplatePickerPopover>
                     <a-button size="small" @click="addStatus200Assertion">+ 状态码 200</a-button>
                     <a-button type="primary" size="small" @click="addAssertionRow">+ 添加校验</a-button>
                   </a-space>
@@ -805,6 +795,8 @@ import {
 import { extractApiError } from '@/utils/apiError'
 import { API_BODY_TEMPLATES } from '@/utils/smartJson'
 import { buildSchemaDerivedTemplates } from '@/utils/schemaSampleGenerator'
+import TemplatePickerPopover from '@/components/common/TemplatePickerPopover.vue'
+import { toBodyTemplatePickerItems, toKvPresetPickerItems } from '@/utils/templatePickerItems'
 import {
   ASSERTION_PRESETS,
   DYNAMIC_VARIABLE_PRESETS,
@@ -858,6 +850,19 @@ const stepBodyTemplates = computed(() => [
   ...API_BODY_TEMPLATES,
   ...buildSchemaDerivedTemplates(props.schemaAssets, props.contractAssets),
 ])
+const stepBodyPickerItems = computed(() =>
+  toBodyTemplatePickerItems(stepBodyTemplates.value, {
+    builtin: '内置模板',
+    schema: 'Schema / 契约生成',
+  }),
+)
+const stepParamPickerItems = toKvPresetPickerItems(PARAM_PRESETS)
+const stepHeaderPickerItems = toKvPresetPickerItems(HEADER_PRESETS)
+const stepAssertionPickerItems = ASSERTION_PRESETS.map((ap) => ({
+  id: ap.id,
+  label: ap.label,
+  preview: ap.preview,
+}))
 
 const emit = defineEmits<{
   exit: []

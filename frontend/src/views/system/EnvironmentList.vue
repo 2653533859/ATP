@@ -62,19 +62,15 @@
               <div style="margin-bottom: 12px">
                 <a-space>
                   <a-button type="dashed" @click="addVariable">{{ t('system_pages.environment.add_variable') }}</a-button>
-                  <a-dropdown :trigger="['click']">
-                    <template #overlay>
-                      <a-menu @click="handleApplyEnvPreset">
-                        <a-menu-item v-for="preset in ENVIRONMENT_VARIABLE_PRESETS" :key="preset.id">
-                          <div style="display: flex; flex-direction: column; gap: 2px">
-                            <span style="font-weight: 500">{{ preset.label }}</span>
-                            <small style="color: var(--c-text-tertiary)">{{ preset.description }}</small>
-                          </div>
-                        </a-menu-item>
-                      </a-menu>
-                    </template>
+                  <TemplatePickerPopover
+                    :items="envPresetPickerItems"
+                    :width="360"
+                    placement="bottomLeft"
+                    :searchable="false"
+                    @select="(item) => handleApplyEnvPreset({ key: item.id })"
+                  >
                     <a-button>{{ t('system_pages.environment.apply_preset') }}</a-button>
-                  </a-dropdown>
+                  </TemplatePickerPopover>
                 </a-space>
               </div>
               <a-table
@@ -163,6 +159,8 @@ import {
 } from '@/api'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 import { ENVIRONMENT_VARIABLE_PRESETS } from '@/utils/apiTemplates'
+import TemplatePickerPopover from '@/components/common/TemplatePickerPopover.vue'
+import { toEnvPresetPickerItems } from '@/utils/templatePickerItems'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -211,6 +209,7 @@ const showCreateModal = ref(false)
 const editingEnv = ref<EnvironmentItem | null>(null)
 const envForm = ref({ name: '', description: '' })
 const initialPresetId = ref<string | undefined>(undefined)
+const envPresetPickerItems = toEnvPresetPickerItems(ENVIRONMENT_VARIABLE_PRESETS)
 
 onMounted(async () => {
   try {

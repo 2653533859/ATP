@@ -112,6 +112,7 @@ const globalStubs = {
   AFormItem: passthrough('AFormItem'),
   AInputSearch: passthrough('AInputSearch'),
   AModal: passthrough('AModal'),
+  APopover: passthrough('APopover'),
   ASelect: passthrough('ASelect'),
   ASpace: passthrough('ASpace'),
   ASpin: passthrough('ASpin'),

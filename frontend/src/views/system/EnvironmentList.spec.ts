@@ -59,6 +59,7 @@ const stubs = {
   AMenu: passthrough,
   AMenuItem: passthrough,
   AModal: passthrough,
+  APopover: passthrough,
   AForm: passthrough,
   'AFormItem': passthrough,
   'ATextarea': passthrough,

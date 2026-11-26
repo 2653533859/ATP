@@ -57,6 +57,7 @@ function mountEditor(props: Record<string, unknown> = {}) {
         AMenu: passthrough('AMenu'),
         AMenuDivider: passthrough('AMenuDivider'),
         AMenuItem: passthrough('AMenuItem'),
+        APopover: passthrough('APopover'),
         ASelect: passthrough('ASelect'),
         ASelectOption: passthrough('ASelectOption'),
         ATextarea: defineComponent({
