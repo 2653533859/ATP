@@ -7,6 +7,8 @@ Authorization 或 X-Requested-With header，防止跨站表单伪造。
 白名单路径（不做检查）：
 - /health
 - /mock/  （Mock 服务可被外部直接调用）
+- /api/v1/plans/webhook （测试计划 Webhook 触发，靠 X-Webhook-Secret 校验）
+- /api/v1/defects/webhook/ （外部缺陷平台回调，靠平台签名/Secret 校验）
 - /docs, /openapi.json （Swagger UI）
 """
 
@@ -15,8 +17,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 _UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-_WHITELIST_PREFIXES = ("/health", "/mock/", "/docs", "/openapi.json", "/redoc")
-_WHITELIST_PATHS = {"/api/v1/auth/login", "/api/v1/auth/refresh"}
+_WHITELIST_PREFIXES = ("/health", "/mock/", "/docs", "/openapi.json", "/redoc", "/api/v1/defects/webhook/")
+_WHITELIST_PATHS = {"/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/plans/webhook"}
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):

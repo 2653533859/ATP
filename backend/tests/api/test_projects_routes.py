@@ -413,13 +413,31 @@ def test_get_project_404():
 
 
 def test_update_project_applies_fields_and_backfills_code():
-    project = _Obj(id=1, name="old", project_code=None)
+    project = _Obj(id=1, name="old", project_code=None, ai_llm_config_id=7)
     db = _FakeDB({("Project", 1): project})
 
     updated = asyncio.run(prj.update_project(project_id=1, body=ProjectUpdate(name="new"), db=db))
 
     assert updated.name == "new"
     assert updated.project_code  # 无 code 时按新名回填
+    assert updated.ai_llm_config_id == 7  # 未传字段保持原值
+
+
+def test_update_project_clears_nullable_ai_llm_config_id_and_rejects_blank_name():
+    project = _Obj(id=1, name="Core", project_code="CORE", description="desc", ai_llm_config_id=9)
+    db = _FakeDB({("Project", 1): project})
+
+    cleared = asyncio.run(prj.update_project(project_id=1, body=ProjectUpdate(ai_llm_config_id=None), db=db))
+    assert cleared.ai_llm_config_id is None
+    assert cleared.name == "Core"
+    assert cleared.description == "desc"
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(prj.update_project(project_id=1, body=ProjectUpdate(name="  "), db=db))
+    assert exc.value.status_code == 422
+
+    blank_code = asyncio.run(prj.update_project(project_id=1, body=ProjectUpdate(project_code="   "), db=db))
+    assert blank_code.project_code is None
 
 
 def test_update_project_uses_writable_dependency_for_archived_read_only_boundary():

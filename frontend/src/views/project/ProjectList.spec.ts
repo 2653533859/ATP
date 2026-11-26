@@ -217,6 +217,7 @@ describe('ProjectList', () => {
 
     vm.editingId = 1
     vm.form.name = 'Updated'
+    vm.form.ai_llm_config_id = undefined
     await vm.handleSave()
     expect(projectUpdate).toHaveBeenCalledWith(1, {
       name: 'Updated', description: undefined, ai_llm_config_id: null,

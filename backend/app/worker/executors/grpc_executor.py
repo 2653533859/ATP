@@ -289,7 +289,13 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
             proto_files = step.get("proto_files")
             service_name = _render(step.get("service", ""), context)
             method_name = _render(step.get("method", ""), context)
-            request_json_str = _render(step.get("request_json", "{}"), context)
+            raw_request_json = step.get("request_json")
+            if raw_request_json is None:
+                request_json_str = "{}"
+            elif isinstance(raw_request_json, str):
+                request_json_str = _render(raw_request_json, context).strip() or "{}"
+            else:
+                request_json_str = json.dumps(raw_request_json, ensure_ascii=False)
             timeout = step.get("timeout", 30)
             metadata_cfg = step.get("metadata", {})
 

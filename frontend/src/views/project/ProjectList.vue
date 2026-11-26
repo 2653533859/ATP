@@ -357,14 +357,14 @@ async function handleSave() {
       await projectApi.update(editingId.value, {
         name: form.name.trim(),
         description: form.description.trim() || undefined,
-        ai_llm_config_id: form.ai_llm_config_id,
+        ai_llm_config_id: form.ai_llm_config_id ?? null,
       })
       message.success(t('project.msg.update_success'))
     } else {
       await projectApi.create({
         name: form.name.trim(),
         description: form.description.trim() || undefined,
-        ai_llm_config_id: form.ai_llm_config_id,
+        ai_llm_config_id: form.ai_llm_config_id ?? null,
         template: form.template,
       })
       message.success(t('project.msg.create_success'))

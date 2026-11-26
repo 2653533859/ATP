@@ -63,3 +63,17 @@ def test_csrf_still_blocks_anonymous_state_change_requests():
     )
 
     assert response.status_code == 403
+
+
+def test_csrf_allows_plan_and_defect_webhook_endpoints_without_auth_headers():
+    async def call_next(_request):
+        return Response(status_code=204)
+
+    for webhook_path in ("/api/v1/plans/webhook", "/api/v1/defects/webhook/1"):
+        response = asyncio.run(
+            _middleware().dispatch(
+                _request(webhook_path, headers={"x-webhook-secret": "sec-123"}),
+                call_next,
+            )
+        )
+        assert response.status_code == 204

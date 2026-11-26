@@ -102,7 +102,7 @@ async def _extract_case_run_error(db, case_run) -> str | None:
     if status_val in {"failed", "error"} and run_id and hasattr(db, "execute"):
         try:
             from sqlalchemy import select
-            from app.models.case import StepResult
+            from app.models.case import RunStatus, StepResult, TestRun
 
             stmt = (
                 select(StepResult.error_message)
@@ -113,6 +113,30 @@ async def _extract_case_run_error(db, case_run) -> str | None:
             step_err = (await db.execute(stmt)).scalar_one_or_none()
             if isinstance(step_err, str) and step_err.strip():
                 return step_err.strip()[:500]
+
+            child_stmt = (
+                select(TestRun.id, TestRun.error_message)
+                .where(
+                    TestRun.parent_run_id == run_id,
+                    TestRun.status.in_([RunStatus.failed, RunStatus.error]),
+                )
+                .order_by(TestRun.iteration_index.asc(), TestRun.id.asc())
+                .limit(1)
+            )
+            child_row = (await db.execute(child_stmt)).first()
+            if child_row is not None:
+                child_id, child_err = child_row[0], child_row[1]
+                if isinstance(child_err, str) and child_err.strip():
+                    return child_err.strip()[:500]
+                child_step_stmt = (
+                    select(StepResult.error_message)
+                    .where(StepResult.run_id == child_id, StepResult.error_message.isnot(None))
+                    .order_by(StepResult.step_index.asc())
+                    .limit(1)
+                )
+                child_step_err = (await db.execute(child_step_stmt)).scalar_one_or_none()
+                if isinstance(child_step_err, str) and child_step_err.strip():
+                    return child_step_err.strip()[:500]
         except Exception:
             logger.debug("Failed to inspect StepResult error for case_run %s", run_id, exc_info=True)
     return None
@@ -207,9 +231,21 @@ async def execute_case_run(
 
                 dispatch_case_fn = dispatch_case
 
-            case_run.status = RunStatus.running
-            await db.commit()
-            await dispatch_case_fn(db, case_run, case, extra_vars)
+            if getattr(case, "dataset_id", None) is not None and getattr(case_run, "parent_run_id", None) is None:
+                from app.worker.tasks import _execute_parameterized
+
+                await _execute_parameterized(
+                    db,
+                    case_run,
+                    case,
+                    extra_vars,
+                    dispatch_case_fn=dispatch_case_fn,
+                    record_parent_outcome=False,
+                )
+            else:
+                case_run.status = RunStatus.running
+                await db.commit()
+                await dispatch_case_fn(db, case_run, case, extra_vars)
         await db.refresh(case_run)
         (record_outcome_fn or _record_run_outcome)("case", case_run.status)
     except Exception as e:

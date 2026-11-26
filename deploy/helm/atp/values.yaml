@@ -174,7 +174,7 @@ config:
   # Weekly backup retention count.
   DB_BACKUP_RETAIN_WEEKLY: "4"
   # Enable automatic AI healing diagnostics when project LLM config is present.
-  AI_HEALING_ENABLED: "false"
+  AI_HEALING_ENABLED: "true"
   # Maximum seconds for one AI healing LLM call.
   AI_HEALING_TIMEOUT_SECONDS: "60"
   # Daily LLM call limit for AI healing. 0 means unlimited.

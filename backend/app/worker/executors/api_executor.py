@@ -342,8 +342,9 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                     # 断言
                     assertions = await _resolve_schema_assertions(db, step.get("assertions", []), project_id)
                     for assertion in assertions:
-                        passed, msg = _assert(assertion, resp, resp_body, duration)
-                        assertion_records.append(assertion_result(assertion, passed=passed, message=msg))
+                        rendered_assertion = _render_assertion(assertion, request_context)
+                        passed, msg = _assert(rendered_assertion, resp, resp_body, duration)
+                        assertion_records.append(assertion_result(rendered_assertion, passed=passed, message=msg))
                         if not passed:
                             step_status = RunStatus.failed
                             all_passed = False
@@ -645,7 +646,51 @@ def _schema_valid(body, schema) -> tuple[bool, str]:
         raise ValueError("JSON Schema 校验依赖未安装") from exc
 
 
-def _assert(assertion: dict, resp: httpx.Response, body, duration_ms: int) -> tuple[bool, str]:
+def _render_assertion(assertion: dict, context: dict | None) -> dict:
+    """按上下文单次渲染断言期望值与表达式，空 dict 仍允许展开内置 {{$...}} 变量。"""
+    if context is None:
+        return assertion
+    target = assertion.get("target")
+    operator = assertion.get("operator")
+    if target in {"json_schema", "schema"}:
+        return assertion
+
+    updated: dict[str, Any] = {}
+    if target == "expression" or operator in {"expression", "safe_expression"}:
+        expression = assertion.get("expression")
+        expected = assertion.get("expected")
+        if isinstance(expression, str) and "{{" in expression:
+            rendered_expr = _render(expression, context)
+            if rendered_expr != expression:
+                updated["expression"] = rendered_expr
+        elif expression is None and isinstance(expected, str) and "{{" in expected:
+            rendered_exp = _render(expected, context)
+            if rendered_exp != expected:
+                updated["expected"] = rendered_exp
+        return {**assertion, **updated} if updated else assertion
+
+    expected = assertion.get("expected")
+    if expected is not None:
+        rendered_expected = _render_body_value(expected, context)
+        if rendered_expected != expected:
+            updated["expected"] = rendered_expected
+    expression = assertion.get("expression")
+    if isinstance(expression, str) and "{{" in expression:
+        rendered_expression = _render(expression, context)
+        if rendered_expression != expression:
+            updated["expression"] = rendered_expression
+    return {**assertion, **updated} if updated else assertion
+
+
+def _assert(
+    assertion: dict,
+    resp: httpx.Response,
+    body,
+    duration_ms: int,
+    context: dict | None = None,
+) -> tuple[bool, str]:
+    if context is not None:
+        assertion = _render_assertion(assertion, context)
     target = assertion.get("target")  # status_code / body / header / duration
     operator = assertion.get("operator")  # eq / contains / gt / lt / exists
     expected = assertion.get("expected")

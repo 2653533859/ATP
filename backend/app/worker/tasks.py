@@ -210,7 +210,15 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
         logger.warning("Skipped duplicate case run delivery %s: %s", run_id, exc)
 
 
-async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None:
+async def _execute_parameterized(
+    db,
+    parent_run,
+    case,
+    extra_vars: dict,
+    *,
+    dispatch_case_fn=None,
+    record_parent_outcome: bool = True,
+) -> None:
     """按 case.dataset 的 rows 依次执行 N 次 child runs，聚合状态写回 parent。"""
     from app.models.case import RunStatus, TestRun
     from app.models.dataset import TestDataset, TestDatasetVersion
@@ -240,7 +248,8 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
                 "dataset_version_missing": True,
             }
             await db.commit()
-            _record_run_outcome("case", parent_run.status)
+            if record_parent_outcome:
+                _record_run_outcome("case", parent_run.status)
             await _safe_publish_run_event(
                 parent_run.id,
                 {"type": "completed", "run_id": parent_run.id, "status": "error"},
@@ -272,7 +281,8 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
                 "dataset_preparation": {"status": "failed", "error": str(exc)[:500]},
             }
             await db.commit()
-            _record_run_outcome("case", parent_run.status)
+            if record_parent_outcome:
+                _record_run_outcome("case", parent_run.status)
             await _safe_publish_run_event(
                 parent_run.id,
                 {"type": "completed", "run_id": parent_run.id, "status": "error"},
@@ -297,7 +307,8 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
             "dataset_execution_error": str(exc),
         }
         await db.commit()
-        _record_run_outcome("case", parent_run.status)
+        if record_parent_outcome:
+            _record_run_outcome("case", parent_run.status)
         await _safe_publish_run_event(
             parent_run.id,
             {"type": "completed", "run_id": parent_run.id, "status": "error"},
@@ -313,9 +324,13 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
                 "dataset_preparation": preparation_summary,
             }
         await db.commit()
-        await dispatch_case(db, parent_run, case, prepared_vars)
+        if dispatch_case_fn is not None:
+            await dispatch_case_fn(db, parent_run, case, prepared_vars)
+        else:
+            await dispatch_case(db, parent_run, case, prepared_vars)
         await db.refresh(parent_run)
-        _record_run_outcome("case", parent_run.status)
+        if record_parent_outcome:
+            _record_run_outcome("case", parent_run.status)
         await _safe_invalidate_stats_cache()
         return
 
@@ -347,7 +362,8 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
             "dataset_strict_schema": True,
         }
         await db.commit()
-        _record_run_outcome("case", parent_run.status)
+        if record_parent_outcome:
+            _record_run_outcome("case", parent_run.status)
         await _safe_publish_run_event(
             parent_run.id,
             {
@@ -405,7 +421,10 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
 
         merged_vars = {**prepared_vars, **raw_iteration_data}
         try:
-            await dispatch_case(db, child, case, merged_vars)
+            if dispatch_case_fn is not None:
+                await dispatch_case_fn(db, child, case, merged_vars)
+            else:
+                await dispatch_case(db, child, case, merged_vars)
             await db.refresh(child)
             status_str = child.status.value if hasattr(child.status, "value") else str(child.status)
         except Exception as exc:
@@ -439,7 +458,8 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
         "iteration_error": summary_counts["error"],
     }
     await db.commit()
-    _record_run_outcome("case", parent_run.status)
+    if record_parent_outcome:
+        _record_run_outcome("case", parent_run.status)
     await _safe_publish_run_event(
         parent_run.id,
         {
@@ -732,6 +752,24 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                                             "attachment_uploaded": attachment_uploaded,
                                         }
                                     )
+                        else:
+                            from app.services.plan_auto_defect import auto_create_internal_defects_for_plan_run
+
+                            if hasattr(db, "begin_nested"):
+                                async with db.begin_nested():
+                                    bug_results = await auto_create_internal_defects_for_plan_run(
+                                        db,
+                                        plan=plan,
+                                        plan_run=plan_run,
+                                        suite_run_results=suite_run_results,
+                                    )
+                            else:
+                                bug_results = await auto_create_internal_defects_for_plan_run(
+                                    db,
+                                    plan=plan,
+                                    plan_run=plan_run,
+                                    suite_run_results=suite_run_results,
+                                )
                         plan_run.result_summary = {**counts, **plan_config, "auto_bugs": bug_results}
                     except Exception as e:
                         logger.warning(f"Auto create bugs for plan failed: {e}")

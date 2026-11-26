@@ -15,6 +15,7 @@ from app.services.dataset_execution import redact_execution_evidence
 from app.services.api_auth import build_digest_auth, resolve_oauth2_client_credentials_token
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.services.step_result_collector import StepResultBatchCollector
+from app.services.template_variables import render_template_string, render_template_value
 from app.worker.executors._assertion_helpers import (
     build_basic_auth_header,
     collect_auth_redact_fields,
@@ -151,10 +152,12 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
                     resp = await client.post(endpoint, headers=headers, json=gql_body, auth=request_auth)
 
                 duration = int((time.monotonic() - step_start) * 1000)
+                json_parse_failed = False
                 try:
                     resp_body = resp.json()
                 except Exception:
                     resp_body = resp.text
+                    json_parse_failed = True
 
                 response_data = response_contract(
                     "graphql",
@@ -180,14 +183,63 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
             response_data["extractions"] = extraction_records
 
             # 断言
-            for assertion in step.get("assertions", []):
-                passed, msg = _assert(assertion, resp, resp_body, duration)
-                assertion_records.append(assertion_result(assertion, passed=passed, message=msg))
+            assertions = step.get("assertions", [])
+            for assertion in assertions:
+                rendered_assertion = _render_assertion(assertion, context)
+                passed, msg = _assert(rendered_assertion, resp, resp_body, duration)
+                assertion_records.append(assertion_result(rendered_assertion, passed=passed, message=msg))
                 if not passed:
                     step_status = RunStatus.failed
                     all_passed = False
                     error_msg = msg
                     break
+
+            # 默认协议校验：仅在显式断言全部通过（含零断言）且未显式接管对应字段时生效
+            if step_status == RunStatus.passed and not is_subscription:
+                assertion_targets = {a.get("target") for a in assertions if isinstance(a, dict)}
+                if resp.status_code >= 400 and "status_code" not in assertion_targets:
+                    error_msg = f"GraphQL 请求失败: HTTP {resp.status_code}"
+                    step_status = RunStatus.failed
+                    all_passed = False
+                    assertion_records.append(
+                        assertion_result(
+                            {"target": "status_code", "operator": "lt", "expected": 400, "default": True},
+                            passed=False,
+                            message=error_msg,
+                        )
+                    )
+                elif (
+                    (json_parse_failed or not isinstance(resp_body, dict))
+                    and not (resp.status_code >= 400 and "status_code" in assertion_targets)
+                    and "body" not in assertion_targets
+                ):
+                    error_msg = f"GraphQL 响应不是有效的 JSON 对象 (HTTP {resp.status_code})"
+                    step_status = RunStatus.failed
+                    all_passed = False
+                    assertion_records.append(
+                        assertion_result(
+                            {"target": "body", "operator": "is_json_object", "expected": True, "default": True},
+                            passed=False,
+                            message=error_msg,
+                        )
+                    )
+                elif (
+                    isinstance(resp_body, dict)
+                    and resp_body.get("errors")
+                    and "graphql_errors" not in assertion_targets
+                    and "body" not in assertion_targets
+                ):
+                    error_msg = f"GraphQL 返回错误: {resp_body.get('errors')}"
+                    step_status = RunStatus.failed
+                    all_passed = False
+                    assertion_records.append(
+                        assertion_result(
+                            {"target": "graphql_errors", "operator": "not_exists", "default": True},
+                            passed=False,
+                            message=error_msg,
+                        )
+                    )
+
             response_data["assertions"] = assertion_records
 
         except Exception as e:
@@ -303,10 +355,8 @@ async def _run_subscription(url: str, headers: dict, gql_body: dict, step: dict,
 
 
 def _render(template: str, context: dict) -> str:
-    """简单的 {{variable}} 占位符替换"""
-    for k, v in context.items():
-        template = template.replace(f"{{{{{k}}}}}", str(v))
-    return template
+    """渲染 {{variable}} 与内置 {{$dynamic}} 占位符。"""
+    return render_template_string(template, context)
 
 
 def _jsonpath_extract(data, expression: str):
@@ -317,7 +367,33 @@ def _jsonpath_extract(data, expression: str):
         return None
 
 
-def _assert(assertion: dict, resp: httpx.Response, body, duration_ms: int) -> tuple[bool, str]:
+def _render_assertion(assertion: dict, context: dict | None) -> dict:
+    """按上下文单次渲染断言期望值与表达式，空 dict 仍允许展开内置 {{$...}} 变量。"""
+    if context is None:
+        return assertion
+    updated: dict = {}
+    expected = assertion.get("expected")
+    if expected is not None:
+        rendered_expected = render_template_value(expected, context, preserve_type=True)
+        if rendered_expected != expected:
+            updated["expected"] = rendered_expected
+    expression = assertion.get("expression")
+    if isinstance(expression, str) and "{{" in expression:
+        rendered_expression = _render(expression, context)
+        if rendered_expression != expression:
+            updated["expression"] = rendered_expression
+    return {**assertion, **updated} if updated else assertion
+
+
+def _assert(
+    assertion: dict,
+    resp: httpx.Response,
+    body,
+    duration_ms: int,
+    context: dict | None = None,
+) -> tuple[bool, str]:
+    if context is not None:
+        assertion = _render_assertion(assertion, context)
     target = assertion.get("target")
     operator = assertion.get("operator")
     expected = assertion.get("expected")

@@ -1660,3 +1660,188 @@ def test_api_executor_step_scope_pre_action_token_regex_extract_ne_assert_and_re
     assert step_record.response_data["extractions"][0]["variable"] == "extracted_id"
     assert step_record.response_data["extractions"][0]["value"] == "42"
     assert step_record.response_data["extractions"][0]["success"] is True
+
+
+def test_api_executor_renders_template_variables_in_assertion_expected(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    fake_http.script = [
+        _FakeResponse(200, {"message": "hello-alpha"}),
+        _FakeResponse(200, {"message": "hello-wrong"}),
+    ]
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "name": "assert-expected-template",
+                    "url": "https://api.example.com/echo",
+                    "method": "GET",
+                    "assertions": [
+                        {
+                            "target": "body",
+                            "expression": "$.message",
+                            "operator": "eq",
+                            "expected": "{{expected_text}}",
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    run_ok = _run_stub()
+    db_ok = _FakeDB()
+    asyncio.run(api_executor.run_api_case(db_ok, run_ok, case, {"expected_text": "hello-alpha"}))
+    assert run_ok.status is RunStatus.passed
+    assert db_ok.added[0].response_data["assertions"][0]["expected"] == "hello-alpha"
+
+    run_bad = _run_stub()
+    db_bad = _FakeDB()
+    asyncio.run(api_executor.run_api_case(db_bad, run_bad, case, {"expected_text": "hello-beta"}))
+    assert run_bad.status is RunStatus.failed
+    assert "hello-beta" in db_bad.added[0].error_message
+
+
+def test_graphql_executor_fails_on_405_or_html_or_errors_without_assertions(fake_http, monkeypatch):
+    _events_recorder(monkeypatch, graphql_executor)
+    base_case = _Obj(config={"steps": [{"endpoint": "https://gql.example.com", "query": "{ ping }"}]})
+
+    fake_http.script = [_FakeResponse(405, text="<html><body>405 Method Not Allowed</body></html>")]
+    run_405 = _run_stub()
+    db_405 = _FakeDB()
+    asyncio.run(graphql_executor.run_graphql_case(db_405, run_405, base_case, {}))
+    assert run_405.status is RunStatus.failed
+    assert "HTTP 405" in db_405.added[0].error_message
+
+    fake_http.script = [_FakeResponse(200, text="<html><body>Home</body></html>")]
+    run_html = _run_stub()
+    db_html = _FakeDB()
+    asyncio.run(graphql_executor.run_graphql_case(db_html, run_html, base_case, {}))
+    assert run_html.status is RunStatus.failed
+    assert "不是有效的 JSON 对象" in db_html.added[0].error_message
+
+    fake_http.script = [_FakeResponse(200, {"errors": [{"message": "syntax error"}]})]
+    run_err = _run_stub()
+    db_err = _FakeDB()
+    asyncio.run(graphql_executor.run_graphql_case(db_err, run_err, base_case, {}))
+    assert run_err.status is RunStatus.failed
+    assert "GraphQL 返回错误" in db_err.added[0].error_message
+
+    # 显式断言 status_code == 405 与 expected 模板插值仍优先受控通过
+    fake_http.script = [_FakeResponse(405, text="<html>denied</html>")]
+    explicit_case = _Obj(
+        config={
+            "steps": [
+                {
+                    "endpoint": "https://gql.example.com",
+                    "query": "{ ping }",
+                    "assertions": [{"target": "status_code", "operator": "eq", "expected": "{{expected_code}}"}],
+                }
+            ]
+        }
+    )
+    run_explicit = _run_stub()
+    asyncio.run(graphql_executor.run_graphql_case(_FakeDB(), run_explicit, explicit_case, {"expected_code": "405"}))
+    assert run_explicit.status is RunStatus.passed
+
+
+def test_grpc_executor_defaults_empty_request_json_to_empty_object(monkeypatch):
+    _events_recorder(monkeypatch, grpc_executor)
+
+    def responder(request_msg):
+        from google.protobuf import message_factory
+
+        pool = request_msg.DESCRIPTOR.file.pool
+        RespClass = message_factory.GetMessageClass(pool.FindMessageTypeByName("demo.EchoReply"))
+        return RespClass(text="ok")
+
+    _install_grpc_channel(monkeypatch, responder)
+    for blank_val in ("", "   ", None):
+        run = _run_stub()
+        db = _FakeDB()
+        case = _grpc_case(request_json=blank_val)
+        asyncio.run(grpc_executor.run_grpc_case(db, run, case, {}))
+        assert run.status is RunStatus.passed
+        assert db.added[0].request_data["request_json"] == "{}"
+
+
+def test_api_executor_renders_assertion_expected_once_and_with_empty_context(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    today_value = api_executor.render_template_string("{{$today}}", {})
+    fake_http.script = [
+        _FakeResponse(200, {"message": "{{other}}", "date": today_value}),
+    ]
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "name": "single-pass-template",
+                    "url": "https://api.example.com/check",
+                    "method": "GET",
+                    "assertions": [
+                        {
+                            "target": "body",
+                            "expression": "$.message",
+                            "operator": "eq",
+                            "expected": "{{expected_text}}",
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    run_single = _run_stub()
+    db_single = _FakeDB()
+    asyncio.run(
+        api_executor.run_api_case(
+            db_single,
+            run_single,
+            case,
+            {"expected_text": "{{other}}", "other": "SHOULD_NOT_EXPAND"},
+        )
+    )
+    assert run_single.status is RunStatus.passed
+    assert db_single.added[0].response_data["assertions"][0]["expected"] == "{{other}}"
+
+    # 空上下文 {} 时仍应展开内置 {{$today}} 动态变量
+    fake_http.script = [_FakeResponse(200, {"date": today_value})]
+    empty_ctx_case = _Obj(
+        config={
+            "steps": [
+                {
+                    "name": "dynamic-var-empty-ctx",
+                    "url": "https://api.example.com/today",
+                    "method": "GET",
+                    "assertions": [
+                        {"target": "body", "expression": "$.date", "operator": "eq", "expected": "{{$today}}"}
+                    ],
+                }
+            ]
+        }
+    )
+    run_empty = _run_stub()
+    db_empty = _FakeDB()
+    asyncio.run(api_executor.run_api_case(db_empty, run_empty, empty_ctx_case, {}))
+    assert run_empty.status is RunStatus.passed
+    assert db_empty.added[0].response_data["assertions"][0]["expected"] == today_value
+
+
+def test_graphql_executor_fails_on_http_200_html_even_with_status_code_assertion(fake_http, monkeypatch):
+    _events_recorder(monkeypatch, graphql_executor)
+    fake_http.script = [_FakeResponse(200, text="<html><body>Index</body></html>")]
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "endpoint": "https://gql.example.com",
+                    "query": "{ ping }",
+                    "assertions": [{"target": "status_code", "operator": "eq", "expected": 200}],
+                }
+            ]
+        }
+    )
+    run = _run_stub()
+    db = _FakeDB()
+    asyncio.run(graphql_executor.run_graphql_case(db, run, case, {}))
+    assert run.status is RunStatus.failed
+    assert "不是有效的 JSON 对象" in db.added[0].error_message

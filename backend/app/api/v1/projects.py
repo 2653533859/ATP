@@ -482,7 +482,15 @@ async def update_project(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    payload = body.model_dump(exclude_none=True)
+    payload = body.model_dump(exclude_unset=True)
+    if "name" in payload:
+        raw_name = payload["name"]
+        if raw_name is None or not str(raw_name).strip():
+            raise HTTPException(status_code=422, detail="项目名称不能为空")
+        payload["name"] = str(raw_name).strip()
+    if "project_code" in payload:
+        raw_code = payload["project_code"]
+        payload["project_code"] = str(raw_code).strip() or None if raw_code is not None else None
     if payload.get("name") and not payload.get("project_code") and not project.project_code:
         payload["project_code"] = _normalize_code(payload["name"], "PROJECT")
 
