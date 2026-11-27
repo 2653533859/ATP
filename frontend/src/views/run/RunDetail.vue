@@ -309,7 +309,22 @@
                     @click="focusStep(step.step_index)"
                   >
                     <span class="problem-step-title">#{{ step.step_index + 1 }} {{ step.name }}</span>
-                    <a-tag :color="statusColor(step.status)">{{ step.status }}</a-tag>
+                    <a-tag v-if="stepOutcomeMeta(step)?.ignored_failure" color="warning">
+                  失败已忽略
+                </a-tag>
+                <a-tag v-else-if="stepOutcomeMeta(step)?.synthetic_skip" color="default">
+                  上游中止跳过
+                </a-tag>
+                <a-tag v-if="stepRetryMeta(step)?.retried" color="orange">
+                  重试通过 (共 {{ stepRetryMeta(step)?.attempts }} 次)
+                </a-tag>
+                <a-tag v-if="stepImageMatchMeta(step)" :color="stepImageMatchMeta(step)?.status === 'matched' || stepImageMatchMeta(step)?.assertion_passed ? 'cyan' : 'volcano'">
+                  strict-v1: {{ stepImageMatchMeta(step)?.status }}
+                </a-tag>
+                <a-tag v-if="stepVerificationStatus(step) === 'unchecked'" color="gold">
+                  UNCHECKED
+                </a-tag>
+                <a-tag :color="statusColor(step.status)">{{ step.status }}</a-tag>
                   </button>
                 </div>
               </div>
@@ -347,6 +362,20 @@
               :description="t('run.investigation.no_failure_diagnosis')"
               :image="Empty.PRESENTED_IMAGE_SIMPLE"
             />
+            <div v-if="failureDiagnosis?.facts?.length" class="diagnosis-facts-box">
+              <div class="repair-suggestion-title">确定性事实证据 ({{ failureDiagnosis.facts.length }})</div>
+              <div v-for="fact in failureDiagnosis.facts" :key="fact.id" class="diagnosis-fact-item">
+                <a-tag color="blue">{{ fact.id }}</a-tag>
+                <span>{{ fact.summary }}</span>
+              </div>
+            </div>
+            <div v-if="failureDiagnosis?.possible_causes?.length" class="diagnosis-facts-box">
+              <div class="repair-suggestion-title">证据绑定归因</div>
+              <div v-for="(c, idx) in failureDiagnosis.possible_causes" :key="idx" class="diagnosis-fact-item">
+                <a-tag v-for="fid in c.fact_ids" :key="fid" color="purple">{{ fid }}</a-tag>
+                <span>{{ c.cause }}</span>
+              </div>
+            </div>
             <div v-if="failureDiagnosis?.repair_suggestions?.length" class="repair-suggestion-list">
               <div class="repair-suggestion-title">{{ t('run.investigation.repair_suggestions') }}</div>
               <div
@@ -533,6 +562,21 @@
                     <PlayCircleOutlined /> {{ t('case.drawer.web.recorder.resume_from_here') }}
                   </a-button>
                 </a-tooltip>
+                <a-tag v-if="stepOutcomeMeta(step)?.ignored_failure" color="warning">
+                  失败已忽略
+                </a-tag>
+                <a-tag v-else-if="stepOutcomeMeta(step)?.synthetic_skip" color="default">
+                  上游中止跳过
+                </a-tag>
+                <a-tag v-if="stepRetryMeta(step)?.retried" color="orange">
+                  重试通过 (共 {{ stepRetryMeta(step)?.attempts }} 次)
+                </a-tag>
+                <a-tag v-if="stepImageMatchMeta(step)" :color="stepImageMatchMeta(step)?.status === 'matched' || stepImageMatchMeta(step)?.assertion_passed ? 'cyan' : 'volcano'">
+                  strict-v1: {{ stepImageMatchMeta(step)?.status }}
+                </a-tag>
+                <a-tag v-if="stepVerificationStatus(step) === 'unchecked'" color="gold">
+                  UNCHECKED
+                </a-tag>
                 <a-tag :color="statusColor(step.status)">{{ step.status }}</a-tag>
                 <span v-if="step.duration_ms != null" class="step-duration">
                   {{ step.duration_ms }} ms
@@ -2096,6 +2140,52 @@ function flattenDistributedSpans(spans: DistributedSpanItem[] | undefined, depth
 }
 
 const flattenedTraceSpans = computed(() => flattenDistributedSpans(traceDetail.value?.distributed_trace?.spans))
+
+function stepOutcomeMeta(step: RunStepItem): {
+  strategy?: string
+  ignored_failure?: boolean
+  synthetic_skip?: boolean
+  skip_reason?: string
+  error_code?: string
+  suggestion?: string
+} | null {
+  const rd = step.response_data as Record<string, unknown> | null | undefined
+  const outcome = rd?.outcome
+  if (outcome && typeof outcome === 'object') {
+    return outcome as {
+      strategy?: string
+      ignored_failure?: boolean
+      synthetic_skip?: boolean
+      skip_reason?: string
+      error_code?: string
+      suggestion?: string
+    }
+  }
+  return null
+}
+
+function stepRetryMeta(step: RunStepItem): { attempts: number; retried: boolean; history?: Array<Record<string, unknown>> } | null {
+  const rd = step.response_data as Record<string, unknown> | null | undefined
+  const retry = rd?.retry
+  if (retry && typeof retry === 'object') {
+    return retry as { attempts: number; retried: boolean; history?: Array<Record<string, unknown>> }
+  }
+  return null
+}
+
+function stepImageMatchMeta(step: RunStepItem): { status?: string; assertion_passed?: boolean; error_code?: string } | null {
+  const rd = step.response_data as Record<string, unknown> | null | undefined
+  const im = rd?.image_match
+  if (im && typeof im === 'object') {
+    return im as { status?: string; assertion_passed?: boolean; error_code?: string }
+  }
+  return null
+}
+
+function stepVerificationStatus(step: RunStepItem): string | null {
+  const rd = step.response_data as Record<string, unknown> | null | undefined
+  return typeof rd?.verification_status === 'string' ? rd.verification_status : null
+}
 
 function spanBarStyle(span: DistributedSpanItem, totalDurationMs: number) {
   const total = totalDurationMs > 0 ? totalDurationMs : 1

@@ -44,6 +44,27 @@ from app.services.workflow_debugger import (
     step_debug_session,
     stop_debug_session,
 )
+from app.services.api_debug_session import (
+    ApiDebugSessionError,
+    DebugExecuteMode,
+    PrecheckMode,
+    create_api_debug_session,
+    delete_api_debug_session,
+    execute_api_debug_session,
+    get_api_debug_session,
+    precheck_api_scenario_steps,
+    recheck_api_debug_assertions,
+)
+from app.services.api_scenario_sync import (
+    SyncChoice,
+    apply_step_sync,
+    build_case_sync_metadata,
+    compute_overridden_fields,
+    compute_step_sync_diff,
+    extract_case_request_snapshot,
+)
+from app.services.variable_loader import load_environment_variables_map, load_global_variables_map
+from app.models.environment import Environment
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +130,7 @@ class ApiScenarioSaveIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: str = ""
     env_id: int | None = None
+    version: int | None = Field(default=None, ge=1)
     steps: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -140,8 +162,15 @@ async def _bind_source_cases(
         fingerprint = step.get("sourceCaseFingerprint")
         if source is None:
             bound.pop("sourceCaseFingerprint", None)
+            bound.pop("sourceSnapshot", None)
+            bound.pop("overriddenFields", None)
         elif not preserve_existing or not (isinstance(fingerprint, str) and re.fullmatch(r"[0-9a-f]{64}", fingerprint)):
+            snap = extract_case_request_snapshot(source)
             bound["sourceCaseFingerprint"] = case_request_fingerprint(source)
+            bound["sourceSnapshot"] = snap
+            bound["overriddenFields"] = compute_overridden_fields(bound, snap)
+        elif isinstance(step.get("sourceSnapshot"), dict):
+            bound["overriddenFields"] = compute_overridden_fields(bound, step.get("sourceSnapshot"))
         bound_steps.append(bound)
     return bound_steps
 
@@ -171,7 +200,45 @@ async def list_api_scenarios(
             s for s in items if kw in str(s.get("name", "")).lower() or kw in str(s.get("scenario_code", "")).lower()
         ]
     items.sort(key=lambda x: str(x.get("updated_at") or ""), reverse=True)
-    return items
+    # Batch-compute stale_step_count for all referenced source cases (no N+1)
+    source_ids = {
+        step.get("sourceCaseId")
+        for s in items
+        for step in (s.get("steps") or [])
+        if isinstance(step, dict)
+        and isinstance(step.get("sourceCaseId"), int)
+        and not isinstance(step.get("sourceCaseId"), bool)
+    }
+    latest_by_id: dict[int, tuple[dict[str, Any], str]] = {}
+    if source_ids:
+        res = await db.execute(select(TestCase).where(TestCase.id.in_(source_ids)))
+        for c in res.scalars().all():
+            latest_by_id[c.id] = build_case_sync_metadata(c)
+    enriched: list[dict[str, Any]] = []
+    for s in items:
+        stale_count = 0
+        conflict_count = 0
+        for step in s.get("steps") or []:
+            if not isinstance(step, dict):
+                continue
+            sid = step.get("sourceCaseId")
+            if isinstance(sid, int) and sid in latest_by_id:
+                snap, fp = latest_by_id[sid]
+                diff = compute_step_sync_diff(step, snap, fp)
+                if diff["sync_status"] == "stale_auto_syncable":
+                    stale_count += 1
+                elif diff["sync_status"] == "conflict":
+                    stale_count += 1
+                    conflict_count += 1
+        enriched.append(
+            {
+                **s,
+                "version": int(s.get("version") or 1),
+                "stale_step_count": stale_count,
+                "conflict_step_count": conflict_count,
+            }
+        )
+    return enriched
 
 
 @router.get("/{scenario_id}")
@@ -211,6 +278,7 @@ async def create_api_scenario(
             "name": body.name.strip(),
             "description": body.description.strip(),
             "env_id": body.env_id,
+            "version": 1,
             "steps": bound_steps,
             "step_count": len(bound_steps),
             "last_run_status": None,
@@ -248,6 +316,12 @@ async def update_api_scenario(
         items = _load_all()
         for idx, item in enumerate(items):
             if item.get("id") == scenario_id:
+                current_version = int(item.get("version") or 1)
+                if body.version is not None and body.version != current_version:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"场景已被他人更新（当前版本 v{current_version}，提交版本 v{body.version}），请刷新后重试",
+                    )
                 updated = {
                     **item,
                     "project_id": body.project_id,
@@ -255,6 +329,7 @@ async def update_api_scenario(
                     "name": body.name.strip(),
                     "description": body.description.strip(),
                     "env_id": body.env_id,
+                    "version": current_version + 1,
                     "steps": bound_steps,
                     "step_count": len(bound_steps),
                     "updated_at": now,
@@ -520,3 +595,446 @@ async def stop_workflow_debug_endpoint(
     if not stopped:
         raise HTTPException(status_code=404, detail="调试会话不存在或已释放")
     return None
+
+
+class ApiScenarioPrecheckIn(BaseModel):
+    project_id: int
+    env_id: int | None = None
+    mode: PrecheckMode = "run"
+    target_step_uid: str | None = None
+    steps: list[dict[str, Any]] = Field(default_factory=list)
+    extra_vars: dict[str, Any] = Field(default_factory=dict)
+
+
+class ApiDebugSessionCreateIn(BaseModel):
+    project_id: int
+    editor_id: str = "default"
+    env_id: int | None = None
+
+
+class ApiDebugSessionExecuteIn(BaseModel):
+    steps: list[dict[str, Any]] = Field(default_factory=list)
+    target_step_uid: str | None = None
+    mode: DebugExecuteMode = "single"
+    extra_vars: dict[str, Any] = Field(default_factory=dict)
+
+
+class ApiDebugSessionRecheckIn(BaseModel):
+    steps: list[dict[str, Any]] = Field(default_factory=list)
+    target_step_uid: str
+    extra_vars: dict[str, Any] = Field(default_factory=dict)
+
+
+async def _load_scenario_env_vars(
+    db: AsyncSession,
+    project_id: int,
+    env_id: int | None,
+    extra_vars: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    merged: dict[str, Any] = await load_global_variables_map(db, project_id)
+    if env_id is not None:
+        env = await db.get(Environment, env_id)
+        if env is not None and env.project_id == project_id:
+            if getattr(env, "base_url", None):
+                merged.setdefault("base_url", env.base_url)
+            env_vars = await load_environment_variables_map(db, env_id)
+            merged.update(env_vars)
+    if extra_vars:
+        merged.update(extra_vars)
+    return merged
+
+
+@router.post("/precheck")
+async def precheck_api_scenario_endpoint(
+    body: ApiScenarioPrecheckIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """三层预检（save / debug / run），返回带步骤与面板定位的结构化问题清单。"""
+    await assert_project_access(db, current_user, body.project_id, ProjectRole.viewer)
+    env_vars = await _load_scenario_env_vars(db, body.project_id, body.env_id, body.extra_vars)
+    issues = precheck_api_scenario_steps(
+        body.steps,
+        env_vars=env_vars,
+        mode=body.mode,
+        target_step_uid=body.target_step_uid,
+    )
+    return {"valid": len(issues) == 0, "mode": body.mode, "issues": issues}
+
+
+@router.post("/debug-sessions", status_code=status.HTTP_201_CREATED)
+async def create_api_debug_session_endpoint(
+    body: ApiDebugSessionCreateIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """创建按用户/编辑器/环境隔离的接口调试会话。"""
+    await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    try:
+        sess = create_api_debug_session(
+            user_id=current_user.id,
+            project_id=body.project_id,
+            editor_id=body.editor_id,
+            env_id=body.env_id,
+        )
+    except ApiDebugSessionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return {
+        "session_id": sess.session_id,
+        "project_id": sess.project_id,
+        "editor_id": sess.editor_id,
+        "env_id": sess.env_id,
+    }
+
+
+@router.post("/debug-sessions/{session_id}/execute")
+async def execute_api_debug_session_endpoint(
+    session_id: str,
+    body: ApiDebugSessionExecuteIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """在隔离调试会话中执行单步（single）、从头到此步（through）或收集模式（collect）。"""
+    try:
+        sess = get_api_debug_session(
+            session_id,
+            user_id=current_user.id,
+            is_admin=current_user.role == UserRole.admin,
+        )
+        await assert_project_access(db, current_user, sess.project_id, ProjectRole.editor)
+        env_vars = await _load_scenario_env_vars(db, sess.project_id, sess.env_id, body.extra_vars)
+        return await execute_api_debug_session(
+            sess,
+            steps=body.steps,
+            target_step_uid=body.target_step_uid,
+            mode=body.mode,
+            env_vars=env_vars,
+            db=db,
+        )
+    except ApiDebugSessionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+@router.post("/debug-sessions/{session_id}/recheck-assertions")
+async def recheck_api_debug_assertions_endpoint(
+    session_id: str,
+    body: ApiDebugSessionRecheckIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """不发送 HTTP 请求，基于当前会话缓存的真实响应离线重算修改后的断言。"""
+    try:
+        sess = get_api_debug_session(
+            session_id,
+            user_id=current_user.id,
+            is_admin=current_user.role == UserRole.admin,
+        )
+        await assert_project_access(db, current_user, sess.project_id, ProjectRole.editor)
+        env_vars = await _load_scenario_env_vars(db, sess.project_id, sess.env_id, body.extra_vars)
+        return await recheck_api_debug_assertions(
+            sess,
+            steps=body.steps,
+            target_step_uid=body.target_step_uid,
+            env_vars=env_vars,
+            db=db,
+        )
+    except ApiDebugSessionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+@router.delete("/debug-sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_api_debug_session_endpoint(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """释放接口调试会话缓存。"""
+    try:
+        delete_api_debug_session(
+            session_id,
+            user_id=current_user.id,
+            is_admin=current_user.role == UserRole.admin,
+        )
+    except ApiDebugSessionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return None
+
+
+class ScenarioSyncPreviewIn(BaseModel):
+    scenario_id: int | None = None
+    step_uid: str | None = None
+    step: dict[str, Any] | None = None
+
+
+class ScenarioSyncApplyItemIn(BaseModel):
+    scenario_id: int
+    scenario_version: int = Field(ge=1)
+    step_uid: str
+    choices: dict[str, SyncChoice] = Field(default_factory=dict)
+
+
+class ScenarioSyncApplyIn(BaseModel):
+    items: list[ScenarioSyncApplyItemIn] = Field(default_factory=list, max_length=200)
+
+
+async def _load_source_api_case(
+    db: AsyncSession,
+    case_id: int,
+    user: User,
+    min_role: ProjectRole,
+) -> tuple[TestCase, int]:
+    result = await db.execute(
+        select(TestCase, Module.project_id)
+        .join(Module, TestCase.module_id == Module.id)
+        .where(TestCase.id == case_id, TestCase.case_type == CaseType.api)
+    )
+    row = result.first()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="源 API 用例不存在")
+    case_obj, proj_id = row[0], int(row[1])
+    await assert_project_access(db, user, proj_id, min_role)
+    return case_obj, proj_id
+
+
+@router.get("/source-cases/{case_id}/usages")
+async def get_source_case_scenario_usages(
+    case_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """查询某条公共 API 用例被哪些场景的哪些步骤引用，以及每步的同步状态与冲突字段。"""
+    source_case, proj_id = await _load_source_api_case(db, case_id, current_user, ProjectRole.viewer)
+    latest_snapshot, latest_fp = build_case_sync_metadata(source_case)
+
+    with _LOCK:
+        scenarios = [s for s in _load_all() if s.get("project_id") == proj_id]
+
+    usages: list[dict[str, Any]] = []
+    total_steps = 0
+    stale_steps = 0
+    conflict_steps = 0
+
+    for sc in scenarios:
+        matched_steps: list[dict[str, Any]] = []
+        for idx, step in enumerate(sc.get("steps") or []):
+            if not isinstance(step, dict) or step.get("sourceCaseId") != case_id:
+                continue
+            total_steps += 1
+            diff = compute_step_sync_diff(step, latest_snapshot, latest_fp)
+            if diff["sync_status"] == "stale_auto_syncable":
+                stale_steps += 1
+            elif diff["sync_status"] == "conflict":
+                stale_steps += 1
+                conflict_steps += 1
+            matched_steps.append(
+                {
+                    "step_uid": str(step.get("uid") or f"step_{idx + 1}"),
+                    "step_index": idx,
+                    "step_name": str(step.get("name") or f"步骤 {idx + 1}"),
+                    "sync_status": diff["sync_status"],
+                    "auto_update_fields": [item["field"] for item in diff["auto_updates"]],
+                    "conflict_fields": [item["field"] for item in diff["conflicts"]],
+                    "overridden_fields": diff["overridden_fields"],
+                }
+            )
+        if matched_steps:
+            usages.append(
+                {
+                    "scenario_id": sc.get("id"),
+                    "scenario_code": sc.get("scenario_code"),
+                    "scenario_name": sc.get("name"),
+                    "scenario_version": int(sc.get("version") or 1),
+                    "steps": matched_steps,
+                }
+            )
+
+    return {
+        "case_id": case_id,
+        "case_name": source_case.name,
+        "latest_fingerprint": latest_fp,
+        "total_scenarios": len(usages),
+        "total_steps": total_steps,
+        "stale_steps": stale_steps,
+        "conflict_steps": conflict_steps,
+        "scenarios": usages,
+    }
+
+
+@router.post("/source-cases/{case_id}/sync-preview")
+async def preview_source_case_sync(
+    case_id: int,
+    body: ScenarioSyncPreviewIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """预览指定场景步骤与源用例最新模板之间的逐字段差异与冲突，不自动落库。"""
+    source_case, proj_id = await _load_source_api_case(db, case_id, current_user, ProjectRole.viewer)
+    latest_snapshot, latest_fp = build_case_sync_metadata(source_case)
+
+    target_step = body.step
+    if target_step is None:
+        if body.scenario_id is None or not body.step_uid:
+            raise HTTPException(status_code=422, detail="必须提供 step 或 (scenario_id + step_uid)")
+        with _LOCK:
+            sc = next(
+                (
+                    item
+                    for item in _load_all()
+                    if item.get("id") == body.scenario_id and item.get("project_id") == proj_id
+                ),
+                None,
+            )
+        if sc is None:
+            raise HTTPException(status_code=404, detail="目标场景不存在")
+        for idx, st in enumerate(sc.get("steps") or []):
+            if isinstance(st, dict) and str(st.get("uid") or f"step_{idx + 1}") == body.step_uid:
+                target_step = st
+                break
+        if target_step is None:
+            raise HTTPException(status_code=404, detail="目标步骤不存在")
+
+    diff = compute_step_sync_diff(target_step, latest_snapshot, latest_fp)
+    return {
+        "case_id": case_id,
+        "latest_fingerprint": latest_fp,
+        **diff,
+    }
+
+
+@router.post("/source-cases/{case_id}/sync-apply")
+async def apply_source_case_sync_batch(
+    case_id: int,
+    body: ScenarioSyncApplyIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """冲突感知批量同步：无冲突步骤一键同步；冲突步骤必须提供逐字段选择；按乐观锁 version 保护。"""
+    source_case, proj_id = await _load_source_api_case(db, case_id, current_user, ProjectRole.editor)
+    latest_snapshot, latest_fp = build_case_sync_metadata(source_case)
+    now = datetime.now(timezone.utc).isoformat()
+
+    results: list[dict[str, Any]] = []
+    applied = 0
+    failed = 0
+
+    with _LOCK:
+        all_items = _load_all()
+        changed_any = False
+        initial_versions: dict[int, int] = {}
+        mutated_scenarios: dict[int, int] = {}
+
+        for req_item in body.items:
+            sc_idx = next(
+                (
+                    i
+                    for i, sc in enumerate(all_items)
+                    if sc.get("id") == req_item.scenario_id and sc.get("project_id") == proj_id
+                ),
+                None,
+            )
+            if sc_idx is None:
+                failed += 1
+                results.append(
+                    {
+                        "scenario_id": req_item.scenario_id,
+                        "step_uid": req_item.step_uid,
+                        "ok": False,
+                        "changed": False,
+                        "reason": "场景不存在或不属于当前项目",
+                    }
+                )
+                continue
+
+            sc = all_items[sc_idx]
+            if req_item.scenario_id not in initial_versions:
+                initial_versions[req_item.scenario_id] = int(sc.get("version") or 1)
+            base_ver = initial_versions[req_item.scenario_id]
+            if base_ver != req_item.scenario_version:
+                failed += 1
+                results.append(
+                    {
+                        "scenario_id": req_item.scenario_id,
+                        "step_uid": req_item.step_uid,
+                        "ok": False,
+                        "changed": False,
+                        "version": base_ver,
+                        "reason": f"场景版本已变更为 v{base_ver}，请刷新后重试",
+                    }
+                )
+                continue
+
+            steps_list = [dict(st) if isinstance(st, dict) else st for st in (sc.get("steps") or [])]
+            target_idx = next(
+                (
+                    i
+                    for i, st in enumerate(steps_list)
+                    if isinstance(st, dict)
+                    and st.get("sourceCaseId") == case_id
+                    and str(st.get("uid") or f"step_{i + 1}") == req_item.step_uid
+                ),
+                None,
+            )
+            if target_idx is None:
+                failed += 1
+                results.append(
+                    {
+                        "scenario_id": req_item.scenario_id,
+                        "step_uid": req_item.step_uid,
+                        "ok": False,
+                        "changed": False,
+                        "reason": "步骤不存在或未引用该源用例",
+                    }
+                )
+                continue
+
+            updated_step, unresolved = apply_step_sync(
+                steps_list[target_idx],
+                latest_snapshot,
+                latest_fp,
+                req_item.choices,
+            )
+            if unresolved:
+                failed += 1
+                results.append(
+                    {
+                        "scenario_id": req_item.scenario_id,
+                        "step_uid": req_item.step_uid,
+                        "ok": False,
+                        "changed": False,
+                        "reason": "存在需要逐项确认的冲突字段",
+                        "conflicts": unresolved,
+                    }
+                )
+                continue
+
+            steps_list[target_idx] = updated_step
+            sc = dict(sc)
+            sc["steps"] = steps_list
+            all_items[sc_idx] = sc
+            mutated_scenarios[req_item.scenario_id] = sc_idx
+            changed_any = True
+            applied += 1
+            results.append(
+                {
+                    "scenario_id": req_item.scenario_id,
+                    "step_uid": req_item.step_uid,
+                    "ok": True,
+                    "changed": True,
+                    "version": base_ver + 1,
+                }
+            )
+
+        for sc_id, sc_idx in mutated_scenarios.items():
+            sc = dict(all_items[sc_idx])
+            sc["version"] = initial_versions[sc_id] + 1
+            sc["updated_at"] = now
+            all_items[sc_idx] = sc
+
+        if changed_any:
+            _save_all(all_items)
+
+    return {
+        "case_id": case_id,
+        "applied": applied,
+        "failed": failed,
+        "items": results,
+    }

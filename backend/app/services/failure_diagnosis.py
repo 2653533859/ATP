@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.models.ai_llm_config import AILLMConfig
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.models.project import Module, Project
+from app.services.ai_case.outbound_sanitizer import OutboundSanitizer
 from app.services.ai_governance import (
     check_and_incr_daily_limit,
     fallback_enabled,
@@ -159,37 +160,155 @@ def build_rule_diagnosis(run: TestRun, failed_steps: list[StepResult]) -> str:
     return "\n".join(lines)
 
 
+def build_deterministic_facts(run: TestRun, failed_steps: list[StepResult]) -> list[dict[str, Any]]:
+    """Build deterministic, scrubbed fact entries with stable F1..Fn IDs so LLM causes stay grounded."""
+    sanitizer = OutboundSanitizer(
+        documents=[step.request_data for step in failed_steps] + [step.response_data for step in failed_steps]
+    )
+    facts: list[dict[str, Any]] = []
+    idx = 1
+
+    if run.error_message and not failed_steps:
+        facts.append(
+            {
+                "id": f"F{idx}",
+                "step_index": None,
+                "step_name": "运行级异常",
+                "category": _guess_category(run.error_message, False),
+                "field_path": None,
+                "status_code": None,
+                "summary": sanitizer.scrub_text(run.error_message, limit=260),
+            }
+        )
+        return facts
+
+    for step in failed_steps[:8]:
+        status_code = _extract_status_code(step.response_data)
+        resp_dict = step.response_data if isinstance(step.response_data, dict) else {}
+        failed_assertions = [
+            a for a in (resp_dict.get("assertions") or []) if isinstance(a, dict) and not a.get("passed", True)
+        ]
+        if failed_assertions:
+            for item in failed_assertions[:3]:
+                field_path = str(item.get("expression") or item.get("target") or "") or None
+                msg = sanitizer.scrub_text(item.get("message") or step.error_message or "断言未通过", limit=240)
+                facts.append(
+                    {
+                        "id": f"F{idx}",
+                        "step_index": step.step_index,
+                        "step_name": step.name,
+                        "category": "assertion_mismatch",
+                        "field_path": field_path,
+                        "status_code": status_code,
+                        "summary": f"步骤 #{step.step_index + 1}「{step.name}」断言失败：{msg}",
+                    }
+                )
+                idx += 1
+        else:
+            err_text = sanitizer.scrub_text(step.error_message or "步骤执行异常", limit=240)
+            category = (
+                "response_error"
+                if (status_code and status_code >= 400)
+                else _guess_category(err_text, bool(step.screenshot_url))
+            )
+            facts.append(
+                {
+                    "id": f"F{idx}",
+                    "step_index": step.step_index,
+                    "step_name": step.name,
+                    "category": category,
+                    "field_path": None,
+                    "status_code": status_code,
+                    "summary": f"步骤 #{step.step_index + 1}「{step.name}」({status_code or step.status.value})：{err_text}",
+                }
+            )
+            idx += 1
+    return facts
+
+
+def _parse_grounded_llm_diagnosis(
+    raw_text: str,
+    valid_fact_ids: set[str],
+) -> tuple[str, list[dict[str, Any]], list[str]]:
+    """Parse structured JSON diagnosis and strip any hallucinated fact_id references."""
+    cleaned = raw_text.strip()
+    if cleaned.startswith("```"):
+        import re as _re
+
+        cleaned = _re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+        cleaned = _re.sub(r"\n?```$", "", cleaned).strip()
+    try:
+        parsed = json.loads(cleaned)
+    except Exception:
+        return raw_text.strip(), [], []
+    if not isinstance(parsed, dict):
+        return raw_text.strip(), [], []
+
+    summary = str(parsed.get("summary") or "").strip()
+    causes: list[dict[str, Any]] = []
+    for item in parsed.get("possible_causes") or []:
+        if not isinstance(item, dict):
+            continue
+        cause_text = str(item.get("cause") or "").strip()
+        raw_ids = [str(fid).strip() for fid in (item.get("fact_ids") or []) if str(fid).strip() in valid_fact_ids]
+        if cause_text and (raw_ids or not valid_fact_ids):
+            causes.append(
+                {
+                    "cause": cause_text,
+                    "fact_ids": raw_ids,
+                    "confidence": float(item.get("confidence", 0.7)),
+                }
+            )
+    next_steps = [str(s).strip() for s in (parsed.get("next_steps") or []) if str(s).strip()][:5]
+    return summary or raw_text.strip(), causes, next_steps
+
+
 def build_failure_diagnosis_prompt(
     *,
     case: TestCase | None,
     run: TestRun,
     failed_steps: list[StepResult],
     fallback_summary: str,
+    facts: list[dict[str, Any]] | None = None,
 ) -> str:
     case_type = (
         case.case_type.value if case and hasattr(case.case_type, "value") else str(case.case_type) if case else "-"
     )
+    fact_list = facts if facts is not None else build_deterministic_facts(run, failed_steps)
     parts = [
         "# 任务",
-        "请基于测试执行详情生成简明失败原因诊断，面向测试工程师，中文回答，控制在 220 字以内。",
-        "# 输出要求",
-        "包含：最可能原因、关键证据、下一步排查/修复建议。避免泛泛而谈。",
-        "# 执行上下文",
+        "请仅基于下方服务端提取的已脱敏事实（facts），输出结构化 JSON 失败归因诊断。",
+        "# 严格约束",
+        '1. 每条 possible_causes 必须引用上方真实存在的 fact_ids（如 ["F1"]），禁止编造未出现的事实。',
+        '2. 输出纯 JSON：{"summary": "200字以内中文总结", "possible_causes": [{"cause": "...", "fact_ids": ["F1"], "confidence": 0.8}], "next_steps": ["..."]}',
+        "# 执行元数据",
         f"run_id: {run.id}",
         f"run_status: {run.status.value if hasattr(run.status, 'value') else run.status}",
         f"case_name: {case.name if case else '-'}",
         f"case_type: {case_type}",
-        f"run_error: {_truncate(run.error_message, 500)}",
-        f"rule_fallback: {_truncate(fallback_summary, 500)}",
+        f"rule_fallback: {_truncate(fallback_summary, 300)}",
+        "# 确定性事实列表 (facts)",
+        json.dumps(fact_list, ensure_ascii=False),
     ]
+    sanitizer = OutboundSanitizer(
+        documents=[step.request_data for step in failed_steps] + [step.response_data for step in failed_steps]
+    )
     for step in failed_steps[:8]:
+        req_meta = (
+            {"method": step.request_data.get("method"), "action": step.request_data.get("action")}
+            if isinstance(step.request_data, dict)
+            else "-"
+        )
+        resp_meta = (
+            {"status_code": _extract_status_code(step.response_data)} if isinstance(step.response_data, dict) else "-"
+        )
         parts.extend(
             [
                 f"\n## 失败步骤 #{step.step_index + 1} {step.name}",
                 f"status: {step.status.value if hasattr(step.status, 'value') else step.status}",
-                f"error: {_truncate(step.error_message, 700)}",
-                f"request_or_action: {_truncate(step.request_data, 700)}",
-                f"response_or_assertion: {_truncate(step.response_data, 700)}",
+                f"error: {sanitizer.scrub_text(step.error_message, limit=300)}",
+                f"request_or_action: {_truncate(req_meta, 200)}",
+                f"response_or_assertion: {_truncate(resp_meta, 200)}",
                 f"screenshot_url: {step.screenshot_url or '-'}",
             ]
         )
@@ -213,9 +332,15 @@ async def generate_failure_diagnosis(db: AsyncSession, run_id: int) -> dict[str,
 
     failed_steps = _problem_steps(run)
     case, project = await _resolve_case_and_project(db, run)
+    facts = build_deterministic_facts(run, failed_steps)
+    valid_fact_ids = {f["id"] for f in facts}
     fallback = build_rule_diagnosis(run, failed_steps)
     source = "rule"
     summary = fallback
+    possible_causes: list[dict[str, Any]] = [
+        {"cause": f["summary"], "fact_ids": [f["id"]], "confidence": 0.75} for f in facts[:3]
+    ]
+    next_steps: list[str] = ["优先核对首个异常步骤的响应字段、断言预期与环境连通性，再复跑验证。"] if facts else []
 
     if project and project.ai_llm_config_id and settings.AI_HEALING_ENABLED:
         config = await db.get(AILLMConfig, project.ai_llm_config_id)
@@ -231,6 +356,7 @@ async def generate_failure_diagnosis(db: AsyncSession, run_id: int) -> dict[str,
                     run=run,
                     failed_steps=failed_steps,
                     fallback_summary=fallback,
+                    facts=facts,
                 )
                 response = await call_llm(
                     LLMRequest(
@@ -254,7 +380,12 @@ async def generate_failure_diagnosis(db: AsyncSession, run_id: int) -> dict[str,
                 )
                 llm_text = (response.text or "").strip()
                 if llm_text:
-                    summary = llm_text
+                    parsed_summary, parsed_causes, parsed_next = _parse_grounded_llm_diagnosis(llm_text, valid_fact_ids)
+                    summary = parsed_summary
+                    if parsed_causes:
+                        possible_causes = parsed_causes
+                    if parsed_next:
+                        next_steps = parsed_next
                     source = "llm"
             except Exception as exc:
                 logger.warning("Failure diagnosis LLM call failed for run_id=%s: %s", run_id, exc)
@@ -271,6 +402,9 @@ async def generate_failure_diagnosis(db: AsyncSession, run_id: int) -> dict[str,
         "at": datetime.now(timezone.utc).isoformat(),
         "failed_step_count": len(failed_steps),
         "screenshot_count": sum(1 for step in failed_steps if step.screenshot_url),
+        "facts": facts,
+        "possible_causes": possible_causes,
+        "next_steps": next_steps,
         "repair_suggestions": build_repair_suggestions(failed_steps),
         "error_samples": [
             {

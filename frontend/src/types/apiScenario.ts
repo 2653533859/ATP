@@ -19,6 +19,7 @@ export interface ApiExtractionItem {
 }
 
 export interface ApiScenarioStep {
+  uid?: string
   name?: string
   method?: string
   url?: string
@@ -31,7 +32,12 @@ export interface ApiScenarioStep {
   extractions?: ApiExtractionItem[]
   depends_on?: number[]
   timeout?: number
+  retry_count?: number
   response_type?: string
+  sourceCaseId?: number
+  sourceCaseFingerprint?: string
+  sourceSnapshot?: Record<string, unknown>
+  overriddenFields?: string[]
   [key: string]: unknown
 }
 

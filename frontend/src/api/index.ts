@@ -1844,6 +1844,22 @@ export interface FailureDiagnosisErrorSample {
   screenshot_url?: string | null
 }
 
+export interface FailureDiagnosisFact {
+  id: string
+  step_index?: number | null
+  step_name: string
+  category: string
+  field_path?: string | null
+  status_code?: number | null
+  summary: string
+}
+
+export interface FailureDiagnosisCause {
+  cause: string
+  fact_ids: string[]
+  confidence: number
+}
+
 export interface FailureDiagnosisResult {
   status: 'done' | 'skipped'
   source: 'llm' | 'rule' | 'rule_fallback'
@@ -1851,6 +1867,9 @@ export interface FailureDiagnosisResult {
   at: string
   failed_step_count: number
   screenshot_count: number
+  facts?: FailureDiagnosisFact[]
+  possible_causes?: FailureDiagnosisCause[]
+  next_steps?: string[]
   repair_suggestions: Array<{
     step_index: number
     step_name: string
@@ -2075,11 +2094,38 @@ export interface AIAssertionSuggestPayload {
   response_body?: unknown
   response_headers?: Record<string, string> | null
   request_body?: unknown
+  existing_assertions?: Array<Record<string, unknown>>
+  existing_extractions?: Array<Record<string, unknown>>
+  business_goal?: string
+  downstream_referenced_paths?: string[]
 }
 
 export interface AIAssertionSuggestResult {
   assertions: AIAssertionSuggestion[]
   extractions: AIExtractionSuggestion[]
+  source: 'llm' | 'heuristic'
+  filtered_count?: number
+  filtered_reasons?: string[]
+  already_exists_count?: number
+  truncated_count?: number
+}
+
+export interface AIScenarioBatchStepSuggestion {
+  step_uid: string
+  step_index: number
+  step_name: string
+  failure_kind: 'none' | 'response_error' | 'assertion_mismatch' | 'not_executed'
+  note: string
+  assertions: AIAssertionSuggestion[]
+  extractions: AIExtractionSuggestion[]
+  filtered_count: number
+  filtered_reasons: string[]
+  already_exists_count: number
+}
+
+export interface AIScenarioBatchSuggestResult {
+  debug_session_id: string
+  items: AIScenarioBatchStepSuggestion[]
   source: 'llm' | 'heuristic'
 }
 
@@ -2118,6 +2164,8 @@ export const caseApi = {
     http.post<unknown, ApiRequestPreviewResult>(`/projects/${projectId}/api-request-preview`, data, { signal, timeout: 65000 }),
   suggestAssertions: (data: AIAssertionSuggestPayload) =>
     http.post<unknown, AIAssertionSuggestResult>('/ai/cases/suggest-assertions', data),
+  suggestScenarioAssertions: (data: { project_id: number; debug_session_id: string; steps: Array<Record<string, unknown>>; business_goal?: string }) =>
+    http.post<unknown, AIScenarioBatchSuggestResult>('/ai/cases/suggest-scenario-assertions', data),
   suggestWebAssertions: (data: AIWebAssertionSuggestPayload) =>
     http.post<unknown, AIWebAssertionSuggestResult>('/ai/cases/suggest-web-assertions', data),
   previewImport: (projectId: number, cases: CaseSavePayload[]) =>
@@ -2513,6 +2561,36 @@ export const deviceApi = {
     http.post<unknown, Record<string, unknown>>(`/devices/${id}/disconnection-recovery`),
   forceTakeoverLease: (id: number, data?: { ttl_seconds?: number; owner_label?: string; reason?: string }) =>
     http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease/force-takeover`, data ?? {}),
+  matchImagePreview: (
+    id: number,
+    data: {
+      project_id?: number
+      screenshot_base64?: string
+      template_base64?: string
+      image_object_name?: string
+      image_options?: Record<string, unknown>
+      platform?: 'android' | 'ios'
+    },
+  ) => http.post<unknown, Record<string, unknown>>(`/devices/${id}/match-image-preview`, data),
+  cropVisualTemplate: (data: {
+    project_id: number
+    screenshot_base64: string
+    x1: number
+    y1: number
+    x2: number
+    y2: number
+    click_x?: number
+    click_y?: number
+  }) =>
+    http.post<unknown, {
+      object_name: string
+      template_sha256: string
+      source_size: [number, number]
+      tap_anchor: [number, number]
+      quality_ok: boolean
+      quality: Record<string, unknown>
+      quality_error?: string | null
+    }>('/devices/visual-templates/crop', data),
   scanStatus: (scanId: string) => http.get<unknown, DeviceScanResult>(`/devices/scan/${scanId}`),
   get: (id: number) => http.get('/devices/' + id),
   update: (id: number, data: { name?: string; description?: string }) =>
@@ -2582,6 +2660,9 @@ export interface ApiScenarioRecord {
   name: string
   description: string
   env_id?: number | null
+  version?: number
+  stale_step_count?: number
+  conflict_step_count?: number
   steps: Array<Record<string, unknown>>
   step_count: number
   last_run_status?: string | null
@@ -2597,7 +2678,33 @@ export interface ApiScenarioSavePayload {
   name: string
   description?: string
   env_id?: number | null
+  version?: number
   steps: Array<Record<string, unknown>>
+}
+
+export interface SourceCaseScenarioUsageOut {
+  case_id: number
+  case_name: string
+  latest_fingerprint: string
+  total_scenarios: number
+  total_steps: number
+  stale_steps: number
+  conflict_steps: number
+  scenarios: Array<{
+    scenario_id: number
+    scenario_code: string
+    scenario_name: string
+    scenario_version: number
+    steps: Array<{
+      step_uid: string
+      step_index: number
+      step_name: string
+      sync_status: 'up_to_date' | 'stale_auto_syncable' | 'conflict'
+      auto_update_fields: string[]
+      conflict_fields: string[]
+      overridden_fields: string[]
+    }>
+  }>
 }
 
 export const apiScenarioApi = {
@@ -2641,6 +2748,88 @@ export const apiScenarioApi = {
     http.get<unknown, WorkflowDebugSnapshot>(`/api-scenarios/debug/${sessionId}`),
   stopDebug: (sessionId: string) =>
     http.delete<unknown, void>(`/api-scenarios/debug/${sessionId}`),
+  precheck: (data: {
+    project_id: number
+    env_id?: number | null
+    mode?: 'save' | 'debug' | 'run'
+    target_step_uid?: string | null
+    steps: Array<Record<string, unknown>>
+    extra_vars?: Record<string, unknown>
+  }) =>
+    http.post<unknown, {
+      valid: boolean
+      mode: string
+      issues: Array<{
+        step_uid?: string | null
+        step_index?: number | null
+        step_name: string
+        section: string
+        field: string
+        message: string
+      }>
+    }>('/api-scenarios/precheck', data),
+  createDebugSession: (data: { project_id: number; editor_id?: string; env_id?: number | null }) =>
+    http.post<unknown, { session_id: string; project_id: number; editor_id: string; env_id?: number | null }>(
+      '/api-scenarios/debug-sessions',
+      data,
+    ),
+  executeDebugSession: (
+    sessionId: string,
+    data: { steps: Array<Record<string, unknown>>; target_step_uid?: string | null; mode?: 'single' | 'through' | 'collect'; extra_vars?: Record<string, unknown> },
+  ) =>
+    http.post<unknown, { session_id: string; mode: string; executed: Array<Record<string, unknown>>; results: Record<string, Record<string, unknown>>; context: Record<string, unknown> }>(
+      `/api-scenarios/debug-sessions/${sessionId}/execute`,
+      data,
+    ),
+  recheckDebugAssertions: (
+    sessionId: string,
+    data: { steps: Array<Record<string, unknown>>; target_step_uid: string; extra_vars?: Record<string, unknown> },
+  ) =>
+    http.post<unknown, { session_id: string; step_result: Record<string, unknown>; rechecked_offline: boolean }>(
+      `/api-scenarios/debug-sessions/${sessionId}/recheck-assertions`,
+      data,
+    ),
+  deleteDebugSession: (sessionId: string) =>
+    http.delete<unknown, void>(`/api-scenarios/debug-sessions/${sessionId}`),
+  getSourceCaseUsages: (caseId: number) =>
+    http.get<unknown, SourceCaseScenarioUsageOut>(`/api-scenarios/source-cases/${caseId}/usages`),
+  previewSourceCaseSync: (
+    caseId: number,
+    data: { scenario_id?: number; step_uid?: string; step?: Record<string, unknown> },
+  ) =>
+    http.post<unknown, {
+      case_id: number
+      latest_fingerprint: string
+      sync_status: 'up_to_date' | 'stale_auto_syncable' | 'conflict'
+      auto_updates: Array<{ field: string; base: unknown; latest: unknown }>
+      conflicts: Array<{ field: string; base: unknown; local: unknown; latest: unknown }>
+      overridden_fields: string[]
+    }>(`/api-scenarios/source-cases/${caseId}/sync-preview`, data),
+  applySourceCaseSync: (
+    caseId: number,
+    data: {
+      items: Array<{
+        scenario_id: number
+        scenario_version: number
+        step_uid: string
+        choices?: Record<string, 'keep_local' | 'use_latest'>
+      }>
+    },
+  ) =>
+    http.post<unknown, {
+      case_id: number
+      applied: number
+      failed: number
+      items: Array<{
+        scenario_id: number
+        step_uid: string
+        ok: boolean
+        changed: boolean
+        version?: number
+        reason?: string
+        conflicts?: Array<{ field: string; base: unknown; local: unknown; latest: unknown }>
+      }>
+    }>(`/api-scenarios/source-cases/${caseId}/sync-apply`, data),
 }
 
 export interface WorkflowDebugSnapshot {

@@ -3,10 +3,11 @@ import inspect
 import json
 import os
 import time
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1005,3 +1006,120 @@ async def force_takeover_lease(
     await db.commit()
     await db.refresh(lease)
     return DeviceLeaseOut.model_validate(lease)
+
+
+class MatchImagePreviewIn(BaseModel):
+    project_id: int | None = None
+    screenshot_base64: str | None = None
+    template_base64: str | None = None
+    image_object_name: str | None = None
+    image_options: dict[str, Any] | None = None
+    platform: str = "android"
+
+
+class CropVisualTemplateIn(BaseModel):
+    project_id: int
+    screenshot_base64: str
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+    click_x: int | None = None
+    click_y: int | None = None
+
+
+@router.post("/devices/{device_id}/match-image-preview")
+async def match_image_preview_endpoint(
+    device_id: int,
+    body: MatchImagePreviewIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_engineer),
+):
+    """基于 strict-v1 在当前设备截图上试算候选框与拟点击点（不执行点击）。"""
+    from app.api.deps import assert_project_access
+    from app.core.minio_client import read_bytes as _read_bytes
+    from app.models.user_project import ProjectRole
+    from app.services.strict_image_matcher import (
+        match_image_strict_single_frame,
+        validate_visual_template_object_name,
+    )
+    from app.services.visual_assertion import parse_image_template_bytes
+
+    if body.screenshot_base64:
+        screen_bytes = parse_image_template_bytes(body.screenshot_base64)
+    else:
+        device = await db.get(Device, device_id)
+        if device is None:
+            raise HTTPException(status_code=404, detail="设备不存在")
+        from app.worker.executors.android_lowcode_executor import _adb_screenshot
+
+        captured = await asyncio.to_thread(_adb_screenshot, device.serial)
+        if not captured:
+            raise HTTPException(status_code=503, detail="无法获取设备当前截图")
+        screen_bytes = captured
+
+    if body.image_object_name:
+        if body.project_id is None:
+            raise HTTPException(status_code=422, detail="使用对象存储视觉模板时必须提供 project_id")
+        await assert_project_access(db, current_user, body.project_id, ProjectRole.viewer)
+        try:
+            safe_obj = validate_visual_template_object_name(body.image_object_name, body.project_id)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        tpl_bytes = await asyncio.to_thread(_read_bytes, safe_obj)
+    elif body.template_base64:
+        tpl_bytes = parse_image_template_bytes(body.template_base64)
+    else:
+        raise HTTPException(status_code=422, detail="必须提供 image_object_name 或 template_base64")
+
+    return await asyncio.to_thread(
+        match_image_strict_single_frame,
+        screen_bytes,
+        tpl_bytes,
+        image_options=body.image_options,
+        platform=body.platform,
+    )
+
+
+@router.post("/devices/visual-templates/crop")
+async def crop_visual_template_endpoint(
+    body: CropVisualTemplateIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """从无损 PNG 截图裁切视觉模板并存入 MinIO，返回 template_sha256 / source_size / tap_anchor / quality。"""
+    import uuid as _uuid
+    from app.api.deps import assert_project_access
+    from app.core.minio_client import upload_bytes as _upload_bytes
+    from app.models.user_project import ProjectRole
+    from app.services.strict_image_matcher import crop_lossless_png_template
+    from app.services.visual_assertion import parse_image_template_bytes
+
+    await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    try:
+        screen_bytes = parse_image_template_bytes(body.screenshot_base64)
+        click_pt = (body.click_x, body.click_y) if body.click_x is not None and body.click_y is not None else None
+        cropped = crop_lossless_png_template(
+            screen_bytes,
+            x1=body.x1,
+            y1=body.y1,
+            x2=body.x2,
+            y2=body.y2,
+            click_point=click_pt,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    object_name = f"visual-templates/projects/{body.project_id}/tpl_{_uuid.uuid4().hex[:12]}.png"
+    await asyncio.to_thread(_upload_bytes, object_name, cropped["png_bytes"], "image/png")
+    return {
+        "object_name": object_name,
+        "template_sha256": cropped["template_sha256"],
+        "source_size": cropped["source_size"],
+        "tap_anchor": cropped["tap_anchor"],
+        "quality_ok": cropped["quality_ok"],
+        "quality": cropped["quality"],
+        "quality_error": cropped["quality_error"],
+    }

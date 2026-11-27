@@ -42,7 +42,13 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.core.minio_client import upload_bytes, upload_file, presigned_url
+from app.core.minio_client import read_bytes, upload_bytes, upload_file, presigned_url
+from app.services.strict_image_matcher import (
+    assert_image_strict,
+    locate_image_two_frame_stable,
+    validate_visual_template_object_name,
+)
+from app.services.visual_assertion import parse_image_template_bytes
 from app.services.adb_service import adb_subprocess_kwargs
 from app.services.gif_recorder import generate_and_upload_run_gif
 from app.core.redis_client import publish_run_event
@@ -69,7 +75,16 @@ from app.services.device_leases import (
 from app.services.device_resolution import DeviceResolutionError, extract_device_id, resolve_device_async
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.mobile_special.preflight import AndroidPreflightError, run_android_preflight
+from app.services.step_outcome import (
+    SKIP_REASON_LEASE_LOST,
+    SKIP_REASON_UPSTREAM_ABORTED,
+    SKIP_REASON_USER_CANCELLED,
+    build_synthetic_skipped_step,
+    evaluate_step_failure_outcome,
+    normalize_error_strategy,
+)
 from app.services.step_result_collector import StepResultBatchCollector
+from app.services.step_retry import execute_ui_step_with_retry, parse_ui_retry_count
 from app.services.web_run_control import clear_cancel_request, is_cancel_requested
 
 logger = logging.getLogger(__name__)
@@ -1070,6 +1085,11 @@ async def _run_android_lowcode_steps(
     cancelled_at_step: int | None = None
     lease_lost_message: str | None = None
     executed_steps = 0
+    has_ignored_failure = False
+    retried_step_count = 0
+    non_skipped_step_count = 0
+    abort_skip_reason: str | None = None
+    next_unexecuted_idx = len(steps)
     step_collector = StepResultBatchCollector(db)
     gif_frames: list[tuple[bytes, str | None]] = []
     try:
@@ -1080,10 +1100,14 @@ async def _run_android_lowcode_steps(
                 await control.refresh(db)
             except AndroidRunCancelled:
                 cancelled_at_step = idx
+                abort_skip_reason = SKIP_REASON_USER_CANCELLED
+                next_unexecuted_idx = idx
                 break
             except AndroidLeaseLost as exc:
                 lease_lost_message = str(exc)
                 all_passed = False
+                abort_skip_reason = SKIP_REASON_LEASE_LOST
+                next_unexecuted_idx = idx
                 break
 
             step_start = time.monotonic()
@@ -1091,44 +1115,184 @@ async def _run_android_lowcode_steps(
             step_name = step_def.get("name", f"{action}_{idx}")
             raw_params = step_def.get("params", {})
             params = _replace_vars_in_params(raw_params, context_vars)
+            error_strategy = normalize_error_strategy(step_def)
+            retry_count = parse_ui_retry_count(step_def)
 
             status = RunStatus.passed
             error_message = None
             response_data: dict | None = None
+            should_abort = False
 
-            try:
+            case_project_id: int | None = getattr(case, "project_id", None)
+            if (
+                case_project_id is None
+                and getattr(case, "module_id", None) is not None
+                and callable(getattr(db, "get", None))
+            ):
+                mod_obj = await db.get(Module, case.module_id)
+                case_project_id = getattr(mod_obj, "project_id", None) if mod_obj is not None else None
+
+            async def _load_template_bytes() -> bytes:
+                obj_name = str(params.get("image_object_name") or params.get("image_path") or "").strip()
+                if obj_name and not obj_name.startswith("data:image/"):
+                    safe_obj = validate_visual_template_object_name(obj_name, case_project_id)
+                    return await asyncio.to_thread(read_bytes, safe_obj)
+                raw_tpl = params.get("template_base64") or params.get("image_base64") or params.get("template") or ""
+                if not raw_tpl:
+                    raise ValueError("缺少视觉模板（image_object_name 或 template_base64）")
+                return parse_image_template_bytes(str(raw_tpl))
+
+            is_image_step = action in {"click_image", "assert_image"}
+            image_budget = float(step_def.get("timeout") or params.get("timeout") or 10.0)
+            image_deadline = (time.monotonic() + image_budget) if is_image_step else None
+
+            async def _attempt_once() -> dict[str, Any]:
+                if is_image_step:
+                    try:
+                        tpl_bytes = await _load_template_bytes()
+                    except Exception as exc:
+                        return {"success": False, "error": f"加载图像模板失败: {exc}"}
+
+                    async def _cap() -> bytes | None:
+                        return await asyncio.to_thread(_adb_screenshot, device_serial)
+
+                    remaining_timeout = (
+                        max(0.2, image_deadline - time.monotonic()) if image_deadline is not None else image_budget
+                    )
+                    img_opts = params.get("image_options") if isinstance(params.get("image_options"), dict) else None
+                    if action == "click_image":
+                        diag = await locate_image_two_frame_stable(
+                            _cap,
+                            tpl_bytes,
+                            image_options=img_opts,
+                            platform="android",
+                            timeout_seconds=remaining_timeout,
+                            check_cancel=control.check_cancel,
+                        )
+                        if diag.get("status") != "matched" or not diag.get("point"):
+                            return {
+                                "success": False,
+                                "error": f"{diag.get('error_code') or 'E2005_IMAGE_NOT_MATCHED'}: {diag.get('reason') or '图像点击定位失败'}",
+                                "data": {"image_match": diag},
+                            }
+                        pt = diag["point"]
+                        control.assert_write_allowed()
+                        diag["tap_submitted"] = True
+                        ok_tap, tap_out = await asyncio.to_thread(
+                            _adb_cmd, device_serial, "shell", "input", "tap", str(pt[0]), str(pt[1]), timeout=10
+                        )
+                        if not ok_tap:
+                            return {
+                                "success": False,
+                                "tap_submitted": True,
+                                "error": f"图像点击提交失败: {tap_out}",
+                                "data": {"image_match": diag},
+                            }
+                        return {"success": True, "data": {"image_match": diag, "clicked_point": pt}}
+                    else:
+                        match_mode = (
+                            "not_exists" if str(params.get("match_mode") or "exists") == "not_exists" else "exists"
+                        )
+                        passed_img, diag = await assert_image_strict(
+                            _cap,
+                            tpl_bytes,
+                            match_mode=match_mode,
+                            image_options=img_opts,
+                            platform="android",
+                            timeout_seconds=remaining_timeout,
+                            check_cancel=control.check_cancel,
+                        )
+                        if not passed_img:
+                            return {
+                                "success": False,
+                                "error": f"{diag.get('error_code') or 'E2004_ASSERT_IMAGE_FAILED'}: {diag.get('reason') or '图像断言失败'}",
+                                "data": {"image_match": diag},
+                            }
+                        return {"success": True, "data": {"image_match": diag}}
+
                 if strict_engine is not None and action in STRICT_ACTIONS:
-                    result = await asyncio.to_thread(
+                    return await asyncio.to_thread(
                         strict_engine.execute,
                         action,
                         params,
                         assert_write_allowed=control.assert_write_allowed,
                         check_cancel=control.check_cancel,
                     )
-                elif strict_engine is not None and action not in STRICT_PASSTHROUGH_ACTIONS:
-                    result = {"success": False, "error": f"严格回放不支持步骤类型: {action}"}
-                elif action == "wait_until":
-                    result = {"success": False, "error": "wait_until 仅在严格回放模式下可用"}
+                if strict_engine is not None and action not in STRICT_PASSTHROUGH_ACTIONS:
+                    return {"success": False, "error": f"严格回放不支持步骤类型: {action}"}
+                if action == "wait_until":
+                    return {"success": False, "error": "wait_until 仅在严格回放模式下可用"}
+                return await asyncio.to_thread(_run_controlled_step, device_serial, action, params, control)
+
+            try:
+                result, retry_meta = await execute_ui_step_with_retry(
+                    _attempt_once,
+                    retry_count=retry_count,
+                    check_cancel=control.check_cancel,
+                    deadline=image_deadline,
+                )
+                raw_data = result.get("data")
+                response_data = (
+                    dict(raw_data)
+                    if isinstance(raw_data, dict)
+                    else ({"value": raw_data} if raw_data is not None else {})
+                )
+                if retry_meta.get("retried") or retry_count > 0:
+                    response_data["retry"] = retry_meta
+                if result.get("success"):
+                    if retry_meta.get("retried"):
+                        retried_step_count += 1
+                    non_skipped_step_count += 1
                 else:
-                    result = await asyncio.to_thread(_run_controlled_step, device_serial, action, params, control)
-                if not result.get("success"):
-                    status = RunStatus.failed
-                    error_message = result.get("error")
-                    all_passed = False
-                response_data = result.get("data")
+                    raw_error = str(result.get("error") or "步骤执行失败")
+                    status, should_abort, affects_pass, outcome_meta = evaluate_step_failure_outcome(
+                        strategy=error_strategy,
+                        error_message=raw_error,
+                        action=action,
+                        platform="android",
+                    )
+                    response_data["outcome"] = outcome_meta
+                    if outcome_meta.get("ignored_failure"):
+                        has_ignored_failure = True
+                        error_message = outcome_meta["skip_reason"]
+                    else:
+                        error_message = raw_error
+                        non_skipped_step_count += 1
+                    if affects_pass:
+                        all_passed = False
+                if not response_data:
+                    response_data = None
             except AndroidRunCancelled:
                 status = RunStatus.cancelled
                 error_message = "用户取消执行，本步骤未完成"
                 cancelled_at_step = idx
+                should_abort = True
+                abort_skip_reason = SKIP_REASON_USER_CANCELLED
             except AndroidLeaseLost as exc:
                 status = RunStatus.error
                 error_message = str(exc)
                 lease_lost_message = str(exc)
                 all_passed = False
+                should_abort = True
+                abort_skip_reason = SKIP_REASON_LEASE_LOST
             except Exception as e:
-                status = RunStatus.failed
-                error_message = str(e)[:2000]
-                all_passed = False
+                raw_error = str(e)[:2000]
+                status, should_abort, affects_pass, outcome_meta = evaluate_step_failure_outcome(
+                    strategy=error_strategy,
+                    error_message=raw_error,
+                    action=action,
+                    platform="android",
+                    exc=e,
+                )
+                response_data = {"outcome": outcome_meta}
+                if outcome_meta.get("ignored_failure"):
+                    has_ignored_failure = True
+                    error_message = outcome_meta["skip_reason"]
+                else:
+                    error_message = raw_error
+                    non_skipped_step_count += 1
+                if affects_pass:
+                    all_passed = False
             executed_steps += 1
 
             # 每步截图
@@ -1178,9 +1342,40 @@ async def _run_android_lowcode_steps(
                 },
             )
 
-            # 取消、失租或失败后停止后续步骤
-            if status != RunStatus.passed:
+            # 取消、失租或 abort 失败后停止后续步骤并补齐剩余 SKIP 记录
+            if should_abort:
+                abort_skip_reason = abort_skip_reason or SKIP_REASON_UPSTREAM_ABORTED
+                next_unexecuted_idx = idx + 1
                 break
+
+        if abort_skip_reason and next_unexecuted_idx < len(steps):
+            for skip_idx in range(next_unexecuted_idx, len(steps)):
+                skip_def = steps[skip_idx]
+                skip_name = skip_def.get("name", f"{skip_def.get('action', '')}_{skip_idx}")
+                synthetic = build_synthetic_skipped_step(
+                    run_id=run.id,
+                    step_index=skip_idx,
+                    step_name=skip_name,
+                    reason=abort_skip_reason,
+                )
+                await step_collector.add(synthetic)
+                await _safe_publish(
+                    run.id,
+                    {
+                        "type": "step_result",
+                        "run_id": run.id,
+                        "step": {
+                            "step_index": skip_idx,
+                            "name": skip_name,
+                            "status": RunStatus.skipped.value,
+                            "duration_ms": 0,
+                            "request_data": None,
+                            "response_data": synthetic.response_data,
+                            "error_message": abort_skip_reason,
+                            "screenshot_url": None,
+                        },
+                    },
+                )
 
     except Exception as e:
         logger.exception("android_lowcode run %s error: %s", run.id, e)
@@ -1239,6 +1434,13 @@ async def _run_android_lowcode_steps(
         "android_artifacts": artifact_urls,
         "device_serial": device_serial,
         **({"device_id": resolved_device_id} if resolved_device_id is not None else {}),
+        "has_ignored_failure": has_ignored_failure,
+        "retried_step_count": retried_step_count,
+        **(
+            {"warning": "all_steps_skipped"}
+            if steps and non_skipped_step_count == 0 and cancelled_at_step is None and not lease_lost_message
+            else {}
+        ),
         "execution_control": {
             "strict_replay": strict_replay,
             "strict_package": strict_package,

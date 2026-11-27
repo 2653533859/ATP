@@ -9,16 +9,24 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
 import json
 import logging
 import time
 from typing import Any
 
 import httpx
+from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.minio_client import presigned_url, upload_bytes
+from app.core.minio_client import presigned_url, read_bytes, upload_bytes
+from app.services.strict_image_matcher import (
+    assert_image_strict,
+    locate_image_two_frame_stable,
+    validate_visual_template_object_name,
+)
+from app.services.visual_assertion import parse_image_template_bytes
 from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.models.ios import IosApp, IosDevice
@@ -30,6 +38,13 @@ from app.services.ios_device_leases import (
     release_ios_device_lease,
 )
 from app.services.ios_wda_session_healer import is_wda_session_crash, recover_wda_session
+from app.services.step_outcome import (
+    SKIP_REASON_UPSTREAM_ABORTED,
+    build_synthetic_skipped_step,
+    evaluate_step_failure_outcome,
+    normalize_error_strategy,
+)
+from app.services.step_retry import execute_ui_step_with_retry, parse_ui_retry_count
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +209,13 @@ class IosAppiumClient:
             raise AppiumProtocolError("Appium 截图响应格式无效")
         return value
 
+    async def window_rect(self) -> dict[str, Any] | None:
+        try:
+            value = await self._request("GET", self._session_path("/window/rect"))
+            return value if isinstance(value, dict) else None
+        except Exception:
+            return None
+
     async def start_recording(self) -> None:
         await self._request(
             "POST", self._session_path("/appium/start_recording_screen"), json_body={"videoType": "h264"}
@@ -313,6 +335,9 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
     client = IosAppiumClient(server_url, timeout=float(cfg.get("timeout_seconds", 30)))
     artifacts: dict[str, str] = {}
     passed = True
+    has_ignored_failure = False
+    retried_step_count = 0
+    non_skipped_step_count = 0
     started = time.monotonic()
     run.status = RunStatus.running
     await db.commit()
@@ -330,40 +355,154 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                 await client.start_recording()
             except AppiumProtocolError:
                 logger.info("iOS Appium server does not support screen recording", exc_info=True)
+        aborted_after_index: int | None = None
         for index, step in enumerate(steps):
             step_started = time.monotonic()
             action = str(step.get("action", ""))
             name = str(step.get("name") or f"{action}_{index}")
             params = _render_params(step.get("params") or {}, {**extra_vars, "UDID": udid})
+            error_strategy = normalize_error_strategy(step)
+            retry_count = parse_ui_retry_count(step)
             status = RunStatus.passed
             error_message = None
             response_data: dict[str, Any] | None = None
             screenshot_url = None
-            try:
-                response_data = await client.execute_step(action, params)
-                if response_data.get("success") is False:
-                    status = RunStatus.failed
-                    error_message = f"iOS 断言失败: {response_data}"
-            except Exception as exc:
-                if is_wda_session_crash(exc):
-                    logger.warning("WDA session crash detected on step %s, attempting self-healing...", index)
-                    rec = await recover_wda_session(server_url, client.capabilities)
-                    if rec.get("recovered"):
-                        client.session_id = rec.get("session_id")
-                        try:
-                            response_data = await client.execute_step(action, params)
-                            if response_data.get("success") is False:
-                                status = RunStatus.failed
-                                error_message = f"iOS 断言失败: {response_data}"
-                        except Exception as retry_exc:
-                            status = RunStatus.failed
-                            error_message = f"WDA 会话自愈后重试失败: {str(retry_exc)[:1000]}"
-                    else:
-                        status = RunStatus.failed
-                        error_message = f"WDA 会话崩溃且自愈失败: {rec.get('error')}"
+            should_abort = False
+
+            is_image_step = action in {"click_image", "assert_image"}
+            image_budget = float(step.get("timeout") or params.get("timeout") or 10.0)
+            image_deadline = (time.monotonic() + image_budget) if is_image_step else None
+
+            async def _ios_attempt() -> dict[str, Any]:
+                try:
+                    if is_image_step:
+                        obj_name = str(params.get("image_object_name") or params.get("image_path") or "").strip()
+                        if obj_name and not obj_name.startswith("data:image/"):
+                            try:
+                                safe_obj = validate_visual_template_object_name(obj_name, project_id)
+                            except PermissionError as exc:
+                                return {"success": False, "error": f"E2201_INVALID_ARGS: {exc}"}
+                            tpl_bytes = await asyncio.to_thread(read_bytes, safe_obj)
+                        else:
+                            raw_tpl = params.get("template_base64") or params.get("image_base64") or ""
+                            if not raw_tpl:
+                                return {"success": False, "error": "E2201_INVALID_ARGS: 缺少视觉模板"}
+                            tpl_bytes = parse_image_template_bytes(str(raw_tpl))
+
+                        last_frame: dict[str, bytes | None] = {"bytes": None}
+
+                        async def _ios_cap() -> bytes | None:
+                            b64 = await client.screenshot()
+                            raw = base64.b64decode(b64) if b64 else None
+                            last_frame["bytes"] = raw
+                            return raw
+
+                        remaining_timeout = (
+                            max(0.2, image_deadline - time.monotonic()) if image_deadline is not None else image_budget
+                        )
+                        img_opts = (
+                            params.get("image_options") if isinstance(params.get("image_options"), dict) else None
+                        )
+                        if action == "click_image":
+                            diag = await locate_image_two_frame_stable(
+                                _ios_cap,
+                                tpl_bytes,
+                                image_options=img_opts,
+                                platform="ios",
+                                timeout_seconds=remaining_timeout,
+                            )
+                            if diag.get("status") != "matched" or not diag.get("point"):
+                                return {
+                                    "success": False,
+                                    "error": f"{diag.get('error_code') or 'E2005_IMAGE_NOT_MATCHED'}: {diag.get('reason')}",
+                                    "data": {"image_match": diag},
+                                }
+                            pt = diag["point"]
+                            tap_x, tap_y = int(pt[0]), int(pt[1])
+                            # Convert Retina screenshot pixel coordinates to WDA logical window points
+                            rect = await client.window_rect()
+                            if rect and last_frame["bytes"]:
+                                win_w = float(rect.get("width") or 0)
+                                win_h = float(rect.get("height") or 0)
+                                if win_w > 0 and win_h > 0:
+                                    with Image.open(io.BytesIO(last_frame["bytes"])) as frame_img:
+                                        pix_w, pix_h = frame_img.size
+                                    if pix_w > 0 and pix_h > 0:
+                                        tap_x = int(round(pt[0] * win_w / pix_w))
+                                        tap_y = int(round(pt[1] * win_h / pix_h))
+                            diag["pixel_point"] = pt
+                            diag["logical_point"] = [tap_x, tap_y]
+                            diag["tap_submitted"] = True
+                            await client.execute_step("tap", {"x": tap_x, "y": tap_y})
+                            return {"success": True, "data": {"image_match": diag, "clicked_point": [tap_x, tap_y]}}
+                        match_mode = (
+                            "not_exists" if str(params.get("match_mode") or "exists") == "not_exists" else "exists"
+                        )
+                        ok_img, diag = await assert_image_strict(
+                            _ios_cap,
+                            tpl_bytes,
+                            match_mode=match_mode,
+                            image_options=img_opts,
+                            platform="ios",
+                            timeout_seconds=remaining_timeout,
+                        )
+                        if not ok_img:
+                            return {
+                                "success": False,
+                                "error": f"{diag.get('error_code') or 'E2004_ASSERT_IMAGE_FAILED'}: {diag.get('reason')}",
+                                "data": {"image_match": diag},
+                            }
+                        return {"success": True, "data": {"image_match": diag}}
+
+                    out = await client.execute_step(action, params)
+                    if out.get("success") is False:
+                        return {"success": False, "error": f"iOS 断言失败: {out}", "data": out}
+                    return {"success": True, "data": out}
+                except Exception as exc:
+                    if is_wda_session_crash(exc):
+                        logger.warning("WDA session crash detected on step %s, attempting self-healing...", index)
+                        rec = await recover_wda_session(server_url, client.capabilities)
+                        if rec.get("recovered"):
+                            client.session_id = rec.get("session_id")
+                            try:
+                                out = await client.execute_step(action, params)
+                                if out.get("success") is False:
+                                    return {"success": False, "error": f"iOS 断言失败: {out}", "data": out}
+                                return {"success": True, "data": out}
+                            except Exception as retry_exc:
+                                return {"success": False, "error": f"WDA 会话自愈后重试失败: {str(retry_exc)[:1000]}"}
+                        return {"success": False, "error": f"WDA 会话崩溃且自愈失败: {rec.get('error')}"}
+                    return {"success": False, "error": str(exc)[:2000]}
+
+            step_exec, retry_meta = await execute_ui_step_with_retry(
+                _ios_attempt, retry_count=retry_count, deadline=image_deadline
+            )
+            raw_out = step_exec.get("data")
+            response_data = dict(raw_out) if isinstance(raw_out, dict) else {}
+            if retry_meta.get("retried") or retry_count > 0:
+                response_data["retry"] = retry_meta
+            if step_exec.get("success"):
+                if retry_meta.get("retried"):
+                    retried_step_count += 1
+                non_skipped_step_count += 1
+            else:
+                raw_err = str(step_exec.get("error") or "iOS 步骤执行失败")
+                status, should_abort, affects_pass, outcome_meta = evaluate_step_failure_outcome(
+                    strategy=error_strategy,
+                    error_message=raw_err,
+                    action=action,
+                    platform="ios",
+                )
+                response_data["outcome"] = outcome_meta
+                if outcome_meta.get("ignored_failure"):
+                    has_ignored_failure = True
+                    error_message = outcome_meta["skip_reason"]
                 else:
-                    status = RunStatus.failed
-                    error_message = str(exc)[:2000]
+                    error_message = raw_err
+                    non_skipped_step_count += 1
+                if affects_pass:
+                    passed = False
+
             if cfg.get("capture_screenshot", True) or action == "screenshot":
                 try:
                     screenshot = (response_data or {}).get("screenshot_base64") or await client.screenshot()
@@ -381,7 +520,7 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                 status=status,
                 duration_ms=int((time.monotonic() - step_started) * 1000),
                 request_data={"action": action, "params": params},
-                response_data=response_data,
+                response_data=response_data or None,
                 error_message=error_message,
                 screenshot_url=screenshot_url,
             )
@@ -401,9 +540,35 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                     },
                 },
             )
-            if status != RunStatus.passed:
-                passed = False
+            if should_abort:
+                aborted_after_index = index + 1
                 break
+        if aborted_after_index is not None and aborted_after_index < len(steps):
+            for skip_idx in range(aborted_after_index, len(steps)):
+                skip_step = steps[skip_idx]
+                skip_name = str(skip_step.get("name") or f"{skip_step.get('action', '')}_{skip_idx}")
+                synthetic = build_synthetic_skipped_step(
+                    run_id=run.id,
+                    step_index=skip_idx,
+                    step_name=skip_name,
+                    reason=SKIP_REASON_UPSTREAM_ABORTED,
+                )
+                db.add(synthetic)
+                await db.commit()
+                await _safe_publish(
+                    run.id,
+                    {
+                        "type": "step_result",
+                        "run_id": run.id,
+                        "step": {
+                            "step_index": skip_idx,
+                            "name": skip_name,
+                            "status": RunStatus.skipped.value,
+                            "error_message": SKIP_REASON_UPSTREAM_ABORTED,
+                            "screenshot_url": None,
+                        },
+                    },
+                )
         if cfg.get("record_video"):
             try:
                 recording = await client.stop_recording()
@@ -446,6 +611,9 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
             "ios_artifacts": artifacts,
             "udid": udid,
             "appium_server_url": server_url,
+            "has_ignored_failure": has_ignored_failure,
+            "retried_step_count": retried_step_count,
+            **({"warning": "all_steps_skipped"} if steps and non_skipped_step_count == 0 else {}),
         }
         await db.commit()
         await _safe_publish(

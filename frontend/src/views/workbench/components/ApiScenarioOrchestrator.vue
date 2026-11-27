@@ -29,6 +29,12 @@
       </div>
 
       <div class="scenario-header-right">
+        <a-button size="small" :disabled="!steps.length" :loading="precheckingScenario" @click="handlePrecheckScenario">
+          运行预检
+        </a-button>
+        <a-button size="small" :disabled="!steps.length || !canModify" :loading="batchSuggestLoading" @click="handleBatchAiSuggest">
+          AI 批量校验
+        </a-button>
         <a-button size="small" :disabled="!steps.length" :loading="validatingDag" @click="handleValidateDagAndDataflow">
           校验拓扑
         </a-button>
@@ -516,6 +522,10 @@
                   <a-button type="text" danger size="small" @click="removeAssertionRow(aIdx)">
                     <MinusCircleOutlined />
                   </a-button>
+                  <div v-if="isDynamicAssertionItem(assertItem)" class="dynamic-assertion-warn">
+                    <span>动态字段用固定值易误报</span>
+                    <a-button type="link" size="small" @click="convertAssertionToNotEmpty(assertItem)">改为非空</a-button>
+                  </div>
                 </div>
               </div>
             </a-tab-pane>
@@ -566,6 +576,21 @@
           <div class="inspector-footer-meta">
             <div class="config-override-note">
               ▸ 本步骤配置了 {{ Object.keys(currentStep.headers || {}).length }} 项请求头 · {{ (currentStep.assertions || []).length }} 条校验
+              <span class="retry-inline">
+                · 连接重试:
+                <a-select
+                  :value="currentStep.retry_count ?? 0"
+                  size="small"
+                  style="width: 78px"
+                  title="仅在连接未到达服务端（ConnectError/ConnectTimeout）时重试，防止重复写入业务数据"
+                  @change="(val: unknown) => { currentStep!.retry_count = Number(val ?? 0); markDirty() }"
+                >
+                  <a-select-option :value="0">0 次</a-select-option>
+                  <a-select-option :value="1">1 次</a-select-option>
+                  <a-select-option :value="2">2 次</a-select-option>
+                  <a-select-option :value="3">3 次</a-select-option>
+                </a-select>
+              </span>
             </div>
             <div class="env-execution-note">
               {{ currentEnvName || '未选择环境' }} · 调试将发送真实请求
@@ -592,13 +617,21 @@
                 HTTP {{ currentDebugResult?.status_code || 'ERR' }}
               </a-tag>
               <span class="elapsed-tag">{{ currentDebugResult?.elapsed_ms ?? 0 }} ms</span>
-              <a-tag :color="currentDebugResult?.passed ? 'green' : 'red'">
+              <a-tag v-if="!(currentStep.assertions || []).length" color="orange">
+                UNCHECKED（未校验）
+              </a-tag>
+              <a-tag v-else :color="currentDebugResult?.passed ? 'green' : 'red'">
                 {{ currentDebugResult?.passed ? '校验通过' : '存在失败校验' }}
               </a-tag>
             </div>
-            <a-button size="small" :disabled="!canModify" :loading="suggestionLoading" @click="requestSuggestions">
-              生成校验与取值建议
-            </a-button>
+            <a-space size="small">
+              <a-button size="small" :loading="recheckingAssertions" @click="recheckCurrentStepAssertions">
+                离线重验
+              </a-button>
+              <a-button size="small" :disabled="!canModify" :loading="suggestionLoading" @click="requestSuggestions">
+                生成校验与取值建议
+              </a-button>
+            </a-space>
           </div>
 
           <div v-if="pendingSuggestions && suggestionsCurrent" class="suggestion-preview">
@@ -882,7 +915,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import draggable from 'vuedraggable'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import {
   DownOutlined,
   MinusCircleOutlined,
@@ -917,6 +950,7 @@ import {
 } from '@/utils/apiTemplates'
 import {
   parseStepFromCase,
+  type ApiAssertionItem,
   type ApiScenarioStep,
 } from '@/types/apiScenario'
 
@@ -1319,6 +1353,7 @@ function resetExecutionState() {
 function loadScenarioRecord(sc: ApiScenarioRecord) {
   resetExecutionState()
   editingCaseId.value = sc.id
+  editingScenarioVersion.value = sc.version ?? 1
   scenarioName.value = sc.name
   scenarioDescription.value = sc.description || ''
   if (sc.env_id) selectedEnvId.value = sc.env_id
@@ -1340,6 +1375,7 @@ watch(
     if (nextProjectId === prevProjectId || prevProjectId === undefined) return
     resetExecutionState()
     editingCaseId.value = null
+    editingScenarioVersion.value = undefined
     scenarioName.value = '登录场景回归'
     scenarioDescription.value = ''
     selectedEnvId.value = undefined
@@ -2087,6 +2123,8 @@ async function requestSuggestions() {
   suggestionLoading.value = true
   pendingSuggestions.value = null
   try {
+    const stepIdx = currentStepIndex.value
+    const downstreamPaths = collectDownstreamReferencedPaths(step, stepIdx)
     const result = await caseApi.suggestAssertions({
       project_id: props.projectId,
       method: (step.method || 'GET').toUpperCase(),
@@ -2094,10 +2132,16 @@ async function requestSuggestions() {
       status_code: response.status_code,
       response_body: response.body_json ?? response.body,
       response_headers: response.headers,
+      existing_assertions: (step.assertions || []) as Array<Record<string, unknown>>,
+      existing_extractions: (step.extractions || []) as Array<Record<string, unknown>>,
+      downstream_referenced_paths: downstreamPaths,
     })
     if (currentStep.value?.uid !== step.uid || currentDebugResult.value !== response
       || suggestionSignature(step) !== signature) return
     pendingSuggestions.value = { stepUid: step.uid, response, signature, result }
+    if (result.filtered_count && result.filtered_reasons?.length) {
+      message.info(`已过滤 ${result.filtered_count} 条无效/动态固定值建议`)
+    }
   } catch (error: unknown) {
     message.error(`生成建议失败: ${extractApiError(error, '请稍后重试')}`)
   } finally {
@@ -2197,6 +2241,7 @@ async function handleSaveScenario(silent = false): Promise<number | null> {
   saving.value = true
   try {
     const serializedSteps = steps.value.map((s, idx) => ({
+      uid: s.uid,
       name: s.name || `步骤 ${idx + 1}`,
       method: (s.method || 'GET').toUpperCase(),
       url: s.url || '/',
@@ -2209,8 +2254,11 @@ async function handleSaveScenario(silent = false): Promise<number | null> {
       extractions: s.extractions || [],
       depends_on: idx > 0 ? [idx - 1] : [],
       timeout: Math.min(Math.max(Number(s.timeout || 30), 1), 60),
+      retry_count: s.retry_count ?? 0,
       sourceCaseId: s.sourceCaseId,
       sourceCaseFingerprint: s.sourceCaseFingerprint,
+      ...(s.sourceSnapshot ? { sourceSnapshot: s.sourceSnapshot } : {}),
+      ...(s.overriddenFields ? { overriddenFields: s.overriddenFields } : {}),
     }))
 
     const payload = {
@@ -2219,11 +2267,13 @@ async function handleSaveScenario(silent = false): Promise<number | null> {
       name: scenarioName.value.trim(),
       description: scenarioDescription.value.trim(),
       env_id: selectedEnvId.value ?? null,
+      ...(editingCaseId.value && editingScenarioVersion.value ? { version: editingScenarioVersion.value } : {}),
       steps: serializedSteps,
     }
 
     if (editingCaseId.value) {
       const updated = await apiScenarioApi.update(editingCaseId.value, payload)
+      editingScenarioVersion.value = updated.version ?? editingScenarioVersion.value
       isDirty.value = false
       saveDraftToStorage()
       if (!silent) message.success('已保存到自动化场景列表')
@@ -2232,6 +2282,7 @@ async function handleSaveScenario(silent = false): Promise<number | null> {
     } else {
       const created = await apiScenarioApi.create(payload)
       editingCaseId.value = created.id
+      editingScenarioVersion.value = created.version ?? 1
       isDirty.value = false
       saveDraftToStorage()
       if (!silent) message.success(`已保存到自动化场景列表（${created.scenario_code}）`)
@@ -2306,6 +2357,7 @@ function handleMoreMenu({ key }: { key: string | number }) {
     loadScenarioModalOpen.value = true
   } else if (key === 'new_scenario') {
     editingCaseId.value = null
+    editingScenarioVersion.value = undefined
     scenarioName.value = '新接口自动化场景'
     scenarioDescription.value = ''
     steps.value = []
@@ -2451,8 +2503,230 @@ watch(
   },
 )
 
+const precheckingScenario = ref(false)
+const recheckingAssertions = ref(false)
+const batchSuggestLoading = ref(false)
+const apiDebugSessionId = ref<string | null>(null)
+const editingScenarioVersion = ref<number | undefined>(undefined)
+const DYNAMIC_FIELD_WARN_RE = /(?:^|[._-])(?:id|uuid|guid|token|jwt|nonce|timestamp|ts|created.?at|updated.?at|expire|trace.?id|request.?id|order.?no|trade.?no)$|(?:Id|ID|Token|Timestamp)$/
+
+function isDynamicAssertionItem(item: ApiAssertionItem): boolean {
+  if (item.target !== 'jsonpath' || (item.operator !== 'eq' && item.operator !== 'contains')) return false
+  const expr = String(item.expression || '').replace(/\[\d+\]$/, '')
+  const leaf = expr.split('.').pop()?.replace(/^\$/, '') || ''
+  return Boolean(leaf && DYNAMIC_FIELD_WARN_RE.test(leaf))
+}
+
+function convertAssertionToNotEmpty(item: ApiAssertionItem) {
+  item.operator = 'not_empty'
+  item.expected = ''
+  markDirty()
+}
+
+function collectDownstreamReferencedPaths(step: OrchestratorStep, stepIdx: number): string[] {
+  if (stepIdx < 0) return []
+  const laterBlob = JSON.stringify(steps.value.slice(stepIdx + 1))
+  return (step.extractions || [])
+    .filter((ex) => ex.variable && ex.expression && laterBlob.includes(`{{${ex.variable}}}`))
+    .map((ex) => ex.expression)
+}
+
+function buildScenarioDebugStepsPayload(): Array<Record<string, unknown>> {
+  return steps.value.map((step, idx) => ({
+    uid: step.uid,
+    name: step.name || `步骤 ${idx + 1}`,
+    method: step.method || 'GET',
+    url: normalizeScenarioNodeUrl(step.url || ''),
+    headers: step.headers || {},
+    params: step.params || {},
+    cookies: step.cookies || {},
+    body_type: step.body_type || 'none',
+    body: normalizeScenarioNodeBody(step),
+    assertions: step.assertions || [],
+    extractions: step.extractions || [],
+    timeout: step.timeout ?? 30,
+    retry_count: step.retry_count ?? 0,
+  }))
+}
+
+async function handlePrecheckScenario() {
+  if (!steps.value.length || !props.projectId) return
+  precheckingScenario.value = true
+  try {
+    const res = await apiScenarioApi.precheck({
+      project_id: props.projectId,
+      env_id: selectedEnvId.value,
+      mode: 'run',
+      steps: buildScenarioDebugStepsPayload(),
+      extra_vars: buildInitialScenarioContext(),
+    })
+    if (res.valid) {
+      message.success('运行前预检全部通过')
+    } else {
+      const first = res.issues[0]
+      if (first?.step_uid) {
+        const target = steps.value.find((s) => s.uid === first.step_uid)
+        if (target) selectedStepUid.value = target.uid
+      }
+      if (first?.section === 'assertions') inspectorMainTab.value = 'assertions'
+      message.warning(`预检发现 ${res.issues.length} 项问题：${first?.message || '请检查步骤配置'}`)
+    }
+  } catch (err: unknown) {
+    message.error(extractApiError(err, '预检失败'))
+  } finally {
+    precheckingScenario.value = false
+  }
+}
+
+async function recheckCurrentStepAssertions() {
+  const step = currentStep.value
+  const response = currentDebugResult.value
+  if (!step || !response) return
+  recheckingAssertions.value = true
+  try {
+    if (apiDebugSessionId.value && typeof apiScenarioApi.recheckDebugAssertions === 'function') {
+      const res = await apiScenarioApi.recheckDebugAssertions(apiDebugSessionId.value, {
+        steps: buildScenarioDebugStepsPayload(),
+        target_step_uid: step.uid,
+        extra_vars: buildInitialScenarioContext(),
+      })
+      const stepRes = res.step_result as { status?: string; assertions?: Array<{ passed: boolean; message?: string }> }
+      response.passed = stepRes.status === 'passed'
+      if (Array.isArray(stepRes.assertions)) {
+        response.assertionDetails = stepRes.assertions.map((a) => ({
+          label: a.message || 'assertion',
+          passed: Boolean(a.passed),
+          actual: a.message || '',
+        }))
+      }
+      message.success(stepRes.status === 'unchecked' ? '离线重验完成：当前未配置断言（UNCHECKED）' : '已基于缓存响应完成离线重验（未重发请求）')
+      return
+    }
+    const { allPassed, details } = evaluateStepAssertions(step, response)
+    response.assertionDetails = details
+    response.passed = (step.assertions || []).length > 0 ? allPassed : false
+    message.success((step.assertions || []).length > 0 ? '已基于当前缓存响应完成离线重验（未重发请求）' : '当前步骤尚未配置断言（UNCHECKED）')
+  } catch (err: unknown) {
+    message.error(extractApiError(err, '离线重验失败'))
+  } finally {
+    recheckingAssertions.value = false
+  }
+}
+
+async function runBatchAiSuggest() {
+  if (!steps.value.length || !props.canModify || !props.projectId) return
+  batchSuggestLoading.value = true
+  try {
+    if (apiDebugSessionId.value && typeof apiScenarioApi.deleteDebugSession === 'function') {
+      await apiScenarioApi.deleteDebugSession(apiDebugSessionId.value).catch(() => undefined)
+      apiDebugSessionId.value = null
+    }
+    const created = await apiScenarioApi.createDebugSession({
+      project_id: props.projectId,
+      editor_id: `scenario-${editingCaseId.value ?? 'draft'}`,
+      env_id: selectedEnvId.value,
+    })
+    apiDebugSessionId.value = created.session_id
+    const debugSteps = buildScenarioDebugStepsPayload()
+    const execRes = await apiScenarioApi.executeDebugSession(created.session_id, {
+      steps: debugSteps,
+      mode: 'collect',
+      extra_vars: buildInitialScenarioContext(),
+    })
+    for (const stepRes of execRes.executed || []) {
+      const uid = String(stepRes.step_uid || '')
+      const resp = stepRes.response as Record<string, unknown> | null | undefined
+      if (uid && resp) {
+        const bodyVal = resp.body
+        stepDebugResults.value[uid] = {
+          status_code: Number(resp.status_code || 0),
+          elapsed_ms: Number(resp.duration_ms || 0),
+          body: typeof bodyVal === 'string' ? bodyVal : JSON.stringify(bodyVal ?? '', null, 2),
+          body_json: typeof bodyVal === 'object' ? bodyVal : null,
+          headers: (resp.headers as Record<string, string>) || {},
+          passed: stepRes.status === 'passed',
+          assertionDetails: [],
+        }
+      }
+    }
+    const batch = await caseApi.suggestScenarioAssertions({
+      project_id: props.projectId,
+      debug_session_id: created.session_id,
+      steps: debugSteps,
+    })
+    let addedTotal = 0
+    const updatedStepUids: string[] = []
+    for (const item of batch.items) {
+      const targetStep = steps.value.find((s) => s.uid === item.step_uid)
+      if (!targetStep || !item.assertions.length) continue
+      if (!targetStep.assertions) targetStep.assertions = []
+      let stepChanged = false
+      for (const a of item.assertions) {
+        const operator = a.operator === 'exists' ? 'not_empty' : a.operator
+        const target = a.target === 'status_code'
+          ? 'status_code'
+          : a.target === 'header'
+            ? 'response_header'
+            : a.target === 'body' && a.expression
+              ? 'jsonpath'
+              : a.target === 'body' && operator === 'contains'
+                ? 'body_contains'
+                : null
+        if (!target) continue
+        const expression = target === 'status_code' || target === 'body_contains' ? '' : a.expression
+        if (targetStep.assertions.some((ex) => ex.target === target && (ex.expression || '') === expression)) continue
+        targetStep.assertions.push({
+          target,
+          operator,
+          expression,
+          expected: a.expected,
+          description: a.description,
+        })
+        addedTotal++
+        stepChanged = true
+      }
+      if (stepChanged) updatedStepUids.push(targetStep.uid)
+    }
+    if (addedTotal > 0) {
+      markDirty()
+      const refreshedSteps = buildScenarioDebugStepsPayload()
+      for (const uid of updatedStepUids) {
+        if (typeof apiScenarioApi.recheckDebugAssertions === 'function') {
+          await apiScenarioApi.recheckDebugAssertions(created.session_id, {
+            steps: refreshedSteps,
+            target_step_uid: uid,
+            extra_vars: buildInitialScenarioContext(),
+          }).catch(() => undefined)
+        }
+      }
+      message.success(`AI 批量校验完成：已为场景补充 ${addedTotal} 条自验证断言并完成离线重验`)
+    } else {
+      message.info('AI 批量校验完成：未发现需要新增的断言建议')
+    }
+  } catch (err: unknown) {
+    message.error(extractApiError(err, 'AI 批量生成校验失败'))
+  } finally {
+    batchSuggestLoading.value = false
+  }
+}
+
+function handleBatchAiSuggest() {
+  if (!steps.value.length || !props.canModify || !props.projectId) return
+  Modal.confirm({
+    title: '确认执行「AI 批量生成校验」',
+    content: '该操作会以收集模式真实请求当前场景全部步骤以获取响应（写入接口可能产生业务数据），是否继续？',
+    okText: '继续执行',
+    cancelText: '取消',
+    onOk: () => runBatchAiSuggest(),
+  })
+}
+
 onBeforeUnmount(() => {
   void releaseActiveDebugSession(true)
+  if (apiDebugSessionId.value && typeof apiScenarioApi.deleteDebugSession === 'function') {
+    void apiScenarioApi.deleteDebugSession(apiDebugSessionId.value).catch(() => undefined)
+    apiDebugSessionId.value = null
+  }
 })
 
 async function handleValidateDagAndDataflow() {

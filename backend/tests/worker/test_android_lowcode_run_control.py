@@ -135,7 +135,8 @@ def test_cancel_between_steps_marks_run_cancelled_and_skips_rest(env):
 
     assert run.status == RunStatus.cancelled
     assert "停止于第 2 步" in run.error_message
-    assert len(env["calls"]) == 1 and len(db.steps()) == 1
+    assert len(env["calls"]) == 1 and len(db.steps()) == 3
+    assert [s.status for s in db.steps()] == [RunStatus.passed, RunStatus.skipped, RunStatus.skipped]
     assert env["released"] == [(41, "lease-9")] and env["cleared"] == [7]
     assert env["events"][-1]["type"] == "completed" and env["events"][-1]["status"] == "cancelled"
 
@@ -164,7 +165,8 @@ def test_cancel_before_any_write_never_touches_device(env):
 
     asyncio.run(executor.run_android_lowcode(db, run, case, {}))
 
-    assert run.status == RunStatus.cancelled and env["calls"] == [] and db.steps() == []
+    assert run.status == RunStatus.cancelled and env["calls"] == []
+    assert len(db.steps()) == 1 and db.steps()[0].status == RunStatus.skipped
 
 
 def test_lease_renewal_failure_stops_with_error(env):

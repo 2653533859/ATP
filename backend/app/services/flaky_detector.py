@@ -24,6 +24,7 @@ def _empty_flaky_stats() -> dict[str, Any]:
         "passed_runs": 0,
         "failed_runs": 0,
         "error_runs": 0,
+        "soft_instability_runs": 0,
         "failure_rate": 0.0,
     }
 
@@ -96,6 +97,7 @@ async def _query_flaky_stats_from_db(db: Any, case_ids: list[int]) -> dict[int, 
         select(
             TestRun.case_id.label("case_id"),
             TestRun.status.label("status"),
+            TestRun.result_summary.label("result_summary"),
             func.row_number()
             .over(
                 partition_by=TestRun.case_id,
@@ -111,15 +113,23 @@ async def _query_flaky_stats_from_db(db: Any, case_ids: list[int]) -> dict[int, 
         .subquery()
     )
 
-    rows = (await db.execute(select(ranked.c.case_id, ranked.c.status).where(ranked.c.rn <= FLAKY_WINDOW_SIZE))).all()
+    rows = (
+        await db.execute(
+            select(ranked.c.case_id, ranked.c.status, ranked.c.result_summary).where(ranked.c.rn <= FLAKY_WINDOW_SIZE)
+        )
+    ).all()
 
     stats_by_case = {case_id: _empty_flaky_stats() for case_id in case_ids}
     for row in rows:
         stats = stats_by_case[row.case_id]
         stats["total_runs"] += 1
         status = row.status.value if hasattr(row.status, "value") else str(row.status)
+        summary = getattr(row, "result_summary", None)
+        summary_dict = summary if isinstance(summary, dict) else {}
         if status == "passed":
             stats["passed_runs"] += 1
+            if summary_dict.get("has_ignored_failure") or int(summary_dict.get("retried_step_count") or 0) > 0:
+                stats["soft_instability_runs"] += 1
         elif status == "failed":
             stats["failed_runs"] += 1
         elif status == "error":
@@ -127,9 +137,12 @@ async def _query_flaky_stats_from_db(db: Any, case_ids: list[int]) -> dict[int, 
 
     for cid, stats in stats_by_case.items():
         failure_runs = stats["failed_runs"] + stats["error_runs"]
+        soft_runs = stats["soft_instability_runs"]
         if stats["total_runs"]:
             stats["failure_rate"] = round(failure_runs / stats["total_runs"] * 100, 1)
-        stats["is_flaky"] = stats["total_runs"] >= FLAKY_MIN_RUNS and stats["passed_runs"] > 0 and failure_runs > 0
+        stats["is_flaky"] = (
+            stats["total_runs"] >= FLAKY_MIN_RUNS and stats["passed_runs"] > 0 and (failure_runs > 0 or soft_runs >= 2)
+        )
 
     return stats_by_case
 

@@ -26,6 +26,9 @@
       </div>
 
       <div class="toolbar-right">
+        <a-button v-if="selectedCase && selectedCase.case_type === 'api'" size="small" class="toolbar-btn" @click="openSourceUsagesDrawer(selectedCase.id)">
+          场景引用与同步
+        </a-button>
         <a-button v-if="selectedProjectId" size="small" class="toolbar-btn" @click="openSchemaManager">
           {{ t('api_workbench.schema_assets_manage') }}
         </a-button>
@@ -137,7 +140,12 @@
                 <span class="request-list-method method-scenario">场景</span>
                 <span class="request-list-text">
                   <strong>{{ sc.name }}</strong>
-                  <small>{{ sc.scenario_code }} · {{ sc.step_count }} 步</small>
+                  <small>
+                    {{ sc.scenario_code }} · {{ sc.step_count }} 步
+                    <a-tag v-if="(sc.stale_step_count || 0) > 0" color="orange" style="margin-left: 4px">
+                      源接口有更新 ({{ sc.stale_step_count }})
+                    </a-tag>
+                  </small>
                 </span>
                 <span class="request-list-state" :class="`run-${sc.last_run_status || 'none'}`" />
                 <a-popconfirm
@@ -481,6 +489,88 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-drawer
+      v-model:open="usagesDrawerOpen"
+      title="场景引用影响面与批量同步"
+      :width="680"
+    >
+      <a-spin :spinning="usagesLoading">
+        <template v-if="sourceCaseUsages">
+          <div class="schema-drawer-toolbar" style="justify-content: space-between; align-items: center">
+            <span>
+              被 <strong>{{ sourceCaseUsages.total_scenarios }}</strong> 个场景的
+              <strong>{{ sourceCaseUsages.total_steps }}</strong> 个步骤引用
+              （待同步 {{ sourceCaseUsages.stale_steps }} · 冲突 {{ sourceCaseUsages.conflict_steps }}）
+            </span>
+            <a-button
+              v-if="canModify && autoSyncableUsageItems.length"
+              type="primary"
+              size="small"
+              :loading="syncingUsages"
+              @click="handleBatchSyncAutoSteps"
+            >
+              一键同步 {{ autoSyncableUsageItems.length }} 个无冲突步骤
+            </a-button>
+          </div>
+          <a-empty v-if="!sourceCaseUsages.scenarios.length" description="暂无自动化场景引用此接口用例" />
+          <div v-for="sc in sourceCaseUsages.scenarios" :key="sc.scenario_id" style="margin-bottom: 12px">
+            <div style="font-weight: 600; margin-bottom: 6px">
+              {{ sc.scenario_name }} ({{ sc.scenario_code }} · v{{ sc.scenario_version }})
+            </div>
+            <div
+              v-for="st in sc.steps"
+              :key="st.step_uid"
+              style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border: 1px solid var(--c-border); border-radius: 6px; margin-bottom: 6px"
+            >
+              <span>#{{ st.step_index + 1 }} {{ st.step_name }}</span>
+              <a-space size="small">
+                <a-tag :color="st.sync_status === 'up_to_date' ? 'green' : st.sync_status === 'conflict' ? 'red' : 'orange'">
+                  {{ st.sync_status === 'up_to_date' ? '已是最新' : st.sync_status === 'conflict' ? `冲突 (${st.conflict_fields.join(',')})` : '可自动同步' }}
+                </a-tag>
+                <a-button
+                  v-if="canModify && st.sync_status === 'conflict'"
+                  size="small"
+                  type="primary"
+                  ghost
+                  @click="openSyncConflictModal(sc, st)"
+                >
+                  处理冲突
+                </a-button>
+              </a-space>
+            </div>
+          </div>
+        </template>
+      </a-spin>
+    </a-drawer>
+
+    <a-modal
+      v-model:open="conflictSyncOpen"
+      title="冲突字段逐项确认同步"
+      :confirm-loading="resolvingConflictSync"
+      width="720px"
+      @ok="submitConflictSync"
+    >
+      <div v-for="c in conflictDiffItems" :key="c.field" style="margin-bottom: 14px; padding: 10px; border: 1px solid var(--c-border); border-radius: 6px">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px">
+          <strong>字段：{{ c.field }}</strong>
+          <a-radio-group v-model:value="conflictChoices[c.field]" size="small">
+            <a-radio-button value="keep_local">保留当前覆盖</a-radio-button>
+            <a-radio-button value="use_latest">采用最新模板</a-radio-button>
+          </a-radio-group>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px">
+          <div>
+            <div style="color: var(--c-text-secondary)">当前步骤覆盖值：</div>
+            <pre style="margin: 4px 0 0; max-height: 120px; overflow: auto">{{ JSON.stringify(c.local, null, 2) }}</pre>
+          </div>
+          <div>
+            <div style="color: var(--c-text-secondary)">源接口最新值：</div>
+            <pre style="margin: 4px 0 0; max-height: 120px; overflow: auto">{{ JSON.stringify(c.latest, null, 2) }}</pre>
+          </div>
+        </div>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -518,6 +608,7 @@ import {
   type CaseType,
   type EnvironmentItem,
   type ProjectItem,
+  type SourceCaseScenarioUsageOut,
   type RunDetailItem,
 } from '@/api'
 import ModuleTree from '@/components/common/ModuleTree.vue'
@@ -1422,6 +1513,121 @@ async function handleDeleteRequestFile(objectName: string) {
     message.error(errorMessage(error, t('api_workbench.request_file_delete_failed')))
   } finally {
     deletingRequestFileName.value = null
+  }
+}
+
+const usagesDrawerOpen = ref(false)
+const usagesLoading = ref(false)
+const syncingUsages = ref(false)
+const sourceCaseUsages = ref<SourceCaseScenarioUsageOut | null>(null)
+const conflictSyncOpen = ref(false)
+const resolvingConflictSync = ref(false)
+const conflictTarget = ref<{ caseId: number; scenarioId: number; scenarioVersion: number; stepUid: string } | null>(null)
+const conflictDiffItems = ref<Array<{ field: string; base: unknown; local: unknown; latest: unknown }>>([])
+const conflictChoices = ref<Record<string, 'keep_local' | 'use_latest'>>({})
+
+async function openSyncConflictModal(
+  sc: SourceCaseScenarioUsageOut['scenarios'][number],
+  st: SourceCaseScenarioUsageOut['scenarios'][number]['steps'][number],
+) {
+  if (!sourceCaseUsages.value) return
+  try {
+    const preview = await apiScenarioApi.previewSourceCaseSync(sourceCaseUsages.value.case_id, {
+      scenario_id: sc.scenario_id,
+      step_uid: st.step_uid,
+    })
+    conflictTarget.value = {
+      caseId: sourceCaseUsages.value.case_id,
+      scenarioId: sc.scenario_id,
+      scenarioVersion: sc.scenario_version,
+      stepUid: st.step_uid,
+    }
+    conflictDiffItems.value = preview.conflicts || []
+    const initChoices: Record<string, 'keep_local' | 'use_latest'> = {}
+    for (const c of conflictDiffItems.value) {
+      initChoices[c.field] = 'keep_local'
+    }
+    conflictChoices.value = initChoices
+    conflictSyncOpen.value = true
+  } catch (error: unknown) {
+    message.error(errorMessage(error, '加载冲突详情失败'))
+  }
+}
+
+async function submitConflictSync() {
+  if (!conflictTarget.value) return
+  resolvingConflictSync.value = true
+  try {
+    const res = await apiScenarioApi.applySourceCaseSync(conflictTarget.value.caseId, {
+      items: [
+        {
+          scenario_id: conflictTarget.value.scenarioId,
+          scenario_version: conflictTarget.value.scenarioVersion,
+          step_uid: conflictTarget.value.stepUid,
+          choices: conflictChoices.value,
+        },
+      ],
+    })
+    if (res.applied > 0) {
+      message.success('冲突字段已按选择同步完成')
+      conflictSyncOpen.value = false
+      await openSourceUsagesDrawer(conflictTarget.value.caseId)
+      await loadScenarios()
+    } else {
+      message.warning(res.items[0]?.reason || '同步未生效，请刷新后重试')
+    }
+  } catch (error: unknown) {
+    message.error(errorMessage(error, '提交冲突同步失败'))
+  } finally {
+    resolvingConflictSync.value = false
+  }
+}
+
+const autoSyncableUsageItems = computed(() => {
+  const usages = sourceCaseUsages.value
+  if (!usages) return []
+  const items: Array<{ scenario_id: number; scenario_version: number; step_uid: string }> = []
+  for (const sc of usages.scenarios) {
+    for (const st of sc.steps) {
+      if (st.sync_status === 'stale_auto_syncable') {
+        items.push({
+          scenario_id: sc.scenario_id,
+          scenario_version: sc.scenario_version,
+          step_uid: st.step_uid,
+        })
+      }
+    }
+  }
+  return items
+})
+
+async function openSourceUsagesDrawer(caseId: number) {
+  usagesDrawerOpen.value = true
+  usagesLoading.value = true
+  try {
+    sourceCaseUsages.value = await apiScenarioApi.getSourceCaseUsages(caseId)
+  } catch (error: unknown) {
+    sourceCaseUsages.value = null
+    message.error(errorMessage(error, '加载场景引用影响面失败'))
+  } finally {
+    usagesLoading.value = false
+  }
+}
+
+async function handleBatchSyncAutoSteps() {
+  if (!sourceCaseUsages.value || !autoSyncableUsageItems.value.length) return
+  syncingUsages.value = true
+  try {
+    const res = await apiScenarioApi.applySourceCaseSync(sourceCaseUsages.value.case_id, {
+      items: autoSyncableUsageItems.value,
+    })
+    message.success(`批量同步完成：成功 ${res.applied} 项，跳过/失败 ${res.failed} 项`)
+    await openSourceUsagesDrawer(sourceCaseUsages.value.case_id)
+    await loadScenarios()
+  } catch (error: unknown) {
+    message.error(errorMessage(error, '批量同步失败'))
+  } finally {
+    syncingUsages.value = false
   }
 }
 

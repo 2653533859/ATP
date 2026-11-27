@@ -33,15 +33,18 @@ from app.schemas.ai_case import (
     AICaseGenerateOut,
     AIParseSchemaIn,
     AIParseSchemaOut,
+    AIScenarioBatchSuggestIn,
+    AIScenarioBatchSuggestOut,
     AIWebAssertionSuggestIn,
     AIWebAssertionSuggestOut,
 )
+from app.services.api_debug_session import ApiDebugSessionError, get_api_debug_session
 from app.services.audit import write_audit_log
 from app.services.ai_case.funnel import AICaseFunnelEvent, build_funnel_stats
 from app.services.ai_case.context import build_dataset_context, build_mock_rule_context
 from app.services.ai_case.generator import generate_case_drafts
 from app.services.ai_case.parsers import parse_schema
-from app.services.ai_case.suggestion import suggest_assertions_and_extractions
+from app.services.ai_case.suggestion import suggest_assertions_and_extractions, suggest_scenario_batch_assertions
 from app.services.ai_case.web_assertion_suggestion import suggest_web_assertions
 from app.services.ai_governance import redact_llm_text
 
@@ -338,3 +341,32 @@ async def suggest_web_assertions_endpoint(
         await _assert_any_project_editor(db, user)
     config, api_key = await _resolve_llm_config(db, body.project_id)
     return await suggest_web_assertions(body, config, api_key)
+
+
+@router.post("/suggest-scenario-assertions", response_model=AIScenarioBatchSuggestOut)
+async def suggest_scenario_assertions_endpoint(
+    body: AIScenarioBatchSuggestIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """基于隔离调试会话（collect 模式收集的真实响应）为整个场景批量生成分步断言建议。"""
+    await assert_project_access(db, user, body.project_id, ProjectRole.editor)
+    try:
+        debug_session = get_api_debug_session(
+            body.debug_session_id,
+            user_id=user.id,
+            is_admin=user.role == UserRole.admin,
+        )
+    except ApiDebugSessionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    if debug_session.project_id != body.project_id:
+        raise HTTPException(status_code=403, detail="调试会话与目标项目不匹配")
+    config, api_key = await _resolve_llm_config(db, body.project_id)
+    return await suggest_scenario_batch_assertions(
+        debug_session=debug_session,
+        steps=body.steps,
+        project_id=body.project_id,
+        business_goal=body.business_goal,
+        config=config,
+        api_key=api_key,
+    )

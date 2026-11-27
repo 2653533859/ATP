@@ -811,8 +811,9 @@ def test_run_android_lowcode_steps_step_failure_breaks(monkeypatch):
     asyncio.run(ale._run_android_lowcode_steps(db, run, case, {}))
     assert len(calls) == 1
     assert run.status == RunStatus.failed
-    assert len(db.added) == 1
+    assert len(db.added) == 2
     assert db.added[0].error_message == "tap failed"
+    assert db.added[1].status == RunStatus.skipped
     assert events.published[-1]["status"] == "failed"
 
 

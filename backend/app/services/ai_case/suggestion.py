@@ -13,12 +13,22 @@ from app.schemas.ai_case import (
     AIAssertionSuggestOut,
     AIAssertionSuggestion,
     AIExtractionSuggestion,
+    AIScenarioBatchStepSuggestion,
+    AIScenarioBatchSuggestOut,
 )
 from app.services.ai_case.llm_client import LLMRequest, call_llm
-from app.services.ai_governance import check_and_incr_daily_limit, llm_extra_params, redact_llm_text
-from app.services.sensitive_data_redactor import apply_pii_redaction_gateway, mask_pii_text
+from app.services.ai_case.outbound_sanitizer import (
+    OutboundSanitizer,
+    build_safe_response_schema_summary,
+    is_business_result_path,
+    is_dynamic_field_path,
+)
+from app.services.ai_governance import check_and_incr_daily_limit, llm_extra_params
 
 logger = logging.getLogger(__name__)
+
+MAX_SUGGESTIONS_DEFAULT = 6
+MAX_SUGGESTIONS_WITH_GOAL = 8
 
 
 def _sanitize_json(val: Any) -> Any:
@@ -269,22 +279,23 @@ def heuristic_suggestions(
 
 
 _LLM_SUGGESTION_PROMPT = """你是一个资深的 API 自动化测试专家。
-请根据以下接口信息和真实响应内容，分析并推荐最核心的测试断言（Assertions）与变量提取（Extractions）。
+请仅根据以下已脱敏的接口响应结构元数据（不含任何业务明文值、URL、Header 或 Cookie）以及可选业务目标，推荐最核心的测试断言（Assertions）与变量提取（Extractions）。
 
 【接口方法】{method}
-【接口URL】{url}
-【状态码】{status_code}
-【响应内容预览】
-{response_body}
+【HTTP 状态码】{status_code}
+【业务目标】{business_goal}
+【下游依赖字段】{downstream_refs}
+【响应字段结构元数据（仅路径与类型）】
+{schema_summary}
 
 请输出严格的 JSON 对象，必须包含 assertions 和 extractions 两个数组，格式如下：
 {{
   "assertions": [
     {{
-      "target": "status_code" | "body" | "header",
-      "operator": "eq" | "contains" | "exists",
-      "expected": "期望值字符串",
-      "expression": "定位表达式，body用JSONPath如 $.code 或 $.data.token",
+      "target": "status_code" | "body",
+      "operator": "eq" | "ne" | "contains" | "exists",
+      "expected": "期望值字符串（exists 留空）",
+      "expression": "定位表达式，body 用 JSONPath 如 $.code 或 $.data.token",
       "description": "说明该断言的业务目的"
     }}
   ],
@@ -292,16 +303,16 @@ _LLM_SUGGESTION_PROMPT = """你是一个资深的 API 自动化测试专家。
     {{
       "variable": "变量名称如 token / userId / orderId",
       "type": "jsonpath",
-      "expression": "JSONPath定位表达式如 $.data.token",
+      "expression": "JSONPath 定位表达式如 $.data.token",
       "description": "说明该变量提取的用途"
     }}
   ]
 }}
 
 要求：
-1. 断言必须精准、关键，覆盖状态码、业务返回码和核心数据。
-2. 变量提取必须聚焦于后续接口可能依赖的 token、ID、凭证、订单号等关键字段。
-3. 只能输出纯 JSON，严禁输出任何 Markdown 标记或多余解释文字。
+1. 对 ID/UUID/Token/时间戳/订单号等每次运行变化的动态字段，严禁使用 eq 固定值，必须使用 exists。
+2. 未提供业务目标时，不要猜测普通业务字段的固定文本值，优先校验状态码、业务状态字段与关键结构存在性。
+3. 最多输出 {max_suggestions} 条最有价值的断言，只能输出纯 JSON，严禁输出 Markdown 标记或额外文字。
 """
 
 
@@ -333,7 +344,15 @@ def _filter_existing_rules(
                 ):
                     is_dup = True
                     break
-                if t == a.target and exp == a.expression and (raw_expected is None or expected_str == a.expected):
+                if (
+                    t == a.target
+                    and exp == a.expression
+                    and (
+                        (a.operator == "exists" and (ex.get("operator") or "") == "exists")
+                        or raw_expected is None
+                        or expected_str == a.expected
+                    )
+                ):
                     is_dup = True
                     break
             if not is_dup:
@@ -349,47 +368,179 @@ def _filter_existing_rules(
     return filtered_assertions, filtered_extractions
 
 
+def _assertion_priority_score(
+    item: AIAssertionSuggestion,
+    downstream_refs: set[str],
+) -> tuple[int, int]:
+    """Higher score = higher value: downstream referenced > status_code > business result > shallow depth."""
+    expr = item.expression or ""
+    depth = expr.count(".") + expr.count("[") if expr else 0
+    if expr and expr in downstream_refs:
+        return (100, -depth)
+    if item.target == "status_code":
+        return (85, 0)
+    if item.target == "body" and is_business_result_path(expr):
+        return (80, -depth)
+    return (max(10, 40 - depth * 5), -depth)
+
+
+def _guard_verify_and_rank_assertions(
+    candidates: list[AIAssertionSuggestion],
+    body: AIAssertionSuggestIn,
+    *,
+    has_goal: bool,
+) -> tuple[list[AIAssertionSuggestion], int, list[str], int]:
+    """Deterministically verify candidates against real response, guard dynamic fields, merge & cap."""
+    filtered_reasons: list[str] = []
+    filtered_count = 0
+    verified: list[AIAssertionSuggestion] = []
+
+    for item in candidates:
+        candidate = item.model_copy()
+        # 1. Dynamic field guard: disallow fixed eq/contains on dynamic per-run identifiers/timestamps
+        if (
+            candidate.target == "body"
+            and is_dynamic_field_path(candidate.expression)
+            and candidate.operator in {"eq", "contains"}
+        ):
+            downgraded = candidate.model_copy(
+                update={
+                    "operator": "exists",
+                    "expected": "",
+                    "description": f"{candidate.description or '校验动态字段存在'}（动态字段自动转为存在性校验）",
+                }
+            )
+            if _suggestion_matches_response(downgraded, body):
+                filtered_reasons.append(f"字段 {candidate.expression} 为动态值，已将固定等值自动改为 exists 校验")
+                candidate = downgraded
+            else:
+                filtered_count += 1
+                filtered_reasons.append(f"已过滤动态字段 {candidate.expression} 的固定值建议")
+                continue
+
+        # 2. Without explicit business goal, disallow fixed text assertions on arbitrary non-business-result fields
+        if (
+            not has_goal
+            and candidate.target == "body"
+            and candidate.operator in {"eq", "contains"}
+            and not is_business_result_path(candidate.expression)
+        ):
+            filtered_count += 1
+            filtered_reasons.append(f"未指定业务目标，已过滤非状态字段 {candidate.expression} 的固定值建议")
+            continue
+
+        # 3. Deterministic self-verification against real response
+        if not _suggestion_matches_response(candidate, body):
+            filtered_count += 1
+            filtered_reasons.append(
+                f"建议 [{candidate.target}:{candidate.expression or candidate.operator}] 在当前真实响应上未通过，已过滤"
+            )
+            continue
+
+        verified.append(candidate)
+
+    # 4. Merge same-field rules (prefer stronger eq/contains over exists on the same expression)
+    by_field: dict[tuple[str, str], AIAssertionSuggestion] = {}
+    for item in verified:
+        field_key = (item.target, item.expression)
+        prev = by_field.get(field_key)
+        if prev is None:
+            by_field[field_key] = item
+        elif prev.operator == "exists" and item.operator != "exists":
+            by_field[field_key] = item
+
+    downstream_refs = {str(p).strip() for p in (body.downstream_referenced_paths or []) if str(p).strip()}
+    ranked = sorted(
+        by_field.values(),
+        key=lambda a: _assertion_priority_score(a, downstream_refs),
+        reverse=True,
+    )
+
+    cap = MAX_SUGGESTIONS_WITH_GOAL if has_goal else MAX_SUGGESTIONS_DEFAULT
+    truncated_count = max(0, len(ranked) - cap)
+    if truncated_count > 0:
+        filtered_reasons.append(f"按价值排序保留前 {cap} 条建议，已折叠 {truncated_count} 条低优先级建议")
+    return ranked[:cap], filtered_count, filtered_reasons[:10], truncated_count
+
+
 async def suggest_assertions_and_extractions(
     body: AIAssertionSuggestIn,
     config: AILLMConfig | None,
     api_key: str,
 ) -> AIAssertionSuggestOut:
-    """Combines heuristic analysis with optional LLM reasoning to produce assertion and extraction recommendations."""
+    """Combines heuristic analysis with whitelist-sanitized LLM reasoning and deterministic self-verification."""
+    has_goal = bool((body.business_goal or "").strip())
+
     # 1. Base heuristic suggestions from real data
-    h_assertions, h_extractions = heuristic_suggestions(
+    raw_h_assertions, raw_h_extractions = heuristic_suggestions(
         method=body.method,
         url=body.url,
         status_code=body.status_code,
         response_body=body.response_body,
     )
-    h_assertions, h_extractions = _filter_existing_rules(
-        h_assertions, h_extractions, body.existing_assertions, body.existing_extractions
+    h_assertions, h_filtered, h_reasons, h_truncated = _guard_verify_and_rank_assertions(
+        raw_h_assertions,
+        body,
+        has_goal=has_goal,
     )
+    before_h_len = len(h_assertions)
+    h_assertions, h_extractions = _filter_existing_rules(
+        h_assertions, raw_h_extractions, body.existing_assertions, body.existing_extractions
+    )
+    h_exists_cnt = max(0, before_h_len - len(h_assertions))
 
     if not config or not config.enabled:
         return AIAssertionSuggestOut(
             assertions=h_assertions,
             extractions=h_extractions,
             source="heuristic",
+            filtered_count=h_filtered,
+            filtered_reasons=h_reasons,
+            already_exists_count=h_exists_cnt,
+            truncated_count=h_truncated,
         )
-    # 2. Try LLM enhancement
+
+    # 2. Try LLM enhancement with strict WHITELIST outbound schema metadata (zero raw JSON values / URL / headers)
     try:
         if not await check_and_incr_daily_limit(config=config, capability="ai_case_suggest"):
-            return AIAssertionSuggestOut(assertions=h_assertions, extractions=h_extractions, source="heuristic")
+            return AIAssertionSuggestOut(
+                assertions=h_assertions,
+                extractions=h_extractions,
+                source="heuristic",
+                filtered_count=h_filtered,
+                filtered_reasons=h_reasons,
+                already_exists_count=h_exists_cnt,
+                truncated_count=h_truncated,
+            )
 
-        body_preview = ""
-        safe_body = apply_pii_redaction_gateway(body.response_body)
-        if safe_body is not None:
-            if isinstance(safe_body, (dict, list)):
-                body_preview = redact_llm_text(json.dumps(safe_body, ensure_ascii=False), limit=3000)
-            else:
-                body_preview = redact_llm_text(safe_body, limit=3000)
+        sanitizer = OutboundSanitizer(
+            secrets=body.secret_values or [],
+            documents=[body.response_body, body.request_body, body.response_headers],
+        )
+        parsed_body = _sanitize_json(body.response_body)
+        if parsed_body is None:
+            schema_summary_text = "（无响应体）"
+        elif isinstance(parsed_body, (dict, list)):
+            schema_summary = build_safe_response_schema_summary(body.status_code, parsed_body, sanitizer)
+            schema_summary_text = json.dumps(schema_summary, ensure_ascii=False)[:4000]
+        else:
+            schema_summary_text = sanitizer.scrub_text(parsed_body, limit=500)
+
+        safe_goal = sanitizer.scrub_text(body.business_goal, limit=400) if has_goal else "（未提供，仅校验状态与结构）"
+        safe_downstream = [
+            p
+            for p in (body.downstream_referenced_paths or [])
+            if isinstance(p, str) and sanitizer.allowed_field_name(p.rsplit(".", 1)[-1])
+        ]
+        max_cap = MAX_SUGGESTIONS_WITH_GOAL if has_goal else MAX_SUGGESTIONS_DEFAULT
 
         prompt = _LLM_SUGGESTION_PROMPT.format(
-            method=body.method,
-            url=redact_llm_text(mask_pii_text(body.url), limit=500),
+            method=(body.method or "GET").upper(),
             status_code=body.status_code or 200,
-            response_body=body_preview or "（无响应体）",
+            business_goal=safe_goal,
+            downstream_refs=", ".join(safe_downstream) if safe_downstream else "无",
+            schema_summary=schema_summary_text,
+            max_suggestions=max_cap,
         )
 
         resp = await call_llm(
@@ -437,24 +588,33 @@ async def suggest_assertions_and_extractions(
                         )
                     )
 
-            if llm_assertions or llm_extractions:
-                llm_assertions = [item for item in llm_assertions if _suggestion_matches_response(item, body)]
-                llm_extractions = [item for item in llm_extractions if _extraction_matches_response(item, body)]
-            if llm_assertions or llm_extractions:
-                # Merge: ensure status_code is retained
+            verified_a, filtered_cnt, reasons, truncated_cnt = _guard_verify_and_rank_assertions(
+                llm_assertions,
+                body,
+                has_goal=has_goal,
+            )
+            verified_e = [item for item in llm_extractions if _extraction_matches_response(item, body)]
+
+            if verified_a or verified_e:
                 sc_rule = next((a for a in h_assertions if a.target == "status_code"), None)
-                if sc_rule and not any(a.target == "status_code" for a in llm_assertions):
-                    llm_assertions.insert(0, sc_rule)
+                if sc_rule and not any(a.target == "status_code" for a in verified_a):
+                    verified_a.insert(0, sc_rule)
+                base_a = verified_a or h_assertions
                 final_a, final_e = _filter_existing_rules(
-                    llm_assertions or h_assertions,
-                    llm_extractions or h_extractions,
+                    base_a,
+                    verified_e or h_extractions,
                     body.existing_assertions,
                     body.existing_extractions,
                 )
+                exists_cnt = max(0, len(base_a) - len(final_a))
                 return AIAssertionSuggestOut(
                     assertions=final_a,
                     extractions=final_e,
                     source="llm",
+                    filtered_count=filtered_cnt,
+                    filtered_reasons=reasons,
+                    already_exists_count=exists_cnt,
+                    truncated_count=truncated_cnt,
                 )
     except Exception as exc:  # noqa: BLE001
         logger.warning("LLM assertion suggestion failed, falling back to heuristic: error=%s", type(exc).__name__)
@@ -463,4 +623,121 @@ async def suggest_assertions_and_extractions(
         assertions=h_assertions,
         extractions=h_extractions,
         source="heuristic",
+        filtered_count=h_filtered,
+        filtered_reasons=h_reasons,
+        already_exists_count=h_exists_cnt,
+        truncated_count=h_truncated,
+    )
+
+
+def _classify_step_failure_kind(step_result: dict[str, Any] | None, cached_response: dict[str, Any] | None) -> str:
+    """Deterministically classify whether a step failed due to response_error vs assertion_mismatch."""
+    if not step_result:
+        return "not_executed"
+    status = str(step_result.get("status") or "")
+    if status == "error" or cached_response is None:
+        return "response_error"
+    sc = cached_response.get("status_code")
+    resp_body = cached_response.get("body")
+    if isinstance(sc, int) and sc >= 400:
+        return "response_error"
+    if not isinstance(resp_body, (dict, list)):
+        return "response_error"
+    if status == "failed":
+        return "assertion_mismatch"
+    return "none"
+
+
+def _collect_downstream_extracted_paths(steps: list[dict[str, Any]], step_index: int) -> list[str]:
+    """Identify JSONPaths extracted in step_index that are actually referenced in later steps."""
+    step = steps[step_index]
+    extracted_map: dict[str, str] = {}
+    for ex in step.get("extractions") or []:
+        if isinstance(ex, dict) and ex.get("variable") and ex.get("expression"):
+            extracted_map[str(ex["variable"])] = str(ex["expression"])
+    if not extracted_map:
+        return []
+    later_blob = json.dumps(steps[step_index + 1 :], ensure_ascii=False, default=str)
+    return [expr for var, expr in extracted_map.items() if f"{{{{{var}}}}}" in later_blob]
+
+
+async def suggest_scenario_batch_assertions(
+    *,
+    debug_session: Any,
+    steps: list[dict[str, Any]],
+    project_id: int,
+    business_goal: str,
+    config: AILLMConfig | None,
+    api_key: str,
+) -> AIScenarioBatchSuggestOut:
+    """Generate per-step assertion suggestions across a debug session collected in 'collect' mode."""
+    items: list[AIScenarioBatchStepSuggestion] = []
+    overall_source: str = "heuristic"
+
+    for idx, step in enumerate(steps):
+        uid = str(step.get("uid") or step.get("id") or f"step_{idx + 1}")
+        step_name = str(step.get("name") or f"Step {idx + 1}")
+        step_res = debug_session.results.get(uid)
+        cached_resp = debug_session.responses.get(uid)
+        failure_kind = _classify_step_failure_kind(step_res, cached_resp)
+
+        if failure_kind == "not_executed":
+            items.append(
+                AIScenarioBatchStepSuggestion(
+                    step_uid=uid,
+                    step_index=idx,
+                    step_name=step_name,
+                    failure_kind="not_executed",
+                    note="未执行：前序步骤未成功获取响应",
+                )
+            )
+            continue
+
+        if failure_kind == "response_error":
+            items.append(
+                AIScenarioBatchStepSuggestion(
+                    step_uid=uid,
+                    step_index=idx,
+                    step_name=step_name,
+                    failure_kind="response_error",
+                    note="响应异常（HTTP ≥ 400、非 JSON 或连接错误），不生成断言建议，请先确认接口或转用失败诊断",
+                )
+            )
+            continue
+
+        suggest_in = AIAssertionSuggestIn(
+            project_id=project_id,
+            method=str(step.get("method") or "GET"),
+            url=str(step.get("url") or ""),
+            status_code=cached_resp.get("status_code") if cached_resp else None,
+            response_body=cached_resp.get("body") if cached_resp else None,
+            response_headers=cached_resp.get("headers") if cached_resp else None,
+            existing_assertions=step.get("assertions") or [],
+            existing_extractions=step.get("extractions") or [],
+            business_goal=business_goal,
+            downstream_referenced_paths=_collect_downstream_extracted_paths(steps, idx),
+        )
+        out = await suggest_assertions_and_extractions(suggest_in, config, api_key)
+        if out.source == "llm":
+            overall_source = "llm"
+        note = "当前校验失败，已按真实响应给出修正建议" if failure_kind == "assertion_mismatch" else ""
+        items.append(
+            AIScenarioBatchStepSuggestion(
+                step_uid=uid,
+                step_index=idx,
+                step_name=step_name,
+                failure_kind=failure_kind,  # type: ignore[arg-type]
+                note=note,
+                assertions=out.assertions,
+                extractions=out.extractions,
+                filtered_count=out.filtered_count,
+                filtered_reasons=out.filtered_reasons,
+                already_exists_count=out.already_exists_count,
+            )
+        )
+
+    return AIScenarioBatchSuggestOut(
+        debug_session_id=debug_session.session_id,
+        items=items,
+        source="llm" if overall_source == "llm" else "heuristic",
     )

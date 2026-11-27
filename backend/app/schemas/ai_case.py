@@ -154,11 +154,44 @@ class AIAssertionSuggestIn(BaseModel):
     request_body: object | None = None
     existing_assertions: list[dict[str, Any]] | None = None
     existing_extractions: list[dict[str, Any]] | None = None
+    business_goal: str = Field(default="", max_length=500)
+    downstream_referenced_paths: list[str] = Field(default_factory=list)
+    secret_values: list[str] = Field(default_factory=list)
 
 
 class AIAssertionSuggestOut(BaseModel):
     assertions: list[AIAssertionSuggestion] = Field(default_factory=list)
     extractions: list[AIExtractionSuggestion] = Field(default_factory=list)
+    source: Literal["llm", "heuristic"] = "heuristic"
+    filtered_count: int = 0
+    filtered_reasons: list[str] = Field(default_factory=list)
+    already_exists_count: int = 0
+    truncated_count: int = 0
+
+
+class AIScenarioBatchStepSuggestion(BaseModel):
+    step_uid: str
+    step_index: int
+    step_name: str
+    failure_kind: Literal["none", "response_error", "assertion_mismatch", "not_executed"] = "none"
+    note: str = ""
+    assertions: list[AIAssertionSuggestion] = Field(default_factory=list)
+    extractions: list[AIExtractionSuggestion] = Field(default_factory=list)
+    filtered_count: int = 0
+    filtered_reasons: list[str] = Field(default_factory=list)
+    already_exists_count: int = 0
+
+
+class AIScenarioBatchSuggestIn(BaseModel):
+    project_id: int
+    debug_session_id: str
+    steps: list[dict[str, Any]] = Field(default_factory=list)
+    business_goal: str = Field(default="", max_length=500)
+
+
+class AIScenarioBatchSuggestOut(BaseModel):
+    debug_session_id: str
+    items: list[AIScenarioBatchStepSuggestion] = Field(default_factory=list)
     source: Literal["llm", "heuristic"] = "heuristic"
 
 

@@ -42,6 +42,87 @@ from app.worker.executors._assertion_helpers import (
 from app.core.tracing import inject_w3c_trace_headers
 
 _tracer = get_tracer("atp.executor.api")
+_API_RETRY_DELAY_SECONDS = 1.0
+MAX_API_RETRY_COUNT = 3
+
+
+def parse_api_retry_count(step: dict[str, Any]) -> int:
+    """Parse bounded write-safe retry count (0..3, default 0)."""
+    raw = step.get("retry_count", 0)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(MAX_API_RETRY_COUNT, value))
+
+
+def is_write_safe_retryable(exc: Exception) -> bool:
+    """Return True ONLY when the request provably never reached the server.
+
+    ReadTimeout / WriteTimeout / HTTP error responses are NEVER retried so write
+    endpoints (e.g. POST /orders) cannot silently duplicate business data.
+    """
+    return isinstance(exc, (httpx.ConnectTimeout, httpx.ConnectError, httpx.ProxyError))
+
+
+async def _send_request_with_write_safe_retry(
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    timeout: float,
+    request_kwargs: dict,
+    response_type: str | None,
+    sse_max_events: int,
+    *,
+    retry_count: int = 0,
+    retry_delay_seconds: float | None = None,
+) -> tuple[httpx.Response, list[dict] | None, dict[str, Any]]:
+    """Send HTTP request with write-safe connect-only retries."""
+    max_retries = max(0, min(MAX_API_RETRY_COUNT, int(retry_count or 0)))
+    delay = _API_RETRY_DELAY_SECONDS if retry_delay_seconds is None else max(0.0, float(retry_delay_seconds))
+    history: list[dict[str, Any]] = []
+    for attempt in range(1, max_retries + 2):
+        try:
+            resp, streamed = await _send_request(
+                client,
+                method,
+                url,
+                timeout,
+                request_kwargs,
+                response_type,
+                sse_max_events,
+            )
+            return (
+                resp,
+                streamed,
+                {
+                    "attempts": attempt,
+                    "retry_count": max_retries,
+                    "retried": attempt > 1,
+                    "history": history,
+                },
+            )
+        except Exception as exc:
+            if not is_write_safe_retryable(exc) or attempt > max_retries:
+                if history:
+                    setattr(
+                        exc,
+                        "_atp_retry_meta",
+                        {
+                            "attempts": attempt,
+                            "retry_count": max_retries,
+                            "retried": attempt > 1,
+                            "history": [
+                                *history,
+                                {"attempt": attempt, "error_type": type(exc).__name__, "error": str(exc)},
+                            ],
+                        },
+                    )
+                raise
+            history.append({"attempt": attempt, "error_type": type(exc).__name__, "error": str(exc)})
+            if delay > 0:
+                await asyncio.sleep(delay)
+    raise RuntimeError("unreachable retry loop")
 
 
 async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
@@ -161,6 +242,9 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
     completed_status: dict[int, RunStatus] = {}
     stop_remaining = False
     oauth_token_cache: dict[str, tuple[str, float]] = {}
+    require_assertions = bool(cfg.get("require_assertions", False))
+    retried_step_count = 0
+    unchecked_step_count = 0
 
     step_collector = StepResultBatchCollector(db)
     try:
@@ -204,158 +288,187 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                 step_redact_fields = list(evidence_redact_fields)
 
                 try:
-                    hook_summaries = execute_api_hooks(step.get("pre_actions"), request_context)
-                    # 变量替换
-                    url = _render(step.get("url", ""), request_context)
-                    method = step.get("method", "GET").upper()
-                    headers = {k: _render(v, request_context) for k, v in step.get("headers", {}).items()}
-                    params = {k: _render(v, request_context) for k, v in step.get("params", {}).items()}
-                    cookies = {k: _render(v, request_context) for k, v in step.get("cookies", {}).items()}
-                    body = step.get("body")
-                    timeout = step.get("timeout", 30)
-                    step_span.set_attribute("http.request.method", method)
-                    step_span.set_attribute("http.url", url)
-
-                    # 认证注入（使用 request_context 确保 step 作用域前置 Hook 变量也可注入认证头）
-                    auth_cfg = step.get("auth", {})
-                    auth_type = auth_cfg.get("type")
-                    step_redact_fields.extend(
-                        collect_auth_redact_fields(auth_cfg, lambda value: _render(str(value), request_context))
-                    )
-                    if auth_type == "bearer":
-                        headers["Authorization"] = f"Bearer {_render(auth_cfg.get('token', ''), request_context)}"
-                    elif auth_type == "basic":
-                        headers["Authorization"] = build_basic_auth_header(
-                            auth_cfg, lambda value: _render(str(value), request_context)
-                        )
-                    elif auth_type == "apikey":
-                        header_name = _render(auth_cfg.get("header", "X-API-Key"), request_context).strip()
-                        header_value = _render(auth_cfg.get("value", ""), request_context)
-                        if header_name:
-                            headers[header_name] = header_value
-                    headers = inject_w3c_trace_headers(
-                        headers,
-                        run_id=getattr(run, "id", None),
-                        case_id=getattr(case, "id", None),
-                        trace_id=getattr(run, "trace_id", None),
-                    )
-
-                    request_kwargs, request_body_for_record = await _build_request_kwargs(
-                        step,
-                        request_context,
-                        headers=headers,
-                        params=params,
-                        cookies=cookies,
-                        project_id=project_id,
-                    )
-                    if auth_type == "digest":
-                        request_kwargs["auth"] = build_digest_auth(
-                            auth_cfg, lambda value: _render(value, request_context)
-                        )
-                    elif auth_type == "oauth2_client_credentials":
-                        headers["Authorization"] = await resolve_oauth2_client_credentials_token(
-                            auth_cfg,
-                            lambda value: _render(value, request_context),
-                            float(timeout),
-                            oauth_token_cache,
-                        )
-                    request_data = {
-                        "method": method,
-                        "url": url,
-                        "headers": headers,
-                        "params": params,
-                        "cookies": cookies,
-                        "body": request_body_for_record,
-                    }
-                    if shared_client is not None and cookies:
-                        shared_client.cookies.update(cookies)
-                        request_kwargs.pop("cookies", None)
-                    if shared_client is not None:
-                        resp, streamed_body = await _send_request(
-                            shared_client,
-                            method,
-                            url,
-                            timeout,
-                            request_kwargs,
-                            step.get("response_type"),
-                            step.get("sse_max_events", 100),
-                        )
+                    raw_assertions = step.get("assertions") or []
+                    if require_assertions and (not isinstance(raw_assertions, list) or len(raw_assertions) == 0):
+                        unchecked_step_count += 1
+                        step_status = RunStatus.failed
+                        all_passed = False
+                        error_msg = "步骤未配置任何断言，已按 require_assertions 策略在发送请求前拦截"
+                        response_data = {
+                            "verification_status": "unchecked",
+                            "assertions": [],
+                        }
                     else:
-                        async with httpx.AsyncClient(timeout=timeout) as client:
-                            resp, streamed_body = await _send_request(
-                                client,
+                        hook_summaries = execute_api_hooks(step.get("pre_actions"), request_context)
+                        # 变量替换
+                        url = _render(step.get("url", ""), request_context)
+                        method = step.get("method", "GET").upper()
+                        headers = {k: _render(v, request_context) for k, v in step.get("headers", {}).items()}
+                        params = {k: _render(v, request_context) for k, v in step.get("params", {}).items()}
+                        cookies = {k: _render(v, request_context) for k, v in step.get("cookies", {}).items()}
+                        body = step.get("body")
+                        timeout = step.get("timeout", 30)
+                        step_span.set_attribute("http.request.method", method)
+                        step_span.set_attribute("http.url", url)
+
+                        # 认证注入（使用 request_context 确保 step 作用域前置 Hook 变量也可注入认证头）
+                        auth_cfg = step.get("auth", {})
+                        auth_type = auth_cfg.get("type")
+                        step_redact_fields.extend(
+                            collect_auth_redact_fields(auth_cfg, lambda value: _render(str(value), request_context))
+                        )
+                        if auth_type == "bearer":
+                            headers["Authorization"] = f"Bearer {_render(auth_cfg.get('token', ''), request_context)}"
+                        elif auth_type == "basic":
+                            headers["Authorization"] = build_basic_auth_header(
+                                auth_cfg, lambda value: _render(str(value), request_context)
+                            )
+                        elif auth_type == "apikey":
+                            header_name = _render(auth_cfg.get("header", "X-API-Key"), request_context).strip()
+                            header_value = _render(auth_cfg.get("value", ""), request_context)
+                            if header_name:
+                                headers[header_name] = header_value
+                        headers = inject_w3c_trace_headers(
+                            headers,
+                            run_id=getattr(run, "id", None),
+                            case_id=getattr(case, "id", None),
+                            trace_id=getattr(run, "trace_id", None),
+                        )
+
+                        request_kwargs, request_body_for_record = await _build_request_kwargs(
+                            step,
+                            request_context,
+                            headers=headers,
+                            params=params,
+                            cookies=cookies,
+                            project_id=project_id,
+                        )
+                        if auth_type == "digest":
+                            request_kwargs["auth"] = build_digest_auth(
+                                auth_cfg, lambda value: _render(value, request_context)
+                            )
+                        elif auth_type == "oauth2_client_credentials":
+                            headers["Authorization"] = await resolve_oauth2_client_credentials_token(
+                                auth_cfg,
+                                lambda value: _render(value, request_context),
+                                float(timeout),
+                                oauth_token_cache,
+                            )
+                        request_data = {
+                            "method": method,
+                            "url": url,
+                            "headers": headers,
+                            "params": params,
+                            "cookies": cookies,
+                            "body": request_body_for_record,
+                        }
+                        if shared_client is not None and cookies:
+                            shared_client.cookies.update(cookies)
+                            request_kwargs.pop("cookies", None)
+                        step_retry_count = parse_api_retry_count(step)
+                        if shared_client is not None:
+                            resp, streamed_body, retry_meta = await _send_request_with_write_safe_retry(
+                                shared_client,
                                 method,
                                 url,
                                 timeout,
                                 request_kwargs,
                                 step.get("response_type"),
                                 step.get("sse_max_events", 100),
+                                retry_count=step_retry_count,
                             )
+                        else:
+                            async with httpx.AsyncClient(timeout=timeout) as client:
+                                resp, streamed_body, retry_meta = await _send_request_with_write_safe_retry(
+                                    client,
+                                    method,
+                                    url,
+                                    timeout,
+                                    request_kwargs,
+                                    step.get("response_type"),
+                                    step.get("sse_max_events", 100),
+                                    retry_count=step_retry_count,
+                                )
 
-                    duration = int((time.monotonic() - step_start) * 1000)
-                    resp_body = (
-                        streamed_body
-                        if streamed_body is not None
-                        else _parse_response_body(resp, step.get("response_type"))
-                    )
+                        if retry_meta.get("retried"):
+                            retried_step_count += 1
 
-                    response_data = response_contract(
-                        "http",
-                        status_code=resp.status_code,
-                        headers=dict(resp.headers),
-                        body=resp_body,
-                        duration_ms=duration,
-                    )
-                    step_span.set_attribute("http.response.status_code", resp.status_code)
-
-                    # 变量提取
-                    for extraction in step.get("extractions", []):
-                        val = _extract_value(
-                            resp_body,
-                            extraction.get("expression", ""),
-                            extraction.get("type", "jsonpath"),
-                            response_headers=dict(resp.headers),
+                        duration = int((time.monotonic() - step_start) * 1000)
+                        resp_body = (
+                            streamed_body
+                            if streamed_body is not None
+                            else _parse_response_body(resp, step.get("response_type"))
                         )
-                        if val is not None:
-                            request_context[extraction["variable"]] = val
-                        extraction_records.append(
-                            extraction_result(
-                                extraction,
-                                value=val,
-                                success=val is not None,
-                                error=None if val is not None else "未提取到值",
+
+                        response_data = response_contract(
+                            "http",
+                            status_code=resp.status_code,
+                            headers=dict(resp.headers),
+                            body=resp_body,
+                            duration_ms=duration,
+                        )
+                        if retry_meta.get("attempts", 1) > 1 or step_retry_count > 0:
+                            response_data["retry"] = retry_meta
+                        step_span.set_attribute("http.response.status_code", resp.status_code)
+
+                        # 变量提取
+                        for extraction in step.get("extractions", []):
+                            val = _extract_value(
+                                resp_body,
+                                extraction.get("expression", ""),
+                                extraction.get("type", "jsonpath"),
+                                response_headers=dict(resp.headers),
+                            )
+                            if val is not None:
+                                request_context[extraction["variable"]] = val
+                            extraction_records.append(
+                                extraction_result(
+                                    extraction,
+                                    value=val,
+                                    success=val is not None,
+                                    error=None if val is not None else "未提取到值",
+                                )
+                            )
+                        response_data["extractions"] = extraction_records
+
+                        hook_summaries.extend(
+                            execute_api_hooks(
+                                step.get("post_actions"),
+                                request_context,
+                                response_body=resp_body,
+                                response_headers=dict(resp.headers),
                             )
                         )
-                    response_data["extractions"] = extraction_records
+                        if hook_summaries:
+                            response_data["hook_actions"] = hook_summaries
 
-                    hook_summaries.extend(
-                        execute_api_hooks(
-                            step.get("post_actions"),
-                            request_context,
-                            response_body=resp_body,
-                            response_headers=dict(resp.headers),
-                        )
-                    )
-                    if hook_summaries:
-                        response_data["hook_actions"] = hook_summaries
-
-                    # 断言
-                    assertions = await _resolve_schema_assertions(db, step.get("assertions", []), project_id)
-                    for assertion in assertions:
-                        rendered_assertion = _render_assertion(assertion, request_context)
-                        passed, msg = _assert(rendered_assertion, resp, resp_body, duration)
-                        assertion_records.append(assertion_result(rendered_assertion, passed=passed, message=msg))
-                        if not passed:
-                            step_status = RunStatus.failed
-                            all_passed = False
-                            error_msg = msg
-                            break
-                    response_data["assertions"] = assertion_records
+                        # 断言
+                        assertions = await _resolve_schema_assertions(db, raw_assertions, project_id)
+                        if not assertions:
+                            unchecked_step_count += 1
+                            response_data["verification_status"] = "unchecked"
+                        else:
+                            response_data["verification_status"] = "verified"
+                            for assertion in assertions:
+                                rendered_assertion = _render_assertion(assertion, request_context)
+                                passed, msg = _assert(rendered_assertion, resp, resp_body, duration)
+                                assertion_records.append(
+                                    assertion_result(rendered_assertion, passed=passed, message=msg)
+                                )
+                                if not passed:
+                                    step_status = RunStatus.failed
+                                    all_passed = False
+                                    error_msg = msg
+                                    break
+                        response_data["assertions"] = assertion_records
 
                 except Exception as e:
                     step_status = RunStatus.error
                     all_passed = False
                     error_msg = str(e)
+                    retry_meta = getattr(e, "_atp_retry_meta", None)
+                    if isinstance(retry_meta, dict):
+                        response_data["retry"] = retry_meta
                     step_span.record_exception(e)
 
                 step_result.status = step_status
@@ -413,6 +526,12 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
+    if retried_step_count > 0 or unchecked_step_count > 0:
+        run.result_summary = {
+            **dict(run.result_summary or {}),
+            "retried_step_count": retried_step_count,
+            "unchecked_step_count": unchecked_step_count,
+        }
     await db.commit()
 
     # iter3 多 step 综合诊断（异步入队，不阻塞 completed 推送）
@@ -691,11 +810,24 @@ def _assert(
 ) -> tuple[bool, str]:
     if context is not None:
         assertion = _render_assertion(assertion, context)
-    target = assertion.get("target")  # status_code / body / header / duration
-    operator = assertion.get("operator")  # eq / contains / gt / lt / exists
+    raw_target = str(assertion.get("target") or "").strip().lower()
+    operator = assertion.get("operator")  # eq / contains / gt / lt / exists / not_empty
     expected = assertion.get("expected")
     expression = assertion.get("expression", "")
     expression_type = assertion.get("expression_type", assertion.get("type", "jsonpath"))
+
+    if raw_target == "jsonpath":
+        target = "body"
+        expression_type = "jsonpath"
+    elif raw_target == "body_contains":
+        target = "body"
+        expression = ""
+        if not operator:
+            operator = "contains"
+    elif raw_target == "response_header":
+        target = "header"
+    else:
+        target = raw_target
 
     if target == "expression" or operator in {"expression", "safe_expression"}:
         expression_text = str(expression or expected or "")

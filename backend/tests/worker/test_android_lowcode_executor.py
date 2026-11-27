@@ -831,8 +831,8 @@ def test_run_android_lowcode_failed_step_stops(run_env):
 
     assert run.status == RunStatus.failed
     rows = [o for o in db.added if isinstance(o, StepResult)]
-    assert len(rows) == 1 and rows[0].error_message == "元素不存在"
-    assert len(run_env["steps"]["calls"]) == 1  # 第二步未执行
+    assert len(rows) == 2 and rows[0].error_message == "元素不存在" and rows[1].status == RunStatus.skipped
+    assert len(run_env["steps"]["calls"]) == 1  # 第二步未执行，自动补齐 SKIP 记录
 
 
 def test_run_android_lowcode_step_exception_truncated(run_env):

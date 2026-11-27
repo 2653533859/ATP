@@ -432,9 +432,10 @@ def test_run_ios_case_executes_steps_uploads_artifacts_and_breaks(ios_env):
     assert artifacts["syslog"] == "https://minio/ios-artifacts/runs/41/syslog.json"
     assert run.result_summary["udid"] == "udid-1"
     assert run.status == RunStatus.failed
-    assert len(db.added) == 3
+    assert len(db.added) == 4
     assert db.added[1].screenshot_url == "https://minio/ios-artifacts/runs/41/step_1.png"
     assert "iOS 断言失败" in db.added[2].error_message
+    assert db.added[3].status == RunStatus.skipped
     assert ios_env.heartbeats == [(3, "lease-tok")] * 3
     assert ios_env.releases == [(3, "lease-tok")]
     assert client.quit_called and client.close_called
@@ -787,3 +788,47 @@ def test_run_ios_case_captures_screenshot_for_regular_step_and_publishes_complet
     assert run_empty.status == RunStatus.error
     assert ios_env.published[-1]["type"] == "completed"
     assert ios_env.published[-1]["status"] == "error"
+
+
+def test_run_ios_case_click_image_scales_retina_pixels_to_logical_points(ios_env, monkeypatch):
+    import io
+    from unittest.mock import AsyncMock
+    from PIL import Image
+    from app.worker.executors import ios_executor as ios_mod
+
+    # Fake 3x Retina screenshot: 1170x2532 pixels vs logical window 390x844
+    buf = io.BytesIO()
+    Image.new("RGB", (1170, 2532), (240, 240, 240)).save(buf, format="PNG")
+    retina_png = buf.getvalue()
+
+    async def fake_locate(capture_frame, *_args, **_kwargs):
+        await capture_frame()
+        return {"status": "matched", "point": [300, 600], "candidates": [{"box": [280, 580, 320, 620]}]}
+
+    monkeypatch.setattr(ios_mod, "locate_image_two_frame_stable", fake_locate)
+    monkeypatch.setattr(_FakeAppiumClient, "screenshot", AsyncMock(return_value=base64.b64encode(retina_png).decode()))
+    monkeypatch.setattr(
+        _FakeAppiumClient,
+        "window_rect",
+        AsyncMock(return_value={"x": 0, "y": 0, "width": 390, "height": 844}),
+        raising=False,
+    )
+    taps = []
+
+    def _hook(action, params):
+        if action == "tap":
+            taps.append((params["x"], params["y"]))
+        return {"success": True}
+
+    _FakeAppiumClient.step_hook = _hook
+
+    tpl_b64 = base64.b64encode(retina_png[:100]).decode()  # bypassed by fake_locate
+    db, run, case = _env(
+        [{"action": "click_image", "name": "Retina 点击", "params": {"template_base64": tpl_b64}}],
+        config={"ios_device_id": 3, "capture_screenshot": False},
+        device=DEVICE,
+    )
+    asyncio.run(ios.run_ios_case(db, run, case, {}))
+    assert run.status == RunStatus.passed
+    assert taps == [(100, 200)]
+    assert db.added[0].response_data["image_match"]["logical_point"] == [100, 200]

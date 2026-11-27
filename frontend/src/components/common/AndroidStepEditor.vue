@@ -98,6 +98,29 @@
                 :options="actionOptions"
                 @change="() => onActionChange(step)"
               />
+              <a-select
+                :value="step.error_strategy || 'abort'"
+                size="small"
+                style="width: 98px"
+                title="失败容错策略：中止并补齐跳过 / 继续但用例失败 / 忽略且不拉低结论"
+                @change="(val: unknown) => { step.error_strategy = String(val || 'abort') as 'abort' | 'continue' | 'ignore'; emitUpdate() }"
+              >
+                <a-select-option value="abort">失败中止</a-select-option>
+                <a-select-option value="continue">失败继续</a-select-option>
+                <a-select-option value="ignore">忽略失败</a-select-option>
+              </a-select>
+              <a-select
+                :value="step.retry_count ?? 0"
+                size="small"
+                style="width: 82px"
+                title="失败自动重试次数（0-3 次，已提交点击动作不重放）"
+                @change="(val: unknown) => { step.retry_count = Number(val ?? 0); emitUpdate() }"
+              >
+                <a-select-option :value="0">不重试</a-select-option>
+                <a-select-option :value="1">重试 1</a-select-option>
+                <a-select-option :value="2">重试 2</a-select-option>
+                <a-select-option :value="3">重试 3</a-select-option>
+              </a-select>
               <a-dropdown :trigger="['click']">
                 <a-button type="link" size="small" class="insert-assert-btn">
                   <CheckCircleOutlined /> {{ t('case.android_editor.insert_assert') }}
@@ -393,6 +416,34 @@
             <div class="strict-hint">{{ t('case.android_editor.wait_until_hint') }}</div>
           </template>
 
+          <!-- click_image / assert_image (strict-v1) -->
+          <template v-else-if="step.action === 'click_image' || step.action === 'assert_image'">
+            <a-row :gutter="12">
+              <a-col :span="12">
+                <a-form-item label="模板对象路径">
+                  <a-input
+                    v-model:value="step.params.image_object_name"
+                    placeholder="visual-templates/projects/.../tpl.png"
+                    @input="emitUpdate"
+                  />
+                </a-form-item>
+              </a-col>
+              <a-col v-if="step.action === 'assert_image'" :span="6">
+                <a-form-item label="匹配模式">
+                  <a-select v-model:value="step.params.match_mode" @change="emitUpdate">
+                    <a-select-option value="exists">存在 (exists)</a-select-option>
+                    <a-select-option value="not_exists">不存在 (not_exists)</a-select-option>
+                  </a-select>
+                </a-form-item>
+              </a-col>
+              <a-col :span="6">
+                <a-form-item label="超时(秒)">
+                  <a-input-number v-model:value="step.params.timeout" :min="1" :max="60" style="width: 100%" @change="emitUpdate" />
+                </a-form-item>
+              </a-col>
+            </a-row>
+          </template>
+
           <!-- wait -->
           <template v-else-if="step.action === 'wait'">
             <a-form-item :label="t('case.android_editor.wait_ms')" :label-col="{ span: 4 }">
@@ -459,12 +510,20 @@ import {
 import { androidLocatorWarning } from '@/utils/androidLocatorDiagnostics'
 
 type StepParams = Record<string, unknown>
-type ExternalStep = { action: string; name: string; params: StepParams }
+type ExternalStep = {
+  action: string
+  name: string
+  params: StepParams
+  error_strategy?: 'abort' | 'continue' | 'ignore'
+  retry_count?: number
+}
 
 interface StepDef {
   action: string
   name: string
   params: StepParams
+  error_strategy?: 'abort' | 'continue' | 'ignore'
+  retry_count?: number
   _key: number
 }
 
@@ -499,6 +558,8 @@ const actionOptions = computed(() => [
   { label: t('case.android_editor.actions.stop_app'), value: 'stop_app' },
   { label: t('case.android_editor.actions.assert_text'), value: 'assert_text' },
   { label: t('case.android_editor.actions.assert_element'), value: 'assert_element' },
+  { label: '严格图像点击 (strict-v1)', value: 'click_image' },
+  { label: '严格图像断言 (strict-v1)', value: 'assert_image' },
   { label: t('case.android_editor.actions.wait'), value: 'wait' },
   { label: t('case.android_editor.actions.wait_until'), value: 'wait_until' },
   { label: t('case.android_editor.actions.screenshot'), value: 'screenshot' },
@@ -574,6 +635,8 @@ const defaultParams: Record<string, () => StepParams> = {
   stop_app: () => ({ package: '' }),
   assert_text: () => ({ text: '' }),
   assert_element: () => ({ resourceId: '' }),
+  click_image: () => ({ image_object_name: '', timeout: 10 }),
+  assert_image: () => ({ image_object_name: '', match_mode: 'exists', timeout: 10 }),
   wait: () => ({ ms: 1000 }),
   wait_until: () => ({ resourceId: '', text: '', className: '', condition: 'visible', timeout_ms: 10000, interval_ms: 500 }),
   screenshot: () => ({}),
@@ -609,7 +672,13 @@ function toInternal(items: ExternalStep[]): StepDef[] {
 }
 
 function toExternal(items: StepDef[]): ExternalStep[] {
-  return items.map(({ action, name, params }) => ({ action, name, params }))
+  return items.map(({ action, name, params, error_strategy, retry_count }) => ({
+    action,
+    name,
+    params,
+    ...(error_strategy && error_strategy !== 'abort' ? { error_strategy } : {}),
+    ...(retry_count && retry_count > 0 ? { retry_count } : {}),
+  }))
 }
 
 const steps = ref<StepDef[]>([])

@@ -76,6 +76,18 @@ def compare_assertion_operator(
         if not ok:
             return False, f"断言失败 [{target}] 字段不存在或为 None"
         return True, ""
+    elif op == "not_empty":
+        if actual is None:
+            ok = False
+        elif isinstance(actual, str):
+            ok = bool(actual.strip())
+        elif isinstance(actual, (list, dict)):
+            ok = len(actual) > 0
+        else:
+            ok = True
+        if not ok:
+            return False, f"断言失败 [{target}] 期望非空，实际: {actual!r}"
+        return True, ""
     elif op == "not_exists":
         ok = actual is None
     else:
