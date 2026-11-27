@@ -70,6 +70,7 @@ vi.mock('@/api', () => ({
     getRun: suiteGetRun,
     exportRunHtml: vi.fn(),
     exportRunPdf: vi.fn(),
+    exportRunJunit: vi.fn(),
     list: suiteList,
     listRuns: suiteListRuns,
     run: suiteRun,

@@ -26,6 +26,12 @@
       </div>
 
       <div class="toolbar-right">
+        <a-button v-if="selectedProjectId" size="small" class="toolbar-btn" @click="openSchemaManager">
+          {{ t('api_workbench.schema_assets_manage') }}
+        </a-button>
+        <a-button v-if="selectedProjectId" size="small" class="toolbar-btn" @click="openRequestFilesManager">
+          {{ t('api_workbench.request_files_manage') }}
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -372,6 +378,106 @@
             style="width: 100%"
           />
           <div class="form-hint">{{ t('api_workbench.environment_hint') }}</div>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-drawer
+      v-model:open="schemaDrawerOpen"
+      :title="t('api_workbench.schema_assets_title')"
+      :width="660"
+    >
+      <div class="schema-drawer-toolbar">
+        <a-button v-if="canModify" type="primary" size="small" @click="openSchemaEditor(null)">
+          <PlusOutlined /> {{ t('api_workbench.schema_create') }}
+        </a-button>
+      </div>
+      <a-table
+        :columns="schemaColumns"
+        :data-source="schemaAssets"
+        :pagination="false"
+        row-key="id"
+        size="small"
+        :locale="{ emptyText: t('api_workbench.schema_empty') }"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'actions'">
+            <a-space v-if="canModify">
+              <a-button type="link" size="small" @click="openSchemaEditor(record as ApiSchemaAssetItem)">
+                {{ t('common.edit') }}
+              </a-button>
+              <a-popconfirm
+                :title="t('common.confirm_delete')"
+                @confirm="handleDeleteSchema(record.id)"
+              >
+                <a-button type="link" size="small" danger :loading="deletingSchemaId === record.id">
+                  {{ t('common.delete') }}
+                </a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
+    </a-drawer>
+
+    <a-modal
+      v-model:open="schemaEditorOpen"
+      :title="editingSchemaId ? t('api_workbench.schema_edit') : t('api_workbench.schema_create')"
+      :confirm-loading="savingSchema"
+      width="620px"
+      @ok="handleSaveSchema"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('common.name')" required>
+          <a-input v-model:value="schemaFormName" />
+        </a-form-item>
+        <a-form-item :label="t('common.description')">
+          <a-input v-model:value="schemaFormDescription" />
+        </a-form-item>
+        <a-form-item :label="t('api_workbench.schema_definition_json')" required>
+          <a-textarea v-model:value="schemaFormDefinition" :rows="10" style="font-family: monospace" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-drawer
+      v-model:open="requestFilesDrawerOpen"
+      :title="t('api_workbench.request_files_title')"
+      :width="680"
+    >
+      <a-table
+        :columns="requestFileColumns"
+        :data-source="requestFiles"
+        :loading="requestFilesLoading"
+        :pagination="false"
+        row-key="object_name"
+        size="small"
+        :locale="{ emptyText: t('api_workbench.request_files_empty') }"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'size'">{{ formatBytes(record.size) }}</template>
+          <template v-else-if="column.key === 'last_modified'">{{ record.last_modified ? formatTime(record.last_modified) : '-' }}</template>
+          <template v-else-if="column.key === 'actions'">
+            <a-space v-if="canModify">
+              <a-button type="link" size="small" @click="openRenameRequestFile(record as { object_name: string; filename: string })">{{ t('web_assets.rename') }}</a-button>
+              <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDeleteRequestFile(record.object_name)">
+                <a-button type="link" size="small" danger :loading="deletingRequestFileName === record.object_name">{{ t('common.delete') }}</a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
+    </a-drawer>
+
+    <a-modal
+      v-model:open="renameRequestFileOpen"
+      :title="t('web_assets.rename_file_title')"
+      :confirm-loading="renamingRequestFile"
+      @ok="handleRenameRequestFile"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('web_assets.filename')" required>
+          <a-input v-model:value="renameRequestFileForm.filename" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -1151,12 +1257,185 @@ function openRunDetail(runId: number) {
   void router.push({ name: 'run-detail', params: { runId: String(runId) } })
 }
 
+const schemaDrawerOpen = ref(false)
+const schemaEditorOpen = ref(false)
+const editingSchemaId = ref<number | null>(null)
+const savingSchema = ref(false)
+const deletingSchemaId = ref<number | null>(null)
+const schemaFormName = ref('')
+const schemaFormDescription = ref('')
+const schemaFormDefinition = ref('{\n  "type": "object",\n  "properties": {}\n}')
+
+const schemaColumns = computed(() => [
+  { title: t('common.name'), dataIndex: 'name', key: 'name', ellipsis: true },
+  { title: t('common.description'), dataIndex: 'description', key: 'description', ellipsis: true },
+  { title: t('common.actions'), key: 'actions', width: 140 },
+])
+
+function openSchemaManager() {
+  schemaDrawerOpen.value = true
+  void loadSchemaAndContractAssets()
+}
+
+function openSchemaEditor(asset: ApiSchemaAssetItem | null) {
+  editingSchemaId.value = asset?.id ?? null
+  schemaFormName.value = asset?.name || ''
+  schemaFormDescription.value = asset?.description || ''
+  schemaFormDefinition.value = asset
+    ? JSON.stringify(asset.definition, null, 2)
+    : '{\n  "type": "object",\n  "properties": {}\n}'
+  schemaEditorOpen.value = true
+}
+
+async function handleSaveSchema() {
+  if (!selectedProjectId.value) return
+  const name = schemaFormName.value.trim()
+  if (!name) {
+    message.warning(t('api_workbench.schema_name_required'))
+    return
+  }
+  let definition: Record<string, unknown>
+  try {
+    const parsed = JSON.parse(schemaFormDefinition.value)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('invalid')
+    }
+    definition = parsed as Record<string, unknown>
+  } catch {
+    message.error(t('api_workbench.schema_invalid_json'))
+    return
+  }
+  savingSchema.value = true
+  try {
+    const payload = {
+      name,
+      description: schemaFormDescription.value.trim() || undefined,
+      definition,
+    }
+    if (editingSchemaId.value) {
+      await apiSchemaAssetApi.update(editingSchemaId.value, payload)
+      message.success(t('api_workbench.schema_update_success'))
+    } else {
+      await apiSchemaAssetApi.create(selectedProjectId.value, payload)
+      message.success(t('api_workbench.schema_create_success'))
+    }
+    schemaEditorOpen.value = false
+    await loadSchemaAndContractAssets()
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('api_workbench.schema_save_failed')))
+  } finally {
+    savingSchema.value = false
+  }
+}
+
+async function handleDeleteSchema(id: number) {
+  deletingSchemaId.value = id
+  try {
+    await apiSchemaAssetApi.delete(id)
+    message.success(t('api_workbench.schema_delete_success'))
+    await loadSchemaAndContractAssets()
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('api_workbench.schema_delete_failed')))
+  } finally {
+    deletingSchemaId.value = null
+  }
+}
+
+const requestFilesDrawerOpen = ref(false)
+const requestFilesLoading = ref(false)
+const requestFiles = ref<Array<{ object_name: string; filename: string; size: number; last_modified?: string | null }>>([])
+const renameRequestFileOpen = ref(false)
+const renamingRequestFile = ref(false)
+const deletingRequestFileName = ref<string | null>(null)
+const renameRequestFileForm = ref({ object_name: '', filename: '' })
+
+const requestFileColumns = computed(() => [
+  { title: t('web_assets.filename'), dataIndex: 'filename', key: 'filename', ellipsis: true },
+  { title: t('performance.script_size'), key: 'size', width: 95 },
+  { title: t('common.updated_at'), key: 'last_modified', width: 165 },
+  { title: t('common.actions'), key: 'actions', width: 140 },
+])
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes < 1024) return `${bytes || 0} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+async function loadRequestFiles() {
+  if (!selectedProjectId.value) {
+    requestFiles.value = []
+    return
+  }
+  requestFilesLoading.value = true
+  try {
+    requestFiles.value = await caseApi.listRequestFiles(selectedProjectId.value)
+  } catch (error: unknown) {
+    requestFiles.value = []
+    message.error(errorMessage(error, t('api_workbench.request_files_load_failed')))
+  } finally {
+    requestFilesLoading.value = false
+  }
+}
+
+function openRequestFilesManager() {
+  requestFilesDrawerOpen.value = true
+  void loadRequestFiles()
+}
+
+function openRenameRequestFile(item: { object_name: string; filename: string }) {
+  renameRequestFileForm.value = { object_name: item.object_name, filename: item.filename }
+  renameRequestFileOpen.value = true
+}
+
+async function handleRenameRequestFile() {
+  if (!selectedProjectId.value) return
+  const filename = renameRequestFileForm.value.filename.trim()
+  if (!filename) {
+    message.warning(t('web_assets.filename_required'))
+    return
+  }
+  renamingRequestFile.value = true
+  try {
+    await caseApi.renameRequestFile(selectedProjectId.value, {
+      object_name: renameRequestFileForm.value.object_name,
+      filename,
+    })
+    renameRequestFileOpen.value = false
+    message.success(t('web_assets.rename_success'))
+    await loadRequestFiles()
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('web_assets.rename_failed')))
+  } finally {
+    renamingRequestFile.value = false
+  }
+}
+
+async function handleDeleteRequestFile(objectName: string) {
+  if (!selectedProjectId.value) return
+  deletingRequestFileName.value = objectName
+  try {
+    await caseApi.deleteRequestFile(selectedProjectId.value, objectName)
+    message.success(t('api_workbench.request_file_delete_success'))
+    await loadRequestFiles()
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('api_workbench.request_file_delete_failed')))
+  } finally {
+    deletingRequestFileName.value = null
+  }
+}
+
 onMounted(() => {
   void loadProjects()
 })
 </script>
 
 <style scoped>
+.schema-drawer-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
 .api-workbench {
   color: var(--c-text);
 }

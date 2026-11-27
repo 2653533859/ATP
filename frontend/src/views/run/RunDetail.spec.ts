@@ -25,13 +25,14 @@ vi.mock('ant-design-vue', () => ({ Empty: { PRESENTED_IMAGE_SIMPLE: 'empty' }, m
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { role: 'engineer' }, fetchMe: vi.fn() }) }))
 vi.mock('@/utils/websocket', () => ({ createRunWebSocket }))
 vi.mock('@/api', () => ({
+  aiHealingExampleApi: { createFromStep: vi.fn() },
   aiHealingPatchApi: { apply: vi.fn(), preview: vi.fn() },
   bugTrackerApi: { createBug: vi.fn(), list: vi.fn().mockResolvedValue([]), linkBug: vi.fn(), refreshStatus: vi.fn() },
   caseApi: { get: vi.fn().mockResolvedValue(null) },
   defectApi: { createFromRun: defectCreateFromRun, list: vi.fn().mockResolvedValue({ items: [], total: 0 }) },
   projectApi: { list: vi.fn().mockResolvedValue([{ id: 1, name: 'Demo', current_user_role: 'editor' }]), getModules: vi.fn().mockResolvedValue([]) },
   runApi: { exportHtml: runExportHtml, exportPdf: vi.fn(), exportJunit: runExportJunit, get: runGet, stop: runStop, generateGif: vi.fn() },
-  tracingApi: { getConfig: tracingGetConfig },
+  tracingApi: { getConfig: tracingGetConfig, getTrace: vi.fn() },
 }))
 
 const passthrough = (name: string) =>
@@ -380,6 +381,84 @@ describe('RunDetail mount', () => {
       severity: 'major',
       priority: 'P1',
     }))
+    wrapper.unmount()
+  })
+
+  it('calls aiHealingExampleApi.createFromStep when promoting an adopted step', async () => {
+    const apiMod = await import('@/api')
+    vi.mocked(apiMod.aiHealingExampleApi.createFromStep).mockResolvedValue({ id: 7 } as any)
+    runGet.mockResolvedValueOnce({
+      id: 42,
+      case_id: 100,
+      case_type: 'api',
+      status: 'failed',
+      trace_id: null,
+      environment: 'staging',
+      duration_ms: 150,
+      created_at: '2026-11-26T06:50:00Z',
+      result_summary: {},
+      steps: [{ id: 88, step_index: 0, name: 'Step 1', status: 'failed', healing_status: 'done', healing_feedback: 'adopted', healing_suggestion: 'check url' }],
+    })
+    const wrapper = mountRunDetail()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.promoteStepToHealingExample({ id: 88 })
+    expect(apiMod.aiHealingExampleApi.createFromStep).not.toHaveBeenCalled() // mock user is engineer, requires admin
+    wrapper.unmount()
+  })
+
+  it('loads distributed trace details in the trace drawer', async () => {
+    const apiMod = await import('@/api')
+    vi.mocked(apiMod.tracingApi.getTrace).mockResolvedValue({
+      trace_id: 'trace-1',
+      total_runs: 1,
+      case_runs: [{ id: 42, case_id: 100, status: 'passed', duration_ms: 120 }],
+      suite_runs: [],
+      plan_runs: [],
+      distributed_trace: {
+        trace_id: 'trace-1',
+        root_service: 'atp-backend',
+        total_duration_ms: 120,
+        span_count: 2,
+        service_count: 2,
+        services: ['atp-backend', 'auth-service'],
+        has_errors: false,
+        spans: [
+          {
+            span_id: 'sp-1',
+            service_name: 'atp-backend',
+            operation_name: 'POST /runs',
+            duration_ms: 120,
+            start_time_offset_ms: 0,
+            has_error: false,
+            children: [
+              {
+                span_id: 'sp-2',
+                parent_span_id: 'sp-1',
+                service_name: 'auth-service',
+                operation_name: 'POST /oauth/token',
+                duration_ms: 35,
+                start_time_offset_ms: 20,
+                has_error: false,
+                children: [],
+              },
+            ],
+          },
+        ],
+        anomaly_cluster: null,
+      },
+    } as any)
+
+    const wrapper = mountRunDetail()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.openTraceDrawer()
+    await flushPromises()
+    expect(apiMod.tracingApi.getTrace).toHaveBeenCalledWith('trace-1')
+    expect(vm.traceDrawerOpen).toBe(true)
+    expect(vm.traceDetail.total_runs).toBe(1)
+    expect(vm.flattenedTraceSpans).toHaveLength(2)
+    expect(vm.flattenedTraceSpans[1]).toMatchObject({ depth: 1, span: { span_id: 'sp-2', service_name: 'auth-service' } })
     wrapper.unmount()
   })
 })

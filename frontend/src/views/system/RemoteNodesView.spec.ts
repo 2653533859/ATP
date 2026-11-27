@@ -8,6 +8,7 @@ const {
   list,
   grants,
   createGrant,
+  updateGrant,
   revokeGrant,
   userList,
   projectList,
@@ -17,6 +18,7 @@ const {
   list: vi.fn(),
   grants: vi.fn(),
   createGrant: vi.fn(),
+  updateGrant: vi.fn(),
   revokeGrant: vi.fn(),
   userList: vi.fn(),
   projectList: vi.fn(),
@@ -25,7 +27,7 @@ const {
 }))
 
 vi.mock('@/api', () => ({
-  remoteNodesApi: { list, grants, createGrant, revokeGrant },
+  remoteNodesApi: { list, grants, createGrant, updateGrant, revokeGrant },
   userApi: { list: userList },
   projectApi: { list: projectList },
 }))
@@ -150,6 +152,21 @@ describe('RemoteNodesView', () => {
     expect(revokeGrant).toHaveBeenCalledWith('win-a', 1)
     expect(messageSuccess).toHaveBeenCalledWith('remote_nodes.revoke_success')
     expect(grants).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('toggles an active grant access level and reloads grants', async () => {
+    updateGrant.mockResolvedValue({ ...grantRows[0], access_level: 'read_only' })
+    const wrapper = mountPage()
+    await flushPromises()
+    await (wrapper.vm as any).openGrants(nodes[0])
+    await flushPromises()
+
+    await (wrapper.vm as any).handleToggleGrantLevel(grantRows[0])
+    await flushPromises()
+
+    expect(updateGrant).toHaveBeenCalledWith('win-a', 1, { access_level: 'read_only' })
+    expect(messageSuccess).toHaveBeenCalledWith('remote_nodes.update_success')
     wrapper.unmount()
   })
 

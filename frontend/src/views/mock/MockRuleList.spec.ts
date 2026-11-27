@@ -14,6 +14,9 @@ const {
   ruleExport,
   ruleImport,
   ruleAiGenerate,
+  ruleSnapshots,
+  ruleRollback,
+  rulePromoteSample,
   messageError,
   messageSuccess,
   messageWarning,
@@ -27,6 +30,9 @@ const {
   ruleExport: vi.fn(),
   ruleImport: vi.fn(),
   ruleAiGenerate: vi.fn(),
+  ruleSnapshots: vi.fn(),
+  ruleRollback: vi.fn(),
+  rulePromoteSample: vi.fn(),
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
@@ -56,6 +62,9 @@ vi.mock('@/api', () => ({
     exportRules: ruleExport,
     importRules: ruleImport,
     aiGenerate: ruleAiGenerate,
+    listSnapshots: ruleSnapshots,
+    rollback: ruleRollback,
+    promoteSample: rulePromoteSample,
   },
 }))
 
@@ -293,5 +302,30 @@ describe('MockRuleList mount', () => {
     expect(createBtn.attributes('disabled')).toBeDefined()
     expect(editBtn.attributes('disabled')).toBeDefined()
     expect(deleteBtn.attributes('disabled')).toBeDefined()
+  })
+
+  it('lists snapshots, rolls back a snapshot, and promotes a recorded sample', async () => {
+    ruleSnapshots.mockResolvedValue({
+      items: [{ id: 55, rule_id: 8, version: 1, snapshot_data: { method: 'GET', path: '/api/u', status_code: 200 }, note: 'init', changed_by: 1, created_at: '2026-11-26T00:00:00Z' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    })
+    ruleRollback.mockResolvedValue({ id: 8 })
+    rulePromoteSample.mockResolvedValue({ id: 9 })
+
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.openSnapshots({ id: 8, name: 'Mock A' })
+    expect(ruleSnapshots).toHaveBeenCalledWith(8)
+    expect(vm.snapshots).toHaveLength(1)
+
+    await vm.handleRollbackSnapshot(55)
+    expect(ruleRollback).toHaveBeenCalledWith(8, 55)
+
+    vm.openSamples({ id: 8, name: 'Mock A', recorded_samples: [{ request: { query: {} }, response: { status_code: 200 } }] })
+    await vm.handlePromoteSample(0)
+    expect(rulePromoteSample).toHaveBeenCalledWith(8, { sample_index: 0, enable: true })
   })
 })

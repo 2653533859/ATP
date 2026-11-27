@@ -316,6 +316,8 @@ export interface IosAppItem {
   bundle_id?: string | null
   version_name?: string | null
   file_size: number
+  signing_identity?: string | null
+  provisioning_profile?: string | null
   description?: string | null
   created_at: string
   updated_at: string
@@ -1285,6 +1287,16 @@ export interface MockRuleItem {
   updated_at: string
 }
 
+export interface MockRuleSnapshotItem {
+  id: number
+  rule_id: number
+  version: number
+  snapshot_data: Record<string, unknown>
+  note?: string | null
+  changed_by: number
+  created_at: string
+}
+
 export interface MockAIGeneratedRule {
   name: string
   method: string
@@ -2151,10 +2163,14 @@ export const caseApi = {
     http.get<unknown, { items: CaseSnapshotItem[]; total: number; page: number; page_size: number }>(
       `/cases/${caseId}/snapshots`, { params },
     ),
+  createSnapshot: (caseId: number, data?: { remark?: string | null }) =>
+    http.post<unknown, CaseSnapshotItem>(`/cases/${caseId}/snapshots`, data ?? {}),
   updateSnapshot: (caseId: number, snapshotId: number, data: { name?: string; description?: string | null; remark?: string | null }) =>
     http.patch<unknown, CaseSnapshotItem>(`/cases/${caseId}/snapshots/${snapshotId}`, data),
   deleteSnapshot: (caseId: number, snapshotId: number) =>
     http.delete<unknown, void>(`/cases/${caseId}/snapshots/${snapshotId}`),
+  cloneFromSnapshot: (caseId: number, snapshotId: number, data?: { name?: string | null; module_id?: number | null }) =>
+    http.post<unknown, CaseDetailItem>(`/cases/${caseId}/snapshots/${snapshotId}/clone`, data ?? {}),
   rollback: (caseId: number, snapshotId: number) =>
     http.post<unknown, CaseDetailItem>(`/cases/${caseId}/rollback/${snapshotId}`),
   batchDelete: (caseIds: number[]) =>
@@ -2354,6 +2370,8 @@ export const runApi = {
     http.get<unknown, Blob>(`/runs/${id}/export/pdf`, { responseType: 'blob' }),
   exportJunit: (id: number) =>
     http.get<unknown, Blob>(`/runs/${id}/junit`, { responseType: 'blob' }),
+  exportRunsZip: (data: { run_ids: number[]; template?: 'full' | 'summary'; cover_title?: string }) =>
+    http.post<unknown, Blob>('/runs/export/zip', data, { responseType: 'blob' }),
   submitHealingFeedback: (runId: number, stepId: number, action: 'adopted' | 'rejected') =>
     http.post<unknown, void>(`/runs/${runId}/steps/${stepId}/healing/feedback`, { action }),
   updateTriage: (id: number, data: RunTriageIn) =>
@@ -2491,6 +2509,10 @@ export const deviceApi = {
     }),
   claim: (id: number, data: { worker_id: string; worker_hostname?: string; force?: boolean }) =>
     http.post<unknown, DeviceItem>(`/devices/${id}/claim`, data),
+  disconnectionRecovery: (id: number) =>
+    http.post<unknown, Record<string, unknown>>(`/devices/${id}/disconnection-recovery`),
+  forceTakeoverLease: (id: number, data?: { ttl_seconds?: number; owner_label?: string; reason?: string }) =>
+    http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease/force-takeover`, data ?? {}),
   scanStatus: (scanId: string) => http.get<unknown, DeviceScanResult>(`/devices/scan/${scanId}`),
   get: (id: number) => http.get('/devices/' + id),
   update: (id: number, data: { name?: string; description?: string }) =>
@@ -2591,15 +2613,68 @@ export const apiScenarioApi = {
     http.post<unknown, ApiScenarioRecord>(`/api-scenarios/${id}/record-run`, data),
   delete: (id: number) =>
     http.delete<unknown, void>(`/api-scenarios/${id}`),
+  validateDag: (nodes: Array<Record<string, unknown>>) =>
+    http.post<unknown, { valid: boolean; total_nodes: number; execution_order: string[]; sorted_nodes: Array<Record<string, unknown>> }>(
+      '/api-scenarios/validate-dag',
+      { nodes },
+    ),
+  validateDataflow: (data: { nodes: Array<Record<string, unknown>>; initial_context?: Record<string, unknown>; strict?: boolean }) =>
+    http.post<unknown, {
+      valid: boolean
+      total_nodes: number
+      total_variables: number
+      missing_variable_count: number
+      reverse_reference_count: number
+      unused_variable_count: number
+      missing_variables: Array<Record<string, unknown>>
+      reverse_references: Array<Record<string, unknown>>
+      unused_variables: Array<Record<string, unknown>>
+      variable_lineage: Array<Record<string, unknown>>
+    }>('/api-scenarios/validate-dataflow', data),
+  startDebug: (data: { nodes: Array<Record<string, unknown>>; breakpoints?: string[]; initial_context?: Record<string, unknown>; watchers?: string[] }) =>
+    http.post<unknown, WorkflowDebugSnapshot>('/api-scenarios/debug/start', data),
+  stepDebug: (sessionId: string) =>
+    http.post<unknown, WorkflowDebugSnapshot>(`/api-scenarios/debug/${sessionId}/step`),
+  resumeDebug: (sessionId: string) =>
+    http.post<unknown, WorkflowDebugSnapshot>(`/api-scenarios/debug/${sessionId}/resume`),
+  getDebug: (sessionId: string) =>
+    http.get<unknown, WorkflowDebugSnapshot>(`/api-scenarios/debug/${sessionId}`),
+  stopDebug: (sessionId: string) =>
+    http.delete<unknown, void>(`/api-scenarios/debug/${sessionId}`),
+}
+
+export interface WorkflowDebugSnapshot {
+  session_id: string
+  state: 'paused' | 'completed' | 'error'
+  current_node_index: number
+  total_nodes: number
+  current_node?: Record<string, unknown> | null
+  next_node?: Record<string, unknown> | null
+  breakpoints: string[]
+  context: Record<string, unknown>
+  context_diff: Record<string, { old: unknown; new: unknown }>
+  watchers: Array<{ name: string; value: unknown; type: string; changed_in_last_step: boolean }>
+  history: Array<Record<string, unknown>>
+  error?: string | null
 }
 
 export const iosApi = {
   devices: () => http.get<unknown, IosDeviceItem[]>('/ios-devices'),
   createDevice: (data: { udid: string; name?: string; model?: string; platform_version?: string; appium_server_url: string; wda_local_port?: number }) =>
     http.post<unknown, IosDeviceItem>('/ios-devices', data),
+  updateDevice: (
+    id: number,
+    data: Partial<Pick<IosDeviceItem, 'name' | 'model' | 'platform_version' | 'status' | 'appium_server_url' | 'description'>>,
+  ) => http.patch<unknown, IosDeviceItem>(`/ios-devices/${id}`, data),
+  heartbeatDevice: (id: number) => http.post<unknown, IosDeviceItem>(`/ios-devices/${id}/heartbeat`),
   deleteDevice: (id: number) => http.delete(`/ios-devices/${id}`),
   apps: (projectId?: number) => http.get<unknown, IosAppItem[]>('/ios-apps', { params: { project_id: projectId } }),
   uploadApp: (form: FormData) => http.post<unknown, IosAppItem>('/ios-apps', form),
+  updateApp: (
+    id: number,
+    data: { bundle_id?: string | null; version_name?: string | null; signing_identity?: string | null; provisioning_profile?: string | null; description?: string | null },
+  ) => http.patch<unknown, IosAppItem>(`/ios-apps/${id}`, data),
+  downloadApp: (id: number) => http.get<unknown, { url: string; filename: string }>(`/ios-apps/${id}/download`),
   deleteApp: (id: number) => http.delete(`/ios-apps/${id}`),
 }
 
@@ -2631,6 +2706,8 @@ export const suiteApi = {
     http.get<unknown, Blob>(`/suite-runs/${id}/export/html`, { responseType: 'blob' }),
   exportRunPdf: (id: number) =>
     http.get<unknown, Blob>(`/suite-runs/${id}/export/pdf`, { responseType: 'blob' }),
+  exportRunJunit: (id: number) =>
+    http.get<unknown, Blob>(`/suite-runs/${id}/junit`, { responseType: 'blob' }),
   batchDelete: (suiteIds: number[]) =>
     http.post<unknown, { requested: number; processed: number; skipped_ids: number[] }>(
       '/suites/batch/delete',
@@ -2684,6 +2761,8 @@ export const planApi = {
     http.get<unknown, Blob>(`/plan-runs/${id}/export/html`, { responseType: 'blob' }),
   exportRunPdf: (id: number) =>
     http.get<unknown, Blob>(`/plan-runs/${id}/export/pdf`, { responseType: 'blob' }),
+  exportRunJunit: (id: number) =>
+    http.get<unknown, Blob>(`/plan-runs/${id}/junit`, { responseType: 'blob' }),
   batchDelete: (planIds: number[]) =>
     http.post<unknown, { requested: number; processed: number; skipped_ids: number[] }>(
       '/plans/batch/delete',
@@ -2763,6 +2842,15 @@ export const mockRuleApi = {
   update: (id: number, data: object) => http.patch<unknown, MockRuleItem>(`/mock-rules/${id}`, data),
   delete: (id: number) => http.delete(`/mock-rules/${id}`),
   logs: (projectId: number) => http.get<unknown, MockRuleLogItem[]>(`/mock-rules/logs/${projectId}`),
+  listSnapshots: (id: number, params?: { page?: number; page_size?: number }) =>
+    http.get<unknown, { items: MockRuleSnapshotItem[]; total: number; page: number; page_size: number }>(
+      `/mock-rules/${id}/snapshots`,
+      { params },
+    ),
+  rollback: (id: number, snapshotId: number) =>
+    http.post<unknown, MockRuleItem>(`/mock-rules/${id}/rollback/${snapshotId}`),
+  promoteSample: (id: number, data: { sample_index: number; name?: string | null; enable?: boolean }) =>
+    http.post<unknown, MockRuleItem>(`/mock-rules/${id}/promote-sample`, data),
   exportRules: (projectId: number) => http.get<unknown, { project_id: number; rules: MockRuleItem[] }>(`/mock-rules/export/${projectId}`),
   importRules: (data: { project_id: number; rules: unknown[] }) => http.post<unknown, MockRuleItem[]>('/mock-rules/import', data),
   aiGenerate: (data: { project_id: number; rule_ids?: number[]; requirement?: string; rule_count?: number }) =>
@@ -2795,6 +2883,7 @@ export const defectApi = {
     status?: DefectStatus
     priority?: DefectPriority
     severity?: DefectSeverity
+    keyword?: string
     page?: number
     page_size?: number
   }) => http.get<unknown, { items: DefectItem[]; total: number; page: number; page_size: number }>('/defects', { params }),
@@ -2826,6 +2915,9 @@ export const defectApi = {
     labels: string[]
     assignee_id: number | null
   }>) => http.patch<unknown, DefectItem>(`/defects/${id}`, data),
+  linkRun: (id: number, data: { run_type: DefectRunType; run_id: number; case_id?: number | null }) =>
+    http.post<unknown, DefectRunLinkItem>(`/defects/${id}/links`, data),
+  unlinkRun: (id: number, linkId: number) => http.delete<unknown, void>(`/defects/${id}/links/${linkId}`),
   linkExternal: (id: number, data: {
     tracker_id: number
     external_key: string
@@ -2839,6 +2931,8 @@ export const defectApi = {
     http.post<unknown, { link: DefectExternalLinkItem; defect_status: DefectStatus }>(
       `/defects/${id}/external-links/${linkId}/sync`, data ?? {},
     ),
+  pushExternal: (id: number, linkId: number) =>
+    http.post<unknown, Record<string, unknown>>(`/defects/${id}/external-links/${linkId}/push`),
   unlinkExternal: (id: number, linkId: number) => http.delete(`/defects/${id}/external-links/${linkId}`),
   delete: (id: number) => http.delete<unknown, void>(`/defects/${id}`),
 }
@@ -3041,6 +3135,8 @@ export const aiHealingExampleApi = {
     high_quality?: boolean
     limit?: number
   }) => http.get<unknown, HealingPromptExampleItem[]>('/ai-healing/examples', { params }),
+  createFromStep: (stepResultId: number) =>
+    http.post<unknown, HealingPromptExampleItem>(`/ai-healing/examples/from-step/${stepResultId}`),
   update: (id: number, data: { marked_high_quality?: boolean; suggestion_text?: string }) =>
     http.patch<unknown, HealingPromptExampleItem>(`/ai-healing/examples/${id}`, data),
   delete: (id: number) => http.delete<unknown, void>(`/ai-healing/examples/${id}`),
@@ -3247,8 +3343,72 @@ export interface TracingConfig {
   jaeger_ui_url: string
 }
 
+export interface DistributedSpanItem {
+  span_id: string
+  parent_span_id?: string | null
+  service_name: string
+  operation_name: string
+  duration_ms: number
+  start_time_offset_ms: number
+  has_error: boolean
+  tags?: Record<string, unknown>
+  children?: DistributedSpanItem[]
+}
+
+export interface TraceAnomalyItem {
+  span_id: string
+  service_name: string
+  operation_name: string
+  category: string
+  severity: string
+  duration_ms: number
+  description: string
+  statement?: string | null
+  http_status?: number | null
+}
+
+export interface TraceAnomalyCluster {
+  trace_id: string
+  root_cause_service: string
+  root_cause_span?: string | null
+  root_cause_category: string
+  root_cause_summary: string
+  error_span_count: number
+  slow_span_count: number
+  total_anomalies: number
+  anomalies: TraceAnomalyItem[]
+}
+
+export interface DistributedTraceWaterfall {
+  trace_id: string
+  root_service: string
+  total_duration_ms: number
+  span_count: number
+  service_count: number
+  services: string[]
+  has_errors: boolean
+  spans: DistributedSpanItem[]
+  anomaly_cluster?: TraceAnomalyCluster | null
+}
+
+export interface TraceDetailItem {
+  trace_id: string
+  total_runs: number
+  created_at?: string | null
+  last_seen_at?: string | null
+  case_runs: Array<Record<string, unknown>>
+  suite_runs: Array<Record<string, unknown>>
+  plan_runs: Array<Record<string, unknown>>
+  distributed_trace?: DistributedTraceWaterfall | null
+}
+
 export const tracingApi = {
   getConfig: () => http.get<unknown, TracingConfig>('/traces/config'),
+  getTrace: (traceId: string) => http.get<unknown, TraceDetailItem>(`/traces/${encodeURIComponent(traceId)}`),
+  getWaterfall: (traceId: string) =>
+    http.get<unknown, DistributedTraceWaterfall>(`/traces/${encodeURIComponent(traceId)}/waterfall`),
+  getAnomalies: (traceId: string) =>
+    http.get<unknown, TraceAnomalyCluster>(`/traces/${encodeURIComponent(traceId)}/anomalies`),
 }
 
 export interface UserSettingItem {
@@ -3595,6 +3755,13 @@ export interface WebPageObjectItem {
   updated_at: string
 }
 
+export interface WebStorageStateItem {
+  name: string
+  size: number
+  updated_at?: string | null
+  object_name: string
+}
+
 export const webAssetsApi = {
   listElements: (projectId: number) => http.get<unknown, WebElementAssetItem[]>(`/projects/${projectId}/web-elements`),
   createElement: (projectId: number, body: { name: string; page_url?: string | null; locator: Record<string, unknown>; fallback_locators?: Array<Record<string, unknown>>; description?: string | null }) =>
@@ -3608,6 +3775,10 @@ export const webAssetsApi = {
     http.post<unknown, WebPageObjectItem>(`/projects/${projectId}/web-page-objects`, body),
   updatePageObject: (id: number, body: Record<string, unknown>) => http.patch<unknown, WebPageObjectItem>(`/web-page-objects/${id}`, body),
   deletePageObject: (id: number) => http.delete<unknown, void>(`/web-page-objects/${id}`),
+  listStorageStates: (projectId: number) =>
+    http.get<unknown, WebStorageStateItem[]>(`/projects/${projectId}/web-storage-states`),
+  deleteStorageState: (projectId: number, name: string) =>
+    http.delete<unknown, void>(`/projects/${projectId}/web-storage-states/${encodeURIComponent(name)}`),
 }
 
 export interface WebFileUploadResponse {
@@ -3907,4 +4078,82 @@ export const knowledgeApi = {
   create: (body: KnowledgeSavePayload) => http.post<unknown, KnowledgeDetailItem>('/knowledge', body),
   update: (id: number, body: KnowledgeUpdatePayload) => http.patch<unknown, KnowledgeDetailItem>(`/knowledge/${id}`, body),
   delete: (id: number) => http.delete<unknown, { deleted: boolean; id: number }>(`/knowledge/${id}`),
+}
+
+// ---- Security & Compliance Governance ----
+export interface SecurityApiKeyCreateResult {
+  id: number
+  name: string
+  raw_key: string
+  key_prefix: string
+  project_id?: number | null
+  role: string
+  ip_allowlist: string[]
+  expires_at?: string | null
+  is_active: boolean
+}
+
+export interface SecurityApiKeyAuditItem {
+  key_id: number
+  name: string
+  key_prefix: string
+  user_id: number
+  project_id?: number | null
+  environment_id?: number | null
+  role: string
+  ip_allowlist: string[]
+  has_ip_restriction: boolean
+  is_active: boolean
+  is_expired: boolean
+  expires_at?: string | null
+  total_calls: number
+  last_used_at?: string | null
+  last_used_ip?: string | null
+  created_at?: string | null
+}
+
+export interface SecurityDrSnapshotManifest {
+  snapshot_id: string
+  platform_version: string
+  mode: string
+  created_at: string
+  database_type: string
+  table_counts: Record<string, number>
+  files: Record<string, { size: number; sha256: string }>
+}
+
+export interface SecurityDrDrillReport {
+  status: 'passed' | 'failed'
+  snapshot_id?: string
+  platform_version?: string
+  mode?: string
+  drill_at: string
+  duration_ms?: number
+  integrity_passed: boolean
+  verified_files?: string[]
+  checksum_failures?: string[]
+  table_counts?: Record<string, number>
+  table_reconciliation?: Record<string, { expected: number; recorded: number; matched: boolean }>
+  error?: string
+}
+
+export const securityApi = {
+  createApiKey: (data: {
+    name: string
+    project_id?: number | null
+    environment_id?: number | null
+    role?: string
+    ip_allowlist?: string[]
+    expires_in_days?: number | null
+  }) => http.post<unknown, SecurityApiKeyCreateResult>('/security/api-keys', data),
+  getApiKeyAuditReport: (projectId?: number) =>
+    http.get<unknown, SecurityApiKeyAuditItem[]>('/security/api-keys/audit-report', {
+      params: projectId ? { project_id: projectId } : undefined,
+    }),
+  revokeApiKey: (keyId: number) => http.delete<unknown, void>(`/security/api-keys/${keyId}`),
+  createDrSnapshot: (snapshotTag = 'manual') =>
+    http.post<unknown, SecurityDrSnapshotManifest>('/security/disaster-recovery/snapshot', { snapshot_tag: snapshotTag }),
+  performDrDrill: () => http.post<unknown, SecurityDrDrillReport>('/security/disaster-recovery/drill'),
+  maskPii: (data: { payload: unknown; custom_keywords?: string[] }) =>
+    http.post<unknown, { redacted: unknown; success: boolean }>('/security/mask-pii', data),
 }

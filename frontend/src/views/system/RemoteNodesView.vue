@@ -79,15 +79,23 @@
             {{ formatTime(record.created_at) }}
           </template>
           <template v-else-if="column.key === 'actions'">
-            <a-popconfirm
-              v-if="!record.revoked_at"
-              :title="t('remote_nodes.revoke_confirm')"
-              :ok-text="t('common.confirm')"
-              :cancel-text="t('common.cancel')"
-              @confirm="handleRevoke(record as RemoteNodeGrantItem)"
-            >
-              <a-button type="link" danger size="small">{{ t('remote_nodes.revoke') }}</a-button>
-            </a-popconfirm>
+            <a-space v-if="!record.revoked_at">
+              <a-button
+                type="link"
+                size="small"
+                @click="handleToggleGrantLevel(record as RemoteNodeGrantItem)"
+              >
+                {{ record.access_level === 'read_write' ? t('remote_nodes.set_read_only') : t('remote_nodes.set_read_write') }}
+              </a-button>
+              <a-popconfirm
+                :title="t('remote_nodes.revoke_confirm')"
+                :ok-text="t('common.confirm')"
+                :cancel-text="t('common.cancel')"
+                @confirm="handleRevoke(record as RemoteNodeGrantItem)"
+              >
+                <a-button type="link" danger size="small">{{ t('remote_nodes.revoke') }}</a-button>
+              </a-popconfirm>
+            </a-space>
           </template>
         </template>
       </a-table>
@@ -264,6 +272,18 @@ async function submitCreate() {
     message.error(t('remote_nodes.save_failed'))
   } finally {
     saving.value = false
+  }
+}
+
+async function handleToggleGrantLevel(grant: RemoteNodeGrantItem) {
+  if (!activeNode.value) return
+  const nextLevel = grant.access_level === 'read_write' ? 'read_only' : 'read_write'
+  try {
+    await remoteNodesApi.updateGrant(activeNode.value.client_id, grant.id, { access_level: nextLevel })
+    message.success(t('remote_nodes.update_success'))
+    await loadGrants()
+  } catch {
+    message.error(t('remote_nodes.save_failed'))
   }
 }
 

@@ -16,6 +16,10 @@
           <template #icon><ReloadOutlined /></template>
           {{ t('common.refresh') }}
         </a-button>
+        <a-button :disabled="!projectId" @click="openScriptManager">
+          <template #icon><FolderOpenOutlined /></template>
+          {{ t('performance.manage_scripts') }}
+        </a-button>
         <a-button type="primary" :disabled="!projectId" @click="openCreate">
           <template #icon><PlusOutlined /></template>
           {{ t('performance.create') }}
@@ -77,7 +81,18 @@
               @confirm="clearBaseline(asPerfTest(record))"
             >
               <a-tooltip :title="t('performance.clear_baseline')">
-                <a-button size="small" danger>
+                <a-button size="small">
+                  <template #icon><CloseCircleOutlined /></template>
+                </a-button>
+              </a-tooltip>
+            </a-popconfirm>
+            <a-popconfirm
+              v-if="canModify"
+              :title="t('common.confirm_delete')"
+              @confirm="deleteTest(asPerfTest(record))"
+            >
+              <a-tooltip :title="t('performance.delete_test')">
+                <a-button size="small" danger :loading="deletingTestId === record.id">
                   <template #icon><DeleteOutlined /></template>
                 </a-button>
               </a-tooltip>
@@ -198,6 +213,17 @@
                 <template #icon><StarOutlined /></template>
               </a-button>
             </a-tooltip>
+            <a-popconfirm
+              v-if="canModify && !isActiveStatus(record.status)"
+              :title="t('common.confirm_delete')"
+              @confirm="deleteRun(asPerfRun(record))"
+            >
+              <a-tooltip :title="t('performance.delete_run')">
+                <a-button size="small" danger :loading="deletingRunId === record.id">
+                  <template #icon><DeleteOutlined /></template>
+                </a-button>
+              </a-tooltip>
+            </a-popconfirm>
           </a-space>
         </template>
       </template>
@@ -860,6 +886,42 @@
         </div>
       </template>
     </a-drawer>
+
+    <a-drawer
+      v-model:open="scriptDrawerOpen"
+      :title="t('performance.manage_scripts')"
+      :width="640"
+    >
+      <a-table
+        :columns="scriptColumns"
+        :data-source="scripts"
+        :loading="scriptsLoading"
+        :pagination="false"
+        row-key="object_name"
+        size="small"
+        :locale="{ emptyText: t('performance.empty_scripts') }"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'size'">
+            {{ formatBytes(record.size) }}
+          </template>
+          <template v-else-if="column.key === 'last_modified'">
+            {{ record.last_modified ? formatDateLabel(record.last_modified) : '-' }}
+          </template>
+          <template v-else-if="column.key === 'actions'">
+            <a-popconfirm
+              v-if="canModify"
+              :title="t('common.confirm_delete')"
+              @confirm="deleteUploadedScript(record.object_name)"
+            >
+              <a-button type="link" size="small" danger :loading="deletingScriptName === record.object_name">
+                {{ t('common.delete') }}
+              </a-button>
+            </a-popconfirm>
+          </template>
+        </template>
+      </a-table>
+    </a-drawer>
   </div>
 </template>
 
@@ -867,10 +929,13 @@
 import { getRuntimeMode } from '@/runtimeMode'
 const localMode = getRuntimeMode()?.mode === 'local'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { getActivePinia } from 'pinia'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { canEditProjectByRole } from '@/utils/permissions'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
-import { BugOutlined, ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import { BugOutlined, ClockCircleOutlined, CloseCircleOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, FolderOpenOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import type { AxiosError } from 'axios'
 import VChart from 'vue-echarts'
 import type { EChartsOption } from 'echarts'
@@ -926,7 +991,14 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 const projectId = ref<number | null>(null)
+const projects = ref<ProjectItem[]>([])
 const projectOptions = ref<{ label: string; value: number }[]>([])
+const currentProject = computed(() => projects.value.find((p) => p.id === projectId.value))
+const canModify = computed(() => {
+  if (!getActivePinia()) return true
+  const auth = useAuthStore()
+  return canEditProjectByRole(auth.user?.role, currentProject.value?.current_user_role)
+})
 const environmentOptions = ref<{ label: string; value: number }[]>([])
 const datasetOptions = ref<{ label: string; value: number }[]>([])
 const datasets = ref<DatasetListItem[]>([])
@@ -1131,7 +1203,7 @@ const testColumns = computed(() => [
   { title: t('performance.name'), key: 'name' },
   { title: t('performance.executor'), key: 'executor', width: 100 },
   { title: t('common.updated_at'), dataIndex: 'updated_at', key: 'updated_at', width: 180 },
-  { title: t('common.actions'), key: 'actions', width: 170 },
+  { title: t('common.actions'), key: 'actions', width: 205 },
 ])
 
 const runColumns = computed(() => [
@@ -1143,7 +1215,7 @@ const runColumns = computed(() => [
   { title: t('performance.metrics'), key: 'metrics', width: 360 },
   { title: t('performance.duration'), key: 'duration', width: 120 },
   { title: t('common.created_at'), dataIndex: 'created_at', key: 'created_at', width: 180 },
-  { title: t('common.actions'), key: 'actions', width: 150 },
+  { title: t('common.actions'), key: 'actions', width: 175 },
 ])
 
 const compareColumns = computed(() => [
@@ -1286,6 +1358,7 @@ const compareRows = computed(() => {
 
 async function loadProjects() {
   const items = await projectApi.list()
+  projects.value = items
   projectOptions.value = items.map((project: ProjectItem) => ({ label: project.name, value: project.id }))
   const queryValue = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('project_id') : null
   const queryProjectId = Number(queryValue)
@@ -2219,6 +2292,93 @@ function formatBaselineMetric(metric: string, value: unknown) {
 
 function baselineDirectionColor(direction: string) {
   return direction === 'improvement' ? 'success' : direction === 'regression' ? 'error' : 'default'
+}
+
+const scriptDrawerOpen = ref(false)
+const scriptsLoading = ref(false)
+const scripts = ref<Array<{ object_name: string; filename: string; size: number; last_modified?: string | null }>>([])
+const deletingScriptName = ref<string | null>(null)
+const deletingTestId = ref<number | null>(null)
+const deletingRunId = ref<number | null>(null)
+
+const scriptColumns = computed(() => [
+  { title: t('performance.script_object_name'), dataIndex: 'filename', key: 'filename', ellipsis: true },
+  { title: t('performance.script_size'), key: 'size', width: 100 },
+  { title: t('common.updated_at'), key: 'last_modified', width: 170 },
+  { title: t('common.actions'), key: 'actions', width: 90 },
+])
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes < 1024) return `${bytes || 0} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+async function loadScriptsList() {
+  if (!projectId.value) {
+    scripts.value = []
+    return
+  }
+  scriptsLoading.value = true
+  try {
+    scripts.value = await performanceApi.listScripts(projectId.value)
+  } catch (error) {
+    scripts.value = []
+    message.error(getErrorMessage(error, t('performance.msg.load_scripts_failed')))
+  } finally {
+    scriptsLoading.value = false
+  }
+}
+
+async function openScriptManager() {
+  scriptDrawerOpen.value = true
+  await loadScriptsList()
+}
+
+async function deleteUploadedScript(objectName: string) {
+  if (!projectId.value || !canModify.value) return
+  deletingScriptName.value = objectName
+  try {
+    await performanceApi.deleteScript(projectId.value, objectName)
+    message.success(t('performance.msg.delete_script_success'))
+    await loadScriptsList()
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.delete_script_failed')))
+  } finally {
+    deletingScriptName.value = null
+  }
+}
+
+async function deleteTest(record: PerformanceTestItem) {
+  if (!canModify.value) return
+  deletingTestId.value = record.id
+  try {
+    await performanceApi.deleteTest(record.id)
+    message.success(t('performance.msg.delete_test_success'))
+    await Promise.all([loadTests(), loadRuns({ silent: true }), loadTrend()])
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.delete_test_failed')))
+  } finally {
+    deletingTestId.value = null
+  }
+}
+
+async function deleteRun(record: PerformanceRunItem) {
+  if (!canModify.value || isActiveStatus(record.status)) return
+  deletingRunId.value = record.id
+  try {
+    await performanceApi.deleteRun(record.id)
+    if (selectedRun.value?.id === record.id) {
+      detailOpen.value = false
+      selectedRun.value = null
+    }
+    message.success(t('performance.msg.delete_run_success'))
+    await Promise.all([loadRuns({ silent: true }), loadTrend()])
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.delete_run_failed')))
+  } finally {
+    deletingRunId.value = null
+  }
 }
 
 onMounted(loadProjects)

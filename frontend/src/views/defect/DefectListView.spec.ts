@@ -4,15 +4,35 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DefectListView from './DefectListView.vue'
 
-const { authUser, routeQuery, bugTrackerList, defectCreateExternal, projectList, memberList, defectList, defectUpdate, routerPush } = vi.hoisted(() => ({
+const {
+  authUser,
+  routeQuery,
+  modalConfirm,
+  bugTrackerList,
+  defectCreateExternal,
+  defectPushExternal,
+  defectLinkRun,
+  defectUnlinkRun,
+  projectList,
+  memberList,
+  defectList,
+  defectUpdate,
+  defectDelete,
+  routerPush,
+} = vi.hoisted(() => ({
   authUser: { role: 'engineer' as string },
   routeQuery: {} as Record<string, string>,
+  modalConfirm: vi.fn(),
   bugTrackerList: vi.fn(),
   defectCreateExternal: vi.fn(),
+  defectPushExternal: vi.fn(),
+  defectLinkRun: vi.fn(),
+  defectUnlinkRun: vi.fn(),
   projectList: vi.fn(),
   memberList: vi.fn(),
   defectList: vi.fn(),
   defectUpdate: vi.fn(),
+  defectDelete: vi.fn(),
   routerPush: vi.fn(),
 }))
 
@@ -26,17 +46,25 @@ vi.mock('vue-router', () => ({
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: authUser }) }))
 vi.mock('ant-design-vue', () => ({
   message: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
-  Modal: { confirm: vi.fn() },
+  Modal: { confirm: modalConfirm },
 }))
 vi.mock('@/api', () => ({
   bugTrackerApi: { list: bugTrackerList },
   projectApi: { list: projectList },
   projectMemberApi: { list: memberList },
-  defectApi: { list: defectList, update: defectUpdate, createExternal: defectCreateExternal },
+  defectApi: {
+    list: defectList,
+    update: defectUpdate,
+    delete: defectDelete,
+    linkRun: defectLinkRun,
+    unlinkRun: defectUnlinkRun,
+    createExternal: defectCreateExternal,
+    pushExternal: defectPushExternal,
+  },
 }))
 
 const passthrough = (name: string) =>
-  defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
+  defineComponent({ name, setup: (_props, { slots }) => () => h('div', [slots.default?.(), slots.footer?.()]) })
 
 const tableStub = defineComponent({
   name: 'ATable',
@@ -46,7 +74,10 @@ const tableStub = defineComponent({
     (props.dataSource || []).map((record: Record<string, unknown>) => h(
       'div',
       { class: 'defect-row', key: String(record.id) },
-      slots.bodyCell?.({ column: { key: 'title' }, record }),
+      [
+        slots.bodyCell?.({ column: { key: 'title' }, record }),
+        slots.bodyCell?.({ column: { key: 'actions' }, record }),
+      ],
     )),
   ),
 })
@@ -64,6 +95,8 @@ const globalStubs = {
   AForm: passthrough('AForm'),
   AFormItem: passthrough('AFormItem'),
   AInput: passthrough('AInput'),
+  AInputNumber: passthrough('AInputNumber'),
+  AInputSearch: passthrough('AInputSearch'),
   AModal: passthrough('AModal'),
   APagination: passthrough('APagination'),
   ARow: passthrough('ARow'),
@@ -82,8 +115,12 @@ beforeEach(() => {
   memberList.mockResolvedValue([{ user_id: 8, username: 'qa', email: 'qa@example.com', role: 'editor', created_at: '2026-08-24T00:00:00Z' }])
   defectList.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
   defectUpdate.mockResolvedValue(undefined)
+  defectDelete.mockResolvedValue(undefined)
+  defectLinkRun.mockResolvedValue(undefined)
+  defectUnlinkRun.mockResolvedValue(undefined)
   bugTrackerList.mockResolvedValue([])
   defectCreateExternal.mockResolvedValue(undefined)
+  defectPushExternal.mockResolvedValue({})
 })
 
 describe('DefectListView', () => {
@@ -238,6 +275,101 @@ describe('DefectListView', () => {
     })
     expect(routerPush).toHaveBeenNthCalledWith(4, { path: '/suites', query: { project_id: '1', run_id: '14' } })
     expect(routerPush).toHaveBeenNthCalledWith(5, { path: '/plans', query: { project_id: '1', run_id: '15' } })
+    wrapper.unmount()
+  })
+
+  it('supports keyword filter, quick transitions, full detail editing, run linking, external push, and deletion', async () => {
+    const sampleDefect = {
+      id: 10,
+      project_id: 1,
+      case_id: null,
+      title: '登录失败',
+      description: '旧描述',
+      status: 'open' as const,
+      priority: 'P2' as const,
+      severity: 'major' as const,
+      resolution: null,
+      labels: ['auth'],
+      occurrence_count: 1,
+      creator_id: 7,
+      assignee_id: null,
+      created_at: '2026-11-26T00:00:00Z',
+      updated_at: '2026-11-26T00:00:00Z',
+      run_links: [],
+      external_links: [{
+        id: 21,
+        defect_id: 10,
+        tracker_id: 5,
+        tracker_name: 'Jira',
+        tracker_type: 'jira',
+        external_key: 'ATP-10',
+        external_url: 'https://jira.example/ATP-10',
+        external_title: '登录失败',
+        external_status: 'Open',
+        sync_state: 'linked',
+        last_synced_at: null,
+        last_error: null,
+        created_by: 7,
+        created_at: '',
+        updated_at: '',
+      }],
+    }
+    defectList.mockResolvedValue({ items: [sampleDefect], total: 1, page: 1, page_size: 20 })
+    defectUpdate.mockImplementation(async (_id, payload) => ({ ...sampleDefect, ...payload }))
+    defectLinkRun.mockResolvedValue({ id: 31, run_type: 'case', run_id: 245, case_id: 109, evidence: {}, linked_by: 7, created_at: '' })
+
+    const wrapper = mount(DefectListView, { global: { stubs: globalStubs } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('defect.total_count:{"count":1}')
+
+    const vm = wrapper.vm as any
+    vm.keywordFilter = '登录'
+    vm.reloadFirstPage()
+    await flushPromises()
+    expect(defectList).toHaveBeenLastCalledWith(expect.objectContaining({ keyword: '登录', page: 1 }))
+
+    // 快捷状态流转
+    await vm.quickTransitionStatus(sampleDefect, 'in_progress')
+    expect(defectUpdate).toHaveBeenCalledWith(10, { status: 'in_progress' })
+
+    // 打开详情验证状态机约束与全字段编辑
+    vm.openDetail(vm.defects[0])
+    await flushPromises()
+    expect(vm.detailStatusOptions.map((item: { value: string }) => item.value)).toEqual(['in_progress', 'open', 'resolved'])
+
+    vm.editForm.title = '登录超时失败'
+    vm.editForm.description = '补充复现步骤'
+    vm.editForm.labels = 'auth, p1'
+    vm.editForm.resolution = '增加重试'
+    await vm.submitUpdate()
+    expect(defectUpdate).toHaveBeenLastCalledWith(10, expect.objectContaining({
+      title: '登录超时失败',
+      description: '补充复现步骤',
+      labels: ['auth', 'p1'],
+      resolution: '增加重试',
+    }))
+
+    // 关联/解绑执行记录与推送外部状态
+    vm.openLinkRunModal()
+    vm.linkRunForm.run_type = 'case'
+    vm.linkRunForm.run_id = 245
+    await vm.submitLinkRun()
+    expect(defectLinkRun).toHaveBeenCalledWith(10, { run_type: 'case', run_id: 245 })
+    expect(vm.selectedDefect.run_links).toHaveLength(1)
+
+    await vm.pushExternalLink(sampleDefect.external_links[0])
+    expect(defectPushExternal).toHaveBeenCalledWith(10, 21)
+
+    vm.confirmUnlinkRun(vm.selectedDefect.run_links[0])
+    await modalConfirm.mock.calls[0][0].onOk()
+    expect(defectUnlinkRun).toHaveBeenCalledWith(10, 31)
+    expect(vm.selectedDefect.run_links).toHaveLength(0)
+
+    // 删除缺陷
+    vm.confirmDeleteDefect(vm.selectedDefect)
+    await modalConfirm.mock.calls[1][0].onOk()
+    expect(defectDelete).toHaveBeenCalledWith(10)
+    expect(vm.detailOpen).toBe(false)
     wrapper.unmount()
   })
 })

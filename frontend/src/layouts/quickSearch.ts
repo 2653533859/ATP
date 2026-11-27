@@ -301,6 +301,15 @@ export const QUICK_SEARCH_ITEMS: readonly QuickSearchItem[] = [
     roles: ['admin'],
     serverOnly: true,
   },
+  {
+    path: '/system/security',
+    titleKey: 'menu.system.security_governance',
+    groupKey: 'menu.groups.system_center',
+    parentKey: 'menu.system_center.governance',
+    keywords: ['security', 'api key', 'pii', 'disaster', '安全', '密钥', '脱敏', '灾备'],
+    roles: ['admin'],
+    serverOnly: true,
+  },
 
   // 系统 -> 远程运维
   {

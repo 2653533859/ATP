@@ -36,6 +36,9 @@
             </span>
             <span class="node-name" :title="node.name">{{ node.name }}</span>
             <span v-if="editable" class="node-actions" @click.stop>
+              <a-tooltip :title="t('case.module_tree.rename_module')">
+                <EditOutlined class="action-btn-mini" @click="showEditModal(node)" />
+              </a-tooltip>
               <a-tooltip :title="t('case.module_tree.new_child')">
                 <PlusOutlined class="action-btn-mini" @click="showAddModal(node)" />
               </a-tooltip>
@@ -69,13 +72,26 @@
         @pressEnter="handleAdd"
       />
     </a-modal>
+    <a-modal
+      v-model:open="editVisible"
+      :title="t('case.module_tree.rename_module')"
+      width="400px"
+      @ok="handleEdit"
+      :confirm-loading="editing"
+    >
+      <a-input
+        v-model:value="editModuleName"
+        :placeholder="t('case.module_tree.module_name')"
+        @pressEnter="handleEdit"
+      />
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Empty, message, type TreeProps } from 'ant-design-vue'
-import { PlusOutlined, DeleteOutlined, FolderOutlined, FolderOpenOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DeleteOutlined, EditOutlined, FolderOutlined, FolderOpenOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { projectApi, moduleApi, type ModuleTreeItem } from '@/api'
 
@@ -107,6 +123,10 @@ const addVisible = ref(false)
 const addParent = ref<ModuleTreeItem | null>(null)
 const newModuleName = ref('')
 const adding = ref(false)
+const editVisible = ref(false)
+const editTarget = ref<ModuleTreeItem | null>(null)
+const editModuleName = ref('')
+const editing = ref(false)
 
 async function loadModules() {
   loading.value = true
@@ -161,6 +181,29 @@ async function handleAdd() {
     await loadModules()
   } finally {
     adding.value = false
+  }
+}
+
+function showEditModal(node: ModuleTreeItem) {
+  editTarget.value = node
+  editModuleName.value = node.name
+  editVisible.value = true
+}
+
+async function handleEdit() {
+  if (!props.editable || !editTarget.value) return
+  if (!editModuleName.value.trim()) {
+    message.warning(t('case.module_tree.msg.name_required'))
+    return
+  }
+  editing.value = true
+  try {
+    await moduleApi.update(editTarget.value.id, { name: editModuleName.value.trim() })
+    message.success(t('case.module_tree.msg.update_success'))
+    editVisible.value = false
+    await loadModules()
+  } finally {
+    editing.value = false
   }
 }
 

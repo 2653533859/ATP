@@ -12,6 +12,7 @@ const {
   exportCsv,
   exportJson,
   stopRun,
+  deleteRun,
   chartInit,
   routerPush,
   messageError,
@@ -24,6 +25,7 @@ const {
   exportCsv: vi.fn(),
   exportJson: vi.fn(),
   stopRun: vi.fn(),
+  deleteRun: vi.fn(),
   chartInit: vi.fn(),
   routerPush: vi.fn(),
   messageError: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock('@/api', () => ({
     exportRunCsv: exportCsv,
     exportRunJson: exportJson,
     stopRun,
+    deleteRun,
   },
 }))
 
@@ -179,6 +182,10 @@ describe('ReportCenterView mount', () => {
     await wrapper.findAll('button').find((button) => button.text() === 'mobile_special.reports.stop')!.trigger('click')
     expect(stopRun).toHaveBeenCalledWith(21)
     expect(messageSuccess).toHaveBeenCalledWith('mobile_special.reports.msg.stopped')
+
+    await (wrapper.vm as any).handleDeleteRun(RUNS[0])
+    expect(deleteRun).toHaveBeenCalledWith(20)
+    expect(messageSuccess).toHaveBeenCalledWith('mobile_special.msg.delete_success')
 
     createObjectURL.mockRestore()
     revokeObjectURL.mockRestore()

@@ -528,6 +528,7 @@
             <a-space>
               <a-button type="link" size="small" :loading="exportingSuiteRunHtmlId === record.id" @click="handleExportSuiteRunHtml(record.id)">HTML</a-button>
               <a-button type="link" size="small" :loading="exportingSuiteRunPdfId === record.id" @click="handleExportSuiteRunPdf(record.id)">PDF</a-button>
+              <a-button type="link" size="small" :loading="exportingSuiteRunJunitId === record.id" @click="handleExportSuiteRunJunit(record.id)">JUnit</a-button>
             </a-space>
           </template>
         </template>
@@ -696,6 +697,7 @@ const runsLoading = ref(false)
 const expandedSuiteRunKeys = ref<number[]>([])
 const exportingSuiteRunHtmlId = ref<number | null>(null)
 const exportingSuiteRunPdfId = ref<number | null>(null)
+const exportingSuiteRunJunitId = ref<number | null>(null)
 const activeRunsSuiteId = ref<number | null>(null)
 // 运行记录抽屉内存在未结束运行时轮询；标签页隐藏时暂停，上一轮未结束时不叠加请求
 const suiteRunsPolling = useVisiblePolling(() => loadSuiteRuns(activeRunsSuiteId.value, false), 3000)
@@ -715,7 +717,7 @@ const runColumns = computed(() => [
   { title: t('suite.run_columns.case_runs'), key: 'case_runs', width: 120 },
   { title: t('suite.run_columns.duration'), key: 'duration', width: 80 },
   { title: t('suite.run_columns.created'), key: 'created', width: 170 },
-  { title: t('suite.run_columns.export'), key: 'export', width: 160 },
+  { title: t('suite.run_columns.export'), key: 'export', width: 205 },
 ])
 
 const suiteRunCaseColumns = computed(() => [
@@ -1351,6 +1353,18 @@ async function handleExportSuiteRunPdf(runId: number) {
     message.error(getErrorMessage(error, t('suite.msg.export_pdf_failed')))
   } finally {
     exportingSuiteRunPdfId.value = null
+  }
+}
+
+async function handleExportSuiteRunJunit(runId: number) {
+  exportingSuiteRunJunitId.value = runId
+  try {
+    const blob = await suiteApi.exportRunJunit(runId)
+    downloadBlob(blob, `suite-run-${runId}-junit.xml`)
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, t('suite.msg.export_junit_failed')))
+  } finally {
+    exportingSuiteRunJunitId.value = null
   }
 }
 

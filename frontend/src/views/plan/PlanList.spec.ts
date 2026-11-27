@@ -62,6 +62,7 @@ vi.mock('@/api', () => ({
     getRun: planGetRun,
     exportRunHtml: vi.fn(),
     exportRunPdf: vi.fn(),
+    exportRunJunit: vi.fn(),
     list: planList,
     listRuns: planListRuns,
     run: planRun,

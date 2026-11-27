@@ -620,6 +620,7 @@
     <CaseHistoryDrawer
       :open="historyOpen"
       :case-id="historyCaseId"
+      :can-modify="canModifyCases"
       @close="historyOpen = false"
       @rolled="handleHistoryRolled"
     />

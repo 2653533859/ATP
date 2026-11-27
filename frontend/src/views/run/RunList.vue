@@ -6,6 +6,15 @@
         <h2 class="toolbar-title page-title">{{ t('run.list_title') }}</h2>
       </div>
       <div class="toolbar-right">
+        <a-button
+          v-if="selectedRunIds.length > 0"
+          size="small"
+          type="primary"
+          :loading="exportingZip"
+          @click="handleExportZip"
+        >
+          {{ t('run.export_zip_selected', { count: selectedRunIds.length }) }}
+        </a-button>
         <a-button size="small" :loading="loading" @click="loadRuns">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -56,6 +65,7 @@
       :loading="loading"
       :pagination="pagination"
       :locale="{ emptyText: t('run.empty') }"
+      :row-selection="runRowSelection"
       row-key="id"
       :scroll="filteredRuns.length ? { x: 1120 } : undefined"
       @change="handleTableChange"
@@ -89,7 +99,16 @@
           {{ formatTime(record.created_at) }}
         </template>
         <template v-else-if="column.key === 'action'">
-          <a-button type="link" @click="router.push(`/runs/${record.id}`)">{{ t('common.view_detail') }}</a-button>
+          <a-space :size="4">
+            <a-button type="link" size="small" @click="router.push(`/runs/${record.id}`)">{{ t('common.view_detail') }}</a-button>
+            <a-popconfirm
+              v-if="canDeleteRun && record.status !== 'running' && record.status !== 'pending'"
+              :title="t('common.confirm_delete')"
+              @confirm="handleDeleteRun(record.id)"
+            >
+              <a-button type="link" size="small" danger :loading="deletingRunId === record.id">{{ t('common.delete') }}</a-button>
+            </a-popconfirm>
+          </a-space>
         </template>
       </template>
     </a-table>
@@ -105,10 +124,22 @@ import { formatLocalDateTime } from '@/utils/dateTime'
 import { message } from 'ant-design-vue'
 import { runApi, cloudSyncApi, type RunDetailItem } from '@/api'
 import { getRuntimeMode } from '@/runtimeMode'
+import { useAuthStore } from '@/stores/auth'
 const router = useRouter()
 const { t } = useI18n()
+const auth = useAuthStore()
 const runs = ref<RunDetailItem[]>([])
 const loading = ref(false)
+const deletingRunId = ref<number | null>(null)
+const selectedRunIds = ref<number[]>([])
+const exportingZip = ref(false)
+const canDeleteRun = computed(() => auth.user?.role !== 'viewer')
+const runRowSelection = computed(() => ({
+  selectedRowKeys: selectedRunIds.value,
+  onChange: (keys: Array<string | number>) => {
+    selectedRunIds.value = keys.map(Number).filter(Number.isFinite).slice(0, 50)
+  },
+}))
 const caseId = ref<number | null>(null)
 const statusFilter = ref<string>()
 const keyword = ref('')
@@ -157,7 +188,7 @@ const columns = computed(() => [
   { title: t('run.columns.duration_ms'), dataIndex: 'duration_ms', key: 'duration_ms', width: 110 },
   { title: t('run.columns.error_message'), dataIndex: 'error_message', key: 'error_message', width: 260 },
   { title: t('run.columns.created_at'), dataIndex: 'created_at', key: 'created_at', width: 170 },
-  { title: t('run.columns.action'), key: 'action', width: 90, fixed: 'right' as const },
+  { title: t('run.columns.action'), key: 'action', width: 145, fixed: 'right' as const },
 ])
 
 const filteredRuns = computed(() => {
@@ -269,6 +300,40 @@ function handleTableChange(pag: { current?: number; pageSize?: number }) {
   pagination.current = pag.current ?? pagination.current
   pagination.pageSize = pag.pageSize ?? pagination.pageSize
   loadRuns()
+}
+
+async function handleExportZip() {
+  if (!selectedRunIds.value.length) return
+  exportingZip.value = true
+  try {
+    const blob = await runApi.exportRunsZip({ run_ids: selectedRunIds.value, template: 'full' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `runs-export-${selectedRunIds.value.length}.zip`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success(t('run.msg.export_zip_success'))
+  } catch {
+    message.error(t('run.msg.export_zip_failed'))
+  } finally {
+    exportingZip.value = false
+  }
+}
+
+async function handleDeleteRun(id: number) {
+  deletingRunId.value = id
+  try {
+    await runApi.delete(id)
+    message.success(t('run.msg.delete_success'))
+    await loadRuns()
+  } catch {
+    message.error(t('run.msg.delete_failed'))
+  } finally {
+    deletingRunId.value = null
+  }
 }
 
 onMounted(loadRuns)

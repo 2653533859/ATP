@@ -82,6 +82,12 @@ describe('layout navigation state', () => {
     expect(getSelectedMenuKey('/system/datasets')).toBe('/system/datasets')
     expect(getSelectedMenuKey('/system/users')).toBe('/system/users')
     expect(getSelectedMenuKey('/system/audit-logs')).toBe('/system/users')
+    expect(getSelectedMenuKey('/system/security')).toBe('/system/users')
+    expect(getBreadcrumbKeys('/system/security', 'menu.system.security_governance')).toEqual([
+      'menu.groups.system_center',
+      'menu.system_center.governance',
+      'menu.system.security_governance',
+    ])
     expect(getSelectedMenuKey('/system/toolbox')).toBe('/system/toolbox')
     expect(getSelectedMenuKey('/system/remote-nodes')).toBe('/system/toolbox')
     expect(getSelectedMenuKey('/system/ai-llm-configs')).toBe('/system/ai-llm-configs')

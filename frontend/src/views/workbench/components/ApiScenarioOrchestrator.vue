@@ -29,6 +29,12 @@
       </div>
 
       <div class="scenario-header-right">
+        <a-button size="small" :disabled="!steps.length" :loading="validatingDag" @click="handleValidateDagAndDataflow">
+          校验拓扑
+        </a-button>
+        <a-button size="small" :disabled="!steps.length || !canModify" @click="openDebugSessionDrawer">
+          断点调试
+        </a-button>
         <a-button size="small" :disabled="!canModify" :loading="saving" @click="handleSaveScenario(false)">
           保存
         </a-button>
@@ -766,11 +772,115 @@
         </div>
       </div>
     </a-modal>
+
+    <!-- DAG 拓扑与数据流校验抽屉 -->
+    <a-drawer
+      v-model:open="dagDrawerOpen"
+      title="工作流拓扑与数据流校验"
+      :width="640"
+    >
+      <a-spin :spinning="validatingDag">
+        <a-alert
+          v-if="dagValidationError"
+          type="error"
+          show-icon
+          :message="dagValidationError"
+          style="margin-bottom: 12px"
+        />
+        <template v-if="dagResult">
+          <a-alert
+            :type="dagResult.valid ? 'success' : 'error'"
+            show-icon
+            :message="dagResult.valid ? `拓扑结构合法（共 ${dagResult.total_nodes} 个节点）` : '拓扑校验未通过'"
+            style="margin-bottom: 12px"
+          />
+          <div class="dag-block">
+            <div class="dag-block-title">拓扑执行顺序</div>
+            <a-space wrap>
+              <a-tag v-for="nid in dagResult.execution_order" :key="nid" color="blue">{{ nid }}</a-tag>
+            </a-space>
+          </div>
+        </template>
+        <template v-if="dataflowResult">
+          <div class="dag-block">
+            <div class="dag-block-title">
+              变量数据流检查
+              <a-tag :color="dataflowResult.valid ? 'green' : 'orange'" style="margin-left: 8px">
+                {{ dataflowResult.valid ? '通过' : '存在引用风险' }}
+              </a-tag>
+            </div>
+            <p class="dag-meta">
+              总变量 {{ dataflowResult.total_variables }} 个 · 缺失 {{ dataflowResult.missing_variable_count }} · 逆向引用 {{ dataflowResult.reverse_reference_count }} · 未使用 {{ dataflowResult.unused_variable_count }}
+            </p>
+            <a-alert
+              v-for="(item, idx) in [...dataflowResult.reverse_references, ...dataflowResult.missing_variables]"
+              :key="`err-${idx}`"
+              type="warning"
+              show-icon
+              :message="String(item.error || '')"
+              style="margin-bottom: 8px"
+            />
+            <a-alert
+              v-for="(item, idx) in dataflowResult.unused_variables"
+              :key="`warn-${idx}`"
+              type="info"
+              show-icon
+              :message="String(item.note || '')"
+              style="margin-bottom: 8px"
+            />
+          </div>
+        </template>
+      </a-spin>
+    </a-drawer>
+
+    <!-- 断点单步调试抽屉 -->
+    <a-drawer
+      v-model:open="debugDrawerOpen"
+      title="工作流断点单步调试"
+      :width="720"
+    >
+      <a-form layout="vertical" style="margin-bottom: 12px">
+        <a-form-item label="断点节点">
+          <a-checkbox-group v-model:value="debugBreakpoints" :options="debugNodeOptions" />
+        </a-form-item>
+        <a-form-item label="变量观察器 (逗号分隔)">
+          <a-input v-model:value="debugWatchersText" placeholder="例如：token, user_id" />
+        </a-form-item>
+        <a-space wrap>
+          <a-button type="primary" size="small" :loading="debugBusy" @click="handleStartDebug">启动调试</a-button>
+          <a-button size="small" :disabled="!debugSession || debugSession.state !== 'paused'" :loading="debugBusy" @click="handleStepDebug">单步执行 (Step Over)</a-button>
+          <a-button size="small" :disabled="!debugSession || debugSession.state !== 'paused'" :loading="debugBusy" @click="handleResumeDebug">继续执行 (Resume)</a-button>
+          <a-button size="small" danger :disabled="!debugSession" :loading="debugBusy" @click="handleStopDebug">停止调试</a-button>
+        </a-space>
+      </a-form>
+
+      <template v-if="debugSession">
+        <a-descriptions :column="2" size="small" bordered style="margin-bottom: 12px">
+          <a-descriptions-item label="会话 ID"><code>{{ debugSession.session_id }}</code></a-descriptions-item>
+          <a-descriptions-item label="当前状态">
+            <a-tag :color="debugSession.state === 'completed' ? 'green' : debugSession.state === 'error' ? 'red' : 'blue'">
+              {{ debugSession.state }}
+            </a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item label="节点进度">{{ debugSession.current_node_index }} / {{ debugSession.total_nodes }}</a-descriptions-item>
+          <a-descriptions-item label="当前暂停节点">{{ debugSession.current_node?.name || '-' }}</a-descriptions-item>
+        </a-descriptions>
+        <a-alert v-if="debugSession.error" type="error" show-icon :message="debugSession.error" style="margin-bottom: 12px" />
+        <div class="dag-block">
+          <div class="dag-block-title">变量观察器 / 上下文差分</div>
+          <pre class="dag-pre">{{ JSON.stringify({ watchers: debugSession.watchers, context_diff: debugSession.context_diff, context: debugSession.context }, null, 2) }}</pre>
+        </div>
+        <div class="dag-block">
+          <div class="dag-block-title">已执行历史 ({{ debugSession.history.length }})</div>
+          <pre class="dag-pre">{{ JSON.stringify(debugSession.history, null, 2) }}</pre>
+        </div>
+      </template>
+    </a-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import draggable from 'vuedraggable'
 import { message } from 'ant-design-vue'
 import {
@@ -791,6 +901,7 @@ import {
   type EnvVariableItem,
   type EnvironmentItem,
   type AIAssertionSuggestResult,
+  type WorkflowDebugSnapshot,
 } from '@/api'
 import { extractApiError } from '@/utils/apiError'
 import { API_BODY_TEMPLATES } from '@/utils/smartJson'
@@ -2210,9 +2321,250 @@ function handleMoreMenu({ key }: { key: string | number }) {
     message.info('已清空调试结果')
   }
 }
+
+const dagDrawerOpen = ref(false)
+const validatingDag = ref(false)
+const dagValidationError = ref('')
+const dagResult = ref<{ valid: boolean; total_nodes: number; execution_order: string[] } | null>(null)
+const dataflowResult = ref<{
+  valid: boolean
+  total_variables: number
+  missing_variable_count: number
+  reverse_reference_count: number
+  unused_variable_count: number
+  missing_variables: Array<Record<string, unknown>>
+  reverse_references: Array<Record<string, unknown>>
+  unused_variables: Array<Record<string, unknown>>
+} | null>(null)
+
+const debugDrawerOpen = ref(false)
+const debugBusy = ref(false)
+const debugSession = ref<WorkflowDebugSnapshot | null>(null)
+const debugBreakpoints = ref<string[]>([])
+const debugWatchersText = ref('')
+
+const debugNodeOptions = computed(() =>
+  steps.value.map((step, idx) => ({
+    label: `${idx + 1}. ${step.name || `步骤 ${idx + 1}`}`,
+    value: `step_${idx + 1}`,
+  })),
+)
+
+function normalizeScenarioNodeUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim()
+  if (!trimmed) return ''
+  if (/^https?:\/\//i.test(trimmed) || trimmed.includes('{{base_url}}')) {
+    return trimmed
+  }
+  const base = selectedEnvBaseUrl.value.trim().replace(/\/+$/, '')
+  if (base && trimmed.startsWith('/')) {
+    return `${base}${trimmed}`
+  }
+  return trimmed
+}
+
+function normalizeScenarioNodeBody(step: OrchestratorStep): unknown {
+  if (step.body === undefined || step.body === null) return null
+  if (step.body_type === 'json' && typeof step.body === 'string') {
+    const trimmed = step.body.trim()
+    if (!trimmed) return null
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return step.body
+    }
+  }
+  return step.body
+}
+
+function buildScenarioDagNodes() {
+  return steps.value.map((step, idx) => {
+    const id = `step_${idx + 1}`
+    const explicitDeps = Array.isArray(step.depends_on)
+      ? step.depends_on
+          .map((d) => Number(d))
+          .filter((d) => Number.isInteger(d) && d >= 0 && d < steps.value.length && d !== idx)
+          .map((d) => `step_${d + 1}`)
+      : []
+    const dependsOn = explicitDeps.length ? explicitDeps : idx > 0 ? [`step_${idx}`] : []
+    const extractions: Record<string, string> = {}
+    for (const ex of step.extractions || []) {
+      const varName = ex.variable?.trim()
+      if (varName) {
+        extractions[varName] = ex.expression?.trim() || '$'
+      }
+    }
+    return {
+      id,
+      name: step.name || `步骤 ${idx + 1}`,
+      type: 'http',
+      depends_on: dependsOn,
+      config: {
+        method: step.method || 'GET',
+        url: normalizeScenarioNodeUrl(step.url || ''),
+        headers: step.headers || {},
+        params: step.params || {},
+        body: normalizeScenarioNodeBody(step),
+        extractions,
+        assertions: step.assertions || [],
+      },
+    }
+  })
+}
+
+function buildInitialScenarioContext() {
+  const ctx: Record<string, unknown> = {}
+  for (const ev of currentEnvVariables.value) {
+    if (ev.key) ctx[ev.key] = ev.value
+  }
+  if (!ctx.base_url && selectedEnvBaseUrl.value) {
+    ctx.base_url = selectedEnvBaseUrl.value
+  }
+  return ctx
+}
+
+async function releaseActiveDebugSession(silent = true) {
+  const sid = debugSession.value?.session_id
+  debugSession.value = null
+  if (!sid) return
+  try {
+    await apiScenarioApi.stopDebug(sid)
+  } catch (err: unknown) {
+    if (!silent) {
+      message.error(extractApiError(err, '停止调试失败'))
+    }
+  }
+}
+
+watch(debugDrawerOpen, (open) => {
+  if (!open && debugSession.value) {
+    void releaseActiveDebugSession(true)
+  }
+})
+
+watch(
+  () => [props.projectId, props.scenarios?.length ?? 0] as const,
+  ([nextProjectId], [prevProjectId]) => {
+    if (nextProjectId !== prevProjectId && debugSession.value) {
+      void releaseActiveDebugSession(true)
+    }
+  },
+)
+
+onBeforeUnmount(() => {
+  void releaseActiveDebugSession(true)
+})
+
+async function handleValidateDagAndDataflow() {
+  if (!steps.value.length) return
+  dagDrawerOpen.value = true
+  validatingDag.value = true
+  dagValidationError.value = ''
+  dagResult.value = null
+  dataflowResult.value = null
+  try {
+    const nodes = buildScenarioDagNodes()
+    const [dagRes, dfRes] = await Promise.all([
+      apiScenarioApi.validateDag(nodes),
+      apiScenarioApi.validateDataflow({ nodes, initial_context: buildInitialScenarioContext(), strict: false }),
+    ])
+    dagResult.value = dagRes
+    dataflowResult.value = dfRes
+  } catch (err: unknown) {
+    dagValidationError.value = extractApiError(err, '工作流拓扑校验失败')
+  } finally {
+    validatingDag.value = false
+  }
+}
+
+function openDebugSessionDrawer() {
+  debugDrawerOpen.value = true
+}
+
+async function handleStartDebug() {
+  if (!steps.value.length) return
+  debugBusy.value = true
+  try {
+    if (debugSession.value) {
+      await releaseActiveDebugSession(true)
+    }
+    const watchers = debugWatchersText.value
+      .split(',')
+      .map((w) => w.trim())
+      .filter(Boolean)
+    debugSession.value = await apiScenarioApi.startDebug({
+      nodes: buildScenarioDagNodes(),
+      breakpoints: debugBreakpoints.value,
+      initial_context: buildInitialScenarioContext(),
+      watchers,
+    })
+  } catch (err: unknown) {
+    message.error(extractApiError(err, '启动调试会话失败'))
+  } finally {
+    debugBusy.value = false
+  }
+}
+
+async function handleStepDebug() {
+  if (!debugSession.value) return
+  debugBusy.value = true
+  try {
+    debugSession.value = await apiScenarioApi.stepDebug(debugSession.value.session_id)
+  } catch (err: unknown) {
+    message.error(extractApiError(err, '单步执行失败'))
+  } finally {
+    debugBusy.value = false
+  }
+}
+
+async function handleResumeDebug() {
+  if (!debugSession.value) return
+  debugBusy.value = true
+  try {
+    debugSession.value = await apiScenarioApi.resumeDebug(debugSession.value.session_id)
+  } catch (err: unknown) {
+    message.error(extractApiError(err, '继续执行失败'))
+  } finally {
+    debugBusy.value = false
+  }
+}
+
+async function handleStopDebug() {
+  if (!debugSession.value) return
+  debugBusy.value = true
+  try {
+    await releaseActiveDebugSession(false)
+    message.info('已停止调试会话')
+  } finally {
+    debugBusy.value = false
+  }
+}
 </script>
 
 <style scoped>
+.dag-block {
+  margin-top: 14px;
+}
+.dag-block-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.dag-meta {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.dag-pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-bg-subtle);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
 .scenario-orchestrator {
   display: flex;
   flex-direction: column;

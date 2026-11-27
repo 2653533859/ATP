@@ -513,6 +513,7 @@ async def list_defects(
     status_filter: str | None = Query(default=None, alias="status"),
     priority: str | None = Query(default=None),
     severity: str | None = Query(default=None),
+    keyword: str | None = Query(default=None, max_length=128),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -547,6 +548,16 @@ async def list_defects(
         query = query.where(Defect.priority == priority)
     if severity:
         query = query.where(Defect.severity == severity)
+    keyword_text = keyword.strip() if isinstance(keyword, str) else ""
+    if keyword_text:
+        escaped_keyword = keyword_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped_keyword}%"
+        query = query.where(
+            or_(
+                Defect.title.ilike(pattern, escape="\\"),
+                Defect.description.ilike(pattern, escape="\\"),
+            )
+        )
     total = int((await db.execute(select(func.count()).select_from(query.subquery()))).scalar_one() or 0)
     result = await db.execute(
         query.options(

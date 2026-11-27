@@ -75,6 +75,15 @@
           <a-descriptions-item :label="t('run.labels.case_id')">{{ run.case_id }}</a-descriptions-item>
           <a-descriptions-item :label="t('run.labels.trace_id')" :span="2">
             <code>{{ run.trace_id || '-' }}</code>
+            <a-button
+              v-if="run.trace_id"
+              type="link"
+              size="small"
+              style="margin-left: 8px"
+              @click="openTraceDrawer"
+            >
+              {{ t('run.view_trace') }}
+            </a-button>
             <a
               v-if="jaegerSearchUrl"
               :href="jaegerSearchUrl"
@@ -257,13 +266,13 @@
               </button>
             </a-col>
             <a-col :xs="12" :md="6">
-              <a :class="['investigation-card', { 'is-disabled': !jaegerSearchUrl }]" :href="jaegerSearchUrl || undefined" target="_blank">
+              <button class="investigation-card" type="button" :disabled="!run.trace_id" @click="openTraceDrawer">
                 <span class="investigation-icon investigation-icon-info"><LinkOutlined /></span>
                 <span class="investigation-card-body">
                   <span class="investigation-value">{{ run.trace_id ? t('common.yes') : t('common.no') }}</span>
                   <span class="investigation-label">{{ t('run.investigation.trace') }}</span>
                 </span>
-              </a>
+              </button>
             </a-col>
             <a-col :xs="12" :md="6">
               <button class="investigation-card" type="button" @click="focusHealing">
@@ -614,6 +623,14 @@
                     </a-button>
                   </template>
                   <a-button
+                    v-if="isAdmin && step.healing_feedback === 'adopted' && step.id"
+                    size="small"
+                    :loading="promotingExampleStepId === step.id"
+                    @click="promoteStepToHealingExample(step)"
+                  >
+                    {{ t('run.healing.promote_example') }}
+                  </a-button>
+                  <a-button
                     v-if="canApplyHealingPatch"
                     size="small"
                     :loading="healingPatchLoading && healingPatchStep?.step_index === step.step_index"
@@ -874,6 +891,109 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-drawer
+      v-model:open="traceDrawerOpen"
+      :title="t('run.trace_drawer.title')"
+      :width="740"
+    >
+      <a-spin :spinning="traceLoading">
+        <template v-if="traceDetail">
+          <a-descriptions :column="2" size="small" bordered style="margin-bottom: 16px">
+            <a-descriptions-item label="Trace ID" :span="2">
+              <code>{{ traceDetail.trace_id }}</code>
+              <a
+                v-if="jaegerSearchUrl"
+                :href="jaegerSearchUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                style="margin-left: 10px"
+              >
+                <LinkOutlined /> {{ t('run.open_in_jaeger') }}
+              </a>
+            </a-descriptions-item>
+            <a-descriptions-item :label="t('run.trace_drawer.total_runs')">
+              {{ traceDetail.total_runs }}
+            </a-descriptions-item>
+            <a-descriptions-item :label="t('run.trace_drawer.span_count')">
+              {{ traceDetail.distributed_trace?.span_count ?? 0 }}
+            </a-descriptions-item>
+          </a-descriptions>
+
+          <div class="trace-section">
+            <h4>{{ t('run.trace_drawer.linked_runs') }}</h4>
+            <div v-if="traceDetail.plan_runs.length" class="trace-group">
+              <div class="trace-group-title">{{ t('defect.evidence.run_type.plan') }}</div>
+              <a-space wrap>
+                <a-tag v-for="pr in traceDetail.plan_runs" :key="`p-${pr.id}`" color="purple">
+                  #{{ pr.id }} · {{ pr.status }}
+                </a-tag>
+              </a-space>
+            </div>
+            <div v-if="traceDetail.suite_runs.length" class="trace-group">
+              <div class="trace-group-title">{{ t('defect.evidence.run_type.suite') }}</div>
+              <a-space wrap>
+                <a-tag v-for="sr in traceDetail.suite_runs" :key="`s-${sr.id}`" color="geekblue">
+                  #{{ sr.id }} · {{ sr.status }}
+                </a-tag>
+              </a-space>
+            </div>
+            <div v-if="traceDetail.case_runs.length" class="trace-group">
+              <div class="trace-group-title">{{ t('defect.evidence.run_type.case') }}</div>
+              <a-space wrap>
+                <a-tag v-for="cr in traceDetail.case_runs" :key="`c-${cr.id}`" :color="cr.status === 'passed' ? 'green' : cr.status === 'failed' ? 'red' : 'blue'">
+                  <router-link :to="{ name: 'run-detail', params: { runId: String(cr.id) } }">
+                    #{{ cr.id }} (Case #{{ cr.case_id }}) · {{ cr.status }}
+                  </router-link>
+                </a-tag>
+              </a-space>
+            </div>
+          </div>
+
+          <div class="trace-section">
+            <h4>{{ t('run.trace_drawer.waterfall') }}</h4>
+            <a-alert
+              v-if="!traceDetail.distributed_trace"
+              type="info"
+              show-icon
+              :message="t('run.trace_drawer.no_apm')"
+            />
+            <template v-else>
+              <div v-if="traceDetail.distributed_trace.anomaly_cluster" class="trace-anomaly-box">
+                <a-alert
+                  type="error"
+                  show-icon
+                  :message="`${traceDetail.distributed_trace.anomaly_cluster.root_cause_service} · ${traceDetail.distributed_trace.anomaly_cluster.root_cause_category}`"
+                  :description="traceDetail.distributed_trace.anomaly_cluster.root_cause_summary"
+                  style="margin-bottom: 12px"
+                />
+              </div>
+              <div class="trace-waterfall-list">
+                <div
+                  v-for="item in flattenedTraceSpans"
+                  :key="item.span.span_id"
+                  class="trace-span-row"
+                  :style="{ marginLeft: `${Math.min(item.depth, 6) * 16}px` }"
+                >
+                  <div class="trace-span-meta">
+                    <a-tag :color="item.span.has_error ? 'red' : 'blue'">{{ item.span.service_name }}</a-tag>
+                    <span class="trace-span-op">{{ item.span.operation_name }}</span>
+                    <span class="trace-span-dur">{{ item.span.duration_ms.toFixed(1) }} ms</span>
+                  </div>
+                  <div class="trace-span-track">
+                    <div
+                      class="trace-span-bar"
+                      :class="{ 'is-error': item.span.has_error }"
+                      :style="spanBarStyle(item.span, traceDetail.distributed_trace.total_duration_ms)"
+                    />
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </a-spin>
+    </a-drawer>
   </div>
 </template>
 
@@ -883,7 +1003,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
 import { AuditOutlined, VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined, CloudSyncOutlined, SyncOutlined, StopOutlined, PictureOutlined, CopyOutlined, FullscreenOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, cloudSyncApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem, type RunSyncStatus, type RunTriageCategory, type RunTriageInfo } from '@/api'
+import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingExampleApi, aiHealingPatchApi, cloudSyncApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type DistributedSpanItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem, type RunSyncStatus, type RunTriageCategory, type RunTriageInfo, type TraceDetailItem } from '@/api'
 import { getRuntimeMode } from '@/runtimeMode'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -1026,6 +1146,8 @@ const fallbackImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ
 
 const projectRole = ref<ProjectRole | undefined>(undefined)
 const canEditProject = computed(() => canEditProjectByRole(auth.user?.role, projectRole.value))
+const isAdmin = computed(() => auth.user?.role === 'admin')
+const promotingExampleStepId = ref<number | null>(null)
 const isRunning = computed(() => run.value?.status === 'running' || run.value?.status === 'pending')
 const canCreateBug = computed(() => canEditProject.value)
 // 仅 Web 与 Android 低代码执行器会轮询停止信号；项目权限与 Android 脚本用例由后端校验并返回原因。
@@ -1231,6 +1353,19 @@ async function onHealingFeedback(step: RunStepItem, action: 'adopted' | 'rejecte
     message.success(t('run.healing.feedback_thanks'))
   } catch {
     // axios 拦截器已弹出错误
+  }
+}
+
+async function promoteStepToHealingExample(step: RunStepItem) {
+  if (!isAdmin.value || !step.id) return
+  promotingExampleStepId.value = step.id
+  try {
+    await aiHealingExampleApi.createFromStep(step.id)
+    message.success(t('run.healing.promote_example_success'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('run.healing.promote_example_failed')))
+  } finally {
+    promotingExampleStepId.value = null
   }
 }
 
@@ -1923,9 +2058,115 @@ onMounted(async () => {
 onUnmounted(() => {
   wsHandle?.close()
 })
+
+const traceDrawerOpen = ref(false)
+const traceLoading = ref(false)
+const traceDetail = ref<TraceDetailItem | null>(null)
+
+async function openTraceDrawer() {
+  const tid = run.value?.trace_id
+  if (!tid) return
+  traceDrawerOpen.value = true
+  traceLoading.value = true
+  traceDetail.value = null
+  try {
+    traceDetail.value = await tracingApi.getTrace(tid)
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('run.trace_drawer.load_failed')))
+  } finally {
+    traceLoading.value = false
+  }
+}
+
+interface FlattenedSpanRow {
+  span: DistributedSpanItem
+  depth: number
+}
+
+function flattenDistributedSpans(spans: DistributedSpanItem[] | undefined, depth = 0): FlattenedSpanRow[] {
+  if (!Array.isArray(spans) || !spans.length) return []
+  const rows: FlattenedSpanRow[] = []
+  for (const span of spans) {
+    rows.push({ span, depth })
+    if (Array.isArray(span.children) && span.children.length) {
+      rows.push(...flattenDistributedSpans(span.children, depth + 1))
+    }
+  }
+  return rows
+}
+
+const flattenedTraceSpans = computed(() => flattenDistributedSpans(traceDetail.value?.distributed_trace?.spans))
+
+function spanBarStyle(span: DistributedSpanItem, totalDurationMs: number) {
+  const total = totalDurationMs > 0 ? totalDurationMs : 1
+  const left = Math.max(0, Math.min(98, (span.start_time_offset_ms / total) * 100))
+  const width = Math.max(2, Math.min(100 - left, (span.duration_ms / total) * 100))
+  return { left: `${left}%`, width: `${width}%` }
+}
 </script>
 
 <style scoped>
+.trace-section {
+  margin-bottom: 18px;
+}
+.trace-section h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.trace-group {
+  margin-bottom: 10px;
+}
+.trace-group-title {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--c-text-secondary);
+}
+.trace-waterfall-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trace-span-row {
+  padding: 8px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-bg-subtle);
+}
+.trace-span-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.trace-span-op {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trace-span-dur {
+  color: var(--c-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.trace-span-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--c-border-subtle);
+  overflow: hidden;
+}
+.trace-span-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: var(--c-primary);
+}
+.trace-span-bar.is-error {
+  background: var(--c-error);
+}
 .investigation-panel {
   margin-bottom: 20px;
   padding: 16px;

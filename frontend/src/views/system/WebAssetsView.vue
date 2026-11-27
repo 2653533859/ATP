@@ -105,8 +105,50 @@
             </template>
           </a-table>
         </a-tab-pane>
+        <a-tab-pane key="storage_states" :tab="t('web_assets.storage_states_tab')">
+          <a-table :data-source="storageStates" :columns="storageStateColumns" :loading="loading" row-key="name" :pagination="{ pageSize: 10 }" :locale="{ emptyText: t('web_assets.empty_storage_states') }">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'size'">{{ formatBytes(record.size) }}</template>
+              <template v-else-if="column.key === 'updated_at'">{{ record.updated_at ? formatTime(record.updated_at) : '-' }}</template>
+              <template v-else-if="column.key === 'actions'">
+                <a-popconfirm :title="t('common.confirm_delete')" :disabled="!canModify" @confirm="deleteStorageState(record.name)">
+                  <a-button type="link" danger size="small" :disabled="!canModify">{{ t('common.delete') }}</a-button>
+                </a-popconfirm>
+              </template>
+            </template>
+          </a-table>
+        </a-tab-pane>
+        <a-tab-pane key="uploaded_files" :tab="t('web_assets.uploaded_files_tab')">
+          <a-table :data-source="uploadedFiles" :columns="uploadedFileColumns" :loading="loading" row-key="object_name" :pagination="{ pageSize: 10 }" :locale="{ emptyText: t('web_assets.empty_uploaded_files') }">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'size'">{{ formatBytes(record.size) }}</template>
+              <template v-else-if="column.key === 'last_modified'">{{ record.last_modified ? formatTime(record.last_modified) : '-' }}</template>
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-button type="link" size="small" :disabled="!canModify" @click="openRenameFileModal(record as { object_name: string; filename: string })">{{ t('web_assets.rename') }}</a-button>
+                  <a-popconfirm :title="t('common.confirm_delete')" :disabled="!canModify" @confirm="deleteUploadedFile(record.object_name)">
+                    <a-button type="link" danger size="small" :disabled="!canModify">{{ t('common.delete') }}</a-button>
+                  </a-popconfirm>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
+        </a-tab-pane>
       </a-tabs>
     </template>
+
+    <a-modal
+      v-model:open="renameFileModalOpen"
+      :title="t('web_assets.rename_file_title')"
+      :confirm-loading="saving"
+      @ok="handleRenameFile"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('web_assets.filename')" required>
+          <a-input v-model:value="renameFileForm.filename" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <a-modal
       v-model:open="elementModalOpen"
@@ -251,7 +293,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { projectApi, webAssetsApi, webVisualApi, type ProjectItem, type WebElementAssetItem, type WebLocatorRepairCandidate, type WebPageObjectItem, type WebRecordingStep, type WebVisualBaselineItem } from '@/api'
+import { projectApi, webAssetsApi, webFilesApi, webVisualApi, type ProjectItem, type WebElementAssetItem, type WebLocatorRepairCandidate, type WebPageObjectItem, type WebRecordingStep, type WebStorageStateItem, type WebVisualBaselineItem } from '@/api'
+import { formatLocalDateTime } from '@/utils/dateTime'
 import WebRecorderModal from '@/components/common/WebRecorderModal.vue'
 import WebAssetFieldEditor from '@/components/common/WebAssetFieldEditor.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -270,6 +313,10 @@ const selectedProjectId = ref<number | undefined>()
 const elements = ref<WebElementAssetItem[]>([])
 const pageObjects = ref<WebPageObjectItem[]>([])
 const visualBaselines = ref<WebVisualBaselineItem[]>([])
+const storageStates = ref<WebStorageStateItem[]>([])
+const uploadedFiles = ref<Array<{ object_name: string; filename: string; size: number; last_modified?: string | null }>>([])
+const renameFileModalOpen = ref(false)
+const renameFileForm = ref({ object_name: '', filename: '' })
 const editingElement = ref<WebElementAssetItem | null>(null)
 const editingPageObject = ref<WebPageObjectItem | null>(null)
 const editingVisualBaseline = ref<WebVisualBaselineItem | null>(null)
@@ -321,6 +368,19 @@ const visualBaselineColumns = computed(() => [
   { title: t('web_assets.version'), key: 'version', dataIndex: 'version', width: 80 },
   { title: t('common.actions'), key: 'actions', width: 130 },
 ])
+const storageStateColumns = computed(() => [
+  { title: t('web_assets.name'), key: 'name', dataIndex: 'name' },
+  { title: t('web_assets.size'), key: 'size', width: 110 },
+  { title: t('common.updated_at'), key: 'updated_at', width: 175 },
+  { title: t('common.actions'), key: 'actions', width: 95 },
+])
+const uploadedFileColumns = computed(() => [
+  { title: t('web_assets.filename'), key: 'filename', dataIndex: 'filename', ellipsis: true },
+  { title: t('web_assets.object_key'), key: 'object_name', dataIndex: 'object_name', ellipsis: true },
+  { title: t('web_assets.size'), key: 'size', width: 110 },
+  { title: t('common.updated_at'), key: 'last_modified', width: 175 },
+  { title: t('common.actions'), key: 'actions', width: 150 },
+])
 
 const elementForm = ref({ name: '', page_url: '', locatorText: '{}', fallbackText: '[]', description: '' })
 const pageObjectForm = ref({ name: '', url_pattern: '', elementRefsText: '[]', actionsText: '[]', description: '' })
@@ -342,6 +402,16 @@ function locatorLabel(locator: Record<string, unknown>) {
   return `${String(locator.strategy || 'locator')}: ${String(locator.value || '')}`
 }
 
+function formatTime(value?: string | null) {
+  return formatLocalDateTime(value)
+}
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes < 1024) return `${bytes || 0} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
 function parseJson<T>(text: string, label: string): T | null {
   try {
     return JSON.parse(text) as T
@@ -355,6 +425,8 @@ function clearAssets() {
   elements.value = []
   pageObjects.value = []
   visualBaselines.value = []
+  storageStates.value = []
+  uploadedFiles.value = []
 }
 
 async function handleProjectChange() {
@@ -378,15 +450,19 @@ async function loadAll() {
   const seq = ++loadSeq
   loading.value = true
   try {
-    const [elementItems, pageItems, baselineItems] = await Promise.all([
+    const [elementItems, pageItems, baselineItems, storageItems, fileItems] = await Promise.all([
       webAssetsApi.listElements(projectId),
       webAssetsApi.listPageObjects(projectId),
       webVisualApi.listBaselines(projectId),
+      webAssetsApi.listStorageStates ? webAssetsApi.listStorageStates(projectId).catch(() => []) : Promise.resolve([]),
+      webFilesApi?.list ? webFilesApi.list(projectId).catch(() => []) : Promise.resolve([]),
     ])
     if (seq !== loadSeq || selectedProjectId.value !== projectId) return
     elements.value = elementItems
     pageObjects.value = pageItems
     visualBaselines.value = baselineItems
+    storageStates.value = storageItems
+    uploadedFiles.value = fileItems
   } catch (error: unknown) {
     if (seq !== loadSeq || selectedProjectId.value !== projectId) return
     message.error(extractApiError(error, t('web_assets.load_failed')))
@@ -399,8 +475,65 @@ async function loadAll() {
 
 function applyRequestedTab(value: unknown) {
   const requestedTab = Array.isArray(value) ? value[0] : value
-  if (requestedTab === 'elements' || requestedTab === 'page_objects' || requestedTab === 'visual_baselines') {
+  if (
+    requestedTab === 'elements' ||
+    requestedTab === 'page_objects' ||
+    requestedTab === 'visual_baselines' ||
+    requestedTab === 'storage_states' ||
+    requestedTab === 'uploaded_files'
+  ) {
     activeTab.value = requestedTab
+  }
+}
+
+async function deleteStorageState(name: string) {
+  if (!selectedProjectId.value || !canModify.value) return
+  try {
+    await webAssetsApi.deleteStorageState(selectedProjectId.value, name)
+    message.success(t('web_assets.storage_state_deleted'))
+    await loadAll()
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.delete_failed')))
+  }
+}
+
+function openRenameFileModal(item: { object_name: string; filename: string }) {
+  if (!canModify.value) return
+  renameFileForm.value = { object_name: item.object_name, filename: item.filename }
+  renameFileModalOpen.value = true
+}
+
+async function handleRenameFile() {
+  if (!selectedProjectId.value || !canModify.value) return
+  const filename = renameFileForm.value.filename.trim()
+  if (!filename) {
+    message.warning(t('web_assets.filename_required'))
+    return
+  }
+  saving.value = true
+  try {
+    await webFilesApi.rename(selectedProjectId.value, {
+      object_name: renameFileForm.value.object_name,
+      filename,
+    })
+    renameFileModalOpen.value = false
+    message.success(t('web_assets.rename_success'))
+    await loadAll()
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.rename_failed')))
+  } finally {
+    saving.value = false
+  }
+}
+
+async function deleteUploadedFile(objectName: string) {
+  if (!selectedProjectId.value || !canModify.value) return
+  try {
+    await webFilesApi.delete(selectedProjectId.value, objectName)
+    message.success(t('web_assets.file_deleted'))
+    await loadAll()
+  } catch (error: unknown) {
+    message.error(extractApiError(error, t('web_assets.delete_failed')))
   }
 }
 

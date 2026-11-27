@@ -29,9 +29,9 @@ describe('quick search index', () => {
     window.localStorage.removeItem(QUICK_SEARCH_RECENT_KEY)
   })
 
-  it('indexes all 39 feature entries with unique paths', () => {
-    expect(QUICK_SEARCH_ITEMS).toHaveLength(39)
-    expect(new Set(QUICK_SEARCH_ITEMS.map((item) => item.path)).size).toBe(39)
+  it('indexes all 40 feature entries with unique paths', () => {
+    expect(QUICK_SEARCH_ITEMS).toHaveLength(40)
+    expect(new Set(QUICK_SEARCH_ITEMS.map((item) => item.path)).size).toBe(40)
   })
 
   it('finds hidden/consolidated subpages directly by Chinese and English aliases', () => {

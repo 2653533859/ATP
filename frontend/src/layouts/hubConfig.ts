@@ -116,6 +116,7 @@ export const TABBED_HUBS: Record<HubId, HubDefinition> = {
       { path: '/system/audit-logs', labelKey: 'menu.system.audit_logs', roles: ['admin'] },
       { path: '/system/run-retention', labelKey: 'menu.system.run_retention', roles: ['admin'], serverOnly: true },
       { path: '/system/dashboard-alerts', labelKey: 'menu.system.dashboard_alerts', roles: ['admin'], serverOnly: true },
+      { path: '/system/security', labelKey: 'menu.system.security_governance', roles: ['admin'], serverOnly: true },
     ],
   },
   'remote-ops': {

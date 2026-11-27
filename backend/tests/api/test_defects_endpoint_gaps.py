@@ -903,6 +903,75 @@ def test_list_defects_rejects_unknown_run_type(monkeypatch):
     assert exc.value.status_code == 422
 
 
+def test_list_defects_applies_keyword_filter_to_query(monkeypatch):
+    captured = []
+
+    def fake_scope(stmt, *_args, **_kwargs):
+        return stmt
+
+    monkeypatch.setattr(defects, "scope_to_visible_projects", fake_scope)
+
+    class _CapturingDB(_FakeDB):
+        async def execute(self, stmt):
+            captured.append(str(stmt))
+            return await super().execute(stmt)
+
+    db = _CapturingDB(results=[_Result(scalar=0), _Result(rows=[])])
+    result = asyncio.run(
+        defects.list_defects(
+            project_id=None,
+            case_id=None,
+            run_type=None,
+            run_id=None,
+            status_filter=None,
+            priority=None,
+            severity=None,
+            keyword="  登录  ",
+            page=1,
+            page_size=20,
+            db=db,
+            user=_user(),
+        )
+    )
+    assert result.total == 0
+    assert any("defects.title" in sql and "defects.description" in sql for sql in captured)
+
+
+def test_list_defects_escapes_like_wildcards_in_keyword(monkeypatch):
+    compiled = []
+
+    def fake_scope(stmt, *_args, **_kwargs):
+        return stmt
+
+    monkeypatch.setattr(defects, "scope_to_visible_projects", fake_scope)
+
+    class _CapturingDB(_FakeDB):
+        async def execute(self, stmt):
+            compiled.append(stmt.compile())
+            return await super().execute(stmt)
+
+    db = _CapturingDB(results=[_Result(scalar=0), _Result(rows=[])])
+    asyncio.run(
+        defects.list_defects(
+            project_id=None,
+            case_id=None,
+            run_type=None,
+            run_id=None,
+            status_filter=None,
+            priority=None,
+            severity=None,
+            keyword="100%_bug\\case",
+            page=1,
+            page_size=20,
+            db=db,
+            user=_user(),
+        )
+    )
+    sql_text = str(compiled[0])
+    assert "ESCAPE" in sql_text.upper()
+    assert "%100\\%\\_bug\\\\case%" in compiled[0].params.values()
+
+
 def test_create_defect_validates_link_case_scope(monkeypatch):
     _no_access(monkeypatch)
     audit = _ok_audit(monkeypatch)

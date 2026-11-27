@@ -17,7 +17,17 @@
           <a-table-column data-index="platform_version" title="iOS" />
           <a-table-column data-index="appium_server_url" title="Appium" />
           <a-table-column key="status" :title="t('ios_assets.status')"><template #default="{ record }"><a-tag>{{ record.status }}</a-tag></template></a-table-column>
-          <a-table-column key="action" :title="t('common.action')"><template #default="{ record }"><a-popconfirm :disabled="!canManageDevices" :title="t('ios_assets.delete_confirm')" @confirm="deleteDevice(record.id)"><a-button danger type="link" :disabled="!canManageDevices">{{ t('common.delete') }}</a-button></a-popconfirm></template></a-table-column>
+          <a-table-column key="action" :title="t('common.action')" :width="220">
+            <template #default="{ record }">
+              <a-space size="small">
+                <a-button type="link" size="small" :disabled="!canManageDevices" @click="openEditDeviceModal(record)">{{ t('common.edit') }}</a-button>
+                <a-button type="link" size="small" :disabled="!canManageDevices" :loading="heartbeatingDeviceId === record.id" @click="heartbeatDevice(record.id)">{{ t('ios_assets.heartbeat') }}</a-button>
+                <a-popconfirm :disabled="!canManageDevices" :title="t('ios_assets.delete_confirm')" @confirm="deleteDevice(record.id)">
+                  <a-button danger type="link" size="small" :disabled="!canManageDevices">{{ t('common.delete') }}</a-button>
+                </a-popconfirm>
+              </a-space>
+            </template>
+          </a-table-column>
         </a-table>
       </a-tab-pane>
       <a-tab-pane key="apps" :tab="t('ios_assets.apps')">
@@ -29,18 +39,41 @@
           <a-table-column data-index="filename" :title="t('ios_assets.filename')" />
           <a-table-column data-index="bundle_id" title="Bundle ID" />
           <a-table-column data-index="version_name" :title="t('ios_assets.version')" />
-          <a-table-column key="action" :title="t('common.action')"><template #default="{ record }"><a-popconfirm :disabled="!canModifyProject" :title="t('ios_assets.delete_confirm')" @confirm="deleteApp(record.id)"><a-button danger type="link" :disabled="!canModifyProject">{{ t('common.delete') }}</a-button></a-popconfirm></template></a-table-column>
+          <a-table-column key="action" :title="t('common.action')" :width="210">
+            <template #default="{ record }">
+              <a-space size="small">
+                <a-button type="link" size="small" :loading="downloadingAppId === record.id" @click="downloadApp(record.id)">{{ t('ios_assets.download') }}</a-button>
+                <a-button type="link" size="small" :disabled="!canModifyProject" @click="openEditAppModal(record)">{{ t('common.edit') }}</a-button>
+                <a-popconfirm :disabled="!canModifyProject" :title="t('ios_assets.delete_confirm')" @confirm="deleteApp(record.id)">
+                  <a-button danger type="link" size="small" :disabled="!canModifyProject">{{ t('common.delete') }}</a-button>
+                </a-popconfirm>
+              </a-space>
+            </template>
+          </a-table-column>
         </a-table>
       </a-tab-pane>
     </a-tabs>
 
-    <a-modal v-model:open="deviceModalOpen" :title="t('ios_assets.register_device')" :confirm-loading="saving" :mask-closable="false" @ok="saveDevice" @cancel="resetDeviceForm">
+    <a-modal v-model:open="deviceModalOpen" :title="editingDeviceId ? t('ios_assets.edit_device') : t('ios_assets.register_device')" :confirm-loading="saving" :mask-closable="false" @ok="saveDevice" @cancel="resetDeviceForm">
       <a-form layout="vertical">
-        <a-form-item label="UDID" required><a-input v-model:value="deviceForm.udid" /></a-form-item>
+        <a-form-item label="UDID" required><a-input v-model:value="deviceForm.udid" :disabled="!!editingDeviceId" /></a-form-item>
         <a-form-item :label="t('ios_assets.name')"><a-input v-model:value="deviceForm.name" /></a-form-item>
         <a-form-item :label="t('ios_assets.model')"><a-input v-model:value="deviceForm.model" /></a-form-item>
         <a-form-item label="iOS"><a-input v-model:value="deviceForm.platform_version" /></a-form-item>
         <a-form-item label="Appium URL" required><a-input v-model:value="deviceForm.appium_server_url" /></a-form-item>
+        <a-form-item v-if="editingDeviceId" :label="t('ios_assets.status')">
+          <a-select v-model:value="deviceForm.status" :options="iosStatusOptions" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal v-model:open="appModalOpen" :title="t('ios_assets.edit_app')" :confirm-loading="savingApp" :mask-closable="false" @ok="saveApp">
+      <a-form layout="vertical">
+        <a-form-item label="Bundle ID"><a-input v-model:value="appForm.bundle_id" /></a-form-item>
+        <a-form-item :label="t('ios_assets.version')"><a-input v-model:value="appForm.version_name" /></a-form-item>
+        <a-form-item :label="t('ios_assets.signing_identity')"><a-input v-model:value="appForm.signing_identity" /></a-form-item>
+        <a-form-item :label="t('ios_assets.provisioning_profile')"><a-input v-model:value="appForm.provisioning_profile" /></a-form-item>
+        <a-form-item :label="t('common.description')"><a-textarea v-model:value="appForm.description" :rows="3" /></a-form-item>
       </a-form>
     </a-modal>
   </div>
@@ -68,19 +101,77 @@ const loadingApps = ref(false)
 const uploading = ref(false)
 const saving = ref(false)
 const deviceModalOpen = ref(false)
-const deviceForm = reactive({ udid: '', name: '', model: '', platform_version: '', appium_server_url: 'http://127.0.0.1:4723' })
+const editingDeviceId = ref<number | null>(null)
+const heartbeatingDeviceId = ref<number | null>(null)
+const appModalOpen = ref(false)
+const savingApp = ref(false)
+const editingAppId = ref<number | null>(null)
+const downloadingAppId = ref<number | null>(null)
+const deviceForm = reactive({
+  udid: '',
+  name: '',
+  model: '',
+  platform_version: '',
+  appium_server_url: 'http://127.0.0.1:4723',
+  status: 'online' as IosDeviceItem['status'],
+})
+const appForm = reactive({
+  bundle_id: '',
+  version_name: '',
+  signing_identity: '',
+  provisioning_profile: '',
+  description: '',
+})
+const iosStatusOptions = computed(() => [
+  { label: t('device.statuses.online'), value: 'online' },
+  { label: t('device.statuses.offline'), value: 'offline' },
+  { label: t('device.statuses.busy'), value: 'busy' },
+])
 const projectOptions = computed(() => projects.value.map((item) => ({ label: item.name, value: item.id })))
 const currentProject = computed(() => projects.value.find((item) => item.id === projectId.value))
 const canModifyProject = computed(() => canEditProjectByRole(auth.user?.role, currentProject.value?.current_user_role))
 const canManageDevices = computed(() => canEditProjectAssets(auth.user?.role))
 
 function resetDeviceForm() {
-  Object.assign(deviceForm, { udid: '', name: '', model: '', platform_version: '', appium_server_url: 'http://127.0.0.1:4723' })
+  editingDeviceId.value = null
+  Object.assign(deviceForm, {
+    udid: '',
+    name: '',
+    model: '',
+    platform_version: '',
+    appium_server_url: 'http://127.0.0.1:4723',
+    status: 'online' as IosDeviceItem['status'],
+  })
 }
 
 function openDeviceModal() {
   resetDeviceForm()
   deviceModalOpen.value = true
+}
+
+function openEditDeviceModal(device: IosDeviceItem) {
+  editingDeviceId.value = device.id
+  Object.assign(deviceForm, {
+    udid: device.udid,
+    name: device.name || '',
+    model: device.model || '',
+    platform_version: device.platform_version || '',
+    appium_server_url: device.appium_server_url,
+    status: device.status,
+  })
+  deviceModalOpen.value = true
+}
+
+function openEditAppModal(app: IosAppItem) {
+  editingAppId.value = app.id
+  Object.assign(appForm, {
+    bundle_id: app.bundle_id || '',
+    version_name: app.version_name || '',
+    signing_identity: app.signing_identity || '',
+    provisioning_profile: app.provisioning_profile || '',
+    description: app.description || '',
+  })
+  appModalOpen.value = true
 }
 
 async function loadDevices() {
@@ -118,15 +209,80 @@ async function saveDevice() {
   if (!deviceForm.udid.trim() || !deviceForm.appium_server_url.trim()) return message.warning(t('ios_assets.required'))
   saving.value = true
   try {
-    await iosApi.createDevice({ ...deviceForm })
+    if (editingDeviceId.value) {
+      await iosApi.updateDevice(editingDeviceId.value, {
+        name: deviceForm.name.trim() || undefined,
+        model: deviceForm.model.trim() || undefined,
+        platform_version: deviceForm.platform_version.trim() || undefined,
+        appium_server_url: deviceForm.appium_server_url.trim(),
+        status: deviceForm.status,
+      })
+    } else {
+      await iosApi.createDevice({
+        udid: deviceForm.udid.trim(),
+        name: deviceForm.name.trim() || undefined,
+        model: deviceForm.model.trim() || undefined,
+        platform_version: deviceForm.platform_version.trim() || undefined,
+        appium_server_url: deviceForm.appium_server_url.trim(),
+      })
+    }
     deviceModalOpen.value = false
     resetDeviceForm()
     await loadDevices()
     message.success(t('common.success'))
   } catch (error: unknown) {
-    message.error(extractApiError(error, '注册 iOS 设备失败'))
+    message.error(extractApiError(error, '保存 iOS 设备失败'))
   } finally {
     saving.value = false
+  }
+}
+
+async function heartbeatDevice(id: number) {
+  if (!canManageDevices.value) return
+  heartbeatingDeviceId.value = id
+  try {
+    await iosApi.heartbeatDevice(id)
+    await loadDevices()
+    message.success(t('ios_assets.heartbeat_success'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, '刷新 iOS 设备心跳失败'))
+  } finally {
+    heartbeatingDeviceId.value = null
+  }
+}
+
+async function saveApp() {
+  if (!canModifyProject.value || !editingAppId.value) return
+  savingApp.value = true
+  try {
+    await iosApi.updateApp(editingAppId.value, {
+      bundle_id: appForm.bundle_id.trim() || null,
+      version_name: appForm.version_name.trim() || null,
+      signing_identity: appForm.signing_identity.trim() || null,
+      provisioning_profile: appForm.provisioning_profile.trim() || null,
+      description: appForm.description.trim() || null,
+    })
+    appModalOpen.value = false
+    await loadApps()
+    message.success(t('common.success'))
+  } catch (error: unknown) {
+    message.error(extractApiError(error, '更新 IPA 资产失败'))
+  } finally {
+    savingApp.value = false
+  }
+}
+
+async function downloadApp(id: number) {
+  downloadingAppId.value = id
+  try {
+    const res = await iosApi.downloadApp(id)
+    if (res?.url) {
+      window.open(res.url, '_blank', 'noopener,noreferrer')
+    }
+  } catch (error: unknown) {
+    message.error(extractApiError(error, '获取 IPA 下载链接失败'))
+  } finally {
+    downloadingAppId.value = null
   }
 }
 

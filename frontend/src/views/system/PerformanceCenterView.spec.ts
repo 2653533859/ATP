@@ -14,6 +14,10 @@ const {
   trend,
   triggerRun,
   testCreate,
+  testDelete,
+  runDelete,
+  listScripts,
+  deleteScript,
   nodeList,
   nodeCreate,
   nodeUpdate,
@@ -35,6 +39,10 @@ const {
   trend: vi.fn(),
   triggerRun: vi.fn(),
   testCreate: vi.fn(),
+  testDelete: vi.fn(),
+  runDelete: vi.fn(),
+  listScripts: vi.fn().mockResolvedValue([]),
+  deleteScript: vi.fn(),
   nodeList: vi.fn(),
   nodeCreate: vi.fn(),
   nodeUpdate: vi.fn(),
@@ -57,9 +65,13 @@ vi.mock('@/api', () => ({
     listNodes: nodeList,
     listTests: testList,
     listRuns: runList,
+    listScripts,
+    deleteScript,
     getTrend: trend,
     triggerRun,
     createTest: testCreate,
+    deleteTest: testDelete,
+    deleteRun: runDelete,
     createNode: nodeCreate,
     updateNode: nodeUpdate,
     deleteNode: nodeDelete,
@@ -512,6 +524,83 @@ describe('PerformanceCenterView', () => {
       name: '压测场景 A',
       script_object_name: 'scripts/demo.js',
     }))
+    wrapper.unmount()
+  })
+
+  it('supports deleting tests, runs, and managing uploaded scripts', async () => {
+    listScripts.mockResolvedValue([{ object_name: 'performance/scripts/smoke.js', filename: 'smoke.js', size: 512, last_modified: '2026-11-26T00:00:00Z' }])
+    testDelete.mockResolvedValue(undefined)
+    runDelete.mockResolvedValue(undefined)
+    deleteScript.mockResolvedValue(undefined)
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    await vm.openScriptManager()
+    expect(listScripts).toHaveBeenCalledWith(1)
+    expect(vm.scripts).toHaveLength(1)
+
+    await vm.deleteUploadedScript('performance/scripts/smoke.js')
+    expect(deleteScript).toHaveBeenCalledWith(1, 'performance/scripts/smoke.js')
+
+    await vm.deleteTest({ id: 3 })
+    expect(testDelete).toHaveBeenCalledWith(3)
+
+    await vm.deleteRun({ id: 9, status: 'success' })
+    expect(runDelete).toHaveBeenCalledWith(9)
+    expect(messageSuccess).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('prevents read-only viewer role from deleting tests, runs, or scripts', async () => {
+    const { createPinia, setActivePinia } = await import('pinia')
+    const { useAuthStore } = await import('@/stores/auth')
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.user = { id: 99, username: 'viewer1', email: 'v@example.com', role: 'viewer', is_active: true }
+
+    const wrapper = mount(PerformanceCenterView, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          AButton: true,
+          ASelect: true,
+          ASpace: true,
+          ASpin: true,
+          AEmpty: true,
+          ATable: true,
+          ATag: true,
+          ATooltip: true,
+          APopconfirm: true,
+          AStatistic: true,
+          AAlert: true,
+          AModal: true,
+          ADrawer: true,
+          AForm: true,
+          AFormItem: true,
+          AInput: true,
+          AInputNumber: true,
+          ARadioGroup: true,
+          ARadioButton: true,
+          AUpload: true,
+          AProgress: true,
+          KvEditor: true,
+          PerformanceOptionsEditor: true,
+          PerformanceNodePanel: true,
+          VChart: true,
+        },
+      },
+    })
+    await flushPromises()
+    const vm = wrapper.vm as any
+    expect(vm.canModify).toBe(false)
+    await vm.deleteTest({ id: 3 })
+    await vm.deleteRun({ id: 9, status: 'success' })
+    await vm.deleteUploadedScript('scripts/demo.js')
+    expect(testDelete).not.toHaveBeenCalled()
+    expect(runDelete).not.toHaveBeenCalled()
+    expect(deleteScript).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

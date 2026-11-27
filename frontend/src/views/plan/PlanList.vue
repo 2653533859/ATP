@@ -423,6 +423,7 @@
             <a-space>
               <a-button type="link" size="small" :loading="exportingPlanRunHtmlId === record.id" @click="handleExportPlanRunHtml(record.id)">HTML</a-button>
               <a-button type="link" size="small" :loading="exportingPlanRunPdfId === record.id" @click="handleExportPlanRunPdf(record.id)">PDF</a-button>
+              <a-button type="link" size="small" :loading="exportingPlanRunJunitId === record.id" @click="handleExportPlanRunJunit(record.id)">JUnit</a-button>
             </a-space>
           </template>
         </template>
@@ -645,6 +646,7 @@ const runsLoading = ref(false)
 const expandedRunKeys = ref<number[]>([])
 const exportingPlanRunHtmlId = ref<number | null>(null)
 const exportingPlanRunPdfId = ref<number | null>(null)
+const exportingPlanRunJunitId = ref<number | null>(null)
 
 const columns = computed(() => [
   { title: t('plan.columns.name'), dataIndex: 'name', key: 'name', ellipsis: true },
@@ -668,7 +670,7 @@ const runColumns = computed(() => [
     width: 170,
     customRender: ({ text }: { text?: string }) => formatTime(text ?? ''),
   },
-  { title: t('plan.runs_columns.export'), key: 'export', width: 160 },
+  { title: t('plan.runs_columns.export'), key: 'export', width: 205 },
 ])
 
 const autoBugColumns = computed(() => [
@@ -1066,6 +1068,18 @@ async function handleExportPlanRunPdf(runId: number) {
     message.error(getErrorMessage(error, t('plan.msg.export_pdf_failed')))
   } finally {
     exportingPlanRunPdfId.value = null
+  }
+}
+
+async function handleExportPlanRunJunit(runId: number) {
+  exportingPlanRunJunitId.value = runId
+  try {
+    const blob = await planApi.exportRunJunit(runId)
+    downloadBlob(blob, `plan-run-${runId}-junit.xml`)
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, t('plan.msg.export_junit_failed')))
+  } finally {
+    exportingPlanRunJunitId.value = null
   }
 }
 

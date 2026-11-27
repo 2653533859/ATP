@@ -307,6 +307,23 @@
                   <DisconnectOutlined /> 断开
                 </a-button>
               </a-popconfirm>
+              <a-popconfirm
+                v-if="canOperateDevices"
+                :title="t('device.recovery_confirm')"
+                @confirm="handleDisconnectionRecovery(asDevice(record))"
+              >
+                <a-button type="link" size="small" :loading="recoveringDeviceId === record.id">
+                  {{ t('device.recover_lease') }}
+                </a-button>
+              </a-popconfirm>
+              <a-button
+                v-if="isAdmin"
+                type="link"
+                size="small"
+                @click="openForceTakeoverModal(asDevice(record))"
+              >
+                {{ t('device.force_takeover') }}
+              </a-button>
               <a-popconfirm :title="t('device.confirm_delete')" @confirm="handleDelete(record.id)">
                 <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
               </a-popconfirm>
@@ -331,6 +348,25 @@
         </a-form-item>
         <a-form-item :label="t('device.fields.description')">
           <a-textarea v-model:value="editForm.description" :placeholder="t('device.placeholders.description')" :rows="3" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 管理员强制接管租约弹窗 -->
+    <a-modal
+      v-model:open="takeoverOpen"
+      :title="t('device.takeover_title')"
+      :ok-text="t('common.confirm')"
+      :cancel-text="t('common.cancel')"
+      :confirm-loading="takingOver"
+      @ok="handleForceTakeover"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('device.takeover_ttl')">
+          <a-input-number v-model:value="takeoverForm.ttl_seconds" :min="30" :max="7200" style="width: 100%" />
+        </a-form-item>
+        <a-form-item :label="t('device.takeover_reason')">
+          <a-input v-model:value="takeoverForm.reason" :placeholder="t('device.takeover_reason_placeholder')" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -536,6 +572,12 @@ const asDevice = (record: unknown) => record as DeviceItem
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.user?.role === 'admin')
+const canOperateDevices = computed(() => ['admin', 'engineer'].includes(auth.user?.role || ''))
+const recoveringDeviceId = ref<number | null>(null)
+const takeoverOpen = ref(false)
+const takingOver = ref(false)
+const takeoverTarget = ref<DeviceItem | null>(null)
+const takeoverForm = ref({ ttl_seconds: 900, reason: '' })
 let pageUnmounted = false
 
 const { t } = useI18n()
@@ -742,7 +784,7 @@ const columns = computed(() => [
   { title: t('device.columns.os'), key: 'os', width: 200 },
   { title: t('device.columns.resolution'), dataIndex: 'resolution', key: 'resolution', width: 120 },
   { title: t('device.columns.last_seen'), key: 'last_seen', width: 170 },
-  { title: t('device.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
+  { title: t('device.columns.action'), key: 'action', width: 280, fixed: 'right' as const },
 ])
 
 const filteredDevices = computed(() => {
@@ -1096,6 +1138,45 @@ async function handleDelete(id: number) {
     await loadDevices()
   } catch (e: unknown) {
     message.error(errorMessage(e, t('device.msg.delete_failed')))
+  }
+}
+
+async function handleDisconnectionRecovery(device: DeviceItem) {
+  if (!canOperateDevices.value) return
+  recoveringDeviceId.value = device.id
+  try {
+    await deviceApi.disconnectionRecovery(device.id)
+    message.success(t('device.msg.recovery_success'))
+    await loadDevices()
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('device.msg.recovery_failed')))
+  } finally {
+    recoveringDeviceId.value = null
+  }
+}
+
+function openForceTakeoverModal(device: DeviceItem) {
+  if (!isAdmin.value) return
+  takeoverTarget.value = device
+  takeoverForm.value = { ttl_seconds: 900, reason: '' }
+  takeoverOpen.value = true
+}
+
+async function handleForceTakeover() {
+  if (!isAdmin.value || !takeoverTarget.value) return
+  takingOver.value = true
+  try {
+    await deviceApi.forceTakeoverLease(takeoverTarget.value.id, {
+      ttl_seconds: takeoverForm.value.ttl_seconds,
+      reason: takeoverForm.value.reason.trim(),
+    })
+    takeoverOpen.value = false
+    message.success(t('device.msg.takeover_success'))
+    await loadDevices()
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('device.msg.takeover_failed')))
+  } finally {
+    takingOver.value = false
   }
 }
 

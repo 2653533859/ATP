@@ -64,9 +64,19 @@ vi.mock('@/stores/auth', () => ({
 }))
 vi.mock('@/api', () => ({
   apiContractAssetApi: { list: vi.fn().mockResolvedValue([]) },
-  apiScenarioApi: { list: apiScenarioList, create: apiScenarioCreate, delete: vi.fn() },
-  apiSchemaAssetApi: { list: vi.fn().mockResolvedValue([]) },
-  caseApi: { get: caseGet, list: caseList, run: caseRun, previewRequest, suggestAssertions },
+  apiScenarioApi: {
+    list: apiScenarioList,
+    create: apiScenarioCreate,
+    delete: vi.fn(),
+    validateDag: vi.fn().mockResolvedValue({ valid: true, total_nodes: 0, execution_order: [], sorted_nodes: [] }),
+    validateDataflow: vi.fn().mockResolvedValue({ valid: true, total_nodes: 0, total_variables: 0, missing_variable_count: 0, reverse_reference_count: 0, unused_variable_count: 0, missing_variables: [], reverse_references: [], unused_variables: [], variable_lineage: [] }),
+    startDebug: vi.fn(),
+    stepDebug: vi.fn(),
+    resumeDebug: vi.fn(),
+    stopDebug: vi.fn(),
+  },
+  apiSchemaAssetApi: { list: vi.fn().mockResolvedValue([]), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  caseApi: { get: caseGet, list: caseList, run: caseRun, previewRequest, suggestAssertions, listRequestFiles: vi.fn().mockResolvedValue([]), renameRequestFile: vi.fn(), deleteRequestFile: vi.fn() },
   environmentApi: { list: environmentList },
   projectApi: { list: projectList },
   runApi: { list: runList },
@@ -106,12 +116,17 @@ const tableStub = defineComponent({
 const globalStubs = {
   AAlert: passthrough('AAlert'),
   AButton: buttonStub,
+  ACheckboxGroup: passthrough('ACheckboxGroup'),
+  ADescriptions: passthrough('ADescriptions'),
+  ADescriptionsItem: passthrough('ADescriptionsItem'),
   ADrawer: passthrough('ADrawer'),
   AEmpty: passthrough('AEmpty'),
   AForm: passthrough('AForm'),
   AFormItem: passthrough('AFormItem'),
+  AInput: passthrough('AInput'),
   AInputSearch: passthrough('AInputSearch'),
   AModal: passthrough('AModal'),
+  APopconfirm: passthrough('APopconfirm'),
   APopover: passthrough('APopover'),
   ASelect: passthrough('ASelect'),
   ASpace: passthrough('ASpace'),
@@ -119,10 +134,14 @@ const globalStubs = {
   ATable: tableStub,
   ATag: passthrough('ATag'),
   ApiOutlined: true,
+  ClusterOutlined: true,
+  DownOutlined: true,
   FilterOutlined: true,
+  MinusCircleOutlined: true,
   PlayCircleOutlined: true,
   PlusOutlined: true,
   ReloadOutlined: true,
+  SendOutlined: true,
   ThunderboltOutlined: true,
 }
 
@@ -631,6 +650,150 @@ describe('ApiWorkbenchView', () => {
     expect(vm.selectedBatchCaseIds).toEqual([])
     expect(apiScenarioList).toHaveBeenCalledWith({ project_id: 2 })
 
+    wrapper.unmount()
+  })
+
+  it('creates, updates, and deletes schema assets from the manager drawer', async () => {
+    const apiModule = await import('@/api')
+    const schemaMock = vi.mocked(apiModule.apiSchemaAssetApi)
+    schemaMock.create.mockResolvedValue({ id: 5, name: 'UserSchema', definition: { type: 'object' } } as any)
+    schemaMock.update.mockResolvedValue({ id: 5, name: 'UserSchemaV2', definition: { type: 'object' } } as any)
+    schemaMock.delete.mockResolvedValue(undefined)
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openSchemaManager()
+    vm.openSchemaEditor(null)
+    vm.schemaFormName = 'UserSchema'
+    vm.schemaFormDescription = '用户返回结构'
+    vm.schemaFormDefinition = '{"type":"object","properties":{"id":{"type":"integer"}}}'
+    await vm.handleSaveSchema()
+    expect(schemaMock.create).toHaveBeenCalledWith(1, {
+      name: 'UserSchema',
+      description: '用户返回结构',
+      definition: { type: 'object', properties: { id: { type: 'integer' } } },
+    })
+
+    vm.openSchemaEditor({ id: 5, name: 'UserSchema', description: '旧', definition: { type: 'object' } })
+    vm.schemaFormName = 'UserSchemaV2'
+    await vm.handleSaveSchema()
+    expect(schemaMock.update).toHaveBeenCalledWith(5, expect.objectContaining({ name: 'UserSchemaV2' }))
+
+    await vm.handleDeleteSchema(5)
+    expect(schemaMock.delete).toHaveBeenCalledWith(5)
+    wrapper.unmount()
+  })
+
+  it('lists, renames, and deletes api request files', async () => {
+    const apiModule = await import('@/api')
+    const caseMock = vi.mocked(apiModule.caseApi)
+    caseMock.listRequestFiles.mockResolvedValue([
+      { object_name: 'api-files/projects/1/payload.json', filename: 'payload.json', size: 120, last_modified: '2026-11-27T00:00:00Z' },
+    ])
+    caseMock.renameRequestFile.mockResolvedValue({ object_name: 'api-files/projects/1/v2.json', old_object_name: 'api-files/projects/1/payload.json', filename: 'v2.json', content_type: 'application/json', size: 120 })
+    caseMock.deleteRequestFile.mockResolvedValue(undefined)
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.openRequestFilesManager()
+    await flushPromises()
+    expect(caseMock.listRequestFiles).toHaveBeenCalledWith(1)
+    expect(vm.requestFiles).toHaveLength(1)
+
+    vm.openRenameRequestFile({ object_name: 'api-files/projects/1/payload.json', filename: 'payload.json' })
+    vm.renameRequestFileForm.filename = 'v2.json'
+    await vm.handleRenameRequestFile()
+    expect(caseMock.renameRequestFile).toHaveBeenCalledWith(1, { object_name: 'api-files/projects/1/payload.json', filename: 'v2.json' })
+
+    await vm.handleDeleteRequestFile('api-files/projects/1/payload.json')
+    expect(caseMock.deleteRequestFile).toHaveBeenCalledWith(1, 'api-files/projects/1/payload.json')
+    wrapper.unmount()
+  })
+
+  it('validates scenario DAG topology and manages breakpoint debug sessions', async () => {
+    const apiModule = await import('@/api')
+    const scenarioMock = vi.mocked(apiModule.apiScenarioApi)
+    scenarioMock.startDebug.mockResolvedValue({
+      session_id: 'dbg_1',
+      state: 'paused',
+      current_node_index: 0,
+      total_nodes: 1,
+      breakpoints: ['step_1'],
+      context: {},
+      context_diff: {},
+      watchers: [],
+      history: [],
+    })
+    scenarioMock.stepDebug.mockResolvedValue({
+      session_id: 'dbg_1',
+      state: 'completed',
+      current_node_index: 1,
+      total_nodes: 1,
+      breakpoints: ['step_1'],
+      context: { token: 'abc' },
+      context_diff: { token: { old: undefined, new: 'abc' } },
+      watchers: [{ name: 'token', value: 'abc', type: 'str', changed_in_last_step: true }],
+      history: [{ node_id: 'step_1', status: 'passed' }],
+    })
+    scenarioMock.stopDebug.mockResolvedValue(undefined)
+
+    const wrapper = mount(ApiScenarioOrchestrator, {
+      props: {
+        projectId: 1,
+        moduleId: 10,
+        canModify: true,
+        cases: [],
+        scenarios: [],
+        environments: [{ id: 1, project_id: 1, name: 'dev', base_url: 'https://api.example.com', variables: { env_flag: '1' } } as any],
+        schemaAssets: [],
+        contractAssets: [],
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.selectedEnvId = 1
+    vm.addBlankStep()
+    vm.steps[0].url = '/api/v1/login'
+    vm.steps[0].extractions = [{ variable: 'token', type: 'jsonpath', expression: '$.data.token' }]
+    await vm.handleValidateDagAndDataflow()
+    expect(scenarioMock.validateDag).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          config: expect.objectContaining({
+            url: 'https://api.example.com/api/v1/login',
+            extractions: { token: '$.data.token' },
+          }),
+        }),
+      ]),
+    )
+    expect(scenarioMock.validateDataflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initial_context: expect.objectContaining({ base_url: 'https://api.example.com' }),
+        nodes: expect.arrayContaining([
+          expect.objectContaining({
+            config: expect.objectContaining({
+              extractions: { token: '$.data.token' },
+            }),
+          }),
+        ]),
+      }),
+    )
+
+    vm.openDebugSessionDrawer()
+    vm.debugWatchersText = 'token'
+    await vm.handleStartDebug()
+    expect(scenarioMock.startDebug).toHaveBeenCalled()
+    await vm.handleStepDebug()
+    expect(scenarioMock.stepDebug).toHaveBeenCalledWith('dbg_1')
+    // Closing drawer or restarting should release active debug session
+    await vm.handleStartDebug()
+    expect(scenarioMock.stopDebug).toHaveBeenCalledWith('dbg_1')
+    await vm.handleStopDebug()
+    expect(scenarioMock.stopDebug).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
 })

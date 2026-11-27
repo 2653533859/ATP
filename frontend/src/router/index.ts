@@ -351,6 +351,12 @@ const router = createRouter({
               component: () => import('@/views/system/DashboardAlertRulesView.vue'),
               meta: { requireAdmin: true, roles: ADMIN_ONLY },
             },
+            {
+              path: 'system/security',
+              name: 'system-security',
+              component: () => import('@/views/system/SecurityGovernanceView.vue'),
+              meta: { requireAdmin: true, roles: ADMIN_ONLY },
+            },
           ],
         },
         {

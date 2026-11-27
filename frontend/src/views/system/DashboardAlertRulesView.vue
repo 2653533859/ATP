@@ -78,7 +78,24 @@
         size="small"
         :pagination="false"
         :locale="{ emptyText: t('system_pages.dashboard_alert.empty_events') }"
-      />
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'action'">
+            <a-space>
+              <a-button
+                type="link"
+                size="small"
+                @click="toggleEventSnooze(asEvent(record))"
+              >
+                {{ isEventSnoozed(asEvent(record)) ? t('system_pages.dashboard_alert.unsnooze_event') : t('system_pages.dashboard_alert.snooze_event_1h') }}
+              </a-button>
+              <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDeleteEvent(record.id)">
+                <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
     </a-card>
 
     <a-modal
@@ -148,6 +165,7 @@ import {
 
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asRule = (record: unknown) => record as DashboardAlertRuleItem
+const asEvent = (record: unknown) => record as DashboardAlertEventItem
 
 type NotificationOption = {
   id: number
@@ -233,6 +251,7 @@ const eventColumns = computed(() => [
     dataIndex: 'snoozed_until',
     customRender: ({ text }: { text?: string }) => formatTime(text),
   },
+  { title: t('system_pages.dashboard_alert.columns.action'), key: 'action', width: 170 },
 ])
 
 function metricLabel(metric: DashboardAlertMetric): string {
@@ -394,6 +413,39 @@ async function handleDelete(id: number) {
     await dashboardAlertApi.deleteRule(id)
     message.success(t('system_pages.dashboard_alert.msg.delete_success'))
     await loadData()
+  } catch {
+    message.error(t('system_pages.dashboard_alert.msg.delete_failed'))
+  }
+}
+
+function isEventSnoozed(event: DashboardAlertEventItem): boolean {
+  if (!event.snoozed_until) return false
+  const ms = Date.parse(event.snoozed_until)
+  return Number.isFinite(ms) && ms > Date.now()
+}
+
+async function toggleEventSnooze(event: DashboardAlertEventItem) {
+  const nextSnooze = isEventSnoozed(event)
+    ? null
+    : new Date(Date.now() + 60 * 60 * 1000).toISOString()
+  try {
+    await dashboardAlertApi.updateEvent(event.id, { snoozed_until: nextSnooze })
+    message.success(
+      nextSnooze
+        ? t('system_pages.dashboard_alert.msg.event_snoozed')
+        : t('system_pages.dashboard_alert.msg.event_unsnoozed'),
+    )
+    await loadEvents()
+  } catch {
+    message.error(t('system_pages.dashboard_alert.msg.save_failed'))
+  }
+}
+
+async function handleDeleteEvent(id: number) {
+  try {
+    await dashboardAlertApi.deleteEvent(id)
+    message.success(t('system_pages.dashboard_alert.msg.event_deleted'))
+    await loadEvents()
   } catch {
     message.error(t('system_pages.dashboard_alert.msg.delete_failed'))
   }

@@ -51,6 +51,8 @@ vi.mock('@/api', () => ({
     delete: deviceDelete,
     connect: deviceConnect,
     claim: deviceClaim,
+    disconnectionRecovery: vi.fn().mockResolvedValue({}),
+    forceTakeoverLease: vi.fn().mockResolvedValue({}),
     screenshot: vi.fn(),
   },
 }))
@@ -416,5 +418,37 @@ describe('DeviceList RBAC, table filter, and remote worker selection', () => {
       worker_id: 'win-worker-1',
     })
     wrapper.unmount()
+  })
+
+  it('supports disconnection recovery and admin force takeover lease', async () => {
+    authState.user = { role: 'admin' }
+    deviceList.mockResolvedValue([
+      { id: 1, serial: 'emu-1', name: 'OnePlus', brand: 'OnePlus', model: '12', os_version: '14', status: 'busy', worker_id: null },
+    ])
+    const apiMod = await import('@/api')
+    const wrapper = mountDeviceList()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    await vm.handleDisconnectionRecovery({ id: 1 })
+    expect(apiMod.deviceApi.disconnectionRecovery).toHaveBeenCalledWith(1)
+
+    vm.openForceTakeoverModal({ id: 1 })
+    vm.takeoverForm.ttl_seconds = 600
+    vm.takeoverForm.reason = '调试卡死恢复'
+    await vm.handleForceTakeover()
+    expect(apiMod.deviceApi.forceTakeoverLease).toHaveBeenCalledWith(1, { ttl_seconds: 600, reason: '调试卡死恢复' })
+    wrapper.unmount()
+
+    // tester role must NOT operate disconnection recovery or admin force takeover
+    vi.clearAllMocks()
+    authState.user = { role: 'tester' }
+    const testerWrapper = mountDeviceList()
+    await flushPromises()
+    const testerVm = testerWrapper.vm as any
+    expect(testerVm.canOperateDevices).toBe(false)
+    await testerVm.handleDisconnectionRecovery({ id: 1 })
+    expect(apiMod.deviceApi.disconnectionRecovery).not.toHaveBeenCalled()
+    testerWrapper.unmount()
   })
 })

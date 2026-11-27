@@ -262,6 +262,7 @@
     <CaseHistoryDrawer
       :open="historyOpen"
       :case-id="caseId"
+      :can-modify="canModify"
       @close="historyOpen = false"
       @rolled="handleRolled"
     />

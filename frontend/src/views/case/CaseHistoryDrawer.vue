@@ -5,6 +5,12 @@
     :width="680"
     @close="$emit('close')"
   >
+    <div v-if="caseId && canEditSnapshots" class="history-toolbar">
+      <a-button type="primary" size="small" :loading="creatingSnapshot" @click="handleCreateSnapshot">
+        {{ t('case.history.create_snapshot') }}
+      </a-button>
+    </div>
+
     <a-empty v-if="!loading && snapshots.length === 0" :description="t('case.history.empty')" />
 
     <a-spin :spinning="loading">
@@ -51,15 +57,36 @@
               </a-collapse-panel>
             </a-collapse>
 
-            <div class="snapshot-actions">
-              <a-popconfirm
-                :title="t('case.history.rollback_confirm')"
-                @confirm="handleRollback(s.id)"
-              >
-                <a-button size="small" type="primary" ghost :loading="rollingBack === s.id">
-                  {{ t('case.history.rollback') }}
+            <div v-if="canEditSnapshots" class="snapshot-actions">
+              <a-space wrap>
+                <a-popconfirm
+                  :title="t('case.history.rollback_confirm')"
+                  @confirm="handleRollback(s.id)"
+                >
+                  <a-button size="small" type="primary" ghost :loading="rollingBack === s.id">
+                    {{ t('case.history.rollback') }}
+                  </a-button>
+                </a-popconfirm>
+                <a-button size="small" @click="openEditSnapshot(s)">
+                  {{ t('common.edit') }}
                 </a-button>
-              </a-popconfirm>
+                <a-popconfirm
+                  :title="t('case.history.clone_confirm')"
+                  @confirm="handleCloneSnapshot(s.id)"
+                >
+                  <a-button size="small" :loading="cloningSnapshot === s.id">
+                    {{ t('case.history.clone_case') }}
+                  </a-button>
+                </a-popconfirm>
+                <a-popconfirm
+                  :title="t('common.confirm_delete')"
+                  @confirm="handleDeleteSnapshot(s.id)"
+                >
+                  <a-button size="small" danger :loading="deletingSnapshot === s.id">
+                    {{ t('common.delete') }}
+                  </a-button>
+                </a-popconfirm>
+              </a-space>
             </div>
           </div>
         </a-timeline-item>
@@ -101,19 +128,38 @@
         </template>
       </a-table>
     </a-modal>
+
+    <a-modal
+      v-model:open="editSnapshotOpen"
+      :title="t('case.history.edit_title')"
+      :confirm-loading="savingSnapshot"
+      @ok="submitEditSnapshot"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('common.name')" required>
+          <a-input v-model:value="editSnapshotForm.name" />
+        </a-form-item>
+        <a-form-item :label="t('common.description')">
+          <a-textarea v-model:value="editSnapshotForm.description" :rows="3" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </a-drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
+import { getActivePinia } from 'pinia'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { formatLocalDateTime } from '@/utils/dateTime'
 import { caseApi, type CaseSnapshotItem } from '@/api'
+import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{
   open: boolean
   caseId: number | null
+  canModify?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -123,9 +169,22 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+const canEditSnapshots = computed(() => {
+  if (typeof props.canModify === 'boolean') return props.canModify
+  if (!getActivePinia()) return true
+  return useAuthStore().user?.role !== 'viewer'
+})
+
 const snapshots = ref<CaseSnapshotItem[]>([])
 const loading = ref(false)
 const rollingBack = ref<number | null>(null)
+const creatingSnapshot = ref(false)
+const cloningSnapshot = ref<number | null>(null)
+const deletingSnapshot = ref<number | null>(null)
+const editSnapshotOpen = ref(false)
+const savingSnapshot = ref(false)
+const editingSnapshotId = ref<number | null>(null)
+const editSnapshotForm = reactive({ name: '', description: '' })
 const currentPage = ref(1)
 const pageSize = 20
 const total = ref(0)
@@ -214,7 +273,7 @@ function formatTime(t: string) {
 }
 
 async function handleRollback(snapshotId: number) {
-  if (!props.caseId) return
+  if (!props.caseId || !canEditSnapshots.value) return
   rollingBack.value = snapshotId
   try {
     await caseApi.rollback(props.caseId, snapshotId)
@@ -227,9 +286,88 @@ async function handleRollback(snapshotId: number) {
     rollingBack.value = null
   }
 }
+
+async function handleCreateSnapshot() {
+  if (!props.caseId || !canEditSnapshots.value) return
+  creatingSnapshot.value = true
+  try {
+    await caseApi.createSnapshot(props.caseId, {})
+    message.success(t('case.history.msg.create_success'))
+    await loadSnapshots()
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.history.msg.create_failed')))
+  } finally {
+    creatingSnapshot.value = false
+  }
+}
+
+function openEditSnapshot(snapshot: CaseSnapshotItem) {
+  if (!canEditSnapshots.value) return
+  editingSnapshotId.value = snapshot.id
+  editSnapshotForm.name = snapshot.name
+  editSnapshotForm.description = snapshot.description || ''
+  editSnapshotOpen.value = true
+}
+
+async function submitEditSnapshot() {
+  if (!props.caseId || !editingSnapshotId.value || !canEditSnapshots.value) return
+  const name = editSnapshotForm.name.trim()
+  if (!name) {
+    message.warning(t('case.history.msg.name_required'))
+    return
+  }
+  savingSnapshot.value = true
+  try {
+    await caseApi.updateSnapshot(props.caseId, editingSnapshotId.value, {
+      name,
+      description: editSnapshotForm.description.trim() || null,
+    })
+    message.success(t('case.history.msg.update_success'))
+    editSnapshotOpen.value = false
+    await loadSnapshots()
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.history.msg.update_failed')))
+  } finally {
+    savingSnapshot.value = false
+  }
+}
+
+async function handleCloneSnapshot(snapshotId: number) {
+  if (!props.caseId || !canEditSnapshots.value) return
+  cloningSnapshot.value = snapshotId
+  try {
+    const cloned = await caseApi.cloneFromSnapshot(props.caseId, snapshotId, {})
+    message.success(t('case.history.msg.clone_success', { id: cloned.id }))
+    emit('rolled')
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.history.msg.clone_failed')))
+  } finally {
+    cloningSnapshot.value = null
+  }
+}
+
+async function handleDeleteSnapshot(snapshotId: number) {
+  if (!props.caseId || !canEditSnapshots.value) return
+  deletingSnapshot.value = snapshotId
+  try {
+    await caseApi.deleteSnapshot(props.caseId, snapshotId)
+    compareSelection.value = compareSelection.value.filter((id) => id !== snapshotId)
+    message.success(t('case.history.msg.delete_success'))
+    await loadSnapshots()
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.history.msg.delete_failed')))
+  } finally {
+    deletingSnapshot.value = null
+  }
+}
 </script>
 
 <style scoped>
+.history-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
 .snapshot-card {
   margin-bottom: 8px;
 }

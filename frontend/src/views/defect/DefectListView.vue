@@ -45,6 +45,14 @@
     <a-card class="defect-panel" :bordered="false">
       <div class="filter-row">
         <span class="filter-caption">{{ t('defect.filters') }}</span>
+        <a-input-search
+          v-model:value="keywordFilter"
+          allow-clear
+          :placeholder="t('defect.keyword_placeholder')"
+          style="width: 220px"
+          @search="reloadFirstPage"
+          @change="onKeywordChange"
+        />
         <a-select v-model:value="statusFilter" allow-clear :placeholder="t('defect.status_filter')" :options="statusOptions" @change="reloadFirstPage" />
         <a-select v-model:value="priorityFilter" allow-clear :placeholder="t('defect.priority_filter')" :options="priorityOptions" @change="reloadFirstPage" />
         <a-select v-model:value="severityFilter" allow-clear :placeholder="t('defect.severity_filter')" :options="severityOptions" @change="reloadFirstPage" />
@@ -67,6 +75,9 @@
               <span>{{ record.title }}</span>
               <small v-if="record.case_id">Case #{{ record.case_id }}</small>
             </button>
+            <div v-if="record.labels?.length" class="title-labels">
+              <a-tag v-for="label in record.labels.slice(0, 3)" :key="label">{{ label }}</a-tag>
+            </div>
           </template>
           <template v-else-if="column.key === 'status'">
             <a-tag :color="statusColor(record.status)">{{ t(`defect.status.${record.status}`) }}</a-tag>
@@ -84,14 +95,37 @@
             <span class="muted-text">{{ formatTime(record.updated_at) }}</span>
           </template>
           <template v-else-if="column.key === 'actions'">
-            <a-button type="link" size="small" @click="openDetail(asDefect(record))">{{ t('common.view_detail') }}</a-button>
+            <div class="row-actions">
+              <a-button type="link" size="small" @click="openDetail(asDefect(record))">{{ t('common.view_detail') }}</a-button>
+              <template v-if="canEditDefect">
+                <a-button
+                  v-for="action in quickTransitions(asDefect(record).status)"
+                  :key="action.status"
+                  type="link"
+                  size="small"
+                  :loading="transitioningId === record.id"
+                  @click="quickTransitionStatus(asDefect(record), action.status)"
+                >
+                  {{ action.label }}
+                </a-button>
+                <a-button
+                  type="link"
+                  size="small"
+                  danger
+                  :loading="deletingId === record.id"
+                  @click="confirmDeleteDefect(asDefect(record))"
+                >
+                  {{ t('defect.actions.delete') }}
+                </a-button>
+              </template>
+            </div>
           </template>
         </template>
       </a-table>
 
       <a-empty v-if="!loading && !defects.length" :description="t('common.no_data')" class="empty-state" />
       <div class="table-footer">
-        <span>{{ t('common.selected_count', { count: total }) }}</span>
+        <span>{{ t('defect.total_count', { count: total }) }}</span>
         <a-pagination v-model:current="page" :page-size="pageSize" :total="total" size="small" show-less-items @change="loadDefects" />
       </div>
     </a-card>
@@ -145,40 +179,59 @@
       </template>
     </a-drawer>
 
-    <a-drawer v-model:open="detailOpen" :title="t('defect.detail.title')" width="620px">
+    <a-drawer v-model:open="detailOpen" :title="t('defect.detail.title')" width="640px">
       <template v-if="selectedDefect">
         <div class="detail-heading">
           <span class="defect-id">#{{ selectedDefect.id }}</span>
           <h2>{{ selectedDefect.title }}</h2>
         </div>
         <a-descriptions :column="1" size="small" bordered>
+          <a-descriptions-item :label="t('defect.form.title')">
+            <a-input v-if="canEditDefect" v-model:value="editForm.title" size="small" :placeholder="t('defect.form.title_placeholder')" />
+            <span v-else>{{ selectedDefect.title }}</span>
+          </a-descriptions-item>
           <a-descriptions-item :label="t('defect.table.status')">
-            <a-select v-model:value="editForm.status" size="small" :options="statusOptions" style="width: 150px" />
+            <a-select v-model:value="editForm.status" size="small" :options="detailStatusOptions" :disabled="!canEditDefect" style="width: 160px" />
           </a-descriptions-item>
           <a-descriptions-item :label="t('defect.form.priority')">
-            <a-select v-model:value="editForm.priority" size="small" :options="priorityOptions" style="width: 150px" />
+            <a-select v-model:value="editForm.priority" size="small" :options="priorityOptions" :disabled="!canEditDefect" style="width: 160px" />
           </a-descriptions-item>
           <a-descriptions-item :label="t('defect.form.severity')">
-            <a-select v-model:value="editForm.severity" size="small" :options="severityOptions" style="width: 150px" />
+            <a-select v-model:value="editForm.severity" size="small" :options="severityOptions" :disabled="!canEditDefect" style="width: 160px" />
           </a-descriptions-item>
           <a-descriptions-item :label="t('defect.form.assignee')">
-            <a-select v-model:value="editForm.assignee_id" allow-clear size="small" :placeholder="t('defect.form.unassigned')" :options="assigneeOptions" :loading="membersLoading" style="width: 220px" />
+            <a-select v-model:value="editForm.assignee_id" allow-clear size="small" :placeholder="t('defect.form.unassigned')" :options="assigneeOptions" :loading="membersLoading" :disabled="!canEditDefect" style="width: 240px" />
+          </a-descriptions-item>
+          <a-descriptions-item :label="t('defect.form.labels')">
+            <a-input v-if="canEditDefect" v-model:value="editForm.labels" size="small" :placeholder="t('defect.form.labels_placeholder')" />
+            <span v-else>{{ (selectedDefect.labels || []).join(', ') || '—' }}</span>
+          </a-descriptions-item>
+          <a-descriptions-item :label="t('defect.form.resolution')">
+            <a-input v-if="canEditDefect" v-model:value="editForm.resolution" size="small" :placeholder="t('defect.form.resolution_placeholder')" />
+            <span v-else>{{ selectedDefect.resolution || '—' }}</span>
           </a-descriptions-item>
           <a-descriptions-item :label="t('defect.detail.created_at')">{{ formatTime(selectedDefect.created_at) }}</a-descriptions-item>
           <a-descriptions-item :label="t('defect.detail.updated_at')">{{ formatTime(selectedDefect.updated_at) }}</a-descriptions-item>
         </a-descriptions>
         <div class="detail-section">
           <div class="detail-section-title">{{ t('defect.detail.description') }}</div>
-          <p class="detail-description">{{ selectedDefect.description || t('defect.detail.no_description') }}</p>
+          <a-textarea v-if="canEditDefect" v-model:value="editForm.description" :rows="4" :placeholder="t('defect.form.description_placeholder')" />
+          <p v-else class="detail-description">{{ selectedDefect.description || t('defect.detail.no_description') }}</p>
         </div>
         <div class="detail-section">
-          <div class="detail-section-title">{{ t('defect.detail.run_links') }}</div>
+          <div class="detail-section-title external-title-row">
+            <span>{{ t('defect.detail.run_links') }}</span>
+            <a-button v-if="canEditDefect" size="small" @click="openLinkRunModal">{{ t('defect.detail.link_run') }}</a-button>
+          </div>
           <a-empty v-if="!selectedDefect.run_links.length" :description="t('defect.detail.no_evidence')" />
           <div v-for="link in selectedDefect.run_links" v-else :key="link.id" class="evidence-card">
             <div class="evidence-card-head">
               <a-tag color="geekblue">{{ t(`defect.evidence.run_type.${link.run_type}`) }}</a-tag>
               <span>#{{ link.run_id }}</span>
-              <a-button type="link" size="small" @click="openRun(link)">{{ t('defect.detail.open_run') }}</a-button>
+              <span class="evidence-card-actions">
+                <a-button type="link" size="small" @click="openRun(link)">{{ t('defect.detail.open_run') }}</a-button>
+                <a-button v-if="canEditDefect" type="link" size="small" danger @click="confirmUnlinkRun(link)">{{ t('defect.detail.unlink_run') }}</a-button>
+              </span>
             </div>
             <pre>{{ formatEvidence(link.evidence) }}</pre>
           </div>
@@ -223,15 +276,60 @@
               <a-button size="small" :loading="syncingExternalId === link.id" @click="syncExternalLink(link)">
                 {{ t('defect.external.sync') }}
               </a-button>
+              <a-button size="small" :loading="pushingExternalId === link.id" @click="pushExternalLink(link)">
+                {{ t('defect.external.push') }}
+              </a-button>
               <a-button size="small" type="link" danger @click="unlinkExternalLink(link)">
                 {{ t('defect.external.unlink') }}
               </a-button>
             </div>
           </div>
         </div>
-        <a-button type="primary" :loading="saving" @click="submitUpdate">{{ t('defect.form.update') }}</a-button>
+      </template>
+      <template #footer>
+        <div class="detail-footer-actions">
+          <div>
+            <a-button
+              v-if="canEditDefect && selectedDefect"
+              danger
+              :loading="deletingId === selectedDefect.id"
+              @click="confirmDeleteDefect(selectedDefect)"
+            >
+              {{ t('defect.actions.delete') }}
+            </a-button>
+          </div>
+          <div class="drawer-footer-actions">
+            <a-button @click="detailOpen = false">{{ t('defect.form.cancel') }}</a-button>
+            <a-button
+              v-if="canEditDefect"
+              type="primary"
+              :loading="saving"
+              :disabled="!editForm.title.trim()"
+              @click="submitUpdate"
+            >
+              {{ t('defect.form.update') }}
+            </a-button>
+          </div>
+        </div>
       </template>
     </a-drawer>
+    <a-modal
+      v-model:open="linkRunModalOpen"
+      :title="t('defect.detail.link_run_title')"
+      :confirm-loading="linkRunSaving"
+      :ok-button-props="{ disabled: !canSubmitLinkRun }"
+      @ok="submitLinkRun"
+      @cancel="linkRunModalOpen = false"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('defect.detail.run_type')" required>
+          <a-select v-model:value="linkRunForm.run_type" :options="runTypeOptions" />
+        </a-form-item>
+        <a-form-item :label="t('defect.detail.run_id')" required>
+          <a-input-number v-model:value="linkRunForm.run_id" :min="1" :precision="0" :placeholder="t('defect.detail.run_id_placeholder')" style="width: 100%" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
     <a-modal
       v-model:open="externalModalOpen"
       :title="externalModalTitle"
@@ -306,6 +404,7 @@ const requestedDefectId = ref<number | undefined>(positiveInt(route.query.defect
 const statusFilter = ref<DefectStatus | undefined>(undefined)
 const priorityFilter = ref<DefectPriority | undefined>(undefined)
 const severityFilter = ref<DefectSeverity | undefined>(undefined)
+const keywordFilter = ref('')
 const page = ref(1)
 const pageSize = 20
 const total = ref(0)
@@ -314,11 +413,20 @@ const membersLoading = ref(false)
 const createOpen = ref(false)
 const detailOpen = ref(false)
 const saving = ref(false)
+const transitioningId = ref<number | null>(null)
+const deletingId = ref<number | null>(null)
 const externalTrackers = ref<BugTrackerItem[]>([])
 const externalModalOpen = ref(false)
 const externalSaving = ref(false)
 const syncingExternalId = ref<number | null>(null)
+const pushingExternalId = ref<number | null>(null)
 const externalMode = ref<'create' | 'link'>('create')
+const linkRunModalOpen = ref(false)
+const linkRunSaving = ref(false)
+const linkRunForm = reactive({
+  run_type: 'case' as DefectRunType,
+  run_id: undefined as number | undefined,
+})
 const externalForm = reactive({
   tracker_id: undefined as number | undefined,
   external_key: '',
@@ -330,6 +438,22 @@ const contextRunType = ref<DefectRunType | undefined>(validRunType(route.query.r
 const contextRunId = ref<number | undefined>(positiveInt(route.query.run_id))
 const linkedRunView = computed(() => route.query.view === 'linked')
 
+const STATUS_TRANSITIONS: Record<DefectStatus, DefectStatus[]> = {
+  open: ['in_progress', 'resolved', 'closed'],
+  in_progress: ['open', 'resolved'],
+  resolved: ['reopened', 'closed'],
+  reopened: ['in_progress', 'resolved'],
+  closed: ['reopened'],
+}
+
+const QUICK_STATUS_MAP: Record<DefectStatus, DefectStatus[]> = {
+  open: ['in_progress', 'resolved'],
+  in_progress: ['resolved'],
+  resolved: ['closed', 'reopened'],
+  reopened: ['in_progress', 'resolved'],
+  closed: ['reopened'],
+}
+
 const createForm = reactive({
   title: '',
   description: '',
@@ -339,27 +463,37 @@ const createForm = reactive({
   labels: '',
 })
 const editForm = reactive({
+  title: '',
+  description: '',
   status: 'open' as DefectStatus,
   priority: 'P2' as DefectPriority,
   severity: 'major' as DefectSeverity,
+  resolution: '',
+  labels: '',
   assignee_id: undefined as number | undefined,
 })
 
 const projectOptions = computed(() => projects.value.map((item) => ({ label: item.name, value: item.id })))
 const assigneeOptions = computed(() => members.value.map((item) => ({ label: `${item.username} · ${item.role}`, value: item.user_id })))
 const statusOptions = computed(() => (['open', 'in_progress', 'resolved', 'reopened', 'closed'] as DefectStatus[]).map((value) => ({ label: t(`defect.status.${value}`), value })))
+const detailStatusOptions = computed(() => {
+  const current = selectedDefect.value?.status || editForm.status
+  const allowed = [current, ...(STATUS_TRANSITIONS[current] || [])]
+  return allowed.map((value) => ({ label: t(`defect.status.${value}`), value }))
+})
 const priorityOptions = computed(() => (['P0', 'P1', 'P2', 'P3'] as DefectPriority[]).map((value) => ({ label: value, value })))
 const severityOptions = computed(() => (['blocker', 'critical', 'major', 'minor', 'trivial'] as DefectSeverity[]).map((value) => ({ label: t(`defect.severity.${value}`), value })))
+const runTypeOptions = computed(() => (['case', 'suite', 'plan', 'android', 'performance'] as DefectRunType[]).map((value) => ({ label: t(`defect.evidence.run_type.${value}`), value })))
 const columns = computed(() => [
   { title: t('defect.table.id'), key: 'id', width: 72 },
   { title: t('defect.table.title'), key: 'title', ellipsis: true },
-  { title: t('defect.table.status'), key: 'status', width: 120 },
-  { title: t('defect.table.priority'), key: 'priority', width: 90 },
-  { title: t('defect.table.severity'), key: 'severity', width: 110 },
-  { title: t('defect.table.occurrence'), dataIndex: 'occurrence_count', key: 'occurrence', width: 100 },
-  { title: t('defect.table.evidence'), key: 'evidence', width: 90 },
+  { title: t('defect.table.status'), key: 'status', width: 110 },
+  { title: t('defect.table.priority'), key: 'priority', width: 85 },
+  { title: t('defect.table.severity'), key: 'severity', width: 100 },
+  { title: t('defect.table.occurrence'), dataIndex: 'occurrence_count', key: 'occurrence', width: 95 },
+  { title: t('defect.table.evidence'), key: 'evidence', width: 80 },
   { title: t('defect.table.updated_at'), key: 'updated_at', width: 150 },
-  { title: t('defect.table.actions'), key: 'actions', width: 110 },
+  { title: t('defect.table.actions'), key: 'actions', width: 255 },
 ])
 
 const openCount = computed(() => defects.value.filter((item) => item.status === 'open').length)
@@ -368,7 +502,9 @@ const resolvedCount = computed(() => defects.value.filter((item) => item.status 
 const evidenceCount = computed(() => defects.value.reduce((sum, item) => sum + item.run_links.length, 0))
 const occurrenceCount = computed(() => defects.value.reduce((sum, item) => sum + item.occurrence_count, 0))
 const canSubmitCreate = computed(() => Boolean(createForm.title.trim() && (contextRunId.value || projectId.value)))
+const canEditDefect = computed(() => auth.user?.role !== 'viewer')
 const canManageExternal = computed(() => ['admin', 'engineer'].includes(auth.user?.role || ''))
+const canSubmitLinkRun = computed(() => Boolean(linkRunForm.run_id && Number.isInteger(linkRunForm.run_id) && linkRunForm.run_id > 0))
 const contextRunLabel = computed(() => contextRunType.value && contextRunId.value
   ? `${t(`defect.evidence.run_type.${contextRunType.value}`)} #${contextRunId.value}`
   : '')
@@ -482,6 +618,7 @@ async function loadExternalTrackers(targetProjectId: number) {
 async function loadDefects() {
   loading.value = true
   try {
+    const trimmedKeyword = keywordFilter.value.trim()
     const result = await defectApi.list({
       project_id: projectId.value,
       run_type: linkedRunView.value ? contextRunType.value : undefined,
@@ -489,6 +626,7 @@ async function loadDefects() {
       status: statusFilter.value,
       priority: priorityFilter.value,
       severity: severityFilter.value,
+      ...(trimmedKeyword ? { keyword: trimmedKeyword } : {}),
       page: page.value,
       page_size: pageSize,
     })
@@ -552,6 +690,28 @@ async function loadDefects() {
 function reloadFirstPage() {
   page.value = 1
   void loadDefects()
+}
+
+function onKeywordChange() {
+  if (!keywordFilter.value.trim()) reloadFirstPage()
+}
+
+function quickActionLabel(status: DefectStatus) {
+  const map: Record<DefectStatus, string> = {
+    open: t('defect.status.open'),
+    in_progress: t('defect.actions.start'),
+    resolved: t('defect.actions.resolve'),
+    reopened: t('defect.actions.reopen'),
+    closed: t('defect.actions.close'),
+  }
+  return map[status]
+}
+
+function quickTransitions(status: DefectStatus) {
+  return (QUICK_STATUS_MAP[status] || []).map((nextStatus) => ({
+    status: nextStatus,
+    label: quickActionLabel(nextStatus),
+  }))
 }
 
 function onProjectChange(value: unknown) {
@@ -735,32 +895,157 @@ async function submitCreate() {
 
 function openDetail(item: DefectItem) {
   selectedDefect.value = { ...item, external_links: item.external_links || [] }
+  editForm.title = item.title
+  editForm.description = item.description || ''
   editForm.status = item.status
   editForm.priority = item.priority
   editForm.severity = item.severity
+  editForm.resolution = item.resolution || ''
+  editForm.labels = (item.labels || []).join(', ')
   editForm.assignee_id = item.assignee_id ?? undefined
   detailOpen.value = true
   void loadMembers(item.project_id)
   if (canManageExternal.value) void loadExternalTrackers(item.project_id)
 }
 
+function replaceDefectInState(updated: DefectItem) {
+  if (selectedDefect.value?.id === updated.id) {
+    selectedDefect.value = { ...updated, external_links: updated.external_links || [] }
+    editForm.title = updated.title
+    editForm.description = updated.description || ''
+    editForm.status = updated.status
+    editForm.priority = updated.priority
+    editForm.severity = updated.severity
+    editForm.resolution = updated.resolution || ''
+    editForm.labels = (updated.labels || []).join(', ')
+    editForm.assignee_id = updated.assignee_id ?? undefined
+  }
+  const index = defects.value.findIndex((item) => item.id === updated.id)
+  if (index >= 0) defects.value[index] = { ...updated, external_links: updated.external_links || [] }
+}
+
 async function submitUpdate() {
   if (!selectedDefect.value) return
+  const nextTitle = editForm.title.trim()
+  if (!nextTitle) {
+    message.warning(t('defect.title_required'))
+    return
+  }
   saving.value = true
   try {
-    selectedDefect.value = await defectApi.update(selectedDefect.value.id, {
+    const updated = await defectApi.update(selectedDefect.value.id, {
+      title: nextTitle,
+      description: editForm.description.trim() || null,
       status: editForm.status,
       priority: editForm.priority,
       severity: editForm.severity,
+      resolution: editForm.resolution.trim() || null,
+      labels: editForm.labels.split(',').map((item) => item.trim()).filter(Boolean),
       assignee_id: editForm.assignee_id ?? null,
     })
-    const index = defects.value.findIndex((item) => item.id === selectedDefect.value?.id)
-    if (index >= 0 && selectedDefect.value) defects.value[index] = selectedDefect.value
+    replaceDefectInState(updated)
     message.success(t('defect.msg.update_success'))
   } catch {
     message.error(t('defect.msg.save_failed'))
   } finally {
     saving.value = false
+  }
+}
+
+async function quickTransitionStatus(item: DefectItem, nextStatus: DefectStatus) {
+  transitioningId.value = item.id
+  try {
+    const updated = await defectApi.update(item.id, { status: nextStatus })
+    replaceDefectInState(updated)
+    message.success(t('defect.msg.status_updated', { status: t(`defect.status.${nextStatus}`) }))
+  } catch {
+    message.error(t('defect.msg.save_failed'))
+  } finally {
+    transitioningId.value = null
+  }
+}
+
+function confirmDeleteDefect(item: DefectItem) {
+  Modal.confirm({
+    title: t('defect.actions.delete_confirm', { id: item.id, title: item.title }),
+    okButtonProps: { danger: true },
+    onOk: async () => {
+      deletingId.value = item.id
+      try {
+        await defectApi.delete(item.id)
+        if (selectedDefect.value?.id === item.id) {
+          detailOpen.value = false
+          selectedDefect.value = null
+        }
+        message.success(t('defect.msg.delete_success'))
+        await loadDefects()
+      } catch {
+        message.error(t('defect.msg.delete_failed'))
+      } finally {
+        deletingId.value = null
+      }
+    },
+  })
+}
+
+function openLinkRunModal() {
+  linkRunForm.run_type = 'case'
+  linkRunForm.run_id = undefined
+  linkRunModalOpen.value = true
+}
+
+async function submitLinkRun() {
+  if (!selectedDefect.value || !canSubmitLinkRun.value || !linkRunForm.run_id) return
+  linkRunSaving.value = true
+  try {
+    const link = await defectApi.linkRun(selectedDefect.value.id, {
+      run_type: linkRunForm.run_type,
+      run_id: linkRunForm.run_id,
+    })
+    const existing = selectedDefect.value.run_links.filter((item) => item.id !== link.id)
+    replaceDefectInState({
+      ...selectedDefect.value,
+      run_links: [...existing, link],
+    })
+    linkRunModalOpen.value = false
+    message.success(t('defect.msg.link_run_success'))
+  } catch {
+    message.error(t('defect.msg.link_run_failed'))
+  } finally {
+    linkRunSaving.value = false
+  }
+}
+
+function confirmUnlinkRun(link: DefectRunLinkItem) {
+  if (!selectedDefect.value) return
+  Modal.confirm({
+    title: t('defect.detail.unlink_run_confirm'),
+    okButtonProps: { danger: true },
+    onOk: async () => {
+      try {
+        await defectApi.unlinkRun(selectedDefect.value!.id, link.id)
+        replaceDefectInState({
+          ...selectedDefect.value!,
+          run_links: selectedDefect.value!.run_links.filter((item) => item.id !== link.id),
+        })
+        message.success(t('defect.msg.unlink_run_success'))
+      } catch {
+        message.error(t('defect.msg.unlink_run_failed'))
+      }
+    },
+  })
+}
+
+async function pushExternalLink(link: DefectExternalLinkItem) {
+  if (!selectedDefect.value) return
+  pushingExternalId.value = link.id
+  try {
+    await defectApi.pushExternal(selectedDefect.value.id, link.id)
+    message.success(t('defect.external.push_success'))
+  } catch {
+    message.error(t('defect.external.push_failed'))
+  } finally {
+    pushingExternalId.value = null
   }
 }
 
@@ -1078,8 +1363,11 @@ onMounted(async () => {
 }
 
 .evidence-card-head { display: flex; align-items: center; gap: 7px; }
-.evidence-card-head .ant-btn { margin-left: auto; }
+.evidence-card-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
 .evidence-card pre { max-height: 240px; margin: 10px 0 0; overflow: auto; color: #52607a; font-size: 11px; white-space: pre-wrap; }
+.title-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.row-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.detail-footer-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
 
 @media (max-width: 820px) {
   .defect-hero { align-items: flex-start; flex-direction: column; }

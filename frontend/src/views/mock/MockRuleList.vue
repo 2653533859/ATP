@@ -88,6 +88,10 @@
             <a-button type="link" size="small" :disabled="!canModify" @click="openAIMockGeneration(asRule(record))">
               <ThunderboltOutlined />{{ t('mock.ai_generate_mock_short') }}
             </a-button>
+            <a-button type="link" size="small" @click="openSnapshots(asRule(record))">{{ t('mock.snapshots') }}</a-button>
+            <a-button type="link" size="small" @click="openSamples(asRule(record))">
+              {{ t('mock.samples_count', { count: record.recorded_samples?.length || 0 }) }}
+            </a-button>
             <a-button type="link" size="small" :disabled="!canModify" @click="openEdit(asRule(record))">{{ t('common.edit') }}</a-button>
             <a-button type="link" size="small" :disabled="!canModify" @click="handleCopy(asRule(record))">{{ t('mock.copy') }}</a-button>
             <a-popconfirm :disabled="!canModify" :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
@@ -278,6 +282,71 @@
         </template>
       </a-table>
     </a-drawer>
+
+    <a-drawer
+      v-model:open="snapshotsOpen"
+      :title="snapshotsRule ? `${t('mock.snapshots_title')} · ${snapshotsRule.name}` : t('mock.snapshots_title')"
+      width="640"
+    >
+      <a-empty v-if="!snapshotsLoading && !snapshots.length" :description="t('mock.snapshots_empty')" />
+      <a-table
+        v-else
+        :columns="snapshotColumns"
+        :data-source="snapshots"
+        :loading="snapshotsLoading"
+        row-key="id"
+        size="small"
+        :pagination="false"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'version'">
+            <a-tag color="blue">v{{ record.version }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'summary'">
+            <span>{{ record.snapshot_data?.method }} {{ record.snapshot_data?.path }} ({{ record.snapshot_data?.status_code }})</span>
+          </template>
+          <template v-else-if="column.key === 'created_at'">
+            {{ formatLocalDateTime(record.created_at) }}
+          </template>
+          <template v-else-if="column.key === 'action'">
+            <a-popconfirm
+              v-if="canModify"
+              :title="t('mock.rollback_confirm', { version: record.version })"
+              @confirm="handleRollbackSnapshot(record.id)"
+            >
+              <a-button type="link" size="small" :loading="rollingBackSnapshotId === record.id">
+                {{ t('mock.rollback') }}
+              </a-button>
+            </a-popconfirm>
+          </template>
+        </template>
+      </a-table>
+    </a-drawer>
+
+    <a-drawer
+      v-model:open="samplesOpen"
+      :title="samplesRule ? `${t('mock.samples_title')} · ${samplesRule.name}` : t('mock.samples_title')"
+      width="680"
+    >
+      <a-empty v-if="!samplesList.length" :description="t('mock.samples_empty')" />
+      <div v-else class="samples-list">
+        <div v-for="(sample, idx) in samplesList" :key="idx" class="sample-card">
+          <div class="sample-card-head">
+            <strong>#{{ idx + 1 }}</strong>
+            <a-button
+              v-if="canModify"
+              type="primary"
+              size="small"
+              :loading="promotingSampleIdx === idx"
+              @click="handlePromoteSample(idx)"
+            >
+              {{ t('mock.promote_sample') }}
+            </a-button>
+          </div>
+          <pre class="sample-json">{{ JSON.stringify(sample, null, 2) }}</pre>
+        </div>
+      </div>
+    </a-drawer>
   </div>
 </template>
 
@@ -288,7 +357,7 @@ import { PlusOutlined, ThunderboltOutlined, UnorderedListOutlined } from '@ant-d
 import { useI18n } from 'vue-i18n'
 import { formatLocalDateTime } from '@/utils/dateTime'
 import { useRoute, useRouter } from 'vue-router'
-import { mockRuleApi, projectApi, type MockAIGeneratedRule, type MockRuleItem, type ProjectItem } from '@/api'
+import { mockRuleApi, projectApi, type MockAIGeneratedRule, type MockRuleItem, type MockRuleSnapshotItem, type ProjectItem } from '@/api'
 import { getBackendOrigin } from '@/api/http'
 import { buildCasesQuery } from '@/utils/caseNavigation'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
@@ -371,6 +440,23 @@ const responseBodyModel = computed({
 const logsOpen = ref(false)
 const logs = ref<MockLogRecord[]>([])
 const currentSamples = ref<Array<Record<string, unknown>>>([])
+const snapshotsOpen = ref(false)
+const snapshotsLoading = ref(false)
+const snapshotsRule = ref<MockRuleRecord | null>(null)
+const snapshots = ref<MockRuleSnapshotItem[]>([])
+const rollingBackSnapshotId = ref<number | null>(null)
+const samplesOpen = ref(false)
+const samplesRule = ref<MockRuleRecord | null>(null)
+const samplesList = ref<Array<Record<string, unknown>>>([])
+const promotingSampleIdx = ref<number | null>(null)
+
+const snapshotColumns = computed(() => [
+  { title: t('mock.columns.version'), key: 'version', width: 80 },
+  { title: t('mock.snapshot_summary'), key: 'summary', ellipsis: true },
+  { title: t('mock.snapshot_note'), dataIndex: 'note', key: 'note', ellipsis: true },
+  { title: t('mock.columns.updated_at'), key: 'created_at', width: 165 },
+  { title: t('mock.columns.action'), key: 'action', width: 90 },
+])
 
 const mockBaseUrl = computed(() =>
   projectId.value ? `${getBackendOrigin()}/mock/${projectId.value}` : '',
@@ -389,7 +475,7 @@ const columns = computed(() => [
   { title: t('mock.columns.status'), key: 'is_enabled', width: 70 },
   { title: t('mock.columns.updated_at'), dataIndex: 'updated_at', width: 170,
     customRender: ({ text }: TableTextRender) => typeof text === 'string' ? formatLocalDateTime(text) : '-' },
-  { title: t('mock.columns.action'), key: 'action', width: 420, fixed: 'right' as const },
+  { title: t('mock.columns.action'), key: 'action', width: 540, fixed: 'right' as const },
 ])
 
 const logColumns = computed(() => [
@@ -732,9 +818,82 @@ async function refreshLogs() {
     message.error(getErrorMessage(err, t('mock.msg.load_logs_failed')))
   }
 }
+
+async function openSnapshots(rule: MockRuleRecord) {
+  snapshotsRule.value = rule
+  snapshotsOpen.value = true
+  snapshotsLoading.value = true
+  try {
+    const res = await mockRuleApi.listSnapshots(rule.id)
+    snapshots.value = res.items
+  } catch (err: unknown) {
+    snapshots.value = []
+    message.error(getErrorMessage(err, t('mock.msg.load_snapshots_failed')))
+  } finally {
+    snapshotsLoading.value = false
+  }
+}
+
+async function handleRollbackSnapshot(snapshotId: number) {
+  if (!snapshotsRule.value) return
+  rollingBackSnapshotId.value = snapshotId
+  try {
+    await mockRuleApi.rollback(snapshotsRule.value.id, snapshotId)
+    message.success(t('mock.msg.rollback_success'))
+    await Promise.all([loadRules(), openSnapshots(snapshotsRule.value)])
+  } catch (err: unknown) {
+    message.error(getErrorMessage(err, t('mock.msg.rollback_failed')))
+  } finally {
+    rollingBackSnapshotId.value = null
+  }
+}
+
+function openSamples(rule: MockRuleRecord) {
+  samplesRule.value = rule
+  samplesList.value = Array.isArray(rule.recorded_samples) ? rule.recorded_samples : []
+  samplesOpen.value = true
+}
+
+async function handlePromoteSample(sampleIndex: number) {
+  if (!samplesRule.value) return
+  promotingSampleIdx.value = sampleIndex
+  try {
+    await mockRuleApi.promoteSample(samplesRule.value.id, { sample_index: sampleIndex, enable: true })
+    message.success(t('mock.msg.promote_sample_success'))
+    await loadRules()
+  } catch (err: unknown) {
+    message.error(getErrorMessage(err, t('mock.msg.promote_sample_failed')))
+  } finally {
+    promotingSampleIdx.value = null
+  }
+}
 </script>
 
 <style scoped>
+.samples-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sample-card {
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--c-bg-subtle);
+}
+.sample-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.sample-json {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
 .mock-page {
   display: flex;
   flex-direction: column;

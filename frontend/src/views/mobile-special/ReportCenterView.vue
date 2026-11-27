@@ -127,6 +127,13 @@
               :disabled="!canModify"
               @click="handleStop(asRun(record))"
             >{{ t('mobile_special.reports.stop') }}</a-button>
+            <a-popconfirm
+              v-else-if="canModify"
+              :title="t('common.confirm_delete')"
+              @confirm="handleDeleteRun(asRun(record))"
+            >
+              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
+            </a-popconfirm>
           </template>
         </template>
         </a-table>
@@ -462,6 +469,18 @@ async function handleStop(record: MobileSpecialRunItem) {
     await loadOverview()
   } catch (e: unknown) {
     message.error(errorMessage(e, t('mobile_special.reports.msg.stop_failed')))
+  }
+}
+
+async function handleDeleteRun(record: MobileSpecialRunItem) {
+  if (!canModify.value) return
+  try {
+    await mobileSpecialApi.deleteRun(record.id)
+    message.success(t('mobile_special.msg.delete_success'))
+    await loadRuns()
+    await loadOverview()
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.msg.delete_failed')))
   }
 }
 
